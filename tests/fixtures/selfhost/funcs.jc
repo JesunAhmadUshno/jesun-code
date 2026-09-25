@@ -1,0 +1,30 @@
+note functions, recursion, closures, auto-call
+to add with a and b
+    give back a + b
+show add with 3 and 4
+to fact with n
+    if n is at most 1 then
+        give back 1
+    give back n * fact with n - 1
+show fact with 6
+to greet
+    give back "hi there"
+show greet
+to make_adder with x
+    to adder with y
+        give back x + y
+    give back adder
+add5 is make_adder with 5
+show add5 with 10
+counter is 0
+to bump
+    counter is counter + 1
+bump
+bump
+show counter
+to outer
+    v is "outer v"
+    to inner
+        give back v
+    show inner
+outer

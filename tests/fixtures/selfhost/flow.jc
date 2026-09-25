@@ -1,0 +1,26 @@
+note branches and loops
+n is 7
+if n is greater than 10 then
+    show "big"
+otherwise if n is greater than 5 then
+    show "medium"
+otherwise
+    show "small"
+total is 0
+repeat 5 times
+    total is total + 1
+show total
+i is 0
+repeat while i is less than 3
+    i is i + 1
+show i
+for each item in [10, 20, 30]
+    show item
+total is 0
+repeat 10 times
+    total is total + 1
+    if total is 3 then
+        skip
+    if total is 6 then
+        stop
+    show total

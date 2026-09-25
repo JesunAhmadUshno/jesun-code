@@ -1,0 +1,12 @@
+note string interpolation
+name is "Jesun"
+show "Hello, {name}!"
+show "1 + 2 is {1 + 2}"
+pair is [1, 2]
+show "nested {pair[0]} done"
+show "braces: {{literal}}"
+padded is "  x  "
+show "empty-ish {trim of padded} ok"
+to who
+    give back "smith"
+show "the {who} is in"
