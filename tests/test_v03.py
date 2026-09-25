@@ -9,6 +9,7 @@ import io
 import json
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -17,6 +18,11 @@ from pathlib import Path
 import jesun
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def mind_command(script: str) -> str:
+    """Build JESUNCODE_AI_COMMAND for a fixture mind, portable to Windows."""
+    return '"{}" "{}"'.format(sys.executable, (FIXTURES / script).as_posix())
 
 
 class ChunkRecorder:
@@ -43,7 +49,7 @@ def mind_and_home(script: str, home: str):
     tmp = tempfile.mkdtemp()
     old = dict(os.environ)
     try:
-        os.environ["JESUNCODE_AI_COMMAND"] = str(FIXTURES / script)
+        os.environ["JESUNCODE_AI_COMMAND"] = mind_command(script)
         os.environ["JESUN_CODE_HOME"] = home
         os.environ["MIND_COUNT_FILE"] = str(Path(tmp) / "count")
         os.environ["MIND_PROMPT_FILE"] = str(Path(tmp) / "prompt.txt")
@@ -55,8 +61,8 @@ def mind_and_home(script: str, home: str):
 
 
 class PersistentMemory(unittest.TestCase):
-    def run_two(self, first_src, second_src, first_script="mind_fixed.sh",
-                second_script="mind_save_prompt.sh"):
+    def run_two(self, first_src, second_src, first_script="mind_fixed.py",
+                second_script="mind_save_prompt.py"):
         home = tempfile.mkdtemp()
         try:
             with mind_and_home(first_script, home):
@@ -84,7 +90,7 @@ class PersistentMemory(unittest.TestCase):
     def test_remember_true_stays_in_this_run_only(self):
         home = tempfile.mkdtemp()
         try:
-            with mind_and_home("mind_fixed.sh", home):
+            with mind_and_home("mind_fixed.py", home):
                 jesun.execute('agent m\n    remember is true\nask m "hi" giving r\n')
             self.assertFalse((Path(home) / "memory" / "m.json").exists())
         finally:
@@ -93,7 +99,7 @@ class PersistentMemory(unittest.TestCase):
     def test_forget_clears_saved_memory(self):
         home = tempfile.mkdtemp()
         try:
-            with mind_and_home("mind_fixed.sh", home):
+            with mind_and_home("mind_fixed.py", home):
                 out = jesun.execute(
                     'agent m\n    remember is always\nask m "hi" giving r\nforget m\n'
                 )
@@ -105,7 +111,7 @@ class PersistentMemory(unittest.TestCase):
     def test_forget_clears_run_memory_too(self):
         home = tempfile.mkdtemp()
         try:
-            with mind_and_home("mind_append_prompt.sh", home) as prompt_file:
+            with mind_and_home("mind_append_prompt.py", home) as prompt_file:
                 jesun.execute(
                     'agent m\n    remember is always\nask m "one" giving r\n'
                     'forget m\nask m "two" giving r2\n'
@@ -120,7 +126,7 @@ class PersistentMemory(unittest.TestCase):
     def test_forget_nothing_saved(self):
         home = tempfile.mkdtemp()
         try:
-            with mind_and_home("mind_fixed.sh", home):
+            with mind_and_home("mind_fixed.py", home):
                 out = jesun.execute("forget ghost\n")
             self.assertEqual(out, "ghost has nothing to forget.\n")
         finally:
@@ -132,7 +138,7 @@ class PersistentMemory(unittest.TestCase):
             memdir = Path(home) / "memory"
             memdir.mkdir(parents=True)
             (memdir / "m.json").write_text("not json{{{", encoding="utf-8")
-            with mind_and_home("mind_fixed.sh", home):
+            with mind_and_home("mind_fixed.py", home):
                 out = jesun.execute(
                     'agent m\n    remember is always\nask m "hi" giving r\nshow r\n'
                 )
@@ -153,7 +159,7 @@ class PersistentMemory(unittest.TestCase):
                 f'    memory file is "{custom}"\n'
                 'ask m "hi" giving r\n'
             )
-            with mind_and_home("mind_fixed.sh", home):
+            with mind_and_home("mind_fixed.py", home):
                 jesun.execute(src)
             self.assertTrue(custom.exists())
             data = json.loads(custom.read_text(encoding="utf-8"))
@@ -188,7 +194,7 @@ class AgentToAgent(unittest.TestCase):
         )
         home = tempfile.mkdtemp()
         try:
-            with mind_and_home("mind_chain.sh", home):
+            with mind_and_home("mind_chain.py", home):
                 out = jesun.execute(src)
             self.assertEqual(out, "Brief: Sep 30.\n")
         finally:
@@ -210,7 +216,7 @@ class AgentToAgent(unittest.TestCase):
         )
         home = tempfile.mkdtemp()
         try:
-            with mind_and_home("mind_deep.sh", home):
+            with mind_and_home("mind_deep.py", home):
                 out = jesun.execute(src)
             self.assertEqual(
                 out, "Line 11: agents called agents too deep (3 levels max).\n"
@@ -228,7 +234,7 @@ class Streaming(unittest.TestCase):
         home = tempfile.mkdtemp()
         rec = ChunkRecorder()
         try:
-            with mind_and_home("mind_slow.sh", home):
+            with mind_and_home("mind_slow.py", home):
                 interp = jesun.Interpreter(stdin=io.StringIO(""), stdout=rec)
                 jesun.run_source(source, interp)
             return rec
@@ -249,7 +255,7 @@ class Streaming(unittest.TestCase):
         home = tempfile.mkdtemp()
         rec = ChunkRecorder()
         try:
-            with mind_and_home("mind_slow.sh", home):
+            with mind_and_home("mind_slow.py", home):
                 interp = jesun.Interpreter(stdin=io.StringIO(""), stdout=rec)
                 jesun.run_source(
                     'ask ai "go" giving r streaming\n'

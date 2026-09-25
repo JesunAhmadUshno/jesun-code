@@ -20,6 +20,11 @@ AI_VAR = "JESUNCODE_AI_COMMAND"
 COUNT_VAR = "MIND_COUNT_FILE"
 
 
+def mind_command(script: str) -> str:
+    """Build JESUNCODE_AI_COMMAND for a fixture mind, portable to Windows."""
+    return '"{}" "{}"'.format(sys.executable, (FIXTURES / script).as_posix())
+
+
 def with_env(**extra):
     old = dict(os.environ)
     os.environ.update(extra)
@@ -34,7 +39,7 @@ def restore_env(old):
 def run_mind(script, src):
     count = tempfile.NamedTemporaryFile(delete=False)
     count.close()
-    old = with_env(**{AI_VAR: str(FIXTURES / script), COUNT_VAR: count.name})
+    old = with_env(**{AI_VAR: mind_command(script), COUNT_VAR: count.name})
     try:
         return jesun.execute(src, "")
     finally:
@@ -57,7 +62,7 @@ def run_repl(lines):
 
 class AuditBugs(unittest.TestCase):
     def test_ai_stderr_traceback_sanitized(self):
-        out = run_mind("mind_traceback.sh", 'ask ai "hi" giving r\n')
+        out = run_mind("mind_traceback.py", 'ask ai "hi" giving r\n')
         self.assertEqual(out, "Line 1: the mind exited with an error.\n")
         self.assertNotIn("Traceback", out)
         self.assertNotIn("ValueError", out)
@@ -70,7 +75,7 @@ class AuditBugs(unittest.TestCase):
 
     def test_mind_cannot_call_unlisted_tool(self):
         out = run_mind(
-            "mind_sneaky.sh",
+            "mind_sneaky.py",
             'to listed\n    give back "ok"\n'
             'to secret\n    give back "CLASSIFIED"\n'
             'ask ai "hi" with tools [listed] giving answer\n'

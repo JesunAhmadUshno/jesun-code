@@ -16,6 +16,11 @@ COUNT_VAR = "MIND_COUNT_FILE"
 PROMPT_VAR = "MIND_PROMPT_FILE"
 
 
+def mind_command(script: str) -> str:
+    """Build JESUNCODE_AI_COMMAND for a fixture mind, portable to Windows."""
+    return '"{}" "{}"'.format(sys.executable, (FIXTURES / script).as_posix())
+
+
 @contextmanager
 def mind(script: str):
     count = tempfile.NamedTemporaryFile(delete=False)
@@ -23,7 +28,7 @@ def mind(script: str):
     prompt = tempfile.NamedTemporaryFile(delete=False)
     prompt.close()
     old = {k: os.environ.get(k) for k in (AI_VAR, COUNT_VAR, PROMPT_VAR)}
-    os.environ[AI_VAR] = str(FIXTURES / script)
+    os.environ[AI_VAR] = mind_command(script)
     os.environ[COUNT_VAR] = count.name
     os.environ[PROMPT_VAR] = prompt.name
     try:
@@ -51,25 +56,25 @@ AGENT_SRC = (
 
 class AgentBasics(unittest.TestCase):
     def test_define_and_ask(self):
-        with mind("mind_fixed.sh"):
+        with mind("mind_fixed.py"):
             out = jesun.execute(
                 AGENT_SRC + 'ask scout "is the disk okay?" giving report\nshow report\n'
             )
         self.assertEqual(out, "the sky is blue\n")
 
     def test_persona_reaches_mind(self):
-        with mind("mind_save_prompt.sh") as prompt_file:
+        with mind("mind_save_prompt.py") as prompt_file:
             jesun.execute(AGENT_SRC + 'ask scout "hi" giving r\n')
             sent = Path(prompt_file).read_text()
         self.assertIn("You are a careful systems researcher. Be brief.", sent)
 
     def test_agent_shows_cleanly(self):
-        with mind("mind_fixed.sh"):
+        with mind("mind_fixed.py"):
             out = jesun.execute(AGENT_SRC + "show scout\n")
         self.assertEqual(out, "<agent scout>\n")
 
     def test_defaults(self):
-        with mind("mind_fixed.sh"):
+        with mind("mind_fixed.py"):
             out = jesun.execute(
                 'agent plain\n'
                 '    persona is "hi"\n'
@@ -79,7 +84,7 @@ class AgentBasics(unittest.TestCase):
         self.assertEqual(out, "the sky is blue\n")
 
     def test_classic_ask_still_works(self):
-        with mind("mind_fixed.sh"):
+        with mind("mind_fixed.py"):
             out = jesun.execute(
                 'question is "what is up"\nask question giving r\nshow r\n',
                 "typed answer\n",
@@ -87,14 +92,14 @@ class AgentBasics(unittest.TestCase):
         self.assertEqual(out, "what is uptyped answer\n")
 
     def test_unknown_agent_did_you_mean(self):
-        with mind("mind_fixed.sh"):
+        with mind("mind_fixed.py"):
             out = jesun.execute(AGENT_SRC + 'ask scot "hi" giving r\n')
         self.assertEqual(
             out, 'Line 8: I do not know an agent called "scot". Did you mean "scout"?\n'
         )
 
     def test_ask_non_agent(self):
-        with mind("mind_fixed.sh"):
+        with mind("mind_fixed.py"):
             out = jesun.execute(
                 'to greet\n    show "hi"\nask greet "hi" giving r\n'
             )
@@ -133,7 +138,7 @@ class AgentBasics(unittest.TestCase):
 
 class AgentTools(unittest.TestCase):
     def test_tool_called(self):
-        with mind("mind_tools.sh"):
+        with mind("mind_tools.py"):
             out = jesun.execute(
                 'to read_logs\n    give back "ERROR: disk full"\n'
                 'agent watcher\n'
@@ -144,7 +149,7 @@ class AgentTools(unittest.TestCase):
         self.assertEqual(out, "the disk is full\n")
 
     def test_unlisted_tool_blocked(self):
-        with mind("mind_call_unknown.sh"):
+        with mind("mind_call_unknown.py"):
             out = jesun.execute(
                 'to secret\n    show "SECRET RAN"\n    give back "classified"\n'
                 'to read_logs\n    give back "logs"\n'
@@ -157,7 +162,7 @@ class AgentTools(unittest.TestCase):
         self.assertNotIn("SECRET RAN", out)
 
     def test_steps_exhausted_mentions_agent(self):
-        with mind("mind_never.sh"):
+        with mind("mind_never.py"):
             out = jesun.execute(
                 'to read_logs\n    give back "logs"\n'
                 'agent watcher\n'
@@ -172,7 +177,7 @@ class AgentTools(unittest.TestCase):
 
 class AgentMemory(unittest.TestCase):
     def test_remember_true_carries_history(self):
-        with mind("mind_append_prompt.sh") as prompt_file:
+        with mind("mind_append_prompt.py") as prompt_file:
             jesun.execute(
                 AGENT_SRC
                 + 'ask scout "first question" giving r1\n'
@@ -182,7 +187,7 @@ class AgentMemory(unittest.TestCase):
         self.assertEqual(log.count("first question"), 2)
 
     def test_remember_false_is_isolated(self):
-        with mind("mind_append_prompt.sh") as prompt_file:
+        with mind("mind_append_prompt.py") as prompt_file:
             jesun.execute(
                 'agent goldfish\n'
                 '    remember is false\n'

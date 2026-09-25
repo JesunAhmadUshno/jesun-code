@@ -1865,7 +1865,21 @@ class Interpreter:
         command = os.environ.get("JESUNCODE_AI_COMMAND", "").strip()
         if not command:
             fail(line, AI_NO_MIND)
-        argv = shlex.split(command)
+        if os.name == "nt":
+            # On Windows, shlex must not treat backslashes as escapes, or
+            # a path like C:\tools\mind.py would come out mangled.
+            # posix=False keeps quotes on the tokens, so strip the
+            # double quotes back off (use double quotes on Windows).
+            argv = [
+                token[1:-1]
+                if len(token) >= 2
+                and token.startswith('"')
+                and token.endswith('"')
+                else token
+                for token in shlex.split(command, posix=False)
+            ]
+        else:
+            argv = shlex.split(command)
         if not argv:
             fail(line, AI_NO_MIND)
         return argv

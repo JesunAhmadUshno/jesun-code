@@ -2,6 +2,20 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## v0.3.1
+
+Packaging fix over v0.3.0: the same language, plus the Windows AI-command
+path fix. First release with macOS and Windows binaries.
+
+- `JESUNCODE_AI_COMMAND` now splits Windows backslash paths correctly
+  (double-quote arguments that contain spaces on Windows).
+- Test-suite fixture minds are now Python scripts instead of shell scripts,
+  so the suite passes on Linux, macOS, and Windows.
+- The "did you mean" import suggestion test no longer depends on numpy
+  being installed.
+- The release workflow checks out the requested tag on manual runs instead
+  of the moving default branch.
+
 ## Unreleased (v0.4 in progress)
 
 Files and words. The `jpm` package manager is still to come; no release

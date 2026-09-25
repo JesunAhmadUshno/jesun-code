@@ -18,6 +18,11 @@ AI_VAR = "JESUNCODE_AI_COMMAND"
 COUNT_VAR = "MIND_COUNT_FILE"
 
 
+def mind_command(script: str) -> str:
+    """Build JESUNCODE_AI_COMMAND for a fixture mind, portable to Windows."""
+    return '"{}" "{}"'.format(sys.executable, (FIXTURES / script).as_posix())
+
+
 @contextmanager
 def mind(script: str):
     """Point JESUNCODE_AI_COMMAND at a fixture script, with a counter file."""
@@ -25,7 +30,7 @@ def mind(script: str):
     count.close()
     old_ai = os.environ.get(AI_VAR)
     old_count = os.environ.get(COUNT_VAR)
-    os.environ[AI_VAR] = str(FIXTURES / script)
+    os.environ[AI_VAR] = mind_command(script)
     os.environ[COUNT_VAR] = count.name
     try:
         yield count.name
@@ -91,12 +96,12 @@ class Bridge(unittest.TestCase):
         self.assertEqual(out, "7\n")
 
     def test_missing_module_with_suggestion(self):
-        out = jesun.execute("import numpyp\n")
+        out = jesun.execute("import jsoon\n")
         self.assertEqual(
             out,
-            'Line 1: I could not find the Python package "numpyp".'
-            ' Did you mean "numpy"?'
-            " If it is a pip package, install it first: pip install numpyp\n",
+            'Line 1: I could not find the Python package "jsoon".'
+            ' Did you mean "json"?'
+            " If it is a pip package, install it first: pip install jsoon\n",
         )
 
     def test_missing_module_plain(self):
@@ -137,12 +142,12 @@ class Bridge(unittest.TestCase):
 
 class Minds(unittest.TestCase):
     def test_ask_ai_fixed_answer(self):
-        with mind("mind_fixed.sh"):
+        with mind("mind_fixed.py"):
             out = jesun.execute('ask ai "summarize" giving r\nshow r\n')
         self.assertEqual(out, "the sky is blue\n")
 
     def test_ask_ai_with_tools(self):
-        with mind("mind_tools.sh") as count_file:
+        with mind("mind_tools.py") as count_file:
             out = jesun.execute(
                 'to read_logs\n    give back "ERROR: disk full"\n'
                 'ask ai "what is wrong" with tools [read_logs] giving answer\n'
@@ -153,7 +158,7 @@ class Minds(unittest.TestCase):
         self.assertEqual(made, 2)
 
     def test_ask_ai_unknown_tool_fed_back(self):
-        with mind("mind_unknown_tool.sh") as count_file:
+        with mind("mind_unknown_tool.py") as count_file:
             out = jesun.execute(
                 'to read_logs\n    give back "logs"\n'
                 'ask ai "hi" with tools [read_logs] giving answer\n'
@@ -164,7 +169,7 @@ class Minds(unittest.TestCase):
         self.assertEqual(made, 2)
 
     def test_ask_ai_steps_exhausted(self):
-        with mind("mind_never.sh"):
+        with mind("mind_never.py"):
             out = jesun.execute(
                 'to read_logs\n    give back "logs"\n'
                 'ask ai "hi" with tools [read_logs] within 3 steps giving answer\n'
@@ -184,9 +189,31 @@ class Minds(unittest.TestCase):
         )
 
     def test_ask_ai_prompt_must_be_text(self):
-        with mind("mind_fixed.sh"):
+        with mind("mind_fixed.py"):
             out = jesun.execute("ask ai 42 giving r\n")
         self.assertEqual(out, "Line 1: the question I ask the mind must be text.\n")
+
+
+class MindCommand(unittest.TestCase):
+    def _argv(self, command, os_name):
+        interp = jesun.Interpreter()
+        with mock.patch("os.name", os_name):
+            with mock.patch.dict(os.environ, {"JESUNCODE_AI_COMMAND": command}):
+                return interp._ai_argv(1)
+
+    def test_windows_backslash_path_survives(self):
+        argv = self._argv("C:\\tools\\ollama.exe run llama3.1", "nt")
+        self.assertEqual(argv, ["C:\\tools\\ollama.exe", "run", "llama3.1"])
+
+    def test_windows_quoted_path_with_spaces(self):
+        argv = self._argv(
+            '"C:\\Program Files\\mind\\mind.exe" --fast', "nt"
+        )
+        self.assertEqual(argv, ["C:\\Program Files\\mind\\mind.exe", "--fast"])
+
+    def test_posix_quoting_still_works(self):
+        argv = self._argv('"/opt/my mind/mind" run "hello world"', "posix")
+        self.assertEqual(argv, ["/opt/my mind/mind", "run", "hello world"])
 
 
 @unittest.skipUnless(shutil.which("tmux"), "tmux not installed")
