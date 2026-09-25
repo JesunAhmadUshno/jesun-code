@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/JesunAhmadUshno/jesun-code)](https://github.com/JesunAhmadUshno/jesun-code/releases)
 [![CI](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml/badge.svg)](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-79%20passing-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
+[![Tests](https://img.shields.io/badge/tests-112%20passing-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 A programming language that reads like plain English. If a sentence makes
@@ -27,7 +27,7 @@ Then:
 ```bash
 jesun program.jc   # run a file
 jesun              # open the REPL
-jesun --version    # Jesun.Code v0.2
+jesun --version    # Jesun.Code v0.3
 ```
 
 Prefer the source? `python3 jesun.py program.jc` works too (Python 3,
@@ -167,8 +167,31 @@ show brief2
 ```
 
 With `remember is true`, the agent carries conversation history across
-asks in the same run. See `examples/agent_scout.jc` and
-`docs/spec-v0.2.md`.
+asks in the same run. v0.3 goes deeper:
+
+```jesun
+agent researcher
+    persona is "You find facts. Be brief."
+    tools are [read_notes]
+    remember is always
+
+agent writer
+    persona is "You write launch briefs."
+    tools are [researcher]
+
+ask writer "brief me on the launch" giving brief streaming
+show brief
+```
+
+- `remember is always`: the agent's history is saved to
+  `~/.jesun-code/memory/<name>.json` after every ask and reloaded next
+  time, so it remembers across runs. `forget researcher` wipes it.
+- Agents can call agents: list an agent in another agent's `tools are`
+  and the mind reaches it with `CALL: researcher("find the date")`
+  (3 levels deep, max).
+- `streaming` prints the answer as it arrives, then binds it as usual.
+
+See `examples/deep_agent.jc` and `docs/spec-v0.3.md`.
 
 Real tmux underneath, plain English on top:
 
@@ -208,15 +231,17 @@ with real tools, and looks around through a tmux terminal. Run the suite:
 python3 -m unittest discover -s tests
 ```
 
-## What v0.2 is, honestly
+## What v0.3 is, honestly
 
-v0.2 ships as a native binary. You never install Python and never see it,
+v0.3 ships as a native binary. You never install Python and never see it,
 period. Under the hood the interpreter core is written in Python and
 bundled inside the binary; the full standard library rides along so the
 Python bridge works out of the box.
 
 The full language spec lives in `docs/spec-v0.1.md`; the v0.2 agent
-framework is specified in `docs/spec-v0.2.md`.
+framework is specified in `docs/spec-v0.2.md`, and deeper agents
+(persistent memory, agent-to-agent calls, streaming) in
+`docs/spec-v0.3.md`.
 
 ## Roadmap
 

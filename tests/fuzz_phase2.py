@@ -210,6 +210,116 @@ def main() -> int:
                           'agent a1\n    persona is "x"\nask a1 "hi" giving r\n',
                           {"JESUNCODE_AI_COMMAND": ""}))
 
+    # 5. v0.3 deeper agents: memory fields, forget, streaming, agent-to-agent
+    v3_fields = [
+        '    remember is always\n',
+        '    remember is true\n',
+        '    remember is false\n',
+        '    remember is maybe\n',
+        '    remember is\n',
+        '    memory file is "mem.json"\n',
+        '    memory file is ""\n',
+        '    memory file is 5\n',
+        '    memory file is\n',
+        '    memory is "x"\n',
+        '    memory file is "a.json"\n    memory file is "b.json"\n',
+        '    persona is "You help."\n',
+        '    steps are 2\n',
+        '    steps are 0\n',
+        '    tools are []\n',
+        '    tools are [v3a]\n',  # self-listing when the agent is v3a
+    ]
+    for i in range(40):
+        n = rng.randint(1, 4)
+        body = "".join(rng.choice(v3_fields) for _ in range(n))
+        src = f"to tool1\n    give back \"t\"\nagent v3a\n{body}"
+        tail = rng.choice([
+            "",
+            'ask v3a "hi" giving r\nshow r\n',
+            'ask v3a "hi" giving r streaming\nshow r\n',
+            'ask v3a "hi" giving r streaming streaming\n',
+            'ask v3a 42 giving r\n',
+            'forget v3a\n',
+            'forget\n',
+            'forget 42\n',
+            'forget "v3a"\n',
+            'forget tool1\n',
+            'forget nope\n',
+            'streaming\n',
+            'always\n',
+            'memory\n',
+        ])
+        home = str(TMP / f"v3home{i}")
+        extra = {"JESUNCODE_AI_COMMAND": MIND_OK, "JESUN_CODE_HOME": home}
+        problems.extend(check(f"v3-{i}", src + tail, extra))
+    # relative `memory file` paths resolve from the working directory:
+    # sweep up any the fuzz saved here.
+    for stray in ("mem.json", "a.json", "b.json"):
+        try:
+            (Path.cwd() / stray).unlink()
+        except OSError:
+            pass
+
+    # corrupt / hostile saved memory must warn in plain English, never crash
+    corrupt_home = TMP / "corrupt-home"
+    (corrupt_home / "memory").mkdir(parents=True, exist_ok=True)
+    seeds = {
+        "c1": "{{{not json",
+        "c2": '{"a": 1}',
+        "c3": '[["a", "b", "c"]]',
+        "c4": "[1, 2, 3]",
+        "c5": '"just a string"',
+        "c6": "[[\"a\", 5]]",
+        "c7": "",
+        "c8": "[" * 5000,
+    }
+    for nm, blob in seeds.items():
+        (corrupt_home / "memory" / f"{nm}.json").write_text(blob, encoding="utf-8")
+    for i, nm in enumerate(seeds):
+        src = (f"agent {nm}\n    remember is always\nask {nm} \"hi\" giving r\n"
+               f"show r\nforget {nm}\n")
+        problems.extend(check(
+            f"v3-corrupt-{i}", src,
+            {"JESUNCODE_AI_COMMAND": MIND_OK,
+             "JESUN_CODE_HOME": str(corrupt_home)}))
+
+    # agent-to-agent chains: depth 1..5, sometimes remembering, sometimes streaming
+    def chain_script(tag: str, names: list[str]) -> str:
+        cases = " ".join(
+            f'{j + 1}) printf \'CALL: {nm}("go")\\\\n\' ;;'
+            for j, nm in enumerate(names))
+        body = ('n=$(cat "$MIND_COUNT_FILE" 2>/dev/null || echo 0); '
+                'n=$((n + 1)); echo "$n" > "$MIND_COUNT_FILE"; '
+                f'case "$n" in {cases} *) printf \'done\\\\n\' ;; esac')
+        return mind_script(f"chain{tag}.sh", body)
+
+    for i in range(20):
+        depth = rng.randint(1, 5)
+        names = [f"ca{i}_{j}" for j in range(depth + 1)]
+        decls = ""
+        for j, nm in enumerate(names):
+            nxt = f"[{names[j + 1]}]" if j < depth else "[]"
+            mem = "\n    remember is always" if rng.random() < 0.4 else ""
+            decls += f"agent {nm}\n    tools are {nxt}{mem}\n"
+        stream = " streaming" if rng.random() < 0.4 else ""
+        src = decls + f'ask {names[0]} "go" giving r{stream}\nshow r\n'
+        script = chain_script(f"{i}", names[1:])
+        extra = {"JESUNCODE_AI_COMMAND": script,
+                 "MIND_COUNT_FILE": str(TMP / f"ccount{i}"),
+                 "JESUN_CODE_HOME": str(TMP / f"chainhome{i}")}
+        problems.extend(check(f"v3-chain-{i}-d{depth}", src, extra))
+
+    # streaming against hostile / slow / broken minds stays plain English
+    for i, (label, script) in enumerate([
+        ("ok", MIND_OK), ("garbage", MIND_GARBAGE), ("calls", MIND_CALLS),
+        ("tb", MIND_TRACEBACK), ("slow", MIND_SLOW),
+    ]):
+        src = ('agent sa\n    tools are []\n'
+               f'ask ai "hi" giving a streaming\nshow a\n'
+               f'ask sa "hi" giving b streaming\nshow b\n')
+        problems.extend(check(f"v3-stream-{label}", src,
+                              {"JESUNCODE_AI_COMMAND": script}))
+
     after = sessions()
     stray = {s for s in after - before if not s.startswith("jc_")}
     if stray:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Jesun.Code v0.2: an interpreter for a language that reads like plain English.
+"""Jesun.Code v0.3: an interpreter for a language that reads like plain English.
 
 Usage:
     python jesun.py program.jc   run a Jesun.Code file
@@ -25,7 +25,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-VERSION = "0.2"
+VERSION = "0.3"
 MAX_CALL_DEPTH = 100  # well under Python's own limit; the guard always fires first
 MAX_LOOP_RUNS = 1_000_000
 TOO_DEEP = "I got in too deep and stopped before falling over."
@@ -39,6 +39,8 @@ AI_NO_MIND = (
 )
 AI_TIMEOUT = 60
 TMUX_TIMEOUT = 10
+_MAX_AGENT_DEPTH = 3  # spec 19: how deep agents may call agents
+_MEMORY_TURNS_KEPT = 200  # cap on turns kept in a saved memory file
 CALL_RE = re.compile(r"^CALL:\s*([A-Za-z_][A-Za-z0-9_]*)\((.*)\)\s*$")
 
 
@@ -53,6 +55,10 @@ class JesunError(Exception):
         self.line = line
         self.message = message
         super().__init__(f"Line {line}: {message}")
+
+
+class _AgentDepthExceeded(JesunError):
+    """Agent-to-agent nesting passed the cap: ends the loop, never feeds back."""
 
 
 def fail(line: int, message: str) -> "None":
@@ -305,6 +311,9 @@ KEYWORDS: dict[str, str] = {
     "read": "READ", "close": "CLOSE",
     # v0.2: agents.
     "agent": "AGENT", "persona": "PERSONA", "remember": "REMEMBER",
+    # v0.3: deeper agents.
+    "always": "ALWAYS", "forget": "FORGET", "memory": "MEMORY",
+    "file": "FILE", "streaming": "STREAMING",
 }
 
 SIMPLE_TOKENS: dict[str, str] = {
@@ -613,6 +622,7 @@ class AskAi:
     tools: list[str]
     max_steps: int
     name: str
+    streaming: bool
     line: int
 
 
@@ -642,14 +652,15 @@ class TermClose:
     line: int
 
 
-# -- v0.2 AST: agents (spec 18) --------------------------------------------
+# -- v0.2 AST: agents (spec 18), v0.3 memory (spec 19) -----------------------
 
 @dataclass
 class AgentDef:
     name: str
     persona: Optional["Expr"]  # None when no persona line was given
     tools: list[str]
-    remember: bool
+    remember: str  # "off", "run" (this run only), or "always" (saved to disk)
+    memory_file: Optional["Expr"]  # None unless `memory file is ...` was given
     max_steps: int
     line: int
 
@@ -659,6 +670,13 @@ class AskAgent:
     agent_name: str
     prompt: "Expr"
     name: str  # variable to store the answer in
+    streaming: bool
+    line: int
+
+
+@dataclass
+class ForgetAgent:
+    name: str
     line: int
 
 
@@ -718,6 +736,8 @@ class Parser:
             return self.parse_funcdef()
         if tok.type == "AGENT":
             return self.parse_agent_def()
+        if tok.type == "FORGET":
+            return self.parse_forget()
         if tok.type == "GIVE":
             return self.parse_giveback()
         if tok.type == "STOP":
@@ -777,8 +797,21 @@ class Parser:
         prompt = self.parse_or()
         self.expect("GIVING", '"giving" followed by a name')
         name = self.expect("NAME", "a name to store the answer in").value
+        streaming = self._optional_streaming()
         self.expect("NEWLINE", "the end of the line")
-        return AskAgent(agent_name, prompt, name, tok.line)
+        return AskAgent(agent_name, prompt, name, streaming, tok.line)
+
+    def parse_forget(self) -> ForgetAgent:
+        tok = self.advance()  # FORGET
+        name = self.expect("NAME", "an agent name to forget").value
+        self.expect("NEWLINE", "the end of the line")
+        return ForgetAgent(name, tok.line)
+
+    def _optional_streaming(self) -> bool:
+        if self.peek().type == "STREAMING":
+            self.advance()
+            return True
+        return False
 
     def _agent_dup(self, seen: set[str], field: str, line: int) -> None:
         if field in seen:
@@ -802,7 +835,8 @@ class Parser:
         self.advance()  # INDENT
         persona: Optional[Expr] = None
         tools: list[str] = []
-        remember = False
+        remember = "off"
+        memory_file: Optional[Expr] = None
         max_steps = 10
         seen: set[str] = set()
         while self.peek().type != "DEDENT":
@@ -832,12 +866,21 @@ class Parser:
                 self.expect("IS", '"is"')
                 if self.peek().type == "TRUE":
                     self.advance()
-                    remember = True
+                    remember = "run"
                 elif self.peek().type == "FALSE":
                     self.advance()
-                    remember = False
+                    remember = "off"
+                elif self.peek().type == "ALWAYS":
+                    self.advance()
+                    remember = "always"
                 else:
-                    fail(self.peek().line, '"remember" needs true or false.')
+                    fail(self.peek().line, '"remember" needs true, false, or always.')
+            elif ftype == "MEMORY":
+                self._agent_dup(seen, "memory file", fline)
+                self.advance()
+                self.expect("FILE", '"file"')
+                self.expect("IS", '"is"')
+                memory_file = self.parse_or()
             elif ftype == "STEPS":
                 self._agent_dup(seen, "steps", fline)
                 self.advance()
@@ -852,10 +895,10 @@ class Parser:
                 else:
                     got = self.peek().type.lower()
                 fail(fline, f'I do not know the agent setting "{got}". '
-                            "I know: persona, tools, remember, steps.")
+                            "I know: persona, tools, remember, steps, memory file.")
             self.expect("NEWLINE", "the end of the line")
         self.advance()  # DEDENT
-        return AgentDef(name, persona, tools, remember, max_steps, tok.line)
+        return AgentDef(name, persona, tools, remember, memory_file, max_steps, tok.line)
 
     def parse_ask_ai(self, tok: Token) -> AskAi:
         self.advance()  # AI
@@ -881,8 +924,9 @@ class Parser:
                 self.expect("STEPS", '"steps"')
         self.expect("GIVING", '"giving" followed by a name')
         name = self.expect("NAME", "a name to store the answer in").value
+        streaming = self._optional_streaming()
         self.expect("NEWLINE", "the end of the line")
-        return AskAi(prompt, tools, max_steps, name, tok.line)
+        return AskAi(prompt, tools, max_steps, name, streaming, tok.line)
 
     def parse_import(self) -> Import:
         tok = self.advance()
@@ -1250,14 +1294,15 @@ class Function:
 
 @dataclass
 class Agent:
-    """A v0.2 named AI agent: persona, tools, memory, step budget."""
+    """A named AI agent: persona, tools, memory, step budget (v0.2, v0.3)."""
 
     name: str
     persona: Optional[str]
     tools: list[str]
-    remember: bool
+    remember: str  # "off", "run", or "always"
+    memory_file: Optional[str]  # resolved path, None means the default
     max_steps: int
-    history: list[tuple[str, str]]  # (prompt, answer) turns, this run only
+    history: list[tuple[str, str]]  # (prompt, answer) turns
     line: int
 
 
@@ -1288,9 +1333,10 @@ class Interpreter:
             TermSend: self.exec_term_send,
             TermRead: self.exec_term_read,
             TermClose: self.exec_term_close,
-            # v0.2: agents.
+            # v0.2: agents. v0.3: forgetting them.
             AgentDef: self.exec_agentdef,
             AskAgent: self.exec_ask_agent,
+            ForgetAgent: self.exec_forget,
         }
         self._EXPR_HANDLERS: dict[Any, Any] = {
             Literal: self.eval_literal,
@@ -1719,9 +1765,10 @@ class Interpreter:
         argv = self._ai_argv(stmt.line)
         if stmt.tools:
             answer = self._ai_tool_loop(argv, prompt, stmt.tools,
-                                        stmt.max_steps, stmt.line, env)
+                                        stmt.max_steps, stmt.line, env,
+                                        stream=stmt.streaming)
         else:
-            answer = self._ai_once(argv, prompt, stmt.line)
+            answer = self._ai_once(argv, prompt, stmt.line, stream=stmt.streaming)
         env.set(stmt.name, answer)
 
     # -- v0.2 agents ----------------------------------------------------------
@@ -1749,36 +1796,141 @@ class Interpreter:
                    + suggest(name, self._agent_names(env)))
 
     def exec_agentdef(self, stmt: AgentDef, env: Environment) -> None:
+        if stmt.name in stmt.tools:
+            fail(stmt.line, f"{stmt.name} cannot list itself as a tool.")
         persona: Optional[str] = None
         if stmt.persona is not None:
             persona = self._need_text(self.eval_expr(stmt.persona, env),
                                       stmt.line, "the agent's persona")
-        env.set(stmt.name, Agent(
+        memory_file: Optional[str] = None
+        if stmt.memory_file is not None:
+            memory_file = self._need_text(self.eval_expr(stmt.memory_file, env),
+                                          stmt.line, "the agent's memory file")
+        agent = Agent(
             name=stmt.name,
             persona=persona,
             tools=list(stmt.tools),
             remember=stmt.remember,
+            memory_file=memory_file,
             max_steps=stmt.max_steps,
             history=[],
             line=stmt.line,
-        ))
+        )
+        if agent.remember == "always":
+            self._load_agent_memory(agent, stmt.line)
+        env.set(stmt.name, agent)
+
+    # -- v0.3: memory that survives the run ---------------------------------
+    def _memory_base(self) -> "Path":
+        import os
+        from pathlib import Path
+        override = os.environ.get("JESUN_CODE_HOME", "").strip()
+        if override:
+            return Path(override)
+        return Path.home() / ".jesun-code"
+
+    def _default_memory_path(self, name: str) -> "Path":
+        safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in name)
+        return self._memory_base() / "memory" / f"{safe or 'agent'}.json"
+
+    def _agent_memory_path(self, agent: Agent) -> "Path":
+        from pathlib import Path
+        if agent.memory_file:
+            return Path(agent.memory_file)
+        return self._default_memory_path(agent.name)
+
+    def _load_agent_memory(self, agent: Agent, line: int) -> None:
+        path = self._agent_memory_path(agent)
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return
+        except OSError:
+            self.emit(f"Line {line}: saved memory for {agent.name} was unreadable, "
+                      "starting fresh.")
+            return
+        try:
+            import json
+            data = json.loads(raw)
+            if not isinstance(data, list):
+                raise ValueError("memory is not a list")
+            turns: list[tuple[str, str]] = []
+            for item in data:
+                if not isinstance(item, (list, tuple)) or len(item) != 2:
+                    raise ValueError("bad turn")
+                prompt_text, answer_text = item
+                if not isinstance(prompt_text, str) or not isinstance(answer_text, str):
+                    raise ValueError("bad turn")
+                turns.append((prompt_text, answer_text))
+        except Exception:
+            self.emit(f"Line {line}: saved memory for {agent.name} was unreadable, "
+                      "starting fresh.")
+            return
+        agent.history = turns
+
+    def _save_agent_memory(self, agent: Agent, line: int) -> None:
+        import json
+        path = self._agent_memory_path(agent)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            turns = agent.history[-_MEMORY_TURNS_KEPT:]
+            path.write_text(json.dumps(turns, ensure_ascii=False, indent=1),
+                            encoding="utf-8")
+        except Exception:
+            self.emit(f"Line {line}: I could not save memory for {agent.name}.")
+
+    def exec_forget(self, stmt: ForgetAgent, env: Environment) -> None:
+        agent: Optional[Agent] = None
+        seen: Optional[Environment] = env
+        while seen is not None:
+            value = seen.vars.get(stmt.name)
+            if isinstance(value, Agent):
+                agent = value
+                break
+            seen = seen.parent
+        if agent is not None:
+            agent.history = []
+            path = self._agent_memory_path(agent)
+        else:
+            path = self._default_memory_path(stmt.name)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            self.emit(f"{stmt.name} has nothing to forget.")
+            return
+        except OSError:
+            fail(stmt.line, f"I could not forget {stmt.name}.")
+        self.emit(f"Memory of {stmt.name} cleared.")
+
+    def _run_agent_ask(self, agent: Agent, prompt: str, line: int,
+                       env: Environment, depth: int = 0,
+                       stream: bool = False) -> str:
+        argv = self._ai_argv(line)
+        history = agent.history if agent.remember != "off" else None
+        answer = self._ai_tool_loop(argv, prompt, agent.tools,
+                                    agent.max_steps, line, env,
+                                    persona=agent.persona, history=history,
+                                    agent_name=agent.name,
+                                    agent_depth=depth, stream=stream)
+        if agent.remember != "off":
+            agent.history.append((prompt, answer))
+            if agent.remember == "always":
+                self._save_agent_memory(agent, line)
+        return answer
 
     def exec_ask_agent(self, stmt: AskAgent, env: Environment) -> None:
         agent = self._find_agent(stmt.agent_name, stmt.line, env)
         prompt = self._need_text(self.eval_expr(stmt.prompt, env), stmt.line,
                                  "the question I ask the agent")
-        argv = self._ai_argv(stmt.line)
-        history = agent.history if agent.remember else None
-        answer = self._ai_tool_loop(argv, prompt, agent.tools,
-                                    agent.max_steps, stmt.line, env,
-                                    persona=agent.persona, history=history,
-                                    agent_name=agent.name)
-        if agent.remember:
-            agent.history.append((prompt, answer))
+        answer = self._run_agent_ask(agent, prompt, stmt.line, env,
+                                     stream=stmt.streaming)
         env.set(stmt.name, answer)
 
-    def _ai_once(self, argv: list[str], prompt: str, line: int) -> str:
+    def _ai_once(self, argv: list[str], prompt: str, line: int,
+                 stream: bool = False) -> str:
         import subprocess
+        if stream:
+            return self._ai_once_streaming(argv, prompt, line)
         try:
             proc = subprocess.run(argv, input=prompt, capture_output=True,
                                   text=True, timeout=AI_TIMEOUT)
@@ -1795,6 +1947,70 @@ class Interpreter:
                 msg += f" It said: {first}"
             fail(line, msg)
         out = proc.stdout or ""
+        if out.endswith("\n"):
+            out = out[:-1]
+        if out.endswith("\r"):
+            out = out[:-1]
+        return out
+
+    def _ai_once_streaming(self, argv: list[str], prompt: str, line: int) -> str:
+        """Run the mind, printing each chunk of stdout as it arrives."""
+        import codecs
+        import select
+        import subprocess
+        import time
+        try:
+            proc = subprocess.Popen(argv, stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.DEVNULL, text=True)
+        except FileNotFoundError:
+            fail(line, "I could not run the mind command.")
+        except Exception:
+            fail(line, "I could not talk to the mind.")
+        chunks: list[str] = []
+        try:
+            assert proc.stdin is not None and proc.stdout is not None
+            proc.stdin.write(prompt)
+            proc.stdin.close()
+            # read1 does a single raw read, so select() really means
+            # "a chunk is here now". read() would block filling 4096 chars.
+            raw_out = proc.stdout.buffer
+            decoder = codecs.getincrementaldecoder("utf-8")()
+            deadline = time.monotonic() + AI_TIMEOUT
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    proc.kill()
+                    fail(line, "the mind took too long to answer (over 60 seconds).")
+                ready, _, _ = select.select([proc.stdout], [], [], remaining)
+                if not ready:
+                    proc.kill()
+                    fail(line, "the mind took too long to answer (over 60 seconds).")
+                data = raw_out.read1(4096)
+                if not data:
+                    break
+                text = decoder.decode(data)
+                if text:
+                    self.stdout.write(text)
+                    self.stdout.flush()
+                    chunks.append(text)
+            tail = decoder.decode(b"", final=True)
+            if tail:
+                self.stdout.write(tail)
+                self.stdout.flush()
+                chunks.append(tail)
+            proc.wait(timeout=5)
+        except JesunError:
+            raise
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            fail(line, "I could not talk to the mind.")
+        if proc.returncode != 0:
+            fail(line, "the mind exited with an error.")
+        out = "".join(chunks)
         if out.endswith("\n"):
             out = out[:-1]
         if out.endswith("\r"):
@@ -1822,7 +2038,8 @@ class Interpreter:
         return values
 
     def _run_tool(self, name: str, arg_values: list[Any],
-                  tools: list[str], line: int, env: Environment) -> str:
+                  tools: list[str], line: int, env: Environment,
+                  depth: int = 0) -> str:
         if name not in tools:
             return (f"RESULT of {name}: I only have these tools: "
                     f"{', '.join(tools)}. I do not know a tool called \"{name}\".")
@@ -1830,6 +2047,24 @@ class Interpreter:
             target = env.get(name, line)
         except JesunError:
             target = None
+        if isinstance(target, Agent):
+            # v0.3: agents calling agents.
+            if len(arg_values) != 1 or not isinstance(arg_values[0], str):
+                return (f"RESULT of {name}: I can only ask {name} one question "
+                        "at a time, as text.")
+            if depth + 1 > _MAX_AGENT_DEPTH:
+                raise _AgentDepthExceeded(
+                    line, "agents called agents too deep (3 levels max).")
+            try:
+                sub = self._run_agent_ask(target, arg_values[0], line, env,
+                                          depth=depth + 1)
+            except _AgentDepthExceeded:
+                raise
+            except JesunError as err:
+                return f"RESULT of {name}: {err.message}"
+            except Exception:
+                return f"RESULT of {name}: something went wrong running the agent."
+            return f"RESULT of {name}: {sub}"
         if not isinstance(target, Function):
             return f'RESULT of {name}: I do not know a tool called "{name}".'
         if len(arg_values) != len(target.params):
@@ -1849,7 +2084,8 @@ class Interpreter:
                       max_steps: int, line: int, env: Environment,
                       persona: Optional[str] = None,
                       history: Optional[list[tuple[str, str]]] = None,
-                      agent_name: Optional[str] = None) -> str:
+                      agent_name: Optional[str] = None,
+                      agent_depth: int = 0, stream: bool = False) -> str:
         if persona:
             head = persona.rstrip() + "\n\n"
         else:
@@ -1873,6 +2109,7 @@ class Interpreter:
                 argv,
                 transcript + f"\n\n(You have used {step} of {max_steps} steps.)",
                 line,
+                stream=stream,
             )
             calls: list[tuple[str, list[Any]]] = []
             answer_lines: list[str] = []
@@ -1885,7 +2122,8 @@ class Interpreter:
                     answer_lines.append(raw)
             if not calls:
                 return "\n".join(answer_lines).strip()
-            results = [self._run_tool(name, args, tools, line, env)
+            results = [self._run_tool(name, args, tools, line, env,
+                                        depth=agent_depth)
                        for name, args in calls]
             transcript += f"\n\nMind:\n{reply}\n\nResults:\n" + "\n".join(results)
         if agent_name:

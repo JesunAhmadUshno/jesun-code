@@ -105,7 +105,7 @@ class AgentBasics(unittest.TestCase):
         self.assertEqual(
             out,
             'Line 2: I do not know the agent setting "colour". '
-            "I know: persona, tools, remember, steps.\n",
+            "I know: persona, tools, remember, steps, memory file.\n",
         )
 
     def test_duplicate_setting(self):

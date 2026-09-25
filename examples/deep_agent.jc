@@ -1,0 +1,32 @@
+note deep_agent.jc: a two-agent research team with memory that survives the run.
+note Researcher remembers facts across runs. Writer calls researcher as a tool.
+note The final brief streams out as it is written.
+note Give it a real mind with: export JESUNCODE_AI_COMMAND="ollama run llama3.1"
+
+to read_notes
+    give back "Launch is Sep 30. Budget is 40k. Owner is Jesun."
+
+to read_calendar
+    give back "Sep 30 is a Wednesday. No conflicts on the calendar."
+
+agent researcher
+    persona is "You are Researcher, a careful fact finder. Answer in one short sentence."
+    tools are [read_notes, read_calendar]
+    remember is always
+    steps are 6
+
+agent writer
+    persona is "You are Writer. Turn facts into a three line brief."
+    tools are [researcher]
+    steps are 8
+
+show "Writing the brief (watch it stream):"
+ask writer "write the launch brief" giving brief streaming
+show "---"
+show "The brief, saved in a variable:"
+show brief
+
+show "Asking researcher what it remembers:"
+ask researcher "what launch facts do you remember?" giving recall
+show recall
+show "Run this again tomorrow: researcher still remembers, because its memory lives in ~/.jesun-code/memory."

@@ -2,6 +2,33 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## v0.3.0 - 2026-09-25
+
+Deeper agents: memory that survives the run, agents calling agents, and
+streaming answers.
+
+- `remember is always`: the agent's conversation history is saved to
+  `~/.jesun-code/memory/<name>.json` after every ask and reloaded when
+  the agent is defined again, so it remembers across runs. `JESUN_CODE_HOME`
+  redirects the base directory.
+- `memory file is "<path>"`: per-agent override for where memory is saved
+  (relative paths resolve from the working directory).
+- `forget <agent>`: wipes the saved memory (`Memory of scout cleared.`);
+  `scout has nothing to forget.` when there is nothing saved. Corrupt
+  memory files warn in plain English and start fresh, never crash.
+- Agents calling agents: an agent in another agent's `tools are` is
+  reachable with `CALL: researcher("find the date")`, using its own
+  persona, tools, memory, and step budget. Cap: 3 levels deep, then
+  `Line N: agents called agents too deep (3 levels max).` An agent
+  listing itself as a tool is a definition error.
+- `streaming` on `ask ai` and `ask <agent>`: the answer prints chunk by
+  chunk as it arrives, then binds to the variable as usual. Without it,
+  behavior is exactly v0.2.
+- `examples/deep_agent.jc`: a two-agent research team demo using all
+  three features. Full spec in `docs/spec-v0.3.md`.
+- `always`, `forget`, `memory`, `file`, `streaming` are now keywords.
+- 112 tests passing, plus the fuzz sweep extended with 100 v0.3 cases.
+
 ## v0.2.0 - 2026-09-25
 
 The agent framework. Anyone can build their own AI agents in plain English.
