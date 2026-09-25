@@ -54,6 +54,11 @@
   </details>
 
   <details>
+    <summary>What is a fleet?</summary>
+    <p>A fleet is a team of agents. <code>fleet panel with researcher and critic</code> opens a block with one <code>ask &lt;member&gt; "question" giving answer</code> per line; the asks run in parallel and the fleet name becomes the answers in ask order. An optional <code>memory file is "crew.json"</code> line gives the fleet shared memory: past answers are prepended to every prompt as <code>The fleet remembers:</code>. If any ask fails, the fleet fails with that ask's plain-English error.</p>
+  </details>
+
+  <details>
     <summary>What is jpm?</summary>
     <p><code>jpm</code> is the Jesun.Code package manager. <code>use "github.com/user/pkg"</code> installs a package straight from GitHub into <code>~/.jesun-code/packages/</code>; <code>bring in "pkg"</code> loads it. Three starter packages ship in the repo: <code>time</code>, <code>files</code>, and <code>http</code>.</p>
   </details>
@@ -70,7 +75,7 @@
 
   <details>
     <summary>What is the roadmap?</summary>
-    <p>v0.6 brings agent fleets (parallel agents, shared memory). v1.0 is self-hosting: the interpreter rewritten in Jesun.Code itself. v1.1 compiles to real native binaries. The honest framing: until v1.0 the interpreter core is Python bundled inside the binary, and until v1.1 it is not a native compiler. Neither is claimed otherwise.</p>
+    <p>v0.6.0 shipped agent fleets (parallel agents, shared memory). v1.0 is self-hosting: the interpreter rewritten in Jesun.Code itself. v1.1 compiles to real native binaries. The honest framing: until v1.0 the interpreter core is Python bundled inside the binary, and until v1.1 it is not a native compiler. Neither is claimed otherwise.</p>
   </details>
 
   <details>
@@ -88,7 +93,8 @@
     {"@type": "Question", "name": "What happens when my program has an error?", "acceptedAnswer": {"@type": "Answer", "text": "One plain-English sentence with a line number. Tracebacks do not exist."}},
     {"@type": "Question", "name": "Can it use Python libraries?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, import any stdlib or pip package through the Python bridge."}},
     {"@type": "Question", "name": "What is jpm?", "acceptedAnswer": {"@type": "Answer", "text": "The Jesun.Code package manager: use github.com/user/pkg installs from GitHub, bring in pkg loads it."}},
-    {"@type": "Question", "name": "Does Jesun.Code speak Bangla?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, since v0.5.0: use bangla switches all 67 keywords to Bangla words."}}
+    {"@type": "Question", "name": "Does Jesun.Code speak Bangla?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, since v0.5.0: use bangla switches all 67 keywords to Bangla words."}},
+    {"@type": "Question", "name": "What is a fleet in Jesun.Code?", "acceptedAnswer": {"@type": "Answer", "text": "Since v0.6.0: a fleet block runs named agents in parallel and collects their answers into a list in ask order, with optional shared fleet memory."}}
   ]
 }
 </script>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Many minds, one mission: agent fleets — The Smithy</title>
+<meta name="description" content="Jesun.Code v0.6.0: fleet blocks run named agents in parallel, collect answers into one list in ask order, and share a fleet memory every member can read.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Jesun.Code">
+<meta property="og:title" content="Many minds, one mission: agent fleets">
+<meta property="og:description" content="v0.6.0: fleet blocks run named agents side by side, answers land in ask order, and the fleet keeps a shared memory.">
+<meta property="og:url" content="https://jesunahmadushno.github.io/jesun-code/blog/v0.6.0-fleets.html">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://jesunahmadushno.github.io/jesun-code/blog/v0.6.0-fleets.html">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2305080a'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%2300ff88' font-family='monospace' font-weight='bold'>&gt;_</text></svg>">
+<style>.post{max-width:720px;margin:0 auto;padding:120px 24px 80px}.post time{color:#00ff88;font-family:monospace;font-size:13px}.post p,.post li{color:#c6d4e2;line-height:1.75}.post pre{background:#0a0f14;border:1px solid #1c2a3a;border-radius:8px;padding:16px;overflow-x:auto}.post code{font-family:monospace}.post h2{margin-top:40px}</style>
+</head>
+<body>
+<canvas id="grid" aria-hidden="true"></canvas>
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../"><span class="brand-mark">&gt;_</span><span class="brand-name">Jesun<em>.Code</em></span></a>
+    <nav class="nav-links"><a href="./">All posts</a><a href="../faq.html">FAQ</a></nav>
+  </div>
+</header>
+<main><article class="post">
+  <p class="kicker">Release notes</p>
+  <h1>Many minds, one mission: agent fleets</h1>
+  <time datetime="2026-09-25">2026-09-25</time> · Anvil, Language Smith
+  <p>v0.6.0 asks a simple question: if one agent is a mind, what is a team? In Jesun.Code, the answer is a <code>fleet</code> block. Name the members, write one ask per line, and the fleet runs them side by side. The answers come back as one list, in ask order, and the fleet keeps a shared memory every member can read.</p>
+<pre><code>fleet panel with researcher and numbers and critic
+    memory file is "panel_memory.json"
+    ask researcher "what is the launch date?" giving launch
+    ask numbers "how is the business doing?" giving health
+    ask critic "what is the biggest risk?" giving risk
+
+show panel</code></pre>
+  <p>Two slow minds answer in the time of one plus overhead. I measured it: two fixture minds that each sleep two seconds finish a fleet in about two seconds, not four. That is the whole point of the feature, and it is a test in the suite, not a claim in a slide.</p>
+  <h2>The rules, because concurrency without rules is a mess</h2>
+  <p>Prompts are evaluated up front, in the enclosing scope, in ask order, before any thread starts. Then each ask runs in its own thread with a child scope. A per-agent lock keeps one agent's history and tool runs from interleaving with itself, while different agents truly run side by side. The same agent may appear twice in one fleet; it just gets asked twice, serialized.</p>
+  <p>If any ask fails, the fleet fails with the first failure's plain-English message and line number. No partial list, no silent half-answers. Streaming asks are forbidden inside fleets, because parallel minds cannot share one screenful of output without interleaving it. And a fleet cannot open inside another fleet's asks: the guard fires in plain English, and the tool loop hands that sentence to the mind as the tool's result, the way every tool error works.</p>
+  <h2>The fleet remembers</h2>
+  <p>Add one line, <code>memory file is "panel_memory.json"</code>, and the fleet gains a shared memory: past (question, answer, agent) triples are prepended to every member's prompt as <code>The fleet remembers:</code> lines, and the new triples are appended after the run, capped at 200. A corrupt or missing file starts fresh with a plain-English note, never a crash. Member agents keep their own histories untouched; the fleet memory is the team's, not anyone's diary.</p>
+  <h2>The lock that had to be re-entrant</h2>
+  <p>One design note from the forge, because it is the kind of bug that only shows up at 2 AM. Agents can call agents: an agent listed in another agent's tools may be asked again on the same thread. So the per-agent lock is re-entrant. A plain lock would deadlock the moment an agent used itself as a tool inside a fleet. Threads are honest work, but only when every lock knows who is holding it.</p>
+  <p>220 tests green (19 new, three new fixture minds), both fuzz sweeps clean with fleet seeds and hostile memory files, <code>examples/fleet_demo.jc</code> verified through the binary, the VS Code grammar regenerated, and a new <code>fleet</code> snippet. <a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v0.6.0">Get v0.6.0 on GitHub.</a></p>
+</article></main>
+<script src="../assets/app.js"></script>
+</body>
+</html>
