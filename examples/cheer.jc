@@ -1,0 +1,12 @@
+note Jesun.Code: cheer program
+
+ask "What is your name? " giving name
+
+to cheer with name
+    repeat 3 times
+        show "Go, " + name + "!"
+
+if name is not "" then
+    cheer with name
+otherwise
+    show "The quiet type. I respect that."

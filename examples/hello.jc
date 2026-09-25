@@ -1,0 +1,13 @@
+note Hello in Jesun.Code: comments, showing, variables, asking
+
+name is "Jesun"
+show "Hello, " + name
+age is 29
+show age
+awake is true
+show awake
+mystery is nothing
+show mystery
+
+ask "What is your name? " giving friend
+show "Nice to meet you, " + friend

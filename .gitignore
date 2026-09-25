@@ -1,0 +1,16 @@
+# build outputs
+dist/
+build-venv/
+*.spec
+
+# python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# editors and OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

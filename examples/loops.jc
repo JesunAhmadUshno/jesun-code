@@ -1,0 +1,25 @@
+note Loops: all three kinds, stop, skip, nesting
+
+repeat 3 times
+    show "hi"
+
+count is 0
+repeat while count is less than 3
+    show count
+    count is count + 1
+
+for each friend in ["Mara", "Wren", "Leo"]
+    show friend
+
+repeat 10 times
+    show "stopping early"
+    stop
+
+for each n in [1, 2, 3, 4, 5]
+    if n is 3 then
+        skip
+    show n
+
+repeat 2 times
+    repeat 2 times
+        show "nested"

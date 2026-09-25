@@ -1,0 +1,191 @@
+"""Targeted fuzz for the Python bridge, minds, and tmux paths.
+
+Controlled environment: no network, fixtures for the mind, real tmux with
+cleanup. Every case must fail in plain English or succeed; violations:
+  - any non-JesunError exception escapes
+  - output contains "Traceback", 'File "', "0x", or a Python exception name
+  - a tmux session outside the jc_ slug namespace gets created
+
+Run: python3 tests/fuzz_phase2.py
+"""
+import os
+import random
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+import jesun  # noqa: E402
+
+jesun.MAX_LOOP_RUNS = 2000
+jesun.AI_TIMEOUT = 3  # fuzz-local: timeout path still exercised
+
+EXC_NAMES = re.compile(
+    r"\b(TypeError|ValueError|KeyError|IndexError|AttributeError|RecursionError|"
+    r"NameError|SyntaxError|RuntimeError|MemoryError|OSError|IOError|"
+    r"ZeroDivisionError|StopIteration|AssertionError|Exception)\b"
+)
+
+TMP = Path(tempfile.mkdtemp(prefix="jc-fuzz2-"))
+os.environ["JESUNCODE_AI_COMMAND"] = ""
+
+
+def mind_script(name: str, body: str) -> str:
+    p = TMP / name
+    p.write_text("#!/bin/sh\n" + body + "\n")
+    p.chmod(p.stat().st_mode | stat.S_IEXEC)
+    return str(p)
+
+
+MIND_OK = mind_script("ok.sh", 'printf "all good\\n"')
+MIND_GARBAGE = mind_script(
+    "garbage.sh",
+    'head -c 200000 /dev/urandom | base64 | head -c 50000; printf "\\n"',
+)
+MIND_CALLS = mind_script(
+    "calls.sh",
+    'printf "CALL: nope(\\nCALL: f(((\\nCALL: \\n"; head -c 100 /dev/zero | tr "\\0" "("; printf "\\n"',
+)
+MIND_TRACEBACK = mind_script(
+    "tb.sh", 'printf "Traceback (most recent call last):\\n  File \\"x\\", line 1\\nValueError: boom\\n" >&2; exit 1',
+)
+MIND_SLOW = mind_script("slow.sh", "sleep 30")
+
+MODULES = [
+    "math", "os", "os.path", "sys", "json", "re", "random",
+    "no_such_mod_xyz", "os.nope", "a.b.c.d.e", "math.",
+    "sys.modules", "os.path.join",
+]
+NAMES = ["w", "weird name!", "../../x", "", "a" * 100, "$(rm -rf /)", "x;y",
+         "semi;colon", "back`tick", "quo'te", "uni\u00e9\u4e2d", "  spaces  "]
+
+
+def check(label: str, src: str, env_extra: dict | None = None) -> list[str]:
+    problems: list[str] = []
+    old = dict(os.environ)
+    try:
+        if env_extra:
+            os.environ.update(env_extra)
+        out = jesun.execute(src, "")
+    except Exception as err:  # noqa: BLE001
+        return [f"{label}: {type(err).__name__} escaped: {err!r}\n---\n{src}"]
+    finally:
+        os.environ.clear()
+        os.environ.update(old)
+    for marker in ("Traceback", 'File "'):
+        if marker in out:
+            problems.append(f"{label}: leaked {marker!r}\n---\n{src}\n---\n{out[:800]}")
+    # 0x is only a leak in interpreter-generated error lines; a mind's own
+    # answer (or user data) may legitimately contain it.
+    for ln in out.split("\n"):
+        if ln.startswith("Line ") and "0x" in ln:
+            problems.append(f"{label}: leaked '0x' in error\n---\n{src}\n---\n{out[:800]}")
+            break
+    if EXC_NAMES.search(out):
+        problems.append(f"{label}: leaked exception name\n---\n{src}\n---\n{out[:800]}")
+    return problems
+
+
+def sessions() -> set[str]:
+    try:
+        out = subprocess.run(["tmux", "list-sessions", "-F", "#{session_name}"],
+                             capture_output=True, text=True, timeout=10).stdout
+        return set(out.split())
+    except Exception:
+        return set()
+
+
+def main() -> int:
+    rng = random.Random(987654)
+    problems: list[str] = []
+    before = sessions()
+
+    # 1. bridge: weird imports, attribute chains, foreign calls
+    for i in range(60):
+        mod = rng.choice(MODULES)
+        src = f"import {mod}\n" if not mod.endswith(".") else f"import math\n"
+        tail = rng.choice([
+            "show math\n", "show math.pi\n", "show math.sqrt(4)\n",
+            "show math.sqrt(-1)\n", "show math.nope\n", "show math.pi.pi\n",
+            "x is math.sqrt\nshow x(9)\n", "show [1,2][5]\n",
+            'show {"k": 1}["k"]\n',
+        ])
+        # note: dict literal is not Jesun.Code; use a real dict via json
+        src = f"import {mod}\nimport json as j\nd is j.loads('{{\"a\": 1}}')\n" + tail.replace(
+            '{"k": 1}["k"]', 'd["a"]').replace("math", mod.split(".")[0] if "." not in mod or mod in ("os.path",) else "math")
+        problems.extend(check(f"bridge-{i}", src))
+
+    # 2. minds: garbage / hostile / slow / tracebacking providers
+    to = 'to tool1 with x\n    give back "r:" + x\n'
+    for i, (label, script, extra) in enumerate([
+        ("mind-ok", MIND_OK, {"JESUNCODE_AI_COMMAND": MIND_OK}),
+        ("mind-garbage", MIND_GARBAGE, {"JESUNCODE_AI_COMMAND": MIND_GARBAGE}),
+        ("mind-calls", MIND_CALLS, {"JESUNCODE_AI_COMMAND": MIND_CALLS}),
+        ("mind-tb", MIND_TRACEBACK, {"JESUNCODE_AI_COMMAND": MIND_TRACEBACK}),
+        ("mind-slow", MIND_SLOW, {"JESUNCODE_AI_COMMAND": MIND_SLOW}),
+        ("mind-missing", "", {"JESUNCODE_AI_COMMAND": "/nonexistent/cmd_xyz"}),
+        ("mind-unset", "", {}),
+    ]):
+        src = to + f'ask ai "hi" with tools [tool1] within 3 steps giving a\nshow a\n'
+        if label == "mind-unset":
+            env = {k: v for k, v in os.environ.items() if k != "JESUNCODE_AI_COMMAND"}
+            old = dict(os.environ)
+            try:
+                os.environ.clear(); os.environ.update(env)
+                out = jesun.execute(src, "")
+            except Exception as err:
+                problems.append(f"{label}: {type(err).__name__} escaped: {err!r}")
+            else:
+                if "Traceback" in out or EXC_NAMES.search(out):
+                    problems.append(f"{label}: leak in {out[:400]}")
+            finally:
+                os.environ.clear(); os.environ.update(old)
+        else:
+            problems.extend(check(f"ai-{label}", src, extra))
+
+    # 3. tmux: hostile terminal names; every op must stay in plain English
+    for i in range(40):
+        nm = rng.choice(NAMES)
+        op = rng.choice(["open", "send", "read", "close"])
+        if op == "open":
+            src = f'open terminal named "{nm}"\n'
+        elif op == "send":
+            src = f'send "echo hi" to terminal "{nm}"\n'
+        elif op == "read":
+            src = f'read terminal "{nm}" giving o\nshow o\n'
+        else:
+            src = f'close terminal "{nm}"\n'
+        problems.extend(check(f"tmux-{i}-{op}", src))
+    # real open/send/read/close round trip, then cleanup
+    out = jesun.execute('open terminal named "fuzzlive"\n'
+                        'send "echo fuzz-ok" to terminal "fuzzlive"\n'
+                        'read terminal "fuzzlive" giving o\nshow o\n'
+                        'close terminal "fuzzlive"\n', "")
+    if "fuzz-ok" not in out:
+        problems.append(f"tmux round-trip failed: {out[:500]}")
+
+    after = sessions()
+    stray = {s for s in after - before if not s.startswith("jc_")}
+    if stray:
+        problems.append(f"tmux: stray sessions created: {stray}")
+    # cleanup anything we made
+    for s in after - before:
+        subprocess.run(["tmux", "kill-session", "-t", s],
+                       capture_output=True, timeout=10)
+
+    print(f"fuzz_phase2: {len(problems)} violations")
+    for p in problems[:10]:
+        print(p)
+        print("=====")
+    shutil.rmtree(TMP, ignore_errors=True)
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

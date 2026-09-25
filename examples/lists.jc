@@ -1,0 +1,16 @@
+note Lists and built-ins
+
+friends is ["Mara", "Wren", "Leo"]
+show friends
+show first of friends
+show last of friends
+show length of friends
+show uppercase of "hello"
+show lowercase of "LOUD"
+empty is []
+show length of empty
+show empty
+total is 0
+for each n in [1, 2, 3]
+    total is total + n
+show total

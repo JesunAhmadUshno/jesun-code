@@ -1,0 +1,21 @@
+note Functions: zero, one and two inputs, give back, recursion
+
+to dance
+    show "dancing, no inputs needed"
+
+to greet with name
+    show "Hello, " + name
+
+to add with a and b
+    give back a + b
+
+to factorial with n
+    if n is at most 1 then
+        give back 1
+    give back n * factorial with n - 1
+
+dance
+greet with "Jesun"
+show add with 2 and 3
+show factorial with 5
+show add with (add with 1 and 2) and 10

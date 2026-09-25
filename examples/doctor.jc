@@ -1,0 +1,35 @@
+note doctor.jc: a server doctor, written entirely in Jesun.Code.
+note It checks the machine, asks the AI for a diagnosis with real tools,
+note and looks around through a tmux terminal.
+
+import shutil
+import os
+
+show "doctor.jc is on rounds."
+
+disk is shutil.disk_usage("/")
+free_gb is disk[2] / 1000000000
+load is os.getloadavg()
+show "free disk (GB):"
+show free_gb
+show "one-minute load:"
+show load[0]
+
+to disk_report
+    give back free_gb
+
+to load_report
+    give back load[0]
+
+ask ai "A server reports free disk space in GB and a one-minute load average. Reply with one line: is anything wrong, and what should I check first?" with tools [disk_report, load_report] within 5 steps giving verdict
+show "diagnosis:"
+show verdict
+
+open terminal named "doctor"
+send "df -h / | tail -2" to terminal "doctor"
+read terminal "doctor" giving df_out
+show "the full disk picture:"
+show df_out
+close terminal "doctor"
+
+show "rounds complete."

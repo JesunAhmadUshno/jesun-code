@@ -1,0 +1,34 @@
+note Decisions: every comparison word
+
+score is 85
+if score is at least 90 then
+    show "A"
+otherwise if score is at least 80 then
+    show "B"
+otherwise if score is at least 70 then
+    show "C"
+otherwise
+    show "try again"
+
+name is "Jesun"
+if name is "Jesun" then
+    show "it is you"
+if name is not "Mara" then
+    show "not Mara"
+if score is greater than 100 then
+    show "impossible"
+if score is less than 0 then
+    show "impossible"
+if score is at most 85 then
+    show "at most 85"
+if "Jesun" contains "esu" then
+    show "contains works on text"
+friends is ["Mara", "Wren"]
+if friends contains "Wren" then
+    show "contains works on lists"
+if score is 85 and name is "Jesun" then
+    show "and works"
+if score is 0 or name is "Jesun" then
+    show "or works"
+if not (score is 0) then
+    show "not works"

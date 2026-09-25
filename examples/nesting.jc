@@ -1,0 +1,14 @@
+note Deep nesting: stop and skip only touch the innermost loop
+
+to find with target and haystack
+    repeat 3 times
+        for each item in haystack
+            if item is target then
+                show "found " + item
+                stop
+            if item is "skipme" then
+                skip
+            show "checking " + item
+    show "done searching"
+
+find with "b" and ["a", "skipme", "b", "c"]
