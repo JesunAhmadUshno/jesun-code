@@ -1,4 +1,4 @@
-# Jesun.Code v0.6 — fleets
+# Jesun.Code v0.6: fleets
 
 Status: shipped in v0.6.0 (2026-09-25). Previous: v0.5 (Bangla flavor, VS Code extension).
 
