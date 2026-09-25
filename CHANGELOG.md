@@ -29,7 +29,7 @@ until the milestone completes.
   `JESUNCODE_AI_COMMAND` protocol against the Gemini API (key from
   `GEMINI_API_KEY` or `~/.jesun-code/gemini.key`, free at
   aistudio.google.com/apikey with a Google sign-in; model from
-  `JESUNCODE_AI_MODEL`, default `gemini-2.5-flash`). Both installers fetch
+  `JESUNCODE_AI_MODEL`, default `gemini-3-flash-preview`). Both installers fetch
   it alongside the OpenAI provider.
 
 - `write <value> to file "<path>"`: writes text, replacing the file.

@@ -11,7 +11,7 @@ Setup:
 The key comes from GEMINI_API_KEY, or from the first line of
 ~/.jesun-code/gemini.key (chmod 600 that file). Get a free key at
 https://aistudio.google.com/apikey (sign in with Google, no billing needed).
-Pick the model with JESUNCODE_AI_MODEL (default gemini-2.5-flash).
+Pick the model with JESUNCODE_AI_MODEL (default gemini-3-flash-preview).
 
 Then in Jesun.Code:
     ask ai "write a haiku about compilers" giving poem
@@ -34,7 +34,7 @@ def fail(message):
 
 
 def main():
-    model = os.environ.get("JESUNCODE_AI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("JESUNCODE_AI_MODEL", "gemini-3-flash-preview")
     if not re.fullmatch(r"[A-Za-z0-9_.\-]+", model):
         fail("That model name does not look right: %r." % model)
     key = os.environ.get("GEMINI_API_KEY", "").strip()

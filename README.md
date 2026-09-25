@@ -172,7 +172,7 @@ export JESUNCODE_AI_COMMAND="$HOME/.jesun-code/providers/gemini-provider"
 
 Prefer an environment variable? Set `GEMINI_API_KEY` instead of the key
 file. Pick the model with `JESUNCODE_AI_MODEL` (default
-`gemini-2.5-flash`).
+`gemini-3-flash-preview`).
 
 ### Give it a real AI brain (OpenAI)
 
