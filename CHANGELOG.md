@@ -7,6 +7,13 @@ All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 Files and words. The `jpm` package manager is still to come; no release
 until the milestone completes.
 
+- OpenAI provider: `scripts/ai-providers/openai-provider` implements the
+  `JESUNCODE_AI_COMMAND` protocol against the OpenAI Responses API (key
+  from `OPENAI_API_KEY` or `~/.jesun-code/openai.key`, model from
+  `JESUNCODE_AI_MODEL`, default `gpt-4o-mini`). Both installers now fetch
+  it to `~/.jesun-code/providers/openai-provider`, and the README shows
+  the one-minute setup.
+
 - `write <value> to file "<path>"`: writes text, replacing the file.
   `append <value> to file "<path>"`: adds to the end. Values convert the
   way `show` converts them, so numbers, lists, and `nothing` work.

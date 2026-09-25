@@ -5,7 +5,9 @@
 #      release of JesunAhmadUshno/jesun-code.
 #   2. Installs it to $HOME\bin\jesun.exe (or $env:JESUNCODE_INSTALL_DIR).
 #   3. Adds that folder to your *user* PATH (not system-wide).
-#   4. Runs `jesun --version` to prove the install works.
+#   4. Downloads the OpenAI provider script for `ask ai` to
+#      $HOME\.jesun-code\providers (optional, harmless if it fails).
+#   5. Runs `jesun --version` to prove the install works.
 #
 # It installs nothing else, changes nothing else, and sends nothing anywhere.
 # To uninstall: delete $HOME\bin\jesun.exe and remove the folder from your PATH.
@@ -24,6 +26,18 @@ Invoke-WebRequest -Uri $Url -OutFile (Join-Path $Dest "jesun.exe")
 
 & (Join-Path $Dest "jesun.exe") --version
 Write-Host "Installed to $(Join-Path $Dest 'jesun.exe')"
+
+$ProviderDir = Join-Path $HOME ".jesun-code\providers"
+New-Item -ItemType Directory -Force -Path $ProviderDir | Out-Null
+Write-Host "Downloading the OpenAI provider for ``ask ai`` (optional) ..."
+try {
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/main/scripts/ai-providers/openai-provider" `
+        -OutFile (Join-Path $ProviderDir "openai-provider")
+    Write-Host "AI provider installed to $(Join-Path $ProviderDir 'openai-provider')"
+} catch {
+    Write-Host "Could not download the AI provider; Jesun.Code itself installed fine."
+    Write-Host "Get it later from https://github.com/$Repo/tree/main/scripts/ai-providers"
+}
 
 $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($UserPath -notlike "*$Dest*") {

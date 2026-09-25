@@ -145,6 +145,29 @@ With `with tools`, the mind calls your functions by writing
 `CALL: name(arg1, arg2)`; Jesun.Code runs them and feeds the results back
 until the mind answers or runs out of steps (10 by default).
 
+### Give it a real AI brain (OpenAI)
+
+The installer already put a provider script at
+`~/.jesun-code/providers/openai-provider`. To switch it on:
+
+```bash
+printf '%s' 'sk-your-key' > ~/.jesun-code/openai.key
+chmod 600 ~/.jesun-code/openai.key
+export JESUNCODE_AI_COMMAND="$HOME/.jesun-code/providers/openai-provider"
+```
+
+Get a key at platform.openai.com. Prefer an environment variable? Set
+`OPENAI_API_KEY` instead of the key file. Pick the model with
+`JESUNCODE_AI_MODEL` (default `gpt-4o-mini`).
+
+On Windows (PowerShell):
+
+```powershell
+$env:JESUNCODE_AI_COMMAND = "py $HOME\.jesun-code\providers\openai-provider"
+```
+
+Then `ask ai` and every agent talks to a real model.
+
 ## Agents
 
 v0.2: named, reusable AI agents with a persona, their own tools, and

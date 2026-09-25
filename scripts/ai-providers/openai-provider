@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""Jesun.Code AI provider backed by OpenAI.
+
+Implements the JESUNCODE_AI_COMMAND protocol: reads the prompt on stdin,
+writes the answer on stdout, and prints a short plain-English message on
+stderr with a nonzero exit when something goes wrong.
+
+Setup:
+    export JESUNCODE_AI_COMMAND="$HOME/.jesun-code/providers/openai-provider"
+
+The key comes from OPENAI_API_KEY, or from the first line of
+~/.jesun-code/openai.key (chmod 600 that file).
+Pick the model with JESUNCODE_AI_MODEL (default gpt-4o-mini).
+
+Then in Jesun.Code:
+    ask ai "write a haiku about compilers" giving poem
+    show poem
+"""
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+API_URL = "https://api.openai.com/v1/responses"
+TIMEOUT = 55
+
+
+def fail(message):
+    sys.stderr.write(message + "\n")
+    sys.exit(1)
+
+
+def main():
+    model = os.environ.get("JESUNCODE_AI_MODEL", "gpt-4o-mini")
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not key:
+        keyfile = os.path.expanduser("~/.jesun-code/openai.key")
+        try:
+            with open(keyfile, encoding="utf-8") as handle:
+                key = handle.read().strip().split()[0]
+        except (OSError, IndexError):
+            key = ""
+    if not key:
+        fail("No OpenAI key found. Set OPENAI_API_KEY, or save your key as "
+             "the first line of ~/.jesun-code/openai.key (and chmod 600 it).")
+
+    prompt = sys.stdin.read()
+    if not prompt.strip():
+        fail("Nothing to ask: the prompt was empty.")
+
+    body = json.dumps({"model": model, "input": prompt}).encode("utf-8")
+    request = urllib.request.Request(
+        API_URL,
+        data=body,
+        headers={"Authorization": "Bearer " + key,
+                 "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            data = json.load(response)
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = json.load(exc).get("error", {}).get("message", "")
+        except Exception:
+            pass
+        fail("OpenAI refused the request."
+             + (" It said: " + detail if detail else ""))
+    except Exception:
+        fail("I could not reach OpenAI. Check your connection and try again.")
+
+    parts = []
+    for item in data.get("output", []):
+        for content in item.get("content", []):
+            if content.get("type") in ("output_text", "text"):
+                parts.append(content.get("text", ""))
+    answer = "".join(parts).strip()
+    if not answer:
+        fail("OpenAI answered, but I could not find any text in its reply.")
+    sys.stdout.write(answer + "\n")
+
+
+if __name__ == "__main__":
+    main()

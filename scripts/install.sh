@@ -6,7 +6,9 @@
 #   2. Downloads the matching jesun binary from the latest GitHub release
 #      of JesunAhmadUshno/jesun-code.
 #   3. Installs it to ~/.local/bin/jesun (or $JESUNCODE_INSTALL_DIR if set).
-#   4. Runs `jesun --version` to prove the install works.
+#   4. Downloads the OpenAI provider script for `ask ai` to
+#      ~/.jesun-code/providers/openai-provider (optional, harmless if it fails).
+#   5. Runs `jesun --version` to prove the install works.
 #
 # It installs nothing else, changes nothing else, and sends nothing anywhere.
 # To uninstall: delete ~/.local/bin/jesun.
@@ -57,6 +59,18 @@ else
   exit 1
 fi
 chmod +x "$DEST/jesun"
+
+PROVIDER_DIR="$HOME/.jesun-code/providers"
+mkdir -p "$PROVIDER_DIR"
+echo "Downloading the OpenAI provider for \`ask ai\` (optional) ..."
+if curl -fsSL -o "$PROVIDER_DIR/openai-provider" \
+    "https://raw.githubusercontent.com/${REPO}/main/scripts/ai-providers/openai-provider"; then
+  chmod +x "$PROVIDER_DIR/openai-provider"
+  echo "AI provider installed to $PROVIDER_DIR/openai-provider"
+else
+  echo "Could not download the AI provider; Jesun.Code itself installed fine." >&2
+  echo "Get it later from https://github.com/${REPO}/tree/main/scripts/ai-providers" >&2
+fi
 
 "$DEST/jesun" --version
 echo "Installed to $DEST/jesun"
