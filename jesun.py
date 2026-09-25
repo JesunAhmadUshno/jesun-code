@@ -2109,14 +2109,26 @@ class Interpreter:
 
             def _reader() -> None:
                 decoder = codecs.getincrementaldecoder("utf-8")()
+                carry = ""
                 while True:
                     data = raw_out.read1(4096)
                     if not data:
                         break
-                    text = decoder.decode(data)
+                    text = carry + decoder.decode(data)
+                    # Match the non-streaming path, which reads in text
+                    # mode with universal newlines: a mind printing "\n"
+                    # on Windows really emits "\r\n" on the pipe. Hold a
+                    # trailing "\r" back so a split "\r\n" still normalizes.
+                    if text.endswith("\r"):
+                        carry = "\r"
+                        text = text[:-1]
+                    else:
+                        carry = ""
+                    text = text.replace("\r\n", "\n").replace("\r", "\n")
                     if text:
                         pending.put(text)
-                tail = decoder.decode(b"", final=True)
+                tail = carry + decoder.decode(b"", final=True)
+                tail = tail.replace("\r\n", "\n").replace("\r", "\n")
                 if tail:
                     pending.put(tail)
                 pending.put(eof)
