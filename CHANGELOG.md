@@ -2,6 +2,37 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## v0.6 - 2026-09-25
+
+Fleets. Named agents run asks in parallel as a team, answers collected
+into one list, with shared fleet memory.
+
+- `fleet <name> with <a> [and <b> ...]` blocks (spec `docs/spec-v0.6.md`):
+  one `ask <member> <prompt> giving <name>` per line, plus an optional
+  `memory file is "<path>"` line. Bangla: `দল` / `সহ` / `জিজ্ঞেস` / `রেখে`.
+- Asks run concurrently, one thread each with a child scope; the fleet
+  name becomes the answers in ask order and each `giving` name is set in
+  the enclosing scope. Prompts are evaluated up front, in ask order,
+  before any thread starts.
+- A per-agent lock (re-entrant) serializes asks to the same agent so its
+  history and tool runs never interleave with themselves; different
+  agents truly run side by side.
+- Shared fleet memory: past (question, answer, agent) triples are
+  prepended to every member's prompt as `The fleet remembers:` lines;
+  new triples are appended after the run, capped at 200. Corrupt or
+  missing files start fresh with a plain-English note, never a crash.
+- Failure rules: the first failing ask fails the fleet with its
+  plain-English message and line number (no partial list); streaming
+  asks are forbidden in fleets; a fleet cannot open inside another
+  fleet's asks; non-member asks and unknown members fail with
+  did-you-mean suggestions.
+- New example `examples/fleet_demo.jc` (a launch-readiness panel),
+  verified through the binary with a fixture mind.
+- VS Code grammar regenerated (`fleet`, `দল` picked up); new `fleet`
+  snippet. The REPL continues blocks on `fleet` / `দল` lines.
+- 220 tests (19 new in `tests/test_fleet.py`, 3 new mind fixtures);
+  both fuzz sweeps clean (fleet seeds and hostile cases added).
+
 ## v0.5 - 2026-09-25
 
 Home turf. Jesun.Code speaks Bangla, and `.jc` files get first-class

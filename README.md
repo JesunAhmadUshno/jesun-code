@@ -243,6 +243,42 @@ show brief
 
 See `examples/deep_agent.jc` and `docs/spec-v0.3.md`.
 
+## Fleets
+
+v0.6: one agent is a mind, a fleet is a team. Named agents run their asks
+in parallel, the answers come back as one list in ask order, and the fleet
+keeps a shared memory every member can read:
+
+```jesun
+fleet panel with researcher and numbers and critic
+    memory file is "panel_memory.json"
+    ask researcher "what is the launch date?" giving launch
+    ask numbers "how is the business doing?" giving health
+    ask critic "what is the biggest risk?" giving risk
+
+show panel
+```
+
+- Prompts are evaluated up front, in the enclosing scope, in ask order,
+  before any thread starts. Then all asks run concurrently; `panel`
+  becomes the list of answers in ask order, and each `giving` name is set
+  too.
+- Each ask runs in its own thread with a child scope. A per-agent lock
+  keeps one agent's history and tool runs from interleaving with itself;
+  different agents truly run side by side.
+- `memory file is` gives the fleet shared memory: past (question,
+  answer, agent) triples are prepended to every member's prompt as
+  `The fleet remembers:` lines, and new triples are appended after the
+  run (capped at 200). Member agents keep their own histories unchanged.
+- If any ask fails, the fleet fails with the first failure's
+  plain-English message and line number; no partial list is set.
+- Streaming asks are forbidden in fleets (parallel minds cannot share one
+  screenful of output). A fleet cannot open inside another fleet's asks.
+- Bangla: `দল` for `fleet` (`সহ` for `with`, `জিজ্ঞেস` for `ask`,
+  `রেখে` for `giving`).
+
+See `examples/fleet_demo.jc` and `docs/spec-v0.6.md`.
+
 ## Files and words
 
 v0.4: Jesun.Code reads and writes files, strings can think, and `jpm`
@@ -359,6 +395,17 @@ period. Under the hood the interpreter core is written in Python and
 bundled inside the binary; the full standard library rides along so the
 Python bridge works out of the box.
 
+## What v0.6 is, honestly
+
+v0.6's fleets are threads, not magic: each ask spawns its own mind
+process in its own thread, so two slow minds answer in the time of one
+plus overhead. The same agent asked twice in one fleet is serialized by
+a per-agent lock (its history and tool runs stay sane). Shared fleet
+memory is a JSON file of (question, answer, agent) triples, capped at
+200, prepended to prompts as `The fleet remembers:`. The binary still
+bundles the Python runtime until v1.1; self-hosting is roadmap until
+v1.0. Never claimed otherwise.
+
 ## What v0.5 is, honestly
 
 v0.5's Bangla flavor is a keyword flavor, not a translation: the grammar
@@ -371,13 +418,14 @@ The full language spec lives in `docs/spec-v0.1.md`; the v0.2 agent
 framework is specified in `docs/spec-v0.2.md`, deeper agents (persistent
 memory, agent-to-agent calls, streaming) in `docs/spec-v0.3.md`, files
 plus interpolation in `docs/spec-v0.4.md`, and the Bangla flavor plus the
-VS Code extension in `docs/spec-v0.5.md`.
+VS Code extension in `docs/spec-v0.5.md`, and agent fleets in
+`docs/spec-v0.6.md`.
 
 ## Roadmap
 
 The public milestone ladder lives in [ROADMAP.md](ROADMAP.md): v0.4
 files and sharing (shipped), v0.5 Bangla flavor plus the VS Code
-extension, v0.6 agent fleets, v1.0 self-hosting (the interpreter rewritten
+extension (shipped), v0.6 agent fleets (shipped), v1.0 self-hosting (the interpreter rewritten
 in Jesun.Code itself, which does not exist yet and will not be claimed
 until it does), v1.1 native binaries.
 

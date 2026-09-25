@@ -22,11 +22,12 @@ from __future__ import annotations
 import difflib
 import re
 import sys
+import threading
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 MAX_CALL_DEPTH = 100  # well under Python's own limit; the guard always fires first
 MAX_LOOP_RUNS = 1_000_000
 TOO_DEEP = "I got in too deep and stopped before falling over."
@@ -319,6 +320,8 @@ KEYWORDS: dict[str, str] = {
     "write": "WRITE", "append": "APPEND",
     # v0.4: jpm packages.
     "use": "USE", "bring": "BRING",
+    # v0.6: fleets.
+    "fleet": "FLEET",
 }
 
 # v0.5: the Bangla flavor. Same token types as KEYWORDS, Bangla words.
@@ -344,6 +347,7 @@ BANGLA_KEYWORDS: dict[str, str] = {
     "মনেকরো": "REMEMBER", "সবসময়": "ALWAYS", "ভুলেযাও": "FORGET",
     "স্মৃতি": "MEMORY", "ফাইল": "FILE", "সরাসরি": "STREAMING",
     "লেখো": "WRITE", "যোগকরো": "APPEND", "ব্যবহার": "USE",
+    "দল": "FLEET",
     "নিয়ে": "BRING",
 }
 
@@ -740,6 +744,24 @@ class AskAgent:
 
 
 @dataclass
+class FleetAsk:
+    """One ask inside a fleet block (v0.6)."""
+    agent_name: str
+    prompt: "Expr"
+    name: str  # variable to store the answer in
+    line: int
+
+
+@dataclass
+class FleetDef:
+    name: str
+    members: list[str]  # agent names, in header order
+    asks: list[FleetAsk]
+    memory_file: Optional["Expr"]  # None unless `memory file is ...` was given
+    line: int
+
+
+@dataclass
 class ForgetAgent:
     name: str
     line: int
@@ -835,6 +857,8 @@ class Parser:
             return self.parse_funcdef()
         if tok.type == "AGENT":
             return self.parse_agent_def()
+        if tok.type == "FLEET":
+            return self.parse_fleet_def()
         if tok.type == "FORGET":
             return self.parse_forget()
         if tok.type == "GIVE":
@@ -1010,6 +1034,62 @@ class Parser:
             self.expect("NEWLINE", "the end of the line")
         self.advance()  # DEDENT
         return AgentDef(name, persona, tools, remember, memory_file, max_steps, tok.line)
+
+    # -- v0.6: fleets (spec v0.6) ---------------------------------------------
+    def parse_fleet_def(self) -> FleetDef:
+        tok = self.advance()  # FLEET
+        name = self.expect("NAME", "a name for the fleet").value
+        self.expect("WITH", '"with"')
+        members = [self.expect("NAME", "an agent name").value]
+        while self.peek().type == "AND":
+            self.advance()
+            members.append(self.expect("NAME", "an agent name").value)
+        self.expect("NEWLINE", "the end of the line")
+        if self.peek().type != "INDENT":
+            fail(self.peek().line, "a fleet needs an indented block of asks.")
+        self.advance()  # INDENT
+        asks: list[FleetAsk] = []
+        memory_file: Optional[Expr] = None
+        while self.peek().type != "DEDENT":
+            if self.peek().type == "EOF":
+                fail(self.peek().line, "this block never ends.")
+            fline = self.peek().line
+            ftype = self.peek().type
+            if ftype == "ASK":
+                self.advance()
+                member = self.expect("NAME", "a fleet member to ask").value
+                if member not in members:
+                    fail(fline,
+                         f'"{member}" is not a member of fleet "{name}".')
+                prompt = self.parse_or()
+                self.expect("GIVING", '"giving" followed by a name')
+                gname = self.expect("NAME",
+                                    "a name to store the answer in").value
+                if self._optional_streaming():
+                    fail(fline, "streaming asks cannot run in a fleet; "
+                               'take "streaming" out.')
+                self.expect("NEWLINE", "the end of the line")
+                asks.append(FleetAsk(member, prompt, gname, fline))
+            elif ftype == "MEMORY":
+                if memory_file is not None:
+                    fail(fline, '"memory file" is already set for this fleet.')
+                self.advance()
+                self.expect("FILE", '"file"')
+                self.expect("IS", '"is"')
+                memory_file = self.parse_or()
+                self.expect("NEWLINE", "the end of the line")
+            else:
+                if self.peek().type == "NAME":
+                    got = self.peek().value
+                else:
+                    got = self.peek().type.lower()
+                fail(fline, f'I do not know the fleet line "{got}". '
+                            'A fleet holds one ask per line, like '
+                            'ask scout "is it up?" giving answer, and '
+                            'optionally one line: memory file is "crew.json".')
+            # NEWLINE already consumed per branch above.
+        self.advance()  # DEDENT
+        return FleetDef(name, members, asks, memory_file, tok.line)
 
     def parse_ask_ai(self, tok: Token) -> AskAi:
         self.advance()  # AI
@@ -1505,6 +1585,12 @@ class Agent:
     max_steps: int
     history: list[tuple[str, str]]  # (prompt, answer) turns
     line: int
+    # v0.6: per-agent lock. Fleet asks run in threads; the lock keeps one
+    # agent's history and tool runs from interleaving with itself while
+    # different agents truly run side by side. RLock: an agent used as a
+    # tool may ask itself again on the same thread.
+    lock: "threading.RLock" = field(
+        default_factory=lambda: threading.RLock(), repr=False)
 
 
 class Interpreter:
@@ -1515,6 +1601,7 @@ class Interpreter:
         self.depth = 0
         self.current_line = 1
         self._jpm_loading: list[str] = []  # package names on the current bring-in chain
+        self._tl = threading.local()  # v0.6: per-thread fleet flags
         self._STMT_HANDLERS: dict[Any, Any] = {
             Show: self.exec_show,
             Assign: self.exec_assign,
@@ -1539,6 +1626,8 @@ class Interpreter:
             AgentDef: self.exec_agentdef,
             AskAgent: self.exec_ask_agent,
             ForgetAgent: self.exec_forget,
+            # v0.6: fleets.
+            FleetDef: self.exec_fleetdef,
             # v0.4: files.
             ReadFile: self.exec_read_file,
             WriteFile: self.exec_write_file,
@@ -2142,6 +2231,15 @@ class Interpreter:
     def _run_agent_ask(self, agent: Agent, prompt: str, line: int,
                        env: Environment, depth: int = 0,
                        stream: bool = False) -> str:
+        # v0.6: the per-agent lock serializes asks to the same agent
+        # (fleet threads), while different agents run side by side.
+        with agent.lock:
+            return self._run_agent_ask_locked(agent, prompt, line, env,
+                                             depth, stream)
+
+    def _run_agent_ask_locked(self, agent: Agent, prompt: str, line: int,
+                              env: Environment, depth: int = 0,
+                              stream: bool = False) -> str:
         argv = self._ai_argv(line)
         history = agent.history if agent.remember != "off" else None
         answer = self._ai_tool_loop(argv, prompt, agent.tools,
@@ -2162,6 +2260,115 @@ class Interpreter:
         answer = self._run_agent_ask(agent, prompt, stmt.line, env,
                                      stream=stmt.streaming)
         env.set(stmt.name, answer)
+
+    # -- v0.6: fleets (spec v0.6) ----------------------------------------------
+    def _fleet_memory_path(self, stmt: FleetDef, env: Environment) -> "Path":
+        from pathlib import Path
+        raw = self._need_text(self.eval_expr(stmt.memory_file, env),
+                              stmt.line, "the fleet's memory file")
+        return Path(raw)
+
+    def _fleet_load_memory(self, stmt: FleetDef, env: Environment
+                           ) -> list[tuple[str, str, str]]:
+        """Past (question, answer, agent) triples, or [] when none."""
+        from pathlib import Path
+        import json
+        path = self._fleet_memory_path(stmt, env)
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return []
+        except OSError:
+            self.emit(f"Line {stmt.line}: the fleet's saved memory was "
+                      "unreadable, starting fresh.")
+            return []
+        try:
+            data = json.loads(raw)
+            if not isinstance(data, list):
+                raise ValueError("memory is not a list")
+            triples: list[tuple[str, str, str]] = []
+            for item in data:
+                if not isinstance(item, (list, tuple)) or len(item) != 3:
+                    raise ValueError("bad triple")
+                q, a, who = item
+                if not all(isinstance(x, str) for x in (q, a, who)):
+                    raise ValueError("bad triple")
+                triples.append((q, a, who))
+        except Exception:
+            self.emit(f"Line {stmt.line}: the fleet's saved memory was "
+                      "unreadable, starting fresh.")
+            return []
+        return triples
+
+    def _fleet_save_memory(self, stmt: FleetDef, env: Environment,
+                           triples: list[tuple[str, str, str]]) -> None:
+        import json
+        path = self._fleet_memory_path(stmt, env)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            kept = triples[-_MEMORY_TURNS_KEPT:]
+            path.write_text(json.dumps(kept, ensure_ascii=False, indent=1),
+                            encoding="utf-8")
+        except Exception:
+            self.emit(f"Line {stmt.line}: I could not save the fleet's memory.")
+
+    @staticmethod
+    def _fleet_memory_prefix(triples: list[tuple[str, str, str]]) -> str:
+        lines = ["The fleet remembers:"]
+        for q, a, who in triples:
+            lines.append(f'- {who} was asked "{q}" and answered "{a}"')
+        return "\n".join(lines) + "\n\n"
+
+    def exec_fleetdef(self, stmt: FleetDef, env: Environment) -> None:
+        if getattr(self._tl, "in_fleet_ask", False):
+            fail(stmt.line, "a fleet cannot open inside another fleet's asks.")
+        agents: dict[str, Agent] = {}
+        for member in stmt.members:
+            agents.setdefault(member, self._find_agent(member, stmt.line, env))
+        # Prompts are evaluated up front, in the enclosing scope, in ask
+        # order, before any thread starts.
+        prompts = [self._need_text(self.eval_expr(ask.prompt, env), ask.line,
+                                   "the question I ask the fleet member")
+                   for ask in stmt.asks]
+        shared = (self._fleet_load_memory(stmt, env)
+                  if stmt.memory_file is not None else [])
+        prefix = self._fleet_memory_prefix(shared) if shared else ""
+        results: list[Optional[str]] = [None] * len(stmt.asks)
+        errors: dict[int, JesunError] = {}
+
+        def _worker(i: int) -> None:
+            ask = stmt.asks[i]
+            child = Environment(env)
+            self._tl.in_fleet_ask = True
+            try:
+                results[i] = self._run_agent_ask(
+                    agents[ask.agent_name], prefix + prompts[i],
+                    ask.line, child)
+            except JesunError as e:
+                errors[i] = e
+            except Exception:
+                errors[i] = JesunError(
+                    ask.line, "something went wrong inside the fleet and I "
+                              "stopped instead of guessing.")
+            finally:
+                self._tl.in_fleet_ask = False
+
+        threads = [threading.Thread(target=_worker, args=(i,), daemon=True)
+                   for i in range(len(stmt.asks))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        if errors:
+            raise errors[min(errors)]
+        answers = [r if r is not None else "" for r in results]
+        if stmt.memory_file is not None:
+            new = [(prompts[i], answers[i], ask.agent_name)
+                   for i, ask in enumerate(stmt.asks)]
+            self._fleet_save_memory(stmt, env, shared + new)
+        env.set(stmt.name, list(answers))
+        for i, ask in enumerate(stmt.asks):
+            env.set(ask.name, answers[i])
 
     def _ai_once(self, argv: list[str], prompt: str, line: int,
                  stream: bool = False) -> str:
@@ -2735,12 +2942,12 @@ def _last_line_opens_block(buffer: str) -> bool:
         if re.match(r"^যদি\s.*\sতাহলে$", s):
             return True
         return any(re.match(rf"^{kw}(?:\s|$)", s)
-                   for kw in ("আবার", "জন্য", "জন্যে", "এজেন্ট"))
+                   for kw in ("আবার", "জন্য", "জন্যে", "এজেন্ট", "দল"))
     if s == "otherwise" or s.startswith("otherwise "):
         return True
     if re.match(r"^if\b.*\bthen$", s):
         return True
-    return any(re.match(rf"^{kw}\b", s) for kw in ("repeat", "for", "to", "agent"))
+    return any(re.match(rf"^{kw}\b", s) for kw in ("repeat", "for", "to", "agent", "fleet"))
 
 
 def _buffer_ends_inside_block(buffer: str) -> bool:

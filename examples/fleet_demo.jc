@@ -1,0 +1,32 @@
+note fleet_demo.jc: a launch-readiness panel, three agents asked in parallel.
+note Needs a mind: export JESUNCODE_AI_COMMAND="..." first, for example the
+note Pollinations provider installed by install.sh.
+
+to read_notes
+    give back "Launch is Sep 30. Budget is 40k. 3 blockers open."
+
+to read_metrics
+    give back "signups: 1200, churn: 2%, uptime: 99.9%"
+
+agent researcher
+    persona is "You are a careful desk researcher. Answer in one sentence."
+    tools are [read_notes]
+
+agent numbers
+    persona is "You are a metrics analyst. Answer in one sentence."
+    tools are [read_metrics]
+
+agent critic
+    persona is "You are a skeptical reviewer. Answer in one sentence."
+
+fleet panel with researcher and numbers and critic
+    memory file is "panel_memory.json"
+    ask researcher "what is the launch date?" giving launch
+    ask numbers "how is the business doing?" giving health
+    ask critic "what is the biggest risk?" giving risk
+
+show "the panel says:"
+show panel
+show launch
+show health
+show risk

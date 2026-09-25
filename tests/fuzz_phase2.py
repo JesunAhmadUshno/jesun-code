@@ -425,6 +425,63 @@ def main() -> int:
         env = nopath if src.startswith("use ") else home
         problems.extend(check(f"jpm-{i}", src, env))
 
+    # 8. v0.6 fleets: malformed blocks, hostile asks, bad memory files.
+    fleet_prelude = (
+        'agent scout\\n    persona is "hi"\\n'
+        'agent critic\\n    persona is "yo"\\n'
+        'to tool1\\n    give back "t"\\n'
+    )
+    fleet_cases = [
+        'fleet crew with scout\\n',  # no block
+        'fleet crew with scout\\n    ask scout "hi" giving r\\n',  # ok shape, mind set below
+        'fleet crew with scout and\\n    ask scout "hi" giving r\\n',
+        'fleet crew with\\n    ask scout "hi" giving r\\n',
+        'fleet crew with scout\\n    ask nope "hi" giving r\\n',
+        'fleet crew with scout\\n    ask tool1 "hi" giving r\\n',
+        'fleet crew with nope\\n    ask nope "hi" giving r\\n',
+        'fleet crew with scout\\n    ask scout "hi" giving r streaming\\n',
+        'fleet crew with scout\\n    memory file is "a.json"\\n    memory file is "b.json"\\n    ask scout "hi" giving r\\n',
+        'fleet crew with scout\\n    memory file is 42\\n    ask scout "hi" giving r\\n',
+        'fleet crew with scout\\n    dance\\n',
+        'fleet crew with scout\\n    ask scout 42 giving r\\n',
+        'fleet crew with scout\\n    ask scout "hi"\\n',
+        'fleet "crew" with scout\\n    ask scout "hi" giving r\\n',
+        'fleet crew scout\\n    ask scout "hi" giving r\\n',
+        'fleet crew with scout and scout and critic\\n    ask scout "a" giving a\\n    ask scout "b" giving b\\n    ask critic "c" giving c\\nshow crew\\n',
+        # Bangla fleet shape
+        'use bangla\\nদল crew সহ scout\\n    জিজ্ঞেস scout "hi" রেখে r\\n',
+        'use bangla\\nদল crew\\n    জিজ্ঞেস scout "hi" রেখে r\\n',
+    ]
+    for i, src in enumerate(fleet_cases):
+        problems.extend(check(f"fleet-{i}", fleet_prelude + src,
+                              {"JESUNCODE_AI_COMMAND": MIND_OK}))
+    # fleet with no mind at all
+    problems.extend(check("fleet-no-mind",
+                          fleet_prelude + 'fleet crew with scout\\n    ask scout "hi" giving r\\n',
+                          {"JESUNCODE_AI_COMMAND": ""}))
+    # fleet memory: hostile JSON shapes
+    memdir = TMP / "fleetmem"
+    memdir.mkdir(exist_ok=True)
+    hostile_mems = {
+        "notjson.json": "{oops",
+        "notlist.json": '{"q": 1}',
+        "badtriple.json": '[["q", "a"]]',
+        "nonstr.json": '[["q", "a", 7]]',
+        "ok.json": '[["is the disk okay?", "78% full", "scout"]]',
+    }
+    for fname, content in hostile_mems.items():
+        (memdir / fname).write_text(content, encoding="utf-8")
+        problems.extend(check(
+            f"fleet-mem-{fname}",
+            fleet_prelude +
+            f'fleet crew with scout\\n    memory file is "{(memdir / fname).as_posix()}"\\n'
+            '    ask scout "hi" giving r\\nshow r\\n',
+            {"JESUNCODE_AI_COMMAND": MIND_OK}))
+    # garbage mind answer through a fleet
+    problems.extend(check("fleet-garbage",
+                          fleet_prelude + 'fleet crew with scout and critic\\n    ask scout "a" giving a\\n    ask critic "b" giving b\\nshow crew\\n',
+                          {"JESUNCODE_AI_COMMAND": MIND_GARBAGE}))
+
     after = sessions()
     stray = {s for s in after - before if not s.startswith("jc_")}
     if stray:

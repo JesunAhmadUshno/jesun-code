@@ -20,19 +20,23 @@ America/Toronto.
   into `~/.jesun-code/packages/` (shallow clone, timeouts, no `..`
   escapes, plain-English errors), `bring in "pkg"` loads it. Ships
   three starter packages: `time`, `files`, `http`. 158 tests.
+- **v0.5.0 (2026-09-25):** home turf. Bangla keyword flavor (67 words,
+  `use bangla` header, `মন্তব্য` comments, Bengali digits) plus the VS
+  Code extension (generated TextMate grammar, snippets, run-file).
+  GitHub Pages site with blog, FAQ, SEO/GEO (sitemap, robots.txt,
+  llms.txt, JSON-LD). 201 tests.
+- **v0.6.0 (2026-09-25):** fleets. `fleet` blocks run named agents'
+  asks in parallel (per-agent locks, child scopes), answers collected
+  into a list in ask order, shared fleet memory
+  (`The fleet remembers:`). Plain-English failures, no nesting, no
+  streaming in fleets. 220 tests.
 
 ## In progress
 
-- **v0.5: home turf.** Bangla flavor shipped (67 keywords, `use bangla`
-  header, `মন্তব্য` comments, Bengali digits, Bangla-aware REPL), VS Code
-  extension shipped in `editors/vscode/` (generated grammar, snippets,
-  run-file). 201 tests green, fuzz clean. Release v0.5.0 pending: rebuild
-  the Linux binary, verify, tag, `gh release create`.
+- **v1.0: SELF-HOSTING.**
 
 ## Up next (in order, no skipping)
 
-- **v0.6: fleets.** `fleet` blocks: named agents run asks in parallel,
-  results collected into a list. Shared fleet memory.
 - **v1.0: SELF-HOSTING.** `jesun.jc`: the full interpreter (lexer,
   parser, tree-walker) written in Jesun.Code, using the Python bridge
   only for file I/O and subprocess. It must pass the entire test suite.

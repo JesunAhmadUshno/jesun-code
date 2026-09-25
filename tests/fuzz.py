@@ -34,7 +34,7 @@ WORDS = [
     "in", "to", "with", "and", "or", "give", "back", "stop", "skip",
     "of", "first", "last", "length", "uppercase", "lowercase", "greater",
     "less", "than", "least", "most", "at", "contains", "note",
-    "split", "join", "trim", "by", "keys",
+    "split", "join", "trim", "by", "keys", "fleet",
     # v0.5: Bangla flavor words. Excluded on purpose (real side effects):
     # আনো (import), এআই (ai), হাতিয়ার (tools), টার্মিনাল/খোলো/পাঠাও/বন্ধকরো
     # (tmux), এজেন্ট/পারসোনা/মনেকরো/ভুলেযাও/স্মৃতি (agents),
@@ -44,7 +44,7 @@ WORDS = [
     "যদি", "তাহলে", "নইলে", "আবার", "বার", "যতক্ষণ", "জন্য", "প্রতিটি",
     "ভেতরে", "জন্যে", "সহ", "এবং", "অথবা", "দাও", "ফেরত", "থামো", "এড়িয়ে",
     "এর", "প্রথম", "শেষ", "দৈর্ঘ্য", "বড়হাতা", "ছোটহাতা", "বড়", "ছোট",
-    "চেয়ে", "কমপক্ষে", "সবচেয়ে", "নম্বরে", "আছে",
+    "চেয়ে", "কমপক্ষে", "সবচেয়ে", "নম্বরে", "আছে", "দল",
     "ভাগ", "জোড়া", "ছাঁটো", "দিয়ে", "চাবি",
     "হিসেবে", "মধ্যে", "ধাপ", "নামে",
     "x", "y", "z", "name", "naem", "total", "count", "item", "friend",
@@ -97,6 +97,14 @@ SEEDS = [
     'show 1\nuse bangla\n',
     'বাংলা\nদেখাও\n',
     'বাংলা\nদেখাও "শেষ হয়নি\n',
+    # v0.6 fleets: malformed shapes fail in plain English before any mind runs.
+    'fleet crew with scout\n',
+    'fleet crew with scout\n    ask scout "hi" giving r\n',
+    'fleet crew with scout\n    ask nope "hi" giving r\n',
+    'fleet crew with scout\n    ask scout "hi" giving r streaming\n',
+    'fleet crew with scout\n    memory file is "a.json"\n    memory file is "b.json"\n',
+    'fleet crew with scout\n    dance\n',
+    'use bangla\n\u09a6\u09b2 crew \u09b8\u09b9 scout\n    \u099c\u09bf\u099c\u09cd\u099e\u09c7\u09b8 scout "hi" \u09b0\u09c7\u0996\u09c7 r\n',
 ]
 
 
