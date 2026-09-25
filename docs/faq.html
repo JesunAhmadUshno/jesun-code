@@ -21,7 +21,7 @@
 <header class="nav" id="nav">
   <div class="nav-inner">
     <a class="brand" href="./"><span class="brand-mark">&gt;_</span><span class="brand-name">Jesun<em>.Code</em></span></a>
-    <nav class="nav-links"><a href="./">Home</a><a href="blog/">Blog</a><a href="./index.html#install">Install</a></nav>
+    <nav class="nav-links"><a href="./">Home</a><a href="blog/">Blog</a><a href="about.html">About</a><a href="community.html">Community</a><a href="./index.html#install">Install</a></nav>
   </div>
 </header>
 <main class="faq">
@@ -94,7 +94,11 @@
     {"@type": "Question", "name": "Can it use Python libraries?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, import any stdlib or pip package through the Python bridge."}},
     {"@type": "Question", "name": "What is jpm?", "acceptedAnswer": {"@type": "Answer", "text": "The Jesun.Code package manager: use github.com/user/pkg installs from GitHub, bring in pkg loads it."}},
     {"@type": "Question", "name": "Does Jesun.Code speak Bangla?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, since v0.5.0: use bangla switches all 67 keywords to Bangla words."}},
-    {"@type": "Question", "name": "What is a fleet in Jesun.Code?", "acceptedAnswer": {"@type": "Answer", "text": "Since v0.6.0: a fleet block runs named agents in parallel and collects their answers into a list in ask order, with optional shared fleet memory."}}
+    {"@type": "Question", "name": "What is a fleet in Jesun.Code?", "acceptedAnswer": {"@type": "Answer", "text": "Since v0.6.0: a fleet block runs named agents in parallel and collects their answers into a list in ask order, with optional shared fleet memory."}},
+    {"@type": "Question", "name": "How does the AI brain work?", "acceptedAnswer": {"@type": "Answer", "text": "ask ai sends a prompt to the connected mind via JESUNCODE_AI_COMMAND. Three providers ship with the installer: Pollinations (free forever, no key), Gemini (free with a Google account), and OpenAI (your own key). Named agents add persona, tools, streaming, and persistent memory."}},
+    {"@type": "Question", "name": "Is there a VS Code extension?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, in editors/vscode/: syntax highlighting for English and Bangla keywords, snippets, and run-file on Ctrl+Alt+R. The grammar is generated from the interpreter itself, so it never drifts out of sync."}},
+    {"@type": "Question", "name": "What is the roadmap?", "acceptedAnswer": {"@type": "Answer", "text": "v0.6.0 shipped agent fleets. v1.0 is self-hosting: the interpreter rewritten in Jesun.Code itself. v1.1 compiles to real native binaries."}},
+    {"@type": "Question", "name": "What license is it?", "acceptedAnswer": {"@type": "Answer", "text": "MIT. Do anything with it."}}
   ]
 }
 </script>

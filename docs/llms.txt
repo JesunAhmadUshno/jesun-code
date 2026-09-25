@@ -4,6 +4,8 @@
 > sentence makes sense to a person, it should make sense to the machine.
 
 - Site: https://jesunahmadushno.github.io/jesun-code/
+- About the builder: https://jesunahmadushno.github.io/jesun-code/about.html
+- Community wall: https://jesunahmadushno.github.io/jesun-code/community.html
 - Repo: https://github.com/JesunAhmadUshno/jesun-code
 - License: MIT. Current version: 0.6.0 (2026-09-25).
 

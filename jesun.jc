@@ -1,0 +1,1330 @@
+note ============================================================
+note jesun.jc: the Jesun.Code interpreter, written in Jesun.Code.
+note Phase A (spec docs/spec-v1.0.md): the v0.1 core. The Python
+note interpreter is the bootstrap; this file is the interpreter.
+note Run it: python jesun.py jesun.jc program.jc
+note Tokens are [kind, value, line]. Keyword kinds are the words
+note themselves; "name", "number", "text" for the rest; punctuation
+note kinds are the single characters; "indent", "dedent", "eof".
+note ============================================================
+
+note ==== SECTION: HELPERS ====
+
+to parse_error with lineno and msg
+    fail with "Line " + text of lineno + ": " + msg
+
+to is_digit with ch
+    if "0123456789" contains ch then
+        give back true
+    give back false
+
+to is_word_start with ch
+    if ch is "_" then
+        give back true
+    if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" contains ch then
+        give back true
+    give back false
+
+to is_word_char with ch
+    if is_word_start with ch then
+        give back true
+    if is_digit with ch then
+        give back true
+    note Non-ASCII letters and marks are word chars; other symbols are
+    note not. Phase A fidelity note: exotic non-ASCII symbols may differ
+    note from the bootstrap here; ASCII is exact. Whitespace can never be
+    note a word char; the trim test below covers space, tab, LF, and CR.
+    note It is written this way because the "\r" escape reads as "r" in
+    note string literals (the escape table has no r), so a literal CR
+    note cannot be spelled here.
+    if length of ch is 1 then
+        if trim of ch is "" then
+            give back false
+        if " !\"#$%&'()*+,-./:;<=>?@[\\]^`{{|}}~\t\n" contains ch then
+            give back false
+        give back true
+    give back false
+
+to digit_value with ch
+    pairs is [["0", 0], ["1", 1], ["2", 2], ["3", 3], ["4", 4], ["5", 5], ["6", 6], ["7", 7], ["8", 8], ["9", 9]]
+    for each pair in pairs
+        if pair[0] is ch then
+            give back pair[1]
+    give back 0
+
+to pop_last with xs
+    trimmed is []
+    total is length of xs
+    n is 1
+    for each x in xs
+        if n is less than total then
+            push x to trimmed
+        n is n + 1
+    give back trimmed
+
+to strip_bom with source
+    bom is "﻿"
+    chars is characters of source
+    n is length of chars
+    i is 0
+    repeat while i is less than n
+        if chars[i] is not bom then
+            stop
+        i is i + 1
+    out is ""
+    j is i
+    repeat while j is less than n
+        out is out + chars[j]
+        j is j + 1
+    give back out
+
+note ==== END HELPERS ====
+
+note ==== SECTION: LEXER ====
+
+to keyword_kind with word
+    kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"]]
+    for each pair in kinds
+        if pair[0] is word then
+            give back pair[1]
+    give back "name"
+
+to simple_kind with ch
+    pairs is [["+", "+"], ["-", "-"], ["*", "*"], ["/", "/"], ["%", "%"], ["(", "("], [")", ")"], ["[", "["], ["]", "]"], [",", ","], [".", "."], ["=", "="]]
+    for each pair in pairs
+        if pair[0] is ch then
+            give back pair[1]
+    give back ""
+
+to is_note_here with cs and i and n
+    if i + 4 is greater than n then
+        give back false
+    if cs[i] is "n" and cs[i + 1] is "o" and cs[i + 2] is "t" and cs[i + 3] is "e" then
+        before_ok is true
+        if i is greater than 0 then
+            before_ok is not is_word_char with cs[i - 1]
+        after_ok is true
+        if i + 4 is less than n then
+            after_ok is not is_word_char with cs[i + 4]
+        give back before_ok and after_ok
+    give back false
+
+to cut_comment with rawline
+    out is ""
+    cs is characters of rawline
+    n is length of cs
+    i is 0
+    quote is ""
+    repeat while i is less than n
+        ch is cs[i]
+        if quote is not "" then
+            if ch is "\\" and i + 1 is less than n then
+                out is out + ch + cs[i + 1]
+                i is i + 2
+                skip
+            if ch is quote then
+                quote is ""
+            out is out + ch
+            i is i + 1
+            skip
+        if ch is "\"" or ch is "'" then
+            quote is ch
+            out is out + ch
+            i is i + 1
+            skip
+        if is_note_here with cs and i and n then
+            give back out
+        out is out + ch
+        i is i + 1
+    give back out
+
+to count_leading_spaces with given_line
+    n is 0
+    for each ch in characters of given_line
+        if ch is " " then
+            n is n + 1
+        otherwise
+            give back n
+    give back n
+
+to read_string with cs and i and n and lineno
+    quote is cs[i]
+    i is i + 1
+    out is ""
+    repeat while i is less than n
+        ch is cs[i]
+        if ch is "\\" and i + 1 is less than n then
+            nxt is cs[i + 1]
+            if nxt is "n" then
+                out is out + "\n"
+            otherwise if nxt is "t" then
+                out is out + "\t"
+            otherwise if nxt is "\"" then
+                out is out + "\""
+            otherwise if nxt is "'" then
+                out is out + "'"
+            otherwise if nxt is "\\" then
+                out is out + "\\"
+            otherwise
+                out is out + nxt
+            i is i + 2
+            skip
+        if ch is quote then
+            give back [["string", out, lineno], i + 1]
+        out is out + ch
+        i is i + 1
+    parse_error with lineno and "this text never ends; close the quote."
+
+to read_number with cs and i and n and lineno
+    whole is 0
+    repeat while i is less than n and is_digit with cs[i]
+        whole is whole * 10 + digit_value with cs[i]
+        i is i + 1
+    if i + 1 is less than n and cs[i] is "." and is_digit with cs[i + 1] then
+        i is i + 1
+        frac is 0
+        divisor is 1
+        repeat while i is less than n and is_digit with cs[i]
+            frac is frac * 10 + digit_value with cs[i]
+            divisor is divisor * 10
+            i is i + 1
+        give back [["number", whole + frac / divisor, lineno], i]
+    give back [["number", whole, lineno], i]
+
+to read_word with cs and i and n and lineno
+    word is ""
+    repeat while i is less than n and is_word_char with cs[i]
+        word is word + cs[i]
+        i is i + 1
+    give back [[keyword_kind with word, word, lineno], i]
+
+to lex_line with stripped and lineno
+    toks is []
+    cs is characters of stripped
+    n is length of cs
+    i is 0
+    repeat while i is less than n
+        ch is cs[i]
+        note Whitespace skip. CR never reaches here: lex trims each line
+        note first, and the "\r" escape reads as "r" in literals anyway.
+        if ch is " " or ch is "\t" then
+            i is i + 1
+            skip
+        if ch is "\"" or ch is "'" then
+            pair is read_string with cs and i and n and lineno
+            push pair[0] to toks
+            i is pair[1]
+            skip
+        if is_digit with ch then
+            pair is read_number with cs and i and n and lineno
+            push pair[0] to toks
+            i is pair[1]
+            skip
+        if is_word_start with ch then
+            pair is read_word with cs and i and n and lineno
+            push pair[0] to toks
+            i is pair[1]
+            skip
+        skind is simple_kind with ch
+        if skind is not "" then
+            push [skind, ch, lineno] to toks
+            i is i + 1
+            skip
+        parse_error with lineno and "I do not know what \"" + ch + "\" means here."
+    give back toks
+
+to lex with source
+    source is strip_bom with source
+    toks is []
+    indents is [0]
+    lineno is 0
+    for each rawline in split of source by "\n"
+        lineno is lineno + 1
+        cleaned is cut_comment with rawline
+        if cleaned contains "\t" and trim of cleaned is not "" then
+            parse_error with lineno and "I do not understand tabs; please indent with spaces."
+        if trim of cleaned is "" then
+            skip
+        indent is count_leading_spaces with cleaned
+        if indent is greater than last of indents then
+            push indent to indents
+            push ["indent", "", lineno] to toks
+        otherwise
+            repeat while indent is less than last of indents
+                indents is pop_last with indents
+                push ["dedent", "", lineno] to toks
+            if indent is not last of indents then
+                parse_error with lineno and "this line does not line up with any block I opened."
+        for each tok in lex_line with trim of cleaned and lineno
+            push tok to toks
+        push ["newline", "", lineno] to toks
+    repeat while length of indents is greater than 1
+        indents is pop_last with indents
+        push ["dedent", "", lineno] to toks
+    push ["eof", "", lineno] to toks
+    give back toks
+
+note ==== END LEXER ====
+
+note ==== SECTION: PARSER ====
+note Every parse function takes the token list and a position, and gives
+note back [node, new_position]. Nodes are lists with a tag word first.
+
+to peek_kind with toks and i
+    give back toks[i][0]
+
+to peek_value with toks and i
+    give back toks[i][1]
+
+to peek_line with toks and i
+    give back toks[i][2]
+
+to peek_is with toks and i and want
+    k is peek_kind with toks and i
+    give back k is want
+
+to expect with toks and i and want and what
+    k is peek_kind with toks and i
+    if k is want then
+        give back i + 1
+    ln is peek_line with toks and i
+    parse_error with ln and "I expected " + what + " here."
+
+to parse_program with toks
+    i is 0
+    stmts is []
+    repeat while not peek_is with toks and i and "eof"
+        pair is parse_statement with toks and i
+        push pair[0] to stmts
+        i is pair[1]
+    give back stmts
+
+to parse_block with toks and i
+    if not peek_is with toks and i and "indent" then
+        ln is peek_line with toks and i
+        parse_error with ln and "I expected an indented block here."
+    i is i + 1
+    stmts is []
+    repeat while not peek_is with toks and i and "dedent"
+        if peek_is with toks and i and "eof" then
+            ln is peek_line with toks and i
+            parse_error with ln and "this block never ends."
+        pair is parse_statement with toks and i
+        push pair[0] to stmts
+        i is pair[1]
+    give back [stmts, i + 1]
+
+to parse_show with toks and i
+    ln is peek_line with toks and i
+    pair is parse_or with toks and i + 1
+    i is expect with toks and pair[1] and "newline" and "the end of the line"
+    give back [["show", pair[0], ln], i]
+
+to parse_assign with toks and i
+    name is peek_value with toks and i
+    ln is peek_line with toks and i
+    pair is parse_or with toks and i + 2
+    i is expect with toks and pair[1] and "newline" and "the end of the line"
+    give back [["is", name, pair[0], ln], i]
+
+to parse_push with toks and i
+    ln is peek_line with toks and i
+    pair is parse_or with toks and i + 1
+    i is expect with toks and pair[1] and "to" and "\"to\""
+    name is peek_value with toks and i
+    i is expect with toks and i and "name" and "a list name after \"to\""
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["push", pair[0], name, ln], i]
+
+to parse_fail with toks and i
+    ln is peek_line with toks and i
+    i is expect with toks and i + 1 and "with" and "\"with\""
+    pair is parse_or with toks and i
+    i is expect with toks and pair[1] and "newline" and "the end of the line"
+    give back [["fail", pair[0], ln], i]
+
+to parse_if with toks and i
+    ln is peek_line with toks and i
+    pair is parse_or with toks and i + 1
+    i is expect with toks and pair[1] and "then" and "\"then\""
+    i is expect with toks and i and "newline" and "the end of the line"
+    bpair is parse_block with toks and i
+    branches is [[pair[0], bpair[0]]]
+    i is bpair[1]
+    elsebody is []
+    repeat while peek_is with toks and i and "otherwise"
+        i is i + 1
+        if peek_is with toks and i and "if" then
+            pair is parse_or with toks and i + 1
+            i is expect with toks and pair[1] and "then" and "\"then\""
+            i is expect with toks and i and "newline" and "the end of the line"
+            bpair is parse_block with toks and i
+            push [pair[0], bpair[0]] to branches
+            i is bpair[1]
+        otherwise
+            i is expect with toks and i and "newline" and "a new line after \"otherwise\""
+            bpair is parse_block with toks and i
+            elsebody is bpair[0]
+            i is bpair[1]
+            stop
+    give back [["if", branches, elsebody, ln], i]
+
+to parse_repeat with toks and i
+    ln is peek_line with toks and i
+    i is i + 1
+    if peek_is with toks and i and "while" then
+        pair is parse_or with toks and i + 1
+        i is expect with toks and pair[1] and "newline" and "the end of the line"
+        bpair is parse_block with toks and i
+        give back [["repeat_while", pair[0], bpair[0], ln], bpair[1]]
+    pair is parse_or with toks and i
+    i is expect with toks and pair[1] and "times" and "\"times\""
+    i is expect with toks and i and "newline" and "the end of the line"
+    bpair is parse_block with toks and i
+    give back [["repeat_times", pair[0], bpair[0], ln], bpair[1]]
+
+to parse_foreach with toks and i
+    ln is peek_line with toks and i
+    i is expect with toks and i + 1 and "each" and "\"each\""
+    varname is peek_value with toks and i
+    i is expect with toks and i and "name" and "a name for each item"
+    i is expect with toks and i and "in" and "\"in\""
+    pair is parse_or with toks and i
+    i is expect with toks and pair[1] and "newline" and "the end of the line"
+    bpair is parse_block with toks and i
+    give back [["foreach", varname, pair[0], bpair[0], ln], bpair[1]]
+
+to parse_funcdef with toks and i
+    ln is peek_line with toks and i
+    i is i + 1
+    fname is peek_value with toks and i
+    i is expect with toks and i and "name" and "a name for the function"
+    params is []
+    if peek_is with toks and i and "with" then
+        i is i + 1
+        pname is peek_value with toks and i
+        i is expect with toks and i and "name" and "a name for the input"
+        push pname to params
+        repeat while peek_is with toks and i and "and"
+            i is i + 1
+            pname is peek_value with toks and i
+            i is expect with toks and i and "name" and "a name for the input"
+            push pname to params
+    i is expect with toks and i and "newline" and "the end of the line"
+    bpair is parse_block with toks and i
+    give back [["to", fname, params, bpair[0], ln], bpair[1]]
+
+to parse_giveback with toks and i
+    ln is peek_line with toks and i
+    i is expect with toks and i + 1 and "back" and "\"back\""
+    pair is parse_or with toks and i
+    i is expect with toks and pair[1] and "newline" and "the end of the line"
+    give back [["giveback", pair[0], ln], i]
+
+to parse_statement with toks and i
+    k is peek_kind with toks and i
+    ln is peek_line with toks and i
+    if k is "indent" then
+        parse_error with ln and "this line starts a block, but I did not expect one here."
+    if k is "show" then
+        give back parse_show with toks and i
+    if k is "if" then
+        give back parse_if with toks and i
+    if k is "repeat" then
+        give back parse_repeat with toks and i
+    if k is "for" then
+        give back parse_foreach with toks and i
+    if k is "to" then
+        give back parse_funcdef with toks and i
+    if k is "give" then
+        give back parse_giveback with toks and i
+    if k is "stop" then
+        i is expect with toks and i + 1 and "newline" and "the end of the line"
+        give back [["stop", ln], i]
+    if k is "skip" then
+        i is expect with toks and i + 1 and "newline" and "the end of the line"
+        give back [["skip", ln], i]
+    if k is "push" then
+        give back parse_push with toks and i
+    if k is "fail" then
+        give back parse_fail with toks and i
+    if k is "name" then
+        if peek_is with toks and i + 1 and "is" then
+            give back parse_assign with toks and i
+    if k is "ask" or k is "import" or k is "use" or k is "bring" or k is "agent" or k is "fleet" or k is "memory" or k is "forget" or k is "open" or k is "close" or k is "send" or k is "terminal" or k is "within" then
+        w is peek_value with toks and i
+        parse_error with ln and "\"" + w + "\" is for phase B; the phase A core does not speak it yet."
+    note "with" is not guarded: at the start of a line the bootstrap reads
+    note it as a broken expression ("I expected a value here."), and the
+    note self-hosted parser must say the same word for word.
+    pair is parse_or with toks and i
+    i is expect with toks and pair[1] and "newline" and "the end of the line"
+    give back [["exprstmt", pair[0], ln], i]
+
+to parse_or with toks and i
+    pair is parse_and with toks and i
+    node is pair[0]
+    i is pair[1]
+    repeat while peek_is with toks and i and "or"
+        ln is peek_line with toks and i
+        pair is parse_and with toks and i + 1
+        node is ["binop", "or", node, pair[0], ln]
+        i is pair[1]
+    give back [node, i]
+
+to parse_and with toks and i
+    pair is parse_not with toks and i
+    node is pair[0]
+    i is pair[1]
+    repeat while peek_is with toks and i and "and"
+        ln is peek_line with toks and i
+        pair is parse_not with toks and i + 1
+        node is ["binop", "and", node, pair[0], ln]
+        i is pair[1]
+    give back [node, i]
+
+to parse_not with toks and i
+    if peek_is with toks and i and "not" then
+        ln is peek_line with toks and i
+        pair is parse_not with toks and i + 1
+        give back [["not", pair[0], ln], pair[1]]
+    give back parse_comparison with toks and i
+
+to parse_comparison with toks and i
+    pair is parse_additive with toks and i
+    node is pair[0]
+    i is pair[1]
+    repeat while true
+        k is peek_kind with toks and i
+        if k is "is" then
+            if peek_is with toks and i + 1 and "not" then
+                ln is peek_line with toks and i
+                pair is parse_additive with toks and i + 2
+                node is ["compare", "ne", node, pair[0], ln]
+                i is pair[1]
+                skip
+            ln is peek_line with toks and i
+            i is i + 1
+            k2 is peek_kind with toks and i
+            op is "eq"
+            if k2 is "greater" then
+                i is expect with toks and i + 1 and "than" and "\"than\""
+                op is "gt"
+            otherwise if k2 is "less" then
+                i is expect with toks and i + 1 and "than" and "\"than\""
+                op is "lt"
+            otherwise if k2 is "at" then
+                i is i + 1
+                k3 is peek_kind with toks and i
+                if k3 is "least" then
+                    i is i + 1
+                    op is "ge"
+                otherwise if k3 is "most" then
+                    i is i + 1
+                    op is "le"
+                otherwise
+                    ln2 is peek_line with toks and i
+                    parse_error with ln2 and "I expected \"least\" or \"most\" after \"at\"."
+            pair is parse_additive with toks and i
+            node is ["compare", op, node, pair[0], ln]
+            i is pair[1]
+            skip
+        if k is "contains" then
+            ln is peek_line with toks and i
+            pair is parse_additive with toks and i + 1
+            node is ["compare", "contains", node, pair[0], ln]
+            i is pair[1]
+            skip
+        give back [node, i]
+
+to parse_additive with toks and i
+    pair is parse_multiplicative with toks and i
+    node is pair[0]
+    i is pair[1]
+    repeat while peek_is with toks and i and "+" or peek_is with toks and i and "-"
+        ln is peek_line with toks and i
+        k is peek_kind with toks and i
+        pair is parse_multiplicative with toks and i + 1
+        if k is "+" then
+            node is ["binop", "add", node, pair[0], ln]
+        otherwise
+            node is ["binop", "sub", node, pair[0], ln]
+        i is pair[1]
+    give back [node, i]
+
+to parse_multiplicative with toks and i
+    pair is parse_unary with toks and i
+    node is pair[0]
+    i is pair[1]
+    repeat while peek_is with toks and i and "*" or peek_is with toks and i and "/" or peek_is with toks and i and "%"
+        ln is peek_line with toks and i
+        k is peek_kind with toks and i
+        pair is parse_unary with toks and i + 1
+        if k is "*" then
+            node is ["binop", "mul", node, pair[0], ln]
+        otherwise if k is "/" then
+            node is ["binop", "div", node, pair[0], ln]
+        otherwise
+            node is ["binop", "mod", node, pair[0], ln]
+        i is pair[1]
+    give back [node, i]
+
+to parse_unary with toks and i
+    if peek_is with toks and i and "-" then
+        ln is peek_line with toks and i
+        pair is parse_unary with toks and i + 1
+        give back [["neg", pair[0], ln], pair[1]]
+    give back parse_primary with toks and i
+
+to parse_builtin_operand with toks and i
+    if peek_is with toks and i and "name" then
+        v is peek_value with toks and i
+        ln is peek_line with toks and i
+        give back parse_postfix with toks and i + 1 and ["var", v, ln]
+    give back parse_unary with toks and i
+
+to parse_postfix with toks and i and node
+    repeat while true
+        if peek_is with toks and i and "[" then
+            ln is peek_line with toks and i
+            pair is parse_or with toks and i + 1
+            i is expect with toks and pair[1] and "]" and "a closing \"]\""
+            node is ["subscript", node, pair[0], ln]
+            skip
+        give back [node, i]
+
+to parse_expr_fragment with inner and ln
+    toks is lex_line with trim of inner and ln
+    push ["newline", "", ln] to toks
+    push ["eof", "", ln] to toks
+    pair is parse_or with toks and 0
+    i is expect with toks and pair[1] and "newline" and "the end of the {{...}}"
+    give back pair[0]
+
+to parse_string with value and ln
+    if not value contains "{{" then
+        give back ["lit", value, ln]
+    parts is []
+    buf is ""
+    found is false
+    cs is characters of value
+    n is length of cs
+    i is 0
+    repeat while i is less than n
+        ch is cs[i]
+        if ch is "{{" then
+            if i + 1 is less than n and cs[i + 1] is "{{" then
+                buf is buf + "{{"
+                i is i + 2
+                skip
+            depth is 1
+            j is i + 1
+            repeat while j is less than n and depth is greater than 0
+                if cs[j] is "{{" then
+                    depth is depth + 1
+                otherwise if "}}" contains cs[j] then
+                    depth is depth - 1
+                j is j + 1
+            if depth is not 0 then
+                note A lone "}}" has no "{" so the outer bootstrap leaves
+                note it two chars; last of its characters is one "}".
+                parse_error with ln and "this \"{{\" never closes; add a \"" + last of characters of "x}}" + "\" to finish it."
+            inner is ""
+            k is i + 1
+            repeat while k is less than j - 1
+                inner is inner + cs[k]
+                k is k + 1
+            if trim of inner is "" then
+                parse_error with ln and "these braces are empty; put a value inside."
+            push ["text", buf] to parts
+            buf is ""
+            push ["expr", parse_expr_fragment with inner and ln] to parts
+            found is true
+            i is j
+            skip
+        if "}}" contains ch and i + 1 is less than n and "}}" contains cs[i + 1] then
+            buf is buf + last of characters of "x}}"
+            i is i + 2
+            skip
+        buf is buf + ch
+        i is i + 1
+    push ["text", buf] to parts
+    if not found then
+        collapsed is ""
+        for each part in parts
+            collapsed is collapsed + part[1]
+        give back ["lit", collapsed, ln]
+    give back ["interp", parts, ln]
+
+to parse_primary with toks and i
+    k is peek_kind with toks and i
+    v is peek_value with toks and i
+    ln is peek_line with toks and i
+    if k is "number" then
+        give back [["lit", v, ln], i + 1]
+    if k is "string" then
+        give back [parse_string with v and ln, i + 1]
+    if k is "true" then
+        give back [["lit", true, ln], i + 1]
+    if k is "false" then
+        give back [["lit", false, ln], i + 1]
+    if k is "nothing" then
+        give back [["lit", nothing, ln], i + 1]
+    if k is "(" then
+        pair is parse_or with toks and i + 1
+        i is expect with toks and pair[1] and ")" and "a closing \")\""
+        give back [pair[0], i]
+    if k is "[" then
+        i is i + 1
+        items is []
+        if not peek_is with toks and i and "]" then
+            pair is parse_or with toks and i
+            push pair[0] to items
+            i is pair[1]
+            repeat while peek_is with toks and i and ","
+                pair is parse_or with toks and i + 1
+                push pair[0] to items
+                i is pair[1]
+        i is expect with toks and i and "]" and "a closing \"]\""
+        give back [["list", items, ln], i]
+    if k is "first" or k is "last" or k is "length" or k is "uppercase" or k is "lowercase" or k is "trim" or k is "characters" or k is "text" or k is "kind" or k is "split" or k is "join" then
+        i is i + 1
+        i is expect with toks and i and "of" and "\"of\""
+        if k is "split" or k is "join" then
+            pair is parse_builtin_operand with toks and i
+        otherwise
+            pair is parse_unary with toks and i
+        operand is pair[0]
+        i is pair[1]
+        if k is "split" then
+            i is expect with toks and i and "by" and "\"by\""
+            pair is parse_unary with toks and i
+            give back [["builtin2", "split", operand, pair[0], ln], pair[1]]
+        if k is "join" then
+            i is expect with toks and i and "with" and "\"with\""
+            pair is parse_unary with toks and i
+            give back [["builtin2", "join", operand, pair[0], ln], pair[1]]
+        give back [["builtin", k, operand, ln], i]
+    if k is "name" then
+        i is i + 1
+        if peek_is with toks and i and "with" then
+            i is i + 1
+            args is []
+            pair is parse_not with toks and i
+            push pair[0] to args
+            i is pair[1]
+            repeat while peek_is with toks and i and "and"
+                pair is parse_not with toks and i + 1
+                push pair[0] to args
+                i is pair[1]
+            give back [["call", v, args, ln], i]
+        give back parse_postfix with toks and i and ["var", v, ln]
+    parse_error with ln and "I expected a value here."
+
+note ==== END PARSER ====
+
+note ==== SECTION: EVALUATOR ====
+note The tree-walker. ev gives back [value, signal]; "" means no signal,
+note a list like ["stop", ln] carries one. Statement exec gives back a
+note signal: ["none"], ["giveback", v, ln], ["stop", ln], ["skip", ln].
+note "fail with" ends everything at once, so the walker never carries it.
+
+to rt_error with ln and msg
+    fail with "Line " + text of ln + ": " + msg
+
+note ---- environments: a list of scopes; each scope is a list of
+note [name, value] pairs. Setting always shadows in the current scope,
+note which matches what the bootstrap shows from the outside.
+
+to env_get with env and name and ln
+    i is length of env
+    repeat while i is greater than 0
+        i is i - 1
+        scope is env[i]
+        j is length of scope
+        repeat while j is greater than 0
+            j is j - 1
+            pair is scope[j]
+            if pair[0] is name then
+                give back pair[1]
+    rt_error with ln and "I do not know the word \"" + name + "\"." + suggest_name with name and env
+
+to env_set with env and name and value
+    scope is last of env
+    push [name, value] to scope
+
+to starts_with with s and prefix
+    if length of prefix is greater than length of s then
+        give back false
+    sc is characters of s
+    pc is characters of prefix
+    i is 0
+    repeat while i is less than length of pc
+        if sc[i] is not pc[i] then
+            give back false
+        i is i + 1
+    give back true
+
+to suggest_name with name and env
+    seen is []
+    for each scope in env
+        for each pair in scope
+            if not seen contains pair[0] then
+                push pair[0] to seen
+    for each cand in seen
+        if cand is not name then
+            if starts_with with cand and name or starts_with with name and cand then
+                give back " Did you mean \"" + cand + "\"?"
+    give back ""
+
+note ---- value kinds and rendering
+
+to is_function_value with v
+    if kind of v is "list" then
+        if length of v is 6 then
+            if v[0] is "function" then
+                give back true
+    give back false
+
+to is_real_list with v
+    if is_function_value with v then
+        give back false
+    give back kind of v is "list"
+
+to render with v
+    if is_function_value with v then
+        give back "<function " + v[1] + ">"
+    if kind of v is "list" then
+        parts is []
+        for each item in v
+            push render with item to parts
+        give back "[" + join of parts with ", " + "]"
+    give back text of v
+
+to values_equal with a and b
+    if is_function_value with a or is_function_value with b then
+        give back false
+    ka is kind of a
+    kb is kind of b
+    if ka is "true/false" or kb is "true/false" then
+        if ka is "true/false" and kb is "true/false" then
+            give back a is b
+        give back false
+    if ka is "number" and kb is "number" then
+        give back a is b
+    if ka is "text" and kb is "text" then
+        give back a is b
+    if ka is "nothing" and kb is "nothing" then
+        give back true
+    if ka is "list" and kb is "list" then
+        if length of a is not length of b then
+            give back false
+        i is 0
+        repeat while i is less than length of a
+            if not values_equal with a[i] and b[i] then
+                give back false
+            i is i + 1
+        give back true
+    give back false
+
+to subscript_index with index and len and ln and what
+    if kind of index is not "number" then
+        rt_error with ln and what + " needs a whole-number position in brackets."
+    if index % 1 is not 0 then
+        rt_error with ln and what + " needs a whole-number position in brackets."
+    i is index
+    if i is less than 0 then
+        i is i + len
+    if i is less than 0 or i is at least len then
+        rt_error with ln and "position " + text of index + " is outside this " + what + " of " + text of len + "."
+    give back i
+
+note ---- expression evaluation: ev gives back [value, signal]
+
+to ev_binop with node and env and depth
+    op is node[1]
+    ln is node[4]
+    if op is "and" then
+        p is ev with node[2] and env and depth
+        if p[1] is not "" then
+            give back p
+        if p[0] then
+            q is ev with node[3] and env and depth
+            if q[1] is not "" then
+                give back q
+            if q[0] then
+                give back [true, ""]
+            give back [false, ""]
+        give back [false, ""]
+    if op is "or" then
+        p is ev with node[2] and env and depth
+        if p[1] is not "" then
+            give back p
+        if p[0] then
+            give back [true, ""]
+        q is ev with node[3] and env and depth
+        if q[1] is not "" then
+            give back q
+        if q[0] then
+            give back [true, ""]
+        give back [false, ""]
+    p is ev with node[2] and env and depth
+    if p[1] is not "" then
+        give back p
+    q is ev with node[3] and env and depth
+    if q[1] is not "" then
+        give back q
+    left is p[0]
+    right is q[0]
+    ln is node[4]
+    if op is "add" then
+        if kind of left is "number" and kind of right is "number" then
+            give back [left + right, ""]
+        if kind of left is "text" and kind of right is "text" then
+            give back [left + right, ""]
+        rt_error with ln and "I can only add numbers to numbers and text to text."
+    if kind of left is not "number" or kind of right is not "number" then
+        rt_error with ln and "I can only use \"-\", \"*\", \"/\" and \"%\" with numbers."
+    if op is "sub" then
+        give back [left - right, ""]
+    if op is "mul" then
+        give back [left * right, ""]
+    if right is 0 then
+        rt_error with ln and "I cannot divide by zero."
+    if op is "div" then
+        give back [left / right, ""]
+    give back [left % right, ""]
+
+to ev_compare with node and env and depth
+    op is node[1]
+    ln is node[4]
+    p is ev with node[2] and env and depth
+    if p[1] is not "" then
+        give back p
+    q is ev with node[3] and env and depth
+    if q[1] is not "" then
+        give back q
+    left is p[0]
+    right is q[0]
+    if op is "eq" then
+        if values_equal with left and right then
+            give back [true, ""]
+        give back [false, ""]
+    if op is "ne" then
+        if values_equal with left and right then
+            give back [false, ""]
+        give back [true, ""]
+    if op is "contains" then
+        if kind of left is "text" and kind of right is "text" then
+            if left contains right then
+                give back [true, ""]
+            give back [false, ""]
+        if is_real_list with left then
+            for each item in left
+                if values_equal with item and right then
+                    give back [true, ""]
+            give back [false, ""]
+        rt_error with ln and "\"contains\" needs text with text, or a list."
+    if kind of left is not "number" or kind of right is not "number" then
+        rt_error with ln and "I can only use comparisons like this with numbers."
+    if op is "gt" then
+        if left is greater than right then
+            give back [true, ""]
+        give back [false, ""]
+    if op is "lt" then
+        if left is less than right then
+            give back [true, ""]
+        give back [false, ""]
+    if op is "ge" then
+        if left is at least right then
+            give back [true, ""]
+        give back [false, ""]
+    if left is at most right then
+        give back [true, ""]
+    give back [false, ""]
+
+to arity_word with name and need and got and ln
+    word is "input"
+    if need is not 1 then
+        word is "inputs"
+    rt_error with ln and "\"" + name + "\" needs " + text of need + " " + word + ", but you gave " + text of got + "."
+
+to call_function with fn and argvals and env and depth and ln
+    if depth is at least 100 then
+        rt_error with ln and "the functions are calling each other too deep; I stopped before falling over."
+    closure is fn[4]
+    new_env is []
+    for each scope in closure
+        push scope to new_env
+    push [] to new_env
+    params is fn[2]
+    i is 0
+    repeat while i is less than length of params
+        env_set with new_env and params[i] and argvals[i]
+        i is i + 1
+    sig is exec_block with fn[3] and new_env and depth + 1
+    if sig[0] is "giveback" then
+        give back [sig[1], ""]
+    if sig[0] is "none" then
+        give back [nothing, ""]
+    give back [nothing, [sig[0], sig[1]]]
+
+to ev_var with node and env and depth
+    name is node[1]
+    ln is node[2]
+    target is env_get with env and name and ln
+    if is_function_value with target then
+        if length of target[2] is 0 then
+            give back call_function with target and [] and env and depth and ln
+    give back [target, ""]
+
+to ev_call_expr with node and env and depth
+    name is node[1]
+    args is node[2]
+    ln is node[3]
+    target is env_get with env and name and ln
+    if not is_function_value with target then
+        rt_error with ln and "\"" + name + "\" is not a function I can call."
+    if length of args is not length of target[2] then
+        arity_word with name and length of target[2] and length of args and ln
+    argvals is []
+    for each a in args
+        p is ev with a and env and depth
+        if p[1] is not "" then
+            give back p
+        push p[0] to argvals
+    give back call_function with target and argvals and env and depth and ln
+
+to ev_list_lit with node and env and depth
+    out is []
+    for each item in node[1]
+        p is ev with item and env and depth
+        if p[1] is not "" then
+            give back p
+        push p[0] to out
+    give back [out, ""]
+
+to ev_interp with node and env and depth
+    out is ""
+    for each part in node[1]
+        if part[0] is "text" then
+            out is out + part[1]
+        otherwise
+            p is ev with part[1] and env and depth
+            if p[1] is not "" then
+                give back p
+            out is out + render with p[0]
+    give back [out, ""]
+
+to ev_builtin with node and env and depth
+    bkind is node[1]
+    ln is node[3]
+    p is ev with node[2] and env and depth
+    if p[1] is not "" then
+        give back p
+    v is p[0]
+    if bkind is "length" then
+        if kind of v is "text" or is_real_list with v then
+            give back [length of v, ""]
+        rt_error with ln and "\"length of\" needs text or a list."
+    if bkind is "first" then
+        if not is_real_list with v then
+            rt_error with ln and "\"first of\" needs a list."
+        if length of v is 0 then
+            rt_error with ln and "there is no first of an empty list."
+        give back [v[0], ""]
+    if bkind is "last" then
+        if not is_real_list with v then
+            rt_error with ln and "\"last of\" needs a list."
+        if length of v is 0 then
+            rt_error with ln and "there is no last of an empty list."
+        give back [v[length of v - 1], ""]
+    if bkind is "uppercase" then
+        if kind of v is not "text" then
+            rt_error with ln and "\"uppercase of\" needs text."
+        give back [uppercase of v, ""]
+    if bkind is "lowercase" then
+        if kind of v is not "text" then
+            rt_error with ln and "\"lowercase of\" needs text."
+        give back [lowercase of v, ""]
+    if bkind is "trim" then
+        if kind of v is not "text" then
+            rt_error with ln and "\"trim of\" needs text."
+        give back [trim of v, ""]
+    if bkind is "characters" then
+        if kind of v is not "text" then
+            rt_error with ln and "\"characters of\" needs text."
+        give back [characters of v, ""]
+    if bkind is "text" then
+        give back [render with v, ""]
+    if bkind is "kind" then
+        give back [kind of v, ""]
+    rt_error with ln and "I do not know that built-in."
+
+to ev_builtin2 with node and env and depth
+    bkind is node[1]
+    ln is node[4]
+    p is ev with node[2] and env and depth
+    if p[1] is not "" then
+        give back p
+    q is ev with node[3] and env and depth
+    if q[1] is not "" then
+        give back q
+    v is p[0]
+    sep is q[0]
+    if bkind is "split" then
+        if kind of v is not "text" then
+            rt_error with ln and "\"split of\" needs text."
+        if kind of sep is not "text" or sep is "" then
+            rt_error with ln and "\"split of\" needs a non-empty \"by\" text."
+        give back [split of v by sep, ""]
+    if not is_real_list with v then
+        rt_error with ln and "\"join of\" needs a list."
+    if kind of sep is not "text" then
+        rt_error with ln and "\"join of\" needs a \"with\" text."
+    for each item in v
+        if kind of item is not "text" then
+            rt_error with ln and "\"join of\" needs a list of text."
+    give back [join of v with sep, ""]
+
+to ev_subscript with node and env and depth
+    ln is node[3]
+    p is ev with node[1] and env and depth
+    if p[1] is not "" then
+        give back p
+    q is ev with node[2] and env and depth
+    if q[1] is not "" then
+        give back q
+    obj is p[0]
+    index is q[0]
+    if is_real_list with obj then
+        i is subscript_index with index and length of obj and ln and "a list"
+        give back [obj[i], ""]
+    if kind of obj is "text" then
+        i is subscript_index with index and length of obj and ln and "text"
+        give back [obj[i], ""]
+    rt_error with ln and "I cannot look inside " + kind of obj + " with brackets."
+
+to ev with node and env and depth
+    tag is node[0]
+    if tag is "lit" then
+        give back [node[1], ""]
+    if tag is "var" then
+        give back ev_var with node and env and depth
+    if tag is "call" then
+        give back ev_call_expr with node and env and depth
+    if tag is "list" then
+        give back ev_list_lit with node and env and depth
+    if tag is "interp" then
+        give back ev_interp with node and env and depth
+    if tag is "subscript" then
+        give back ev_subscript with node and env and depth
+    if tag is "builtin" then
+        give back ev_builtin with node and env and depth
+    if tag is "builtin2" then
+        give back ev_builtin2 with node and env and depth
+    if tag is "binop" then
+        give back ev_binop with node and env and depth
+    if tag is "compare" then
+        give back ev_compare with node and env and depth
+    if tag is "and" then
+        give back ev_binop with ["binop", "and", node[1], node[2], node[3]] and env and depth
+    if tag is "or" then
+        give back ev_binop with ["binop", "or", node[1], node[2], node[3]] and env and depth
+    if tag is "not" then
+        p is ev with node[1] and env and depth
+        if p[1] is not "" then
+            give back p
+        if p[0] then
+            give back [false, ""]
+        give back [true, ""]
+    if tag is "neg" then
+        p is ev with node[1] and env and depth
+        if p[1] is not "" then
+            give back p
+        if kind of p[0] is not "number" then
+            rt_error with node[2] and "I can only use \"-\" with numbers."
+        give back [0 - p[0], ""]
+    rt_error with 0 and "I do not know how to work out this value yet."
+
+note ---- statement execution: exec_stmt gives back a signal
+
+to exec_block with stmts and env and depth
+    for each stmt in stmts
+        sig is exec_stmt with stmt and env and depth
+        if sig[0] is not "none" then
+            give back sig
+    give back ["none"]
+
+to exec_if with stmt and env and depth
+    branches is stmt[1]
+    elsebody is stmt[2]
+    for each branch in branches
+        p is ev with branch[0] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        if p[0] then
+            give back exec_block with branch[1] and env and depth
+    if length of elsebody is greater than 0 then
+        give back exec_block with elsebody and env and depth
+    give back ["none"]
+
+to loop_signal with sig
+    if sig[0] is "skip" then
+        give back "skip"
+    if sig[0] is "stop" then
+        give back "stop"
+    if sig[0] is not "none" then
+        give back "carry"
+    give back "none"
+
+to exec_repeat_times with stmt and env and depth
+    ln is stmt[3]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    count is p[0]
+    if kind of count is not "number" then
+        rt_error with ln and "\"repeat\" needs a number of times."
+    if count % 1 is not 0 then
+        rt_error with ln and "\"repeat\" needs a whole number of times."
+    if count is less than 0 then
+        rt_error with ln and "\"repeat\" needs zero or more times."
+    runs is 0
+    repeat while runs is less than count
+        runs is runs + 1
+        if runs is greater than 1000000 then
+            rt_error with ln and "this loop ran a million times; I stopped it."
+        sig is exec_block with stmt[2] and env and depth
+        how is loop_signal with sig
+        if how is "skip" then
+            skip
+        if how is "stop" then
+            give back ["none"]
+        if how is "carry" then
+            give back sig
+    give back ["none"]
+
+to exec_repeat_while with stmt and env and depth
+    ln is stmt[3]
+    runs is 0
+    keep_going is true
+    repeat while keep_going
+        p is ev with stmt[1] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        if not p[0] then
+            keep_going is false
+            skip
+        runs is runs + 1
+        if runs is greater than 1000000 then
+            rt_error with ln and "this loop ran a million times; I stopped it."
+        sig is exec_block with stmt[2] and env and depth
+        how is loop_signal with sig
+        if how is "skip" then
+            skip
+        if how is "stop" then
+            give back ["none"]
+        if how is "carry" then
+            give back sig
+    give back ["none"]
+
+to exec_foreach with stmt and env and depth
+    ln is stmt[4]
+    p is ev with stmt[2] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    if not is_real_list with p[0] then
+        rt_error with ln and "I can only loop over a list."
+    for each item in p[0]
+        env_set with env and stmt[1] and item
+        sig is exec_block with stmt[3] and env and depth
+        how is loop_signal with sig
+        if how is "skip" then
+            skip
+        if how is "stop" then
+            give back ["none"]
+        if how is "carry" then
+            give back sig
+    give back ["none"]
+
+to exec_stmt with stmt and env and depth
+    tag is stmt[0]
+    if tag is "show" then
+        p is ev with stmt[1] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        show render with p[0]
+        give back ["none"]
+    if tag is "is" then
+        p is ev with stmt[2] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        env_set with env and stmt[1] and p[0]
+        give back ["none"]
+    if tag is "push" then
+        p is ev with stmt[1] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        target is env_get with env and stmt[2] and stmt[3]
+        if not is_real_list with target then
+            rt_error with stmt[3] and "I can only push to a list, but \"" + stmt[2] + "\" holds " + kind of target + "."
+        push p[0] to target
+        give back ["none"]
+    if tag is "fail" then
+        p is ev with stmt[1] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        if kind of p[0] is not "text" then
+            rt_error with stmt[2] and "\"fail with\" needs some text to say."
+        fail with p[0]
+    if tag is "if" then
+        give back exec_if with stmt and env and depth
+    if tag is "repeat_times" then
+        give back exec_repeat_times with stmt and env and depth
+    if tag is "repeat_while" then
+        give back exec_repeat_while with stmt and env and depth
+    if tag is "foreach" then
+        give back exec_foreach with stmt and env and depth
+    if tag is "to" then
+        env_set with env and stmt[1] and ["function", stmt[1], stmt[2], stmt[3], env, stmt[4]]
+        give back ["none"]
+    if tag is "giveback" then
+        p is ev with stmt[1] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        give back ["giveback", p[0], stmt[2]]
+    if tag is "stop" then
+        give back ["stop", stmt[1]]
+    if tag is "skip" then
+        give back ["skip", stmt[1]]
+    if tag is "exprstmt" then
+        e is stmt[1]
+        if e[0] is "var" then
+            target is env_get with env and e[1] and e[2]
+            if is_function_value with target then
+                if length of target[2] is greater than 0 then
+                    arity_word with e[1] and length of target[2] and 0 and stmt[2]
+        p is ev with e and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        give back ["none"]
+    rt_error with 0 and "I do not know how to run this yet."
+
+note ==== SECTION: DRIVER ====
+
+if length of arguments is 0 then
+    show "Call me like this: python jesun.py jesun.jc program.jc"
+otherwise
+    path is arguments[0]
+    read file path giving source
+    toks is lex with source
+    tree is parse_program with toks
+    env is [[]]
+    sig is exec_block with tree and env and 0
+    if sig[0] is "giveback" then
+        rt_error with sig[2] and "\"give back\" only makes sense inside a function."
+    if sig[0] is "stop" then
+        rt_error with sig[1] and "\"stop\" only makes sense inside a loop."
+    if sig[0] is "skip" then
+        rt_error with sig[1] and "\"skip\" only makes sense inside a loop."

@@ -58,7 +58,7 @@
     },
     {
       "name": "keyword.control.jesun",
-      "match": "(?<![\\p{L}\\p{N}_\\p{M}])(?:characters|otherwise|uppercase|lowercase|streaming|contains|terminal|remember|nothing|greater|persona|giving|repeat|length|import|within|always|forget|memory|append|false|times|while|first|least|split|tools|steps|named|close|agent|write|bring|fleet|show|true|then|each|with|give|back|stop|skip|last|less|than|most|join|trim|keys|push|text|kind|open|send|read|file|not|ask|for|and|use|is|if|in|to|or|of|at|by|as|ai)(?![\\p{L}\\p{N}_\\p{M}])"
+      "match": "(?<![\\p{L}\\p{N}_\\p{M}])(?:characters|otherwise|uppercase|lowercase|streaming|contains|terminal|remember|nothing|greater|persona|giving|repeat|length|import|within|always|forget|memory|append|false|times|while|first|least|split|tools|steps|named|close|agent|write|bring|fleet|show|true|then|each|with|give|back|stop|skip|last|less|than|most|join|trim|keys|push|text|kind|fail|open|send|read|file|not|ask|for|and|use|is|if|in|to|or|of|at|by|as|ai)(?![\\p{L}\\p{N}_\\p{M}])"
     },
     {
       "name": "constant.numeric.jesun",

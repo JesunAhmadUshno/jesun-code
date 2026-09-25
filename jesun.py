@@ -59,6 +59,15 @@ class JesunError(Exception):
         super().__init__(f"Line {line}: {message}")
 
 
+class _BareError(JesunError):
+    """Raised by `fail with`: the text is already the whole message."""
+
+    def __init__(self, message: str) -> None:
+        self.line = 0
+        self.message = message
+        Exception.__init__(self, message)
+
+
 class _AgentDepthExceeded(JesunError):
     """Agent-to-agent nesting passed the cap: ends the loop, never feeds back."""
 
@@ -310,6 +319,8 @@ KEYWORDS: dict[str, str] = {
     "push": "PUSH", "characters": "CHARACTERS",
     # v1.0: exact value rendering and type tests for the self-hosted walker.
     "text": "TEXT", "kind": "KIND",
+    # v1.0: `fail with` lets a program stop with its own plain-English message.
+    "fail": "FAIL",
     # Phase 2: the Python bridge, minds, and machines.
     "import": "IMPORT", "as": "AS", "ai": "AI", "tools": "TOOLS",
     "within": "WITHIN", "steps": "STEPS", "open": "OPEN",
@@ -813,6 +824,13 @@ class Push:
     line: int
 
 
+@dataclass
+class Fail:
+    """v1.0: `fail with <text>` stops the program; the text prints verbatim."""
+    expr: "Expr"
+    line: int
+
+
 Stmt = Any
 Expr = Any
 
@@ -912,6 +930,8 @@ class Parser:
             return self.parse_assign()
         if tok.type == "PUSH":  # v1.0
             return self.parse_push()
+        if tok.type == "FAIL":  # v1.0
+            return self.parse_fail()
         expr = self.parse_or()
         self.expect("NEWLINE", "the end of the line")
         return ExprStmt(expr, tok.line)
@@ -938,6 +958,14 @@ class Parser:
         name = self.expect("NAME", 'a list name after "to"').value
         self.expect("NEWLINE", "the end of the line")
         return Push(expr, name, tok.line)
+
+    def parse_fail(self) -> Fail:
+        # v1.0: `fail with <expr>`.
+        tok = self.advance()  # FAIL
+        self.expect("WITH", '"with"')
+        expr = self.parse_or()
+        self.expect("NEWLINE", "the end of the line")
+        return Fail(expr, tok.line)
 
     def parse_ask(self) -> Stmt:
         tok = self.advance()
@@ -1662,6 +1690,8 @@ class Interpreter:
             BringIn: self.exec_bring_in,
             # v1.0: list building for the self-hosted lexer.
             Push: self.exec_push,
+            # v1.0: a program stopping with its own message.
+            Fail: self.exec_fail,
         }
         self._EXPR_HANDLERS: dict[Any, Any] = {
             Literal: self.eval_literal,
@@ -1723,6 +1753,13 @@ class Interpreter:
                  f'I can only push to a list, but "{stmt.name}" holds '
                  f"{type_name(target)}.")
         target.append(self.eval_expr(stmt.expr, env))
+
+    def exec_fail(self, stmt: Fail, env: Environment) -> None:
+        # v1.0: the message prints exactly as given, no line prefix added.
+        value = self.eval_expr(stmt.expr, env)
+        if not isinstance(value, str):
+            fail(stmt.line, '"fail with" needs some text to say.')
+        raise _BareError(value)
 
     def exec_ask(self, stmt: Ask, env: Environment) -> None:
         prompt = self.eval_expr(stmt.prompt, env)

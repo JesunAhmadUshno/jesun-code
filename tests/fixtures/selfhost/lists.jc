@@ -1,0 +1,25 @@
+note lists, subscripts, builtins, push, characters, text, kind
+xs is [3, 1, 2]
+show length of xs
+show first of xs
+show last of xs
+show xs[0]
+show xs[-1]
+show "hello"[1]
+push 4 to xs
+show xs
+show uppercase of "hello"
+show lowercase of "HeLLo"
+show trim of "  padded  "
+show split of "a,b,c" by ","
+show join of ["a", "b"] with "-"
+show characters of "abc"
+show text of 3.5
+show text of 3.0
+show text of nothing
+show kind of 1
+show kind of "s"
+show kind of [1]
+show kind of true
+show kind of nothing
+show text of [1, "two", [3]]

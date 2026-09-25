@@ -35,6 +35,8 @@ WORDS = [
     "of", "first", "last", "length", "uppercase", "lowercase", "greater",
     "less", "than", "least", "most", "at", "contains", "note",
     "split", "join", "trim", "by", "keys", "fleet",
+    # v1.0: list building, exact rendering, and program-halting.
+    "push", "characters", "text", "kind", "fail",
     # v0.5: Bangla flavor words. Excluded on purpose (real side effects):
     # আনো (import), এআই (ai), হাতিয়ার (tools), টার্মিনাল/খোলো/পাঠাও/বন্ধকরো
     # (tmux), এজেন্ট/পারসোনা/মনেকরো/ভুলেযাও/স্মৃতি (agents),
