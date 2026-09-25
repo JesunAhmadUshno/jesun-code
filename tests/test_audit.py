@@ -85,7 +85,7 @@ class AuditBugs(unittest.TestCase):
 
     def test_function_type_name_in_bridge_error(self):
         out = jesun.execute(
-            "to f\n    show 1\nimport builtins\nshow builtins.len(f)\n"
+            "to f with x\n    show x\nimport builtins\nshow builtins.len(f)\n"
         )
         self.assertIn("I cannot hand function to Python.", out)
 

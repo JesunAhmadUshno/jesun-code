@@ -1,0 +1,26 @@
+note jpm package "files": plain-English file helpers.
+
+import os as osmod
+import shutil as shutilmod
+
+to files_exists with path
+    give back osmod.path.exists(path)
+
+to files_size with path
+    if files_exists with path then
+        give back osmod.path.getsize(path)
+    otherwise
+        give back 0
+
+to files_list with folder
+    give back osmod.listdir(folder)
+
+to files_copy with source and target
+    shutilmod.copy(source, target)
+
+to files_move with source and target
+    shutilmod.move(source, target)
+
+to files_delete with path
+    if files_exists with path then
+        osmod.remove(path)

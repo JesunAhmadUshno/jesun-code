@@ -16,10 +16,35 @@ path fix. First release with macOS and Windows binaries.
 - The release workflow checks out the requested tag on manual runs instead
   of the moving default branch.
 
-## Unreleased (v0.4 in progress)
+## v0.4 - 2026-09-25
 
-Files and words. The `jpm` package manager is still to come; no release
-until the milestone completes.
+Files, words, and sharing. `jpm`, the Jesun.Code package manager,
+installs packages straight from GitHub and loads them into your program.
+
+- `use "github.com/user/pkg"`: shallow git clone (`--depth 1`, arg list
+  only, 120-second timeout) into `~/.jesun-code/packages/<host>/<user>/<pkg>/`
+  (`JESUN_CODE_HOME` redirects it). Installing twice is a no-op; a
+  checkout with local changes is never overwritten.
+- `bring in "pkg"`: loads the package's main file (`jpm.json`'s `main`,
+  default `<pkg>.jc`) so its functions are ready to call. Unknown
+  packages, missing code files, manifests pointing outside the package
+  folder, and packages that bring each other in a circle all fail in
+  plain English with a line number.
+- Package functions carry their origin: an error inside one says
+  `in the "pkg" package: ...`, never a bare package line number.
+- Three starter packages ship in `packages/`: `time` (`time_now`,
+  `time_today`, `time_stamp`, `time_wait`), `files` (`files_exists`,
+  `files_size`, `files_list`, `files_copy`, `files_move`,
+  `files_delete`), `http` (`http_get`, `http_status`, 10-second timeout).
+- Zero-input functions are now called automatically where a value is
+  expected: `show time_today` runs it (the spec already said a call is
+  "an expression anywhere a value is expected"; the code now agrees).
+- `use` and `bring` are now keywords.
+- 158 tests passing (18 new for jpm), `fuzz.py` extended with 10 jpm
+  seeds, `fuzz_phase2.py` extended with 21 jpm cases (hostile addresses,
+  manifests, and package code; no network), both sweeps clean.
+
+Files and words (shipped earlier in the v0.4 cycle):
 
 - Pollinations provider: `scripts/ai-providers/pollinations-provider`
   implements the `JESUNCODE_AI_COMMAND` protocol against the free

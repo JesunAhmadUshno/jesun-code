@@ -372,6 +372,59 @@ def main() -> int:
     finally:
         os.chdir(old_cwd)
 
+    # 7. v0.4 jpm: hostile addresses, names, manifests, and package code.
+    # No network: PATH is emptied so `use` always hits the no-git error.
+    jpmhome = TMP / "jpmhome"
+    pkgs = jpmhome / "packages" / "github.com" / "jesun"
+    pkgs.mkdir(parents=True, exist_ok=True)
+    hostile_pkgs = {
+        "badjson": ('{{{not json', 'to x\n    give back 1\n'),
+        "nummain": ('{"main": 42}', 'to x\n    give back 1\n'),
+        "listmain": ('{"main": ["a.jc"]}', 'to x\n    give back 1\n'),
+        "escape": ('{"main": "../evil.jc"}', 'to x\n    give back 1\n'),
+        "absmain": ('{"main": "/etc/hostname"}', 'to x\n    give back 1\n'),
+        "syntax": (None, 'to broken(\nshow "never"\n'),
+        "recbomb": (None, 'to boom\n    show boom\n'),
+        "selfref": (None, 'bring in "selfref"\n'),
+        "empty": (None, ''),
+    }
+    for pkg, (manifest, main_src) in hostile_pkgs.items():
+        d = pkgs / pkg
+        d.mkdir(exist_ok=True)
+        if manifest is not None:
+            (d / "jpm.json").write_text(manifest, encoding="utf-8")
+        (d / f"{pkg}.jc").write_text(main_src, encoding="utf-8")
+    (pkgs / "notadir.txt").write_text("a file, not a package", encoding="utf-8")
+    nopath = {"PATH": str(TMP / "emptybin"), "JESUN_CODE_HOME": str(jpmhome)}
+    (TMP / "emptybin").mkdir(exist_ok=True)
+    home = {"JESUN_CODE_HOME": str(jpmhome)}
+    jpm_cases = [
+        'use "github.com/jesun/pkg"\n',
+        'use "github.com//pkg"\n',
+        'use "a/b/c/d/e"\n',
+        'use "github.com/u/p/../q"\n',
+        'use ""\n',
+        'use 7\n',
+        'use "bitbucket.org/u/p"\n',
+        'bring in "badjson"\nshow badjson_x\n',
+        'bring in "nummain"\nshow nummain_x\n',
+        'bring in "listmain"\nshow listmain_x\n',
+        'bring in "escape"\n',
+        'bring in "absmain"\n',
+        'bring in "syntax"\n',
+        'bring in "recbomb"\nshow boom\n',
+        'bring in "selfref"\n',
+        'bring in "empty"\nshow "after empty"\n',
+        'bring in "notadir.txt"\n',
+        'bring in "nosuchpkg"\n',
+        'bring in ".."\n',
+        'bring in ""\n',
+        'bring in 42\n',
+    ]
+    for i, src in enumerate(jpm_cases):
+        env = nopath if src.startswith("use ") else home
+        problems.extend(check(f"jpm-{i}", src, env))
+
     after = sessions()
     stray = {s for s in after - before if not s.startswith("jc_")}
     if stray:

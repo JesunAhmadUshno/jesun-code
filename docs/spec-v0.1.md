@@ -150,6 +150,9 @@ dance
 
 A call is a statement starting with a defined function name, or an expression anywhere a value is expected. Argument lists split on top-level `and`; parenthesize boolean `and` inside an argument: `check with (a and b)`.
 
+A zero-input function named where a value is expected is called
+automatically: `show time_today` runs it and shows what it gives back.
+
 ## 12. Lists and built-ins
 
 ```

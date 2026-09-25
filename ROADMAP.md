@@ -14,20 +14,16 @@ America/Toronto.
 - **v0.3.0 (2026-09-25):** deeper agents. Disk-persistent memory
   (`remember is always`), agents calling agents (3-level cap), and
   streaming answers. 112 tests.
+- **v0.4 (2026-09-25):** files and sharing. File I/O (`write` / `append` /
+  `read file ... giving`), string interpolation (`"Hello, {name}!"`),
+  and `jpm`: `use "github.com/user/pkg"` installs a Jesun.Code package
+  into `~/.jesun-code/packages/` (shallow clone, timeouts, no `..`
+  escapes, plain-English errors), `bring in "pkg"` loads it. Ships
+  three starter packages: `time`, `files`, `http`. 158 tests.
 
 ## In progress
 
-- **v0.4: files and sharing.**
-  - Shipped this sprint: file I/O (`read file "<p>" giving <t>`,
-    `write <t> to file "<p>"`, `append <t> to file "<p>"`; paths resolve
-    from the current folder and may not escape it) and string
-    interpolation (`"Hello, {name}!"`, with `{{`/`}}` escapes). Breaking
-    change: literal braces in strings now need doubling.
-  - Next shift: `jpm`, the package manager. `use "github.com/user/pkg"`
-    installs a Jesun.Code package from GitHub into
-    `~/.jesun-code/packages/` (shallow clone, arg lists only, timeouts,
-    no `..` escapes), then makes its files importable by name. Starter
-    packages to ship: `http`, `files`, `time`.
+- **v0.5: home turf.**
 
 ## Up next (in order, no skipping)
 
@@ -55,8 +51,7 @@ its milestone ships green.
 
 ## Blocked on the founder (not worked around)
 
-1. `.github/workflows/` needs `gh auth login --web` with `workflow`
-   scope, then the workflow files can be pushed: unlocks macOS/Windows
-   binaries via Actions.
+1. A real LLM for `JESUNCODE_AI_COMMAND` (his call which provider) to
+   dogfood `ask ai` against a true model.
 2. A real LLM for `JESUNCODE_AI_COMMAND` (his call which provider) to
    dogfood `ask ai` against a true model.

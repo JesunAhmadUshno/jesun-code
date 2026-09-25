@@ -56,6 +56,17 @@ SEEDS = [
     'show length of "hello"\nshow first of [1]\n',
     'note just a comment\n',
     'x is 1\nrepeat while x is less than 3\n    show x\n    x is x + 1\n',
+    # v0.4 jpm: all of these fail before any network or filesystem write.
+    'use "not an address"\n',
+    'use "a/b/c/d"\n',
+    'use "github.com/../evil"\n',
+    'use "gitlab.com/u/p"\n',
+    'use 42\n',
+    'bring in "ghost"\n',
+    'bring in ".."\n',
+    'bring in ""\n',
+    'read file "../evil.txt" giving t\n',
+    'show time_today\n',
 ]
 
 

@@ -25,7 +25,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 MAX_CALL_DEPTH = 100  # well under Python's own limit; the guard always fires first
 MAX_LOOP_RUNS = 1_000_000
 TOO_DEEP = "I got in too deep and stopped before falling over."
@@ -316,6 +316,8 @@ KEYWORDS: dict[str, str] = {
     "file": "FILE", "streaming": "STREAMING",
     # v0.4: files and words.
     "write": "WRITE", "append": "APPEND",
+    # v0.4: jpm packages.
+    "use": "USE", "bring": "BRING",
 }
 
 SIMPLE_TOKENS: dict[str, str] = {
@@ -704,6 +706,18 @@ class WriteFile:
     line: int
 
 
+@dataclass
+class UsePkg:
+    address: "Expr"
+    line: int
+
+
+@dataclass
+class BringIn:
+    name: "Expr"
+    line: int
+
+
 Stmt = Any
 Expr = Any
 
@@ -776,6 +790,11 @@ class Parser:
             return self.parse_write_file(tok, append=False)
         if tok.type == "APPEND":
             return self.parse_write_file(tok, append=True)
+        # v0.4: jpm packages.
+        if tok.type == "USE":
+            return self.parse_use_pkg()
+        if tok.type == "BRING":
+            return self.parse_bring_in()
         if tok.type == "OTHERWISE":
             fail(tok.line, '"otherwise" needs an "if" above it.')
         # Phase 2 statements: the Python bridge, minds, and machines.
@@ -1007,6 +1026,20 @@ class Parser:
         path = self.parse_or()
         self.expect("NEWLINE", "the end of the line")
         return WriteFile(value, path, append, tok.line)
+
+    # v0.4: jpm packages.
+    def parse_use_pkg(self) -> UsePkg:
+        tok = self.advance()  # USE
+        address = self.parse_or()
+        self.expect("NEWLINE", "the end of the line")
+        return UsePkg(address, tok.line)
+
+    def parse_bring_in(self) -> BringIn:
+        tok = self.advance()  # BRING
+        self.expect("IN", '"in"')
+        name = self.parse_or()
+        self.expect("NEWLINE", "the end of the line")
+        return BringIn(name, tok.line)
 
     def parse_term_read(self, tok: Token) -> TermRead:
         self.expect("TERMINAL", '"terminal"')
@@ -1396,6 +1429,7 @@ class Function:
     body: list[Stmt]
     closure: Environment
     line: int
+    origin: Optional[str] = None  # jpm package this was loaded from, if any
 
 
 @dataclass
@@ -1419,6 +1453,7 @@ class Interpreter:
         self.stdout = stdout if stdout is not None else sys.stdout
         self.depth = 0
         self.current_line = 1
+        self._jpm_loading: list[str] = []  # package names on the current bring-in chain
         self._STMT_HANDLERS: dict[Any, Any] = {
             Show: self.exec_show,
             Assign: self.exec_assign,
@@ -1446,6 +1481,9 @@ class Interpreter:
             # v0.4: files.
             ReadFile: self.exec_read_file,
             WriteFile: self.exec_write_file,
+            # v0.4: jpm packages.
+            UsePkg: self.exec_use_pkg,
+            BringIn: self.exec_bring_in,
         }
         self._EXPR_HANDLERS: dict[Any, Any] = {
             Literal: self.eval_literal,
@@ -1601,7 +1639,13 @@ class Interpreter:
         return expr.value
 
     def eval_var(self, expr: Var, env: Environment) -> Any:
-        return env.get(expr.name, expr.line)
+        target = env.get(expr.name, expr.line)
+        # A zero-input function named where a value is expected is a call:
+        # `show time_today` runs it. (A bare name as a whole statement
+        # already did this in exec_exprstmt.)
+        if isinstance(target, Function) and not target.params:
+            return self.eval_call(Call(expr.name, [], expr.line), env)
+        return target
 
     def eval_list(self, expr: ListLit, env: Environment) -> Any:
         return [self.eval_expr(item, env) for item in expr.items]
@@ -1686,6 +1730,13 @@ class Interpreter:
             self.exec_block(target.body, call_env)
         except _Return as r:
             return r.value
+        except JesunError as err:
+            # A function loaded from a jpm package says which package broke.
+            origin = getattr(target, "origin", None)
+            tag = f'in the "{origin}" package: ' if origin else ""
+            if tag and not err.message.startswith(tag):
+                raise JesunError(err.line, tag + err.message)
+            raise
         finally:
             self.depth -= 1
         return None
@@ -2415,6 +2466,153 @@ class Interpreter:
             fail(stmt.line, f'I could not write "{shown}": its folder does not exist.')
         except (OSError, ValueError):
             fail(stmt.line, f'I could not write to "{shown}".')
+
+    # v0.4: jpm, the package manager. Packages live in
+    # ~/.jesun-code/packages/<host>/<user>/<pkg>/ (or JESUN_CODE_HOME).
+    _JPM_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
+    _JPM_TIMEOUT = 120
+
+    def _jpm_home(self) -> "Path":
+        import os
+        from pathlib import Path
+        override = os.environ.get("JESUN_CODE_HOME", "").strip()
+        return Path(override).expanduser() if override else Path.home() / ".jesun-code"
+
+    def _jpm_packages_dir(self) -> "Path":
+        return self._jpm_home() / "packages"
+
+    def _jpm_parse_address(self, text: str, line: int) -> tuple:
+        parts = text.split("/")
+        ok = (len(parts) == 3 and all(
+            part and self._JPM_SEGMENT.match(part) and ".." not in part
+            for part in parts))
+        if not ok:
+            fail(line, f'"{text}" is not a package address; write it like "github.com/user/pkg".')
+        return parts[0], parts[1], parts[2]
+
+    def _jpm_package_dir(self, host: str, user: str, pkg: str) -> "Path":
+        return self._jpm_packages_dir() / host / user / pkg
+
+    def _jpm_git(self) -> Optional[str]:
+        import shutil
+        return shutil.which("git")
+
+    def exec_use_pkg(self, stmt: UsePkg, env: Environment) -> None:
+        raw = self.eval_expr(stmt.address, env)
+        text = raw if isinstance(raw, str) else show_text(raw)
+        host, user, pkg = self._jpm_parse_address(text, stmt.line)
+        if host != "github.com":
+            fail(stmt.line, f'I can only fetch packages from github.com, not "{host}".')
+        dest = self._jpm_package_dir(host, user, pkg)
+        if dest.exists():
+            self._jpm_check_clean(dest, user, pkg, stmt.line)
+            return  # already installed: installing twice is a no-op
+        self._jpm_clone(host, user, pkg, dest, stmt.line)
+
+    def _jpm_check_clean(self, dest: "Path", user: str, pkg: str, line: int) -> None:
+        import subprocess
+        git = self._jpm_git()
+        if git is None:
+            return  # installed by hand, not by git: nothing to check
+        try:
+            done = subprocess.run(
+                [git, "-C", str(dest), "status", "--porcelain"],
+                timeout=30, capture_output=True, text=True)
+        except (subprocess.SubprocessError, OSError):
+            return  # not a git checkout or git misbehaving: leave it alone
+        if done.returncode == 0 and done.stdout.strip():
+            fail(line, f'the package "{user}/{pkg}" has local changes; '
+                       "move them away before I fetch it again.")
+
+    def _jpm_clone(self, host: str, user: str, pkg: str, dest: "Path", line: int) -> None:
+        import shutil
+        import subprocess
+        git = self._jpm_git()
+        if git is None:
+            fail(line, "I need git to fetch packages, and I cannot find it.")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        url = f"https://{host}/{user}/{pkg}"
+        try:
+            subprocess.run([git, "clone", "--depth", "1", url, str(dest)],
+                           check=True, timeout=self._JPM_TIMEOUT,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (subprocess.SubprocessError, OSError):
+            shutil.rmtree(dest, ignore_errors=True)
+            fail(line, f'I could not fetch "{host}/{user}/{pkg}"; '
+                       "check the address and your connection.")
+
+    def _jpm_find(self, name: str) -> Optional["Path"]:
+        base = self._jpm_packages_dir()
+        if not base.is_dir():
+            return None
+        for host_dir in sorted(base.iterdir()):
+            if not host_dir.is_dir():
+                continue
+            for user_dir in sorted(host_dir.iterdir()):
+                if not user_dir.is_dir():
+                    continue
+                candidate = user_dir / name
+                if candidate.is_dir():
+                    return candidate
+        return None
+
+    def _jpm_main_file(self, dest: "Path", name: str, line: int) -> "Path":
+        manifest = dest / "jpm.json"
+        fname = f"{name}.jc"
+        if manifest.is_file():
+            try:
+                import json
+                data = json.loads(manifest.read_text(encoding="utf-8"))
+                picked = data.get("main")
+                if isinstance(picked, str) and picked.strip():
+                    fname = picked.strip()
+            except (OSError, ValueError):
+                fail(line, f'the package "{name}" has a jpm.json I cannot read.')
+        target = dest / fname
+        try:
+            resolved = target.resolve()
+            resolved.relative_to(dest.resolve())
+        except (OSError, ValueError):
+            fail(line, f'the package "{name}" points outside its own folder; I will not load it.')
+        if not resolved.is_file():
+            fail(line, f'I fetched the package "{name}" but I cannot find its code file "{fname}".')
+        return resolved
+
+    def exec_bring_in(self, stmt: BringIn, env: Environment) -> None:
+        raw = self.eval_expr(stmt.name, env)
+        text = raw if isinstance(raw, str) else show_text(raw)
+        if not text or text in (".", "..") or not self._JPM_SEGMENT.match(text):
+            fail(stmt.line, f'"{text}" is not a package name; bring in a name like "time".')
+        if text in self._jpm_loading:
+            chain = self._jpm_loading + [text]
+            fail(stmt.line, f'these packages bring each other in a circle: {", ".join(chain)}.')
+        dest = self._jpm_find(text)
+        if dest is None:
+            fail(stmt.line, f'I have not fetched the package "{text}" yet; '
+                            f'run use "github.com/user/{text}" first.')
+        main = self._jpm_main_file(dest, text, stmt.line)
+        self._jpm_loading.append(text)
+        try:
+            try:
+                source = main.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                fail(stmt.line, f'I could not read the package "{text}".')
+            program = Parser(tokenize(source)).parse_program()
+            before = set(env.vars)
+            for sub in program:
+                self.exec_stmt(sub, env)
+            for name, value in env.vars.items():
+                if name not in before and isinstance(value, Function):
+                    value.origin = text
+        except JesunError as err:
+            # Package line numbers mean nothing to the user: say where it
+            # broke (once; a package function that already said so is left).
+            tag = f'in the "{text}" package: '
+            if err.message.startswith(tag):
+                raise
+            raise JesunError(err.line, tag + err.message)
+        finally:
+            self._jpm_loading.pop()
 
     def exec_term_close(self, stmt: TermClose, env: Environment) -> None:
         name = self._need_text(self.eval_expr(stmt.name, env), stmt.line,

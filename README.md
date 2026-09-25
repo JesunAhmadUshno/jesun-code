@@ -245,8 +245,8 @@ See `examples/deep_agent.jc` and `docs/spec-v0.3.md`.
 
 ## Files and words
 
-v0.4 (in progress): Jesun.Code reads and writes files, and strings can
-think:
+v0.4: Jesun.Code reads and writes files, strings can think, and `jpm`
+fetches packages:
 
 ```jesun
 write "dear diary\n" to file "journal.txt"
@@ -256,6 +256,10 @@ show pages
 
 name is "Jesun"
 show "Hello, {name}! Two plus two is {2 + 2}."
+
+use "github.com/jesun/time"
+bring in "time"
+show "It is " + time_now + " on " + time_today
 ```
 
 - `write <value> to file "<path>"` replaces the file's contents;
@@ -269,6 +273,13 @@ show "Hello, {name}! Two plus two is {2 + 2}."
 - `{expression}` inside any string evaluates and splices in its `show`
   form. `{{` and `}}` are literal braces. Note: this means literal braces
   in strings now need doubling (breaking change from v0.3).
+- `use "github.com/user/pkg"` installs a Jesun.Code package into
+  `~/.jesun-code/packages/` (shallow git clone, 120-second timeout, no
+  `..` escapes; refused in plain English when the repo is unknown, the
+  network fails, or git is missing). `bring in "pkg"` loads its code so
+  its functions are ready to call. Installing twice is a no-op; a
+  checkout with local changes is never overwritten. The repo ships three
+  starter packages in `packages/`: `time`, `files`, and `http`.
 
 See `examples/file_demo.jc` and `docs/spec-v0.4.md`.
 
@@ -310,9 +321,9 @@ with real tools, and looks around through a tmux terminal. Run the suite:
 python3 -m unittest discover -s tests
 ```
 
-## What v0.3 is, honestly
+## What v0.4 is, honestly
 
-v0.3 ships as a native binary. You never install Python and never see it,
+v0.4 ships as a native binary. You never install Python and never see it,
 period. Under the hood the interpreter core is written in Python and
 bundled inside the binary; the full standard library rides along so the
 Python bridge works out of the box.
@@ -325,7 +336,7 @@ files plus interpolation in `docs/spec-v0.4.md`.
 ## Roadmap
 
 The public milestone ladder lives in [ROADMAP.md](ROADMAP.md): v0.4
-files and sharing (in progress), v0.5 Bangla flavor plus the VS Code
+files and sharing (shipped), v0.5 Bangla flavor plus the VS Code
 extension, v0.6 agent fleets, v1.0 self-hosting (the interpreter rewritten
 in Jesun.Code itself, which does not exist yet and will not be claimed
 until it does), v1.1 native binaries.

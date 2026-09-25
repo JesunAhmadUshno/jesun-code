@@ -135,7 +135,7 @@ class Bridge(unittest.TestCase):
 
     def test_cannot_hand_function_to_python(self):
         out = jesun.execute(
-            "to f\n    show 1\nimport builtins\nshow builtins.len(f)\n"
+            "to f with x\n    show x\nimport builtins\nshow builtins.len(f)\n"
         )
         self.assertTrue("I cannot hand" in out)
 
@@ -303,7 +303,7 @@ class ZeroLeakage(unittest.TestCase):
         with redirect_stdout(buf):
             code = jesun.main(["--version"])
         self.assertEqual(code, 0)
-        self.assertEqual(buf.getvalue(), "Jesun.Code v0.3.1\n")
+        self.assertEqual(buf.getvalue(), "Jesun.Code v0.4.0\n")
 
 
 if __name__ == "__main__":

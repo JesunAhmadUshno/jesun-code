@@ -1,0 +1,22 @@
+note Jesun.Code: jpm demo. Install first (needs network, once):
+note   use "github.com/jesun/time"
+note   use "github.com/jesun/files"
+note   use "github.com/jesun/http"
+note Then this runs offline.
+
+bring in "time"
+bring in "files"
+bring in "http"
+
+show "jpm demo, running on " + time_today + " at " + time_now
+
+write "jpm was here" to file "jpm-demo.txt"
+size is files_size with "jpm-demo.txt"
+show "the demo file is {size} bytes"
+
+code is http_status with "https://example.com"
+show "example.com answers with status {code}"
+
+files_delete with "jpm-demo.txt"
+gone is files_exists with "jpm-demo.txt"
+show "cleaned up, file gone: {gone}"
