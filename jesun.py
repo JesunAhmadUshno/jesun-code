@@ -306,6 +306,10 @@ KEYWORDS: dict[str, str] = {
     "at": "AT", "contains": "CONTAINS",
     "split": "SPLIT", "join": "JOIN", "trim": "TRIM", "by": "BY",
     "keys": "KEYS",
+    # v1.0: list building and character scanning for the self-hosted lexer.
+    "push": "PUSH", "characters": "CHARACTERS",
+    # v1.0: exact value rendering and type tests for the self-hosted walker.
+    "text": "TEXT", "kind": "KIND",
     # Phase 2: the Python bridge, minds, and machines.
     "import": "IMPORT", "as": "AS", "ai": "AI", "tools": "TOOLS",
     "within": "WITHIN", "steps": "STEPS", "open": "OPEN",
@@ -647,7 +651,7 @@ class Call:
 
 @dataclass
 class Builtin:
-    kind: str  # FIRST LAST LENGTH UPPERCASE LOWERCASE SPLIT JOIN TRIM KEYS
+    kind: str  # FIRST LAST LENGTH UPPERCASE LOWERCASE SPLIT JOIN TRIM KEYS CHARACTERS TEXT KIND
     operand: "Expr"
     line: int
     sep: Optional["Expr"] = None  # SPLIT ... BY sep / JOIN ... WITH sep
@@ -801,6 +805,14 @@ class BringIn:
     line: int
 
 
+@dataclass
+class Push:
+    """v1.0: `push <expr> to <name>` appends to the named list in place."""
+    expr: "Expr"
+    name: str
+    line: int
+
+
 Stmt = Any
 Expr = Any
 
@@ -898,6 +910,8 @@ class Parser:
             return self.parse_term_close()
         if tok.type == "NAME" and self.peek2().type == "IS":
             return self.parse_assign()
+        if tok.type == "PUSH":  # v1.0
+            return self.parse_push()
         expr = self.parse_or()
         self.expect("NEWLINE", "the end of the line")
         return ExprStmt(expr, tok.line)
@@ -914,6 +928,16 @@ class Parser:
         expr = self.parse_or()
         self.expect("NEWLINE", "the end of the line")
         return Assign(name, expr, line)
+
+    def parse_push(self) -> Push:
+        # v1.0: `push <expr> to <name>`. TO stops the expression parse the
+        # same way it stops nothing else, so `push a + b to xs` works.
+        tok = self.advance()  # PUSH
+        expr = self.parse_or()
+        self.expect("TO", '"to"')
+        name = self.expect("NAME", 'a list name after "to"').value
+        self.expect("NEWLINE", "the end of the line")
+        return Push(expr, name, tok.line)
 
     def parse_ask(self) -> Stmt:
         tok = self.advance()
@@ -1457,7 +1481,8 @@ class Parser:
             self.expect("RBRACKET", 'a closing "]"')
             return ListLit(items, tok.line)
         if tok.type in ("FIRST", "LAST", "LENGTH", "UPPERCASE", "LOWERCASE",
-                        "SPLIT", "JOIN", "TRIM", "KEYS"):
+                        "SPLIT", "JOIN", "TRIM", "KEYS", "CHARACTERS",
+                        "TEXT", "KIND"):
             self.advance()
             self.expect("OF", '"of"')
             if tok.type in ("SPLIT", "JOIN"):
@@ -1596,6 +1621,7 @@ class Agent:
 class Interpreter:
     def __init__(self, stdin: Any = None, stdout: Any = None) -> None:
         self.global_env = Environment()
+        self.global_env.set("arguments", [])  # v1.0: words after the program file
         self.stdin = stdin if stdin is not None else sys.stdin
         self.stdout = stdout if stdout is not None else sys.stdout
         self.depth = 0
@@ -1634,6 +1660,8 @@ class Interpreter:
             # v0.4: jpm packages.
             UsePkg: self.exec_use_pkg,
             BringIn: self.exec_bring_in,
+            # v1.0: list building for the self-hosted lexer.
+            Push: self.exec_push,
         }
         self._EXPR_HANDLERS: dict[Any, Any] = {
             Literal: self.eval_literal,
@@ -1686,6 +1714,15 @@ class Interpreter:
 
     def exec_assign(self, stmt: Assign, env: Environment) -> None:
         env.set(stmt.name, self.eval_expr(stmt.expr, env))
+
+    def exec_push(self, stmt: Push, env: Environment) -> None:
+        # v1.0: appends in place; the list object is shared by reference.
+        target = env.get(stmt.name, stmt.line)
+        if not isinstance(target, list):
+            fail(stmt.line,
+                 f'I can only push to a list, but "{stmt.name}" holds '
+                 f"{type_name(target)}.")
+        target.append(self.eval_expr(stmt.expr, env))
 
     def exec_ask(self, stmt: Ask, env: Environment) -> None:
         prompt = self.eval_expr(stmt.prompt, env)
@@ -1953,6 +1990,14 @@ class Interpreter:
             if isinstance(value, Foreign) and isinstance(value.obj, dict):
                 return to_jesun(list(value.obj.keys()))
             fail(expr.line, '"keys of" needs a python dictionary.')
+        if expr.kind == "CHARACTERS":  # v1.0
+            if not isinstance(value, str):
+                fail(expr.line, '"characters of" needs text.')
+            return list(value)
+        if expr.kind == "TEXT":  # v1.0: exactly what `show` would print
+            return show_text(value)
+        if expr.kind == "KIND":  # v1.0
+            return type_name(value)
         fail(expr.line, "I do not know that built-in.")
         raise AssertionError("unreachable")
 
@@ -3043,10 +3088,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
     if not args:
         return repl()
-    if len(args) != 1:
-        print("I take one file at a time: python jesun.py program.jc")
-        return 2
-    path = args[0]
+    path = args[0]  # v1.0: words after the file become `arguments`
+    extra = args[1:]
     try:
         with open(path, "r", encoding="utf-8") as handle:
             source = handle.read()
@@ -3054,6 +3097,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f'I could not open "{path}".')
         return 1
     interp = Interpreter()
+    interp.global_env.set("arguments", list(extra))
     try:
         run_source(source, interp)
     except JesunError as e:
