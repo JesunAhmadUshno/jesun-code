@@ -145,6 +145,19 @@ With `with tools`, the mind calls your functions by writing
 `CALL: name(arg1, arg2)`; Jesun.Code runs them and feeds the results back
 until the mind answers or runs out of steps (10 by default).
 
+### Give it a real AI brain (free forever, no key)
+
+The easiest brain needs nothing at all: no key, no account, no billing.
+Pollinations.ai is a free community service:
+
+```bash
+export JESUNCODE_AI_COMMAND="$HOME/.jesun-code/providers/pollinations-provider"
+```
+
+Pick the model with `JESUNCODE_AI_MODEL` (default `openai`; options at
+text.pollinations.ai/models). It can be slower and rate-limited at busy
+times; for heavier use, switch to Gemini or OpenAI below.
+
 ### Give it a real AI brain (Gemini, free with your Google account)
 
 The installer already put provider scripts at `~/.jesun-code/providers/`.

@@ -21,6 +21,10 @@ path fix. First release with macOS and Windows binaries.
 Files and words. The `jpm` package manager is still to come; no release
 until the milestone completes.
 
+- Pollinations provider: `scripts/ai-providers/pollinations-provider`
+  implements the `JESUNCODE_AI_COMMAND` protocol against the free
+  Pollinations.ai API: no key, no account, no billing. Model from
+  `JESUNCODE_AI_MODEL` (default `openai`).
 - Gemini provider: `scripts/ai-providers/gemini-provider` implements the
   `JESUNCODE_AI_COMMAND` protocol against the Gemini API (key from
   `GEMINI_API_KEY` or `~/.jesun-code/gemini.key`, free at

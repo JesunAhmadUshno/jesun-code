@@ -63,7 +63,7 @@ chmod +x "$DEST/jesun"
 PROVIDER_DIR="$HOME/.jesun-code/providers"
 mkdir -p "$PROVIDER_DIR"
 echo "Downloading the AI providers for \`ask ai\` (optional) ..."
-for PROVIDER in openai-provider gemini-provider; do
+for PROVIDER in openai-provider gemini-provider pollinations-provider; do
   if curl -fsSL -o "$PROVIDER_DIR/$PROVIDER" \
       "https://raw.githubusercontent.com/${REPO}/main/scripts/ai-providers/$PROVIDER"; then
     chmod +x "$PROVIDER_DIR/$PROVIDER"

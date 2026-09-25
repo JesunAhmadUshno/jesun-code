@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Jesun.Code AI provider backed by Pollinations.ai.
+
+Free forever: no API key, no account, no billing. Implements the
+JESUNCODE_AI_COMMAND protocol: reads the prompt on stdin, writes the
+answer on stdout, and prints a short plain-English message on stderr
+with a nonzero exit when something goes wrong.
+
+Setup:
+    export JESUNCODE_AI_COMMAND="$HOME/.jesun-code/providers/pollinations-provider"
+
+Pick the model with JESUNCODE_AI_MODEL (default "openai", a free
+open-weights model; see https://text.pollinations.ai/models for options).
+
+Then in Jesun.Code:
+    ask ai "write a haiku about compilers" giving poem
+    show poem
+
+Note: this is a free community service, so answers can be slower and
+rate-limited at busy times. For heavier use, switch to the Gemini or
+OpenAI provider.
+"""
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+
+API_URL = "https://text.pollinations.ai/openai"
+TIMEOUT = 55
+
+
+def fail(message):
+    sys.stderr.write(message + "\n")
+    sys.exit(1)
+
+
+def main():
+    model = os.environ.get("JESUNCODE_AI_MODEL", "openai")
+    if not re.fullmatch(r"[A-Za-z0-9_.\-]+", model):
+        fail("That model name does not look right: %r." % model)
+
+    prompt = sys.stdin.read()
+    if not prompt.strip():
+        fail("Nothing to ask: the prompt was empty.")
+
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        API_URL, data=body, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            data = json.load(response)
+    except urllib.error.HTTPError as exc:
+        fail("The free mind refused the request (HTTP %s). It may be "
+             "rate-limited; try again in a bit." % exc.code)
+    except Exception:
+        fail("I could not reach the free mind. Check your connection and "
+             "try again.")
+
+    try:
+        answer = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        answer = ""
+    answer = (answer or "").strip()
+    if not answer:
+        fail("The free mind answered, but I could not find any text in "
+             "its reply.")
+    sys.stdout.write(answer + "\n")
+
+
+if __name__ == "__main__":
+    main()

@@ -30,7 +30,7 @@ Write-Host "Installed to $(Join-Path $Dest 'jesun.exe')"
 $ProviderDir = Join-Path $HOME ".jesun-code\providers"
 New-Item -ItemType Directory -Force -Path $ProviderDir | Out-Null
 Write-Host "Downloading the AI providers for ``ask ai`` (optional) ..."
-foreach ($Provider in @("openai-provider", "gemini-provider")) {
+foreach ($Provider in @("openai-provider", "gemini-provider", "pollinations-provider")) {
     try {
         Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/main/scripts/ai-providers/$Provider" `
             -OutFile (Join-Path $ProviderDir $Provider)
