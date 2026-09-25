@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jesun.Code — The programming language that reads like plain English</title>
+<meta name="description" content="Jesun.Code is a programming language that reads like plain English. AI agents, the whole Python ecosystem, zero-install binaries for Windows, macOS and Linux.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2305080a'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%2300ff88' font-family='monospace' font-weight='bold'>&gt;_</text></svg>">
+</head>
+<body>
+<canvas id="grid" aria-hidden="true"></canvas>
+
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <span class="brand-mark">&gt;_</span>
+      <span class="brand-name">Jesun<em>.Code</em></span>
+    </a>
+    <nav class="nav-links">
+      <a href="#language">Language</a>
+      <a href="#brains">AI Brains</a>
+      <a href="#install">Install</a>
+      <a href="#roadmap">Roadmap</a>
+    </nav>
+    <div class="nav-cta">
+      <span class="version-pill">v0.3.1</span>
+      <a class="btn btn-ghost" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub
+      </a>
+    </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pulse"></span> v0.3.1 is live: Windows, macOS and Linux binaries</p>
+        <h1>The programming language that reads like <span class="grad">plain English</span>.</h1>
+        <p class="lede">If a sentence makes sense to a person, it should make sense to the machine. Jesun.Code pairs human language with the entire Python ecosystem and real AI agents, and ships as a single binary. No Python to install. No tracebacks. Ever.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary" href="#install">Get Jesun.Code</a>
+          <a class="btn btn-ghost" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">Star on GitHub</a>
+        </div>
+        <div class="hero-meta">
+          <span>MIT licensed</span><i></i><span>Single binary</span><i></i><span>140 tests green</span>
+        </div>
+      </div>
+      <div class="hero-terminal">
+        <div class="term" id="term">
+          <div class="term-bar">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="term-title">hello.jc</span>
+          </div>
+          <div class="term-body" id="termBody"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats">
+    <div class="stats-inner">
+      <div class="stat reveal"><strong data-count="140">0</strong><span>tests passing</span></div>
+      <div class="stat reveal"><strong data-count="3">0</strong><span>platforms, one binary each</span></div>
+      <div class="stat reveal"><strong data-count="0">0</strong><span>tracebacks shown to users</span></div>
+      <div class="stat reveal"><strong>100%</strong><span>plain-English errors</span></div>
+    </div>
+  </section>
+
+  <!-- COMPARISON -->
+  <section class="section" id="language">
+    <div class="wrap">
+      <p class="kicker reveal">The language</p>
+      <h2 class="reveal">Stop writing code.<br>Start writing sentences.</h2>
+      <p class="sub reveal">The same program, twice. One of them your grandmother could read.</p>
+      <div class="compare">
+        <div class="code-card reveal">
+          <div class="code-head"><span class="lang">Python</span></div>
+<pre class="code"><code><span class="cm"># python</span>
+<span class="kw">name</span> = input(<span class="st">"What is your name? "</span>)
+<span class="kw">for</span> i <span class="kw">in</span> range(<span class="nm">3</span>):
+    print(<span class="st">f"Go, {name}!"</span>)</code></pre>
+        </div>
+        <div class="code-card glow reveal">
+          <div class="code-head"><span class="lang">Jesun.Code</span><span class="tag">reads like English</span></div>
+<pre class="code"><code><span class="kw">ask</span> <span class="st">"What is your name? "</span> <span class="kw">giving</span> name
+
+<span class="kw">repeat</span> <span class="nm">3</span> times
+    <span class="kw">show</span> <span class="st">"Go, {name}!"</span></code></pre>
+        </div>
+      </div>
+
+      <div class="cheatsheet reveal">
+        <div class="sheet-row"><code>name is "Jesun"</code><span>variables</span></div>
+        <div class="sheet-row"><code>if age is at least 18 then</code><span>decisions</span></div>
+        <div class="sheet-row"><code>for each friend in ["Mara", "Wren"]</code><span>loops</span></div>
+        <div class="sheet-row"><code>to cheer with name ... give back</code><span>functions</span></div>
+        <div class="sheet-row"><code>ask ai "summarize this" giving brief</code><span>AI prompting</span></div>
+        <div class="sheet-row"><code>import numpy</code><span>the Python ecosystem</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section alt">
+    <div class="wrap">
+      <p class="kicker reveal">Why it feels different</p>
+      <h2 class="reveal">Serious power.<br>Zero intimidation.</h2>
+      <div class="grid">
+        <article class="card reveal">
+          <div class="icon">◈</div>
+          <h3>Plain-English errors</h3>
+          <p>Every failure is a line-numbered sentence a human wrote for a human. Tracebacks do not exist here.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon">⬢</div>
+          <h3>The whole Python ecosystem</h3>
+          <p><code>import</code> any stdlib or pip package. NumPy, pandas, requests: all of it, behind English syntax.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon">✦</div>
+          <h3>AI agents with memory</h3>
+          <p>Named agents with persona, tools, streaming answers, and memory that persists between runs. Agents can call agents.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon">❯</div>
+          <h3>One-line AI prompting</h3>
+          <p><code>ask ai "write a haiku about compilers" giving poem</code>. That is the entire API.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon">▣</div>
+          <h3>Drive real terminals</h3>
+          <p>Spin up tmux machines and command them in plain English. Your agents get hands, not just words.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon">⬣</div>
+          <h3>Files, safely</h3>
+          <p>Read, write and append with paths sandboxed to your project. <code>"Hello, {name}!"</code> interpolates anywhere.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- AI BRAINS -->
+  <section class="section" id="brains">
+    <div class="wrap">
+      <p class="kicker reveal">AI brains</p>
+      <h2 class="reveal">Give it a mind.<br>Pick your fuel.</h2>
+      <p class="sub reveal">Jesun.Code talks to any mind through one tiny protocol: prompt in on stdin, answer out on stdout. Three providers ship with the installer.</p>
+      <div class="brains">
+        <article class="brain featured reveal">
+          <p class="brain-flag">Free forever</p>
+          <h3>Pollinations</h3>
+          <p>No key. No account. No billing. The zero-friction way to wake your programs up.</p>
+<pre class="code sm"><code><span class="kw">export</span> JESUNCODE_AI_COMMAND=<span class="st">"$HOME/.jesun-code/providers/pollinations-provider"</span></code></pre>
+        </article>
+        <article class="brain reveal">
+          <p class="brain-flag">Free with Google</p>
+          <h3>Gemini</h3>
+          <p>Sign in with your Google account, grab a free API key from AI Studio, and point the provider at it.</p>
+<pre class="code sm"><code><span class="kw">export</span> JESUNCODE_AI_COMMAND=<span class="st">"$HOME/.jesun-code/providers/gemini-provider"</span>
+<span class="kw">export</span> GEMINI_API_KEY=<span class="st">"your-free-key"</span></code></pre>
+        </article>
+        <article class="brain reveal">
+          <p class="brain-flag">Your own key</p>
+          <h3>OpenAI</h3>
+          <p>Bring an OpenAI key for frontier models. The provider speaks the Responses API.</p>
+<pre class="code sm"><code><span class="kw">export</span> JESUNCODE_AI_COMMAND=<span class="st">"$HOME/.jesun-code/providers/openai-provider"</span>
+<span class="kw">export</span> OPENAI_API_KEY=<span class="st">"sk-..."</span></code></pre>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="section alt" id="install">
+    <div class="wrap">
+      <p class="kicker reveal">Install</p>
+      <h2 class="reveal">One line.<br>No Python needed.</h2>
+      <p class="sub reveal">The binary carries everything inside. Copy, paste, done.</p>
+      <div class="tabs reveal">
+        <div class="tab-bar" role="tablist">
+          <button class="tab active" data-tab="unix" role="tab">macOS / Linux</button>
+          <button class="tab" data-tab="win" role="tab">Windows</button>
+        </div>
+        <div class="tab-panel active" id="panel-unix">
+<pre class="code"><code>curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh</code></pre>
+          <button class="copy" data-copy="curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh">Copy</button>
+        </div>
+        <div class="tab-panel" id="panel-win">
+<pre class="code"><code>irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex</code></pre>
+          <button class="copy" data-copy="irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex">Copy</button>
+        </div>
+      </div>
+      <div class="run-hints reveal">
+        <div><code>jesun program.jc</code><span>run a file</span></div>
+        <div><code>jesun</code><span>open the REPL</span></div>
+        <div><code>jesun --version</code><span>check the version</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEMO -->
+  <section class="section">
+    <div class="wrap">
+      <p class="kicker reveal">In the wild</p>
+      <h2 class="reveal">It builds real tools.</h2>
+      <p class="sub reveal">The flagship demo is <code>doctor.jc</code>: a server doctor written entirely in Jesun.Code. It inspects the machine through the Python bridge, asks the AI to diagnose with tools, and acts through tmux terminals.</p>
+      <div class="code-card wide reveal">
+        <div class="code-head"><span class="lang">doctor.jc</span><span class="tag">flagship demo</span></div>
+<pre class="code"><code><span class="kw">import</span> psutil
+
+agent doctor
+    persona is <span class="st">"a senior systems engineer, calm and precise"</span>
+    tools are [check_disk, check_memory, restart_service]
+    remember is always
+
+ask doctor <span class="st">"the server feels slow, find out why"</span> giving diagnosis streaming
+show diagnosis</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section class="section alt" id="roadmap">
+    <div class="wrap">
+      <p class="kicker reveal">Roadmap</p>
+      <h2 class="reveal">Where this is going.</h2>
+      <ol class="timeline">
+        <li class="tl done reveal">
+          <span class="tl-ver">v0.3.1</span>
+          <div><h3>Cross-platform launch</h3><p>Windows, macOS and Linux binaries. 140 tests green on all three. Shipped.</p></div>
+        </li>
+        <li class="tl now reveal">
+          <span class="tl-ver">v0.4</span>
+          <div><h3>Files and packages</h3><p>File I/O and interpolation are done. Next: <code>jpm</code>, the Jesun.Code package manager.</p></div>
+        </li>
+        <li class="tl reveal">
+          <span class="tl-ver">v0.5</span>
+          <div><h3>Speak your language</h3><p>Bangla keyword flavor and a VS Code extension with syntax highlighting.</p></div>
+        </li>
+        <li class="tl reveal">
+          <span class="tl-ver">v0.6</span>
+          <div><h3>Agent fleets</h3><p>Parallel agent fleets with shared fleet memory. Many minds, one mission.</p></div>
+        </li>
+        <li class="tl reveal">
+          <span class="tl-ver">v1.0</span>
+          <div><h3>Self-hosting</h3><p>The interpreter, written in Jesun.Code itself. The language builds the language.</p></div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="cta">
+    <div class="wrap reveal">
+      <h2>Write your first sentence.</h2>
+      <p>One install line. One program file. A language that meets you halfway.</p>
+      <a class="btn btn-primary" href="#install">Install Jesun.Code</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div class="foot-brand">
+      <span class="brand-mark">&gt;_</span>
+      <span>Jesun<em>.Code</em></span>
+    </div>
+    <p>Designed and built by Jesun Ahmad Ushno. MIT licensed. Amazing is the minimum.</p>
+    <div class="foot-links">
+      <a href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/JesunAhmadUshno/jesun-code/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/JesunAhmadUshno/jesun-code/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>
