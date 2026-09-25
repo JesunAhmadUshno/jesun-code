@@ -179,7 +179,7 @@ class NewBuiltins(unittest.TestCase):
         self.assertEqual(out, "a-b\n")
 
     def test_split_of_variable_operand(self):
-        out = jesun.execute('text is "a,b"\nshow split of text by ","\n')
+        out = jesun.execute('csv is "a,b"\nshow split of csv by ","\n')
         self.assertEqual(out, "[a, b]\n")
 
     def test_join_of_call_result_operand(self):
