@@ -145,10 +145,25 @@ With `with tools`, the mind calls your functions by writing
 `CALL: name(arg1, arg2)`; Jesun.Code runs them and feeds the results back
 until the mind answers or runs out of steps (10 by default).
 
+### Give it a real AI brain (Gemini, free with your Google account)
+
+The installer already put provider scripts at `~/.jesun-code/providers/`.
+The easiest brain is Gemini: sign in with Google at
+aistudio.google.com/apikey, create a free key (no billing needed), then:
+
+```bash
+printf '%s' 'your-key' > ~/.jesun-code/gemini.key
+chmod 600 ~/.jesun-code/gemini.key
+export JESUNCODE_AI_COMMAND="$HOME/.jesun-code/providers/gemini-provider"
+```
+
+Prefer an environment variable? Set `GEMINI_API_KEY` instead of the key
+file. Pick the model with `JESUNCODE_AI_MODEL` (default
+`gemini-2.5-flash`).
+
 ### Give it a real AI brain (OpenAI)
 
-The installer already put a provider script at
-`~/.jesun-code/providers/openai-provider`. To switch it on:
+Same idea with the OpenAI provider:
 
 ```bash
 printf '%s' 'sk-your-key' > ~/.jesun-code/openai.key
@@ -156,14 +171,13 @@ chmod 600 ~/.jesun-code/openai.key
 export JESUNCODE_AI_COMMAND="$HOME/.jesun-code/providers/openai-provider"
 ```
 
-Get a key at platform.openai.com. Prefer an environment variable? Set
-`OPENAI_API_KEY` instead of the key file. Pick the model with
-`JESUNCODE_AI_MODEL` (default `gpt-4o-mini`).
+Get a key at platform.openai.com. `OPENAI_API_KEY` works instead of the
+key file; `JESUNCODE_AI_MODEL` picks the model (default `gpt-4o-mini`).
 
 On Windows (PowerShell):
 
 ```powershell
-$env:JESUNCODE_AI_COMMAND = "py $HOME\.jesun-code\providers\openai-provider"
+$env:JESUNCODE_AI_COMMAND = "py $HOME\.jesun-code\providers\gemini-provider"
 ```
 
 Then `ask ai` and every agent talks to a real model.

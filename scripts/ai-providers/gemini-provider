@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Jesun.Code AI provider backed by Google Gemini.
+
+Implements the JESUNCODE_AI_COMMAND protocol: reads the prompt on stdin,
+writes the answer on stdout, and prints a short plain-English message on
+stderr with a nonzero exit when something goes wrong.
+
+Setup:
+    export JESUNCODE_AI_COMMAND="$HOME/.jesun-code/providers/gemini-provider"
+
+The key comes from GEMINI_API_KEY, or from the first line of
+~/.jesun-code/gemini.key (chmod 600 that file). Get a free key at
+https://aistudio.google.com/apikey (sign in with Google, no billing needed).
+Pick the model with JESUNCODE_AI_MODEL (default gemini-2.5-flash).
+
+Then in Jesun.Code:
+    ask ai "write a haiku about compilers" giving poem
+    show poem
+"""
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+
+API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+TIMEOUT = 55
+
+
+def fail(message):
+    sys.stderr.write(message + "\n")
+    sys.exit(1)
+
+
+def main():
+    model = os.environ.get("JESUNCODE_AI_MODEL", "gemini-2.5-flash")
+    if not re.fullmatch(r"[A-Za-z0-9_.\-]+", model):
+        fail("That model name does not look right: %r." % model)
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        keyfile = os.path.expanduser("~/.jesun-code/gemini.key")
+        try:
+            with open(keyfile, encoding="utf-8") as handle:
+                key = handle.read().strip().split()[0]
+        except (OSError, IndexError):
+            key = ""
+    if not key:
+        fail("No Gemini key found. Set GEMINI_API_KEY, or save your key as "
+             "the first line of ~/.jesun-code/gemini.key (and chmod 600 it). "
+             "Get a free key at https://aistudio.google.com/apikey by "
+             "signing in with Google.")
+
+    prompt = sys.stdin.read()
+    if not prompt.strip():
+        fail("Nothing to ask: the prompt was empty.")
+
+    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
+    url = "%s/%s:generateContent" % (API_BASE, model)
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            data = json.load(response)
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = json.load(exc).get("error", {}).get("message", "")
+        except Exception:
+            pass
+        fail("Gemini refused the request."
+             + (" It said: " + detail if detail else ""))
+    except Exception:
+        fail("I could not reach Gemini. Check your connection and try again.")
+
+    parts = []
+    try:
+        for part in data["candidates"][0]["content"]["parts"]:
+            if "text" in part:
+                parts.append(part["text"])
+    except (KeyError, IndexError, TypeError):
+        parts = []
+    answer = "".join(parts).strip()
+    if not answer:
+        fail("Gemini answered, but I could not find any text in its reply.")
+    sys.stdout.write(answer + "\n")
+
+
+if __name__ == "__main__":
+    main()
