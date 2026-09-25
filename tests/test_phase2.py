@@ -86,7 +86,7 @@ class Bridge(unittest.TestCase):
 
     def test_dict_stays_foreign_but_usable(self):
         out = jesun.execute(
-            "import json\nd is json.loads('{\"a\": 7}')\nshow d[\"a\"]\n"
+            "import json\nd is json.loads('{{\"a\": 7}}')\nshow d[\"a\"]\n"
         )
         self.assertEqual(out, "7\n")
 

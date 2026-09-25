@@ -193,6 +193,35 @@ show brief
 
 See `examples/deep_agent.jc` and `docs/spec-v0.3.md`.
 
+## Files and words
+
+v0.4 (in progress): Jesun.Code reads and writes files, and strings can
+think:
+
+```jesun
+write "dear diary\n" to file "journal.txt"
+append "today I learned file I/O\n" to file "journal.txt"
+read file "journal.txt" giving pages
+show pages
+
+name is "Jesun"
+show "Hello, {name}! Two plus two is {2 + 2}."
+```
+
+- `write <value> to file "<path>"` replaces the file's contents;
+  `append <value> to file "<path>"` adds to the end. Values are converted
+  the way `show` converts them, so numbers and lists work too.
+- `read file "<path>" giving <name>` reads the whole file as text.
+- Paths resolve from the current folder and may not escape it (`..`
+  climbs are refused in plain English). Missing files, folders passed as
+  files, and missing parent folders all fail with a line number, never a
+  traceback.
+- `{expression}` inside any string evaluates and splices in its `show`
+  form. `{{` and `}}` are literal braces. Note: this means literal braces
+  in strings now need doubling (breaking change from v0.3).
+
+See `examples/file_demo.jc` and `docs/spec-v0.4.md`.
+
 Real tmux underneath, plain English on top:
 
 ```jesun
@@ -239,17 +268,17 @@ bundled inside the binary; the full standard library rides along so the
 Python bridge works out of the box.
 
 The full language spec lives in `docs/spec-v0.1.md`; the v0.2 agent
-framework is specified in `docs/spec-v0.2.md`, and deeper agents
-(persistent memory, agent-to-agent calls, streaming) in
-`docs/spec-v0.3.md`.
+framework is specified in `docs/spec-v0.2.md`, deeper agents (persistent
+memory, agent-to-agent calls, streaming) in `docs/spec-v0.3.md`, and
+files plus interpolation in `docs/spec-v0.4.md`.
 
 ## Roadmap
 
-- **v0.3 candidates:** disk-persistent agent memory, agent-to-agent calls,
-  streaming answers.
-- **Long term: self-hosting.** The interpreter rewritten in Jesun.Code
-  itself, so the language no longer rides on any other runtime. This does
-  not exist yet, and we will not claim otherwise until it does.
+The public milestone ladder lives in [ROADMAP.md](ROADMAP.md): v0.4
+files and sharing (in progress), v0.5 Bangla flavor plus the VS Code
+extension, v0.6 agent fleets, v1.0 self-hosting (the interpreter rewritten
+in Jesun.Code itself, which does not exist yet and will not be claimed
+until it does), v1.1 native binaries.
 
 ## License
 

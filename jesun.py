@@ -314,6 +314,8 @@ KEYWORDS: dict[str, str] = {
     # v0.3: deeper agents.
     "always": "ALWAYS", "forget": "FORGET", "memory": "MEMORY",
     "file": "FILE", "streaming": "STREAMING",
+    # v0.4: files and words.
+    "write": "WRITE", "append": "APPEND",
 }
 
 SIMPLE_TOKENS: dict[str, str] = {
@@ -680,6 +682,28 @@ class ForgetAgent:
     line: int
 
 
+# v0.4: files and words.
+@dataclass
+class Interp:
+    parts: list  # [("text", str) | ("expr", Expr)]
+    line: int
+
+
+@dataclass
+class ReadFile:
+    path: "Expr"
+    name: str
+    line: int
+
+
+@dataclass
+class WriteFile:
+    value: "Expr"
+    path: "Expr"
+    append: bool
+    line: int
+
+
 Stmt = Any
 Expr = Any
 
@@ -748,6 +772,10 @@ class Parser:
             self.advance()
             self.expect("NEWLINE", "the end of the line")
             return Skip(tok.line)
+        if tok.type == "WRITE":
+            return self.parse_write_file(tok, append=False)
+        if tok.type == "APPEND":
+            return self.parse_write_file(tok, append=True)
         if tok.type == "OTHERWISE":
             fail(tok.line, '"otherwise" needs an "if" above it.')
         # Phase 2 statements: the Python bridge, minds, and machines.
@@ -758,7 +786,10 @@ class Parser:
         if tok.type == "SEND":
             return self.parse_term_send()
         if tok.type == "READ":
-            return self.parse_term_read()
+            self.advance()
+            if self.peek().type == "FILE":
+                return self.parse_read_file(tok)
+            return self.parse_term_read(tok)
         if tok.type == "CLOSE":
             return self.parse_term_close()
         if tok.type == "NAME" and self.peek2().type == "IS":
@@ -959,8 +990,25 @@ class Parser:
         self.expect("NEWLINE", "the end of the line")
         return TermSend(cmd, name, tok.line)
 
-    def parse_term_read(self) -> TermRead:
-        tok = self.advance()
+    # v0.4: files. The READ token was already consumed by parse_statement.
+    def parse_read_file(self, tok: Token) -> ReadFile:
+        self.expect("FILE", '"file"')
+        path = self.parse_or()
+        self.expect("GIVING", '"giving" followed by a name')
+        name = self.expect("NAME", "a name to store the text in").value
+        self.expect("NEWLINE", "the end of the line")
+        return ReadFile(path, name, tok.line)
+
+    def parse_write_file(self, tok: Token, append: bool) -> WriteFile:
+        self.advance()  # WRITE or APPEND
+        value = self.parse_or()
+        self.expect("TO", '"to"')
+        self.expect("FILE", '"file"')
+        path = self.parse_or()
+        self.expect("NEWLINE", "the end of the line")
+        return WriteFile(value, path, append, tok.line)
+
+    def parse_term_read(self, tok: Token) -> TermRead:
         self.expect("TERMINAL", '"terminal"')
         name = self.parse_or()
         self.expect("GIVING", '"giving" followed by a name')
@@ -1135,6 +1183,64 @@ class Parser:
             return UnaryOp("MINUS", self.parse_unary(), tok.line)
         return self.parse_primary()
 
+    # v0.4: string interpolation. "{expr}" inside a string evaluates the
+    # expression; "{{" and "}}" are literal braces.
+    def _parse_string(self, tok: Token) -> Expr:
+        value: str = tok.value
+        if "{" not in value:
+            return Literal(value, tok.line)
+        parts: list = []
+        buf: list[str] = []
+        found = False
+        i, n = 0, len(value)
+        while i < n:
+            ch = value[i]
+            if ch == "{":
+                if i + 1 < n and value[i + 1] == "{":
+                    buf.append("{")
+                    i += 2
+                    continue
+                depth = 1
+                j = i + 1
+                while j < n and depth > 0:
+                    if value[j] == "{":
+                        depth += 1
+                    elif value[j] == "}":
+                        depth -= 1
+                    j += 1
+                if depth != 0:
+                    fail(tok.line, 'this "{" never closes; add a "}" to finish it.')
+                inner = value[i + 1:j - 1]
+                if not inner.strip():
+                    fail(tok.line, "these braces are empty; put a value inside.")
+                parts.append(("text", "".join(buf)))
+                buf = []
+                parts.append(("expr", self._parse_expr_fragment(inner, tok.line)))
+                found = True
+                i = j
+                continue
+            if ch == "}" and i + 1 < n and value[i + 1] == "}":
+                buf.append("}")
+                i += 2
+                continue
+            buf.append(ch)
+            i += 1
+        parts.append(("text", "".join(buf)))
+        if not found:
+            collapsed = "".join(text for kind, text in parts if kind == "text")
+            return Literal(collapsed, tok.line)
+        return Interp(parts, tok.line)
+
+    def _parse_expr_fragment(self, text: str, line: int) -> Expr:
+        toks = [Token(t.type, t.value, line) for t in tokenize(text.strip())]
+        sub = Parser(toks)
+        try:
+            node = sub.parse_or()
+        except RecursionError:
+            fail(line, "this {...} is too deeply nested for me to read.")
+        sub.expect("NEWLINE", 'the end of the {...}')
+        return node
+
     def parse_builtin_operand(self) -> Expr:
         # Operand of split/join: a plain value, never a name-with-args call,
         # because the following by/with keyword belongs to the built-in.
@@ -1151,7 +1257,7 @@ class Parser:
             return Literal(tok.value, tok.line)
         if tok.type == "STRING":
             self.advance()
-            return Literal(tok.value, tok.line)
+            return self._parse_string(tok)
         if tok.type == "TRUE":
             self.advance()
             return Literal(True, tok.line)
@@ -1337,6 +1443,9 @@ class Interpreter:
             AgentDef: self.exec_agentdef,
             AskAgent: self.exec_ask_agent,
             ForgetAgent: self.exec_forget,
+            # v0.4: files.
+            ReadFile: self.exec_read_file,
+            WriteFile: self.exec_write_file,
         }
         self._EXPR_HANDLERS: dict[Any, Any] = {
             Literal: self.eval_literal,
@@ -1351,6 +1460,8 @@ class Interpreter:
             Attr: self.eval_attr,
             ForeignCall: self.eval_foreign_call,
             Subscript: self.eval_subscript,
+            # v0.4: string interpolation.
+            Interp: self.eval_interp,
         }
 
     # -- driver ----------------------------------------------------------
@@ -2204,6 +2315,65 @@ class Interpreter:
                 fail(stmt.line, f'there is no terminal named "{name}".')
             fail(stmt.line, f'I could not read the terminal named "{name}".')
         env.set(stmt.target, out.rstrip())
+
+    def eval_interp(self, expr: Interp, env: Environment) -> str:
+        out: list[str] = []
+        for kind, part in expr.parts:
+            if kind == "text":
+                out.append(part)
+            else:
+                out.append(show_text(self.eval_expr(part, env)))
+        return "".join(out)
+
+    # v0.4: file I/O. Paths resolve from the current folder and may not
+    # escape it.
+    def _safe_file_path(self, raw: Any, line: int, verb: str) -> "Path":
+        from pathlib import Path
+        text = raw if isinstance(raw, str) else show_text(raw)
+        candidate = Path(text)
+        base = Path.cwd()
+        target = candidate if candidate.is_absolute() else base / candidate
+        try:
+            resolved = target.resolve()
+        except (OSError, ValueError):
+            fail(line, f'I cannot {verb} "{text}": that path does not work here.')
+        try:
+            resolved.relative_to(base.resolve())
+        except ValueError:
+            fail(line, f'I cannot {verb} "{text}": it leaves the current folder.')
+        return resolved
+
+    def exec_read_file(self, stmt: ReadFile, env: Environment) -> None:
+        raw = self.eval_expr(stmt.path, env)
+        shown = raw if isinstance(raw, str) else show_text(raw)
+        path = self._safe_file_path(raw, stmt.line, "read")
+        try:
+            if path.is_dir():
+                fail(stmt.line, f'"{shown}" is a folder, not a file.')
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            fail(stmt.line, f'I could not find the file "{shown}".')
+        except (OSError, ValueError):
+            fail(stmt.line, f'I could not read the file "{shown}".')
+        env.set(stmt.name, text)
+
+    def exec_write_file(self, stmt: WriteFile, env: Environment) -> None:
+        raw = self.eval_expr(stmt.path, env)
+        shown = raw if isinstance(raw, str) else show_text(raw)
+        path = self._safe_file_path(raw, stmt.line, "write to")
+        text = show_text(self.eval_expr(stmt.value, env))
+        try:
+            if path.is_dir():
+                fail(stmt.line, f'"{shown}" is a folder, not a file.')
+            if stmt.append:
+                with open(path, "a", encoding="utf-8") as handle:
+                    handle.write(text)
+            else:
+                path.write_text(text, encoding="utf-8")
+        except FileNotFoundError:
+            fail(stmt.line, f'I could not write "{shown}": its folder does not exist.')
+        except (OSError, ValueError):
+            fail(stmt.line, f'I could not write to "{shown}".')
 
     def exec_term_close(self, stmt: TermClose, env: Environment) -> None:
         name = self._need_text(self.eval_expr(stmt.name, env), stmt.line,

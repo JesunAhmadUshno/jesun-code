@@ -1,0 +1,14 @@
+note "file_demo.jc: a tiny journal that writes, appends, reads, and talks back."
+
+name is "Jesun"
+show "Welcome back, {name}!"
+
+write "Journal of {name}\n" to file "journal.txt"
+append "Day one: taught Jesun.Code to read and write files.\n" to file "journal.txt"
+append "Day two: strings learned to think, like this: {1 + 1}.\n" to file "journal.txt"
+
+read file "journal.txt" giving pages
+show pages
+
+lines is split of trim of pages by "\n"
+show "That is {length of lines} journal lines, all yours."

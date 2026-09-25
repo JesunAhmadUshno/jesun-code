@@ -320,6 +320,58 @@ def main() -> int:
         problems.extend(check(f"v3-stream-{label}", src,
                               {"JESUNCODE_AI_COMMAND": script}))
 
+    # 6. v0.4 files and interpolation: hostile paths, braces, escapes.
+    # File cases run in a sandbox dir so nothing escapes the fuzz.
+    v4dir = TMP / "v4files"
+    v4dir.mkdir(exist_ok=True)
+    old_cwd = os.getcwd()
+    os.chdir(v4dir)
+    try:
+        paths = ['"f.txt"', '"a/b/c.txt"', '"../out.txt"', '"../../out.txt"',
+                 '"/etc/hostname"', '""', '".."', '"."', '"sub"',
+                 '"deep/../f.txt"', '42', 'nothing', '"f.txt\\x00bad"',
+                 '"$HOME/x.txt"', '"~"']
+        writes = ['"hello"', '42', '[1, 2]', 'nothing', 'true',
+                  '"{interp}"', '"{{literal}}"', '"unclosed {brace"',
+                  '""', '"line1\\nline2"']
+        for i in range(40):
+            p = rng.choice(paths)
+            w = rng.choice(writes)
+            op = rng.choice([
+                f'write {w} to file {p}\n',
+                f'append {w} to file {p}\n',
+                f'read file {p} giving t{i}\nshow t{i}\n',
+                f'write {w} to file {p}\nread file {p} giving t{i}\nshow t{i}\n',
+                f'write {w} to {p}\n',
+                f'write to file {p}\n',
+                f'read {p} giving t{i}\n',
+                f'write {w} file {p}\n',
+            ])
+            problems.extend(check(f"v4-file-{i}", op, {}))
+        interps = [
+            'show "hi {name}"\n',
+            'show "{}{}{}"\n',
+            'show "{{{{}}"\n',
+            'show "{ { } }"\n',
+            'show "{"\n',
+            'show "}"\n',
+            'show "{{"\n',
+            'show "}}"\n',
+            'show "{a" + "b}"\n',
+            'x is "{length of [1]}"\nshow x\n',
+            'show "{import os}"\n',
+            'show "{first of \\"ab\\"}"\n',
+            'show "{split of \\"a,b\\" by \\",\\"}"\n',
+            "show '{single {1} quotes}'\n",
+            'show "{1}{2}{3}"\n',
+            'show "{{{1}}}"\n',
+        ]
+        for i, src in enumerate(interps):
+            problems.extend(check(f"v4-interp-{i}", src, {}))
+            problems.extend(check(f"v4-interp-tail-{i}", src + "{\n", {}))
+    finally:
+        os.chdir(old_cwd)
+
     after = sessions()
     stray = {s for s in after - before if not s.startswith("jc_")}
     if stray:

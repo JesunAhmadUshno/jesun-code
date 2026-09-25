@@ -195,7 +195,7 @@ class NewBuiltins(unittest.TestCase):
 
     def test_keys_of_foreign_dict(self):
         out = jesun.execute(
-            "import json\nd is json.loads('{\"a\": 1}')\nshow keys of d\n"
+            "import json\nd is json.loads('{{\"a\": 1}}')\nshow keys of d\n"
         )
         self.assertEqual(out, "[a]\n")
 

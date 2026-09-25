@@ -2,6 +2,33 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## Unreleased (v0.4 in progress)
+
+Files and words. The `jpm` package manager is still to come; no release
+until the milestone completes.
+
+- `write <value> to file "<path>"`: writes text, replacing the file.
+  `append <value> to file "<path>"`: adds to the end. Values convert the
+  way `show` converts them, so numbers, lists, and `nothing` work.
+- `read file "<path>" giving <name>`: reads the whole file as UTF-8 text.
+- Paths resolve from the current folder and may not escape it: `..`
+  climbs, absolute paths outside the folder, and null bytes all fail in
+  plain English with a line number. Missing files, folders-as-files, and
+  missing parent folders get friendly errors too.
+- String interpolation: `{expression}` inside any string evaluates and
+  splices in its `show` form (`"Hello, {name}!"`,
+  `"two plus two is {2 + 2}"`). `{{` and `}}` are literal braces; a lone
+  `}` stays literal; empty `{}` and unclosed `{` are parse errors with
+  line numbers.
+- Breaking change from v0.3: literal braces in strings now interpolate,
+  so JSON-style strings need doubling (`'{{"a": 1}}'`). Two existing
+  tests updated for this.
+- `write` and `append` are now keywords.
+- `examples/file_demo.jc`: a tiny journal demo using all three features.
+  Full spec in `docs/spec-v0.4.md`.
+- 137 tests passing (25 new), `fuzz_phase2.py` extended with 100 v0.4
+  cases (hostile paths, braces, escapes), 300-case core fuzz clean.
+
 ## v0.3.0 - 2026-09-25
 
 Deeper agents: memory that survives the run, agents calling agents, and
