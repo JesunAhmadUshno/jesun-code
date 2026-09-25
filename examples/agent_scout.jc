@@ -1,0 +1,23 @@
+note agent_scout.jc: Scout, a desk researcher with tools and memory.
+note Give it a real mind with: export JESUNCODE_AI_COMMAND="ollama run llama3.1"
+
+to read_notes
+    give back "Launch is Sep 30. Budget is 40k. Owner is Jesun."
+
+to read_risks
+    give back "Risk: venue not booked. Risk: budget approval pending."
+
+agent scout
+    persona is "You are Scout, a careful desk researcher. Answer briefly."
+    tools are [read_notes, read_risks]
+    remember is true
+    steps are 10
+
+ask scout "what is the launch date?" giving brief1
+show brief1
+
+ask scout "and the risks?" giving brief2
+show brief2
+
+ask scout "remind me of the date again" giving brief3
+show brief3

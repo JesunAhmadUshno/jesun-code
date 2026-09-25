@@ -27,7 +27,7 @@ Then:
 ```bash
 jesun program.jc   # run a file
 jesun              # open the REPL
-jesun --version    # Jesun.Code v0.1
+jesun --version    # Jesun.Code v0.2
 ```
 
 Prefer the source? `python3 jesun.py program.jc` works too (Python 3,
@@ -143,9 +143,32 @@ show answer
 
 With `with tools`, the mind calls your functions by writing
 `CALL: name(arg1, arg2)`; Jesun.Code runs them and feeds the results back
-until the mind answers or runs out of steps (10 by default). This is how
-you build your own AI agents: plain-English functions as tools, a
-plain-English goal, and the loop does the rest.
+until the mind answers or runs out of steps (10 by default).
+
+## Agents
+
+v0.2: named, reusable AI agents with a persona, their own tools, and
+memory. Anyone can build an AI agent in plain English:
+
+```jesun
+to read_notes
+    give back "Launch is Sep 30. Budget is 40k."
+
+agent scout
+    persona is "You are Scout, a careful desk researcher. Answer briefly."
+    tools are [read_notes]
+    remember is true
+    steps are 10
+
+ask scout "what is the launch date?" giving brief1
+show brief1
+ask scout "remind me of the date again" giving brief2
+show brief2
+```
+
+With `remember is true`, the agent carries conversation history across
+asks in the same run. See `examples/agent_scout.jc` and
+`docs/spec-v0.2.md`.
 
 Real tmux underneath, plain English on top:
 
@@ -185,19 +208,20 @@ with real tools, and looks around through a tmux terminal. Run the suite:
 python3 -m unittest discover -s tests
 ```
 
-## What v0.1 is, honestly
+## What v0.2 is, honestly
 
-v0.1 ships as a native binary. You never install Python and never see it,
+v0.2 ships as a native binary. You never install Python and never see it,
 period. Under the hood the interpreter core is written in Python and
 bundled inside the binary; the full standard library rides along so the
 Python bridge works out of the box.
 
-The full language spec lives in `docs/spec-v0.1.md`.
+The full language spec lives in `docs/spec-v0.1.md`; the v0.2 agent
+framework is specified in `docs/spec-v0.2.md`.
 
 ## Roadmap
 
-- **v0.2: the agent framework.** Named agents with a persona, their own
-  tools, and memory, so anyone can build AI agents in plain English.
+- **v0.3 candidates:** disk-persistent agent memory, agent-to-agent calls,
+  streaming answers.
 - **Long term: self-hosting.** The interpreter rewritten in Jesun.Code
   itself, so the language no longer rides on any other runtime. This does
   not exist yet, and we will not claim otherwise until it does.

@@ -2,6 +2,23 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## v0.2.0 - 2026-09-25
+
+The agent framework. Anyone can build their own AI agents in plain English.
+
+- `agent <name>` blocks: `persona is`, `tools are`, `remember is`,
+  `steps are`, all optional with sane defaults (no persona, no tools,
+  no memory, 10 steps).
+- `ask <agent> "<prompt>" giving <name>`: the ReAct loop with the agent's
+  persona, restricted tools, and step budget. Memory (`remember is true`)
+  carries conversation history across asks within a run.
+- Plain-English errors: unknown agents with did-you-mean, asking
+  non-agents, bad block settings.
+- `examples/agent_scout.jc`: a desk researcher demo with tools and memory.
+- Full spec in `docs/spec-v0.2.md`.
+- `agent` is now a keyword (it can no longer be a variable name).
+- 97 tests passing, plus a fuzz sweep extended with 100 agent cases.
+
 ## v0.1.0 - 2026-09-25
 
 First public release.

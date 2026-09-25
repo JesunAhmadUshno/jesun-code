@@ -170,6 +170,46 @@ def main() -> int:
     if "fuzz-ok" not in out:
         problems.append(f"tmux round-trip failed: {out[:500]}")
 
+    # 4. v0.2 agents: malformed blocks, hostile asks, memory fuzz
+    agent_fields = [
+        '    persona is "You are a pirate."\n',
+        '    persona is 42\n',
+        '    tools are [tool1]\n',
+        '    tools are []\n',
+        '    tools are [tool1, tool2, tool1]\n',
+        '    tools are tool1\n',
+        '    remember is true\n',
+        '    remember is false\n',
+        '    remember is maybe\n',
+        '    steps are 3\n',
+        '    steps are 0\n',
+        '    steps are 2.5\n',
+        '    steps are lots\n',
+        '    colour is "red"\n',
+        '    persona is "x"\n    persona is "y"\n',
+        '    bogus line here\n',
+    ]
+    for i in range(100):
+        n = rng.randint(1, 4)
+        body = "".join(rng.choice(agent_fields) for _ in range(n))
+        aname = rng.choice(["a1", "scout", "x", "agent"])
+        src = f"to tool1\n    give back \"t\"\nagent {aname}\n{body}"
+        tail = rng.choice([
+            "",
+            f'ask {aname} "hi" giving r\nshow r\n',
+            f'ask {aname} "hi" giving r\nask {aname} "again" giving r2\nshow r2\n',
+            'ask nope "hi" giving r\n',
+            'ask tool1 "hi" giving r\n',
+            f'ask {aname} 42 giving r\n',
+            f'show {aname}\n',
+        ])
+        extra = {"JESUNCODE_AI_COMMAND": MIND_OK}
+        problems.extend(check(f"agent-{i}", src + tail, extra))
+    # agent with no mind configured at all
+    problems.extend(check("agent-no-mind",
+                          'agent a1\n    persona is "x"\nask a1 "hi" giving r\n',
+                          {"JESUNCODE_AI_COMMAND": ""}))
+
     after = sessions()
     stray = {s for s in after - before if not s.startswith("jc_")}
     if stray:

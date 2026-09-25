@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Jesun.Code v0.1: an interpreter for a language that reads like plain English.
+"""Jesun.Code v0.2: an interpreter for a language that reads like plain English.
 
 Usage:
     python jesun.py program.jc   run a Jesun.Code file
@@ -25,7 +25,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-VERSION = "0.1"
+VERSION = "0.2"
 MAX_CALL_DEPTH = 100  # well under Python's own limit; the guard always fires first
 MAX_LOOP_RUNS = 1_000_000
 TOO_DEEP = "I got in too deep and stopped before falling over."
@@ -108,6 +108,8 @@ def show_text(value: Any) -> str:
         return "[" + ", ".join(show_text(v) for v in value) + "]"
     if isinstance(value, Function):  # defined below; resolved at call time
         return f"<function {value.name}>"
+    if isinstance(value, Agent):  # v0.2; defined below; resolved at call time
+        return f"<agent {value.name}>"
     if isinstance(value, Foreign):  # defined above; resolved at call time
         return _foreign_text(value.obj)
     return str(value)  # last resort; never a raw repr of internals
@@ -301,6 +303,8 @@ KEYWORDS: dict[str, str] = {
     "within": "WITHIN", "steps": "STEPS", "open": "OPEN",
     "terminal": "TERMINAL", "named": "NAMED", "send": "SEND",
     "read": "READ", "close": "CLOSE",
+    # v0.2: agents.
+    "agent": "AGENT", "persona": "PERSONA", "remember": "REMEMBER",
 }
 
 SIMPLE_TOKENS: dict[str, str] = {
@@ -638,6 +642,26 @@ class TermClose:
     line: int
 
 
+# -- v0.2 AST: agents (spec 18) --------------------------------------------
+
+@dataclass
+class AgentDef:
+    name: str
+    persona: Optional["Expr"]  # None when no persona line was given
+    tools: list[str]
+    remember: bool
+    max_steps: int
+    line: int
+
+
+@dataclass
+class AskAgent:
+    agent_name: str
+    prompt: "Expr"
+    name: str  # variable to store the answer in
+    line: int
+
+
 Stmt = Any
 Expr = Any
 
@@ -692,6 +716,8 @@ class Parser:
             return self.parse_foreach()
         if tok.type == "TO":
             return self.parse_funcdef()
+        if tok.type == "AGENT":
+            return self.parse_agent_def()
         if tok.type == "GIVE":
             return self.parse_giveback()
         if tok.type == "STOP":
@@ -738,11 +764,98 @@ class Parser:
         tok = self.advance()
         if self.peek().type == "AI":
             return self.parse_ask_ai(tok)
+        if self.peek().type == "NAME" and self.peek2().type != "GIVING":
+            return self.parse_ask_agent(tok)
         prompt = self.parse_or()
         self.expect("GIVING", '"giving" followed by a name')
         name = self.expect("NAME", "a name to store the answer in").value
         self.expect("NEWLINE", "the end of the line")
         return Ask(prompt, name, tok.line)
+
+    def parse_ask_agent(self, tok: Token) -> AskAgent:
+        agent_name = self.advance().value  # NAME
+        prompt = self.parse_or()
+        self.expect("GIVING", '"giving" followed by a name')
+        name = self.expect("NAME", "a name to store the answer in").value
+        self.expect("NEWLINE", "the end of the line")
+        return AskAgent(agent_name, prompt, name, tok.line)
+
+    def _agent_dup(self, seen: set[str], field: str, line: int) -> None:
+        if field in seen:
+            fail(line, f'"{field}" is already set for this agent.')
+        seen.add(field)
+
+    def _expect_is_or_are(self) -> None:
+        if self.peek().type == "IS":
+            self.advance()
+        elif self.peek().type == "NAME" and self.peek().value == "are":
+            self.advance()
+        else:
+            fail(self.peek().line, 'I expected "is" or "are" here.')
+
+    def parse_agent_def(self) -> AgentDef:
+        tok = self.advance()  # AGENT
+        name = self.expect("NAME", "a name for the agent").value
+        self.expect("NEWLINE", "the end of the line")
+        if self.peek().type != "INDENT":
+            fail(self.peek().line, "an agent needs an indented block of settings.")
+        self.advance()  # INDENT
+        persona: Optional[Expr] = None
+        tools: list[str] = []
+        remember = False
+        max_steps = 10
+        seen: set[str] = set()
+        while self.peek().type != "DEDENT":
+            if self.peek().type == "EOF":
+                fail(self.peek().line, "this block never ends.")
+            fline = self.peek().line
+            ftype = self.peek().type
+            if ftype == "PERSONA":
+                self._agent_dup(seen, "persona", fline)
+                self.advance()
+                self.expect("IS", '"is"')
+                persona = self.parse_or()
+            elif ftype == "TOOLS":
+                self._agent_dup(seen, "tools", fline)
+                self.advance()
+                self._expect_is_or_are()
+                self.expect("LBRACKET", '"[" around the tool names')
+                if self.peek().type != "RBRACKET":
+                    tools.append(self.expect("NAME", "a tool name").value)
+                    while self.peek().type == "COMMA":
+                        self.advance()
+                        tools.append(self.expect("NAME", "a tool name").value)
+                self.expect("RBRACKET", 'a closing "]"')
+            elif ftype == "REMEMBER":
+                self._agent_dup(seen, "remember", fline)
+                self.advance()
+                self.expect("IS", '"is"')
+                if self.peek().type == "TRUE":
+                    self.advance()
+                    remember = True
+                elif self.peek().type == "FALSE":
+                    self.advance()
+                    remember = False
+                else:
+                    fail(self.peek().line, '"remember" needs true or false.')
+            elif ftype == "STEPS":
+                self._agent_dup(seen, "steps", fline)
+                self.advance()
+                self._expect_is_or_are()
+                steps_tok = self.expect("NUMBER", "a number of steps")
+                if isinstance(steps_tok.value, float) or steps_tok.value < 1:
+                    fail(steps_tok.line, '"steps" needs a whole number of steps, at least 1.')
+                max_steps = int(steps_tok.value)
+            else:
+                if self.peek().type == "NAME":
+                    got = self.peek().value
+                else:
+                    got = self.peek().type.lower()
+                fail(fline, f'I do not know the agent setting "{got}". '
+                            "I know: persona, tools, remember, steps.")
+            self.expect("NEWLINE", "the end of the line")
+        self.advance()  # DEDENT
+        return AgentDef(name, persona, tools, remember, max_steps, tok.line)
 
     def parse_ask_ai(self, tok: Token) -> AskAi:
         self.advance()  # AI
@@ -1135,6 +1248,19 @@ class Function:
     line: int
 
 
+@dataclass
+class Agent:
+    """A v0.2 named AI agent: persona, tools, memory, step budget."""
+
+    name: str
+    persona: Optional[str]
+    tools: list[str]
+    remember: bool
+    max_steps: int
+    history: list[tuple[str, str]]  # (prompt, answer) turns, this run only
+    line: int
+
+
 class Interpreter:
     def __init__(self, stdin: Any = None, stdout: Any = None) -> None:
         self.global_env = Environment()
@@ -1162,6 +1288,9 @@ class Interpreter:
             TermSend: self.exec_term_send,
             TermRead: self.exec_term_read,
             TermClose: self.exec_term_close,
+            # v0.2: agents.
+            AgentDef: self.exec_agentdef,
+            AskAgent: self.exec_ask_agent,
         }
         self._EXPR_HANDLERS: dict[Any, Any] = {
             Literal: self.eval_literal,
@@ -1573,21 +1702,79 @@ class Interpreter:
         return value
 
     # -- talking to AI ------------------------------------------------------
-    def exec_ask_ai(self, stmt: AskAi, env: Environment) -> None:
+    def _ai_argv(self, line: int) -> list[str]:
         import os
         import shlex
-        prompt = self._need_text(self.eval_expr(stmt.prompt, env), stmt.line,
-                                 "the question I ask the mind")
         command = os.environ.get("JESUNCODE_AI_COMMAND", "").strip()
         if not command:
-            fail(stmt.line, AI_NO_MIND)
+            fail(line, AI_NO_MIND)
         argv = shlex.split(command)
         if not argv:
-            fail(stmt.line, AI_NO_MIND)
+            fail(line, AI_NO_MIND)
+        return argv
+
+    def exec_ask_ai(self, stmt: AskAi, env: Environment) -> None:
+        prompt = self._need_text(self.eval_expr(stmt.prompt, env), stmt.line,
+                                 "the question I ask the mind")
+        argv = self._ai_argv(stmt.line)
         if stmt.tools:
-            answer = self._ai_tool_loop(argv, prompt, stmt, env)
+            answer = self._ai_tool_loop(argv, prompt, stmt.tools,
+                                        stmt.max_steps, stmt.line, env)
         else:
             answer = self._ai_once(argv, prompt, stmt.line)
+        env.set(stmt.name, answer)
+
+    # -- v0.2 agents ----------------------------------------------------------
+    def _agent_names(self, env: Environment) -> list[str]:
+        out: list[str] = []
+        seen: Optional[Environment] = env
+        while seen is not None:
+            for name, value in seen.vars.items():
+                if isinstance(value, Agent) and name not in out:
+                    out.append(name)
+            seen = seen.parent
+        return out
+
+    def _find_agent(self, name: str, line: int, env: Environment) -> Agent:
+        seen: Optional[Environment] = env
+        while seen is not None:
+            if name in seen.vars:
+                value = seen.vars[name]
+                if isinstance(value, Agent):
+                    return value
+                kind = "a function" if isinstance(value, Function) else "not an agent"
+                fail(line, f'"{name}" is {kind}, not an agent.')
+            seen = seen.parent
+        fail(line, f'I do not know an agent called "{name}".'
+                   + suggest(name, self._agent_names(env)))
+
+    def exec_agentdef(self, stmt: AgentDef, env: Environment) -> None:
+        persona: Optional[str] = None
+        if stmt.persona is not None:
+            persona = self._need_text(self.eval_expr(stmt.persona, env),
+                                      stmt.line, "the agent's persona")
+        env.set(stmt.name, Agent(
+            name=stmt.name,
+            persona=persona,
+            tools=list(stmt.tools),
+            remember=stmt.remember,
+            max_steps=stmt.max_steps,
+            history=[],
+            line=stmt.line,
+        ))
+
+    def exec_ask_agent(self, stmt: AskAgent, env: Environment) -> None:
+        agent = self._find_agent(stmt.agent_name, stmt.line, env)
+        prompt = self._need_text(self.eval_expr(stmt.prompt, env), stmt.line,
+                                 "the question I ask the agent")
+        argv = self._ai_argv(stmt.line)
+        history = agent.history if agent.remember else None
+        answer = self._ai_tool_loop(argv, prompt, agent.tools,
+                                    agent.max_steps, stmt.line, env,
+                                    persona=agent.persona, history=history,
+                                    agent_name=agent.name)
+        if agent.remember:
+            agent.history.append((prompt, answer))
         env.set(stmt.name, answer)
 
     def _ai_once(self, argv: list[str], prompt: str, line: int) -> str:
@@ -1635,12 +1822,12 @@ class Interpreter:
         return values
 
     def _run_tool(self, name: str, arg_values: list[Any],
-                  stmt: AskAi, env: Environment) -> str:
-        if name not in stmt.tools:
+                  tools: list[str], line: int, env: Environment) -> str:
+        if name not in tools:
             return (f"RESULT of {name}: I only have these tools: "
-                    f"{', '.join(stmt.tools)}. I do not know a tool called \"{name}\".")
+                    f"{', '.join(tools)}. I do not know a tool called \"{name}\".")
         try:
-            target = env.get(name, stmt.line)
+            target = env.get(name, line)
         except JesunError:
             target = None
         if not isinstance(target, Function):
@@ -1651,29 +1838,41 @@ class Interpreter:
             return (f"RESULT of {name}: \"{name}\" needs {need} {word}, "
                     f"but got {len(arg_values)}.")
         try:
-            value = self._call_function(target, arg_values, stmt.line)
+            value = self._call_function(target, arg_values, line)
         except JesunError as err:
             return f"RESULT of {name}: {err.message}"
         except Exception:
             return f"RESULT of {name}: something went wrong running the tool."
         return f"RESULT of {name}: {show_text(value)}"
 
-    def _ai_tool_loop(self, argv: list[str], prompt: str,
-                      stmt: AskAi, env: Environment) -> str:
+    def _ai_tool_loop(self, argv: list[str], prompt: str, tools: list[str],
+                      max_steps: int, line: int, env: Environment,
+                      persona: Optional[str] = None,
+                      history: Optional[list[tuple[str, str]]] = None,
+                      agent_name: Optional[str] = None) -> str:
+        if persona:
+            head = persona.rstrip() + "\n\n"
+        else:
+            head = "You are a helper inside Jesun.Code. "
         system = (
-            "You are a helper inside Jesun.Code. You can call tools by writing "
-            "one per line like this:\n"
+            head +
+            "You can call tools by writing one per line like this:\n"
             "CALL: toolname(\"some text\", 2)\n"
-            f"Available tools: {', '.join(stmt.tools)}\n"
+            f"Available tools: {', '.join(tools)}\n"
             "Call no other tools. Anything you write outside CALL lines "
             "is your final answer to the human."
         )
-        transcript = system + "\n\nHuman: " + prompt
-        for step in range(1, stmt.max_steps + 1):
+        transcript = system
+        if history:
+            transcript += "\n\nEarlier in this conversation:"
+            for old_prompt, old_answer in history:
+                transcript += f"\nHuman: {old_prompt}\nMind: {old_answer}"
+        transcript += "\n\nHuman: " + prompt
+        for step in range(1, max_steps + 1):
             reply = self._ai_once(
                 argv,
-                transcript + f"\n\n(You have used {step} of {stmt.max_steps} steps.)",
-                stmt.line,
+                transcript + f"\n\n(You have used {step} of {max_steps} steps.)",
+                line,
             )
             calls: list[tuple[str, list[Any]]] = []
             answer_lines: list[str] = []
@@ -1681,15 +1880,18 @@ class Interpreter:
                 match = CALL_RE.match(raw.strip())
                 if match:
                     calls.append((match.group(1),
-                                  self._parse_call_args(match.group(2), stmt.line)))
+                                  self._parse_call_args(match.group(2), line)))
                 else:
                     answer_lines.append(raw)
             if not calls:
                 return "\n".join(answer_lines).strip()
-            results = [self._run_tool(name, args, stmt, env) for name, args in calls]
+            results = [self._run_tool(name, args, tools, line, env)
+                       for name, args in calls]
             transcript += f"\n\nMind:\n{reply}\n\nResults:\n" + "\n".join(results)
-        fail(stmt.line,
-             f"the mind used all {stmt.max_steps} steps without giving an answer.")
+        if agent_name:
+            fail(line, f"{agent_name} used all {max_steps} steps without giving an answer.")
+        fail(line,
+             f"the mind used all {max_steps} steps without giving an answer.")
 
     # -- commanding terminals (tmux) -----------------------------------------
     def _tmux_path(self, line: int) -> str:
@@ -1815,7 +2017,7 @@ def _last_line_opens_block(buffer: str) -> bool:
         return True
     if re.match(r"^if\b.*\bthen$", s):
         return True
-    return any(re.match(rf"^{kw}\b", s) for kw in ("repeat", "for", "to"))
+    return any(re.match(rf"^{kw}\b", s) for kw in ("repeat", "for", "to", "agent"))
 
 
 def _buffer_ends_inside_block(buffer: str) -> bool:
