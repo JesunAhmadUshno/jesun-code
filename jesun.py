@@ -2597,7 +2597,11 @@ class Interpreter:
                 source = main.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 fail(stmt.line, f'I could not read the package "{text}".')
-            program = Parser(tokenize(source)).parse_program()
+            program = None
+            try:
+                program = Parser(tokenize(source)).parse_program()
+            except RecursionError:
+                fail(stmt.line, f'in the "{text}" package: {TOO_DEEP}')
             before = set(env.vars)
             for sub in program:
                 self.exec_stmt(sub, env)
