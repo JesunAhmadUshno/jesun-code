@@ -283,6 +283,37 @@ show "It is " + time_now + " on " + time_today
 
 See `examples/file_demo.jc` and `docs/spec-v0.4.md`.
 
+## The Bangla flavor
+
+v0.5: Jesun.Code speaks Bangla. Start the file with `use bangla` (or a
+line with only `বাংলা`) and every keyword becomes a Bangla word. Same
+grammar, same blocks, same plain-English errors with line numbers; comments
+start with `মন্তব্য`, identifiers and Bengali digits (`৫`, `৩.১৪`) work
+throughout:
+
+```jesun
+বাংলা
+মন্তব্য মাসের খরচের হিসাব
+খরচগুলো হয় [["চাল", ১২০], ["ডাল", ৯০], ["তেল", ২০০]]
+মোট হয় ০
+জন্য প্রতিটি খরচ ভেতরে খরচগুলো
+    মোট হয় মোট + খরচ[1]
+দেখাও "মোট খরচ: {মোট} টাকা"
+```
+
+In Bangla mode the English words are ordinary names (and vice versa): one
+file, one tongue. The full keyword table is in `docs/spec-v0.5.md`
+section 23. A working expense-report demo lives in
+`examples/bangla_demo.jc`.
+
+## VS Code
+
+v0.5: first-class editing in `editors/vscode/`: syntax highlighting for
+English and Bangla keywords (the grammar is generated from the interpreter
+itself, so it can never drift), snippets, and a run-file command
+(`Ctrl+Alt+R`). Copy the folder to `~/.vscode/extensions/jesun-code` and
+reload.
+
 Real tmux underneath, plain English on top:
 
 ```jesun
@@ -328,10 +359,19 @@ period. Under the hood the interpreter core is written in Python and
 bundled inside the binary; the full standard library rides along so the
 Python bridge works out of the box.
 
+## What v0.5 is, honestly
+
+v0.5's Bangla flavor is a keyword flavor, not a translation: the grammar
+stays English-shaped, only the words change, and error messages stay in
+plain English (Bangla error text is queued, not silently dropped). The
+binary still bundles the Python runtime until v1.1; self-hosting is
+roadmap until v1.0. Never claimed otherwise.
+
 The full language spec lives in `docs/spec-v0.1.md`; the v0.2 agent
 framework is specified in `docs/spec-v0.2.md`, deeper agents (persistent
-memory, agent-to-agent calls, streaming) in `docs/spec-v0.3.md`, and
-files plus interpolation in `docs/spec-v0.4.md`.
+memory, agent-to-agent calls, streaming) in `docs/spec-v0.3.md`, files
+plus interpolation in `docs/spec-v0.4.md`, and the Bangla flavor plus the
+VS Code extension in `docs/spec-v0.5.md`.
 
 ## Roadmap
 

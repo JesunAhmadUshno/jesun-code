@@ -2,6 +2,34 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## v0.5 - 2026-09-25
+
+Home turf. Jesun.Code speaks Bangla, and `.jc` files get first-class
+editing in VS Code.
+
+- The Bangla flavor: a file whose first non-blank line is `use bangla`
+  (or a lone `বাংলা`) runs entirely in Bangla keywords (67 words, spec
+  `docs/spec-v0.5.md` section 23). Same grammar and blocks as English;
+  errors stay plain English with line numbers; comments start with
+  `মন্তব্য`; identifiers may use Bangla or English letters; Bengali
+  digits (`৫`, `৩.১৪`) work. Mixing is not allowed: in Bangla mode the
+  English words are ordinary names, and vice versa.
+- The lexer now treats Unicode combining marks as word characters, so
+  Bangla vowel signs never split a keyword (this also fixed nothing in
+  English; it only widened the definition correctly).
+- The REPL continues blocks on Bangla openers (`যদি...তাহলে`, `আবার`,
+  `জন্য`, `জন্যে`, `নইলে`, `এজেন্ট`) too.
+- `editors/vscode/`: TextMate grammar generated from the interpreter
+  (`python3 build-grammar.py`; a test fails if the checked-in grammar
+  drifts from `jesun.py`), snippets, language configuration, and a
+  run-file command (`Ctrl+Alt+R`) that uses the `jesun` binary when it
+  is on PATH.
+- New example `examples/bangla_demo.jc`: a monthly expense report written
+  fully in Bangla (loops, functions, file I/O, interpolation), verified
+  through the binary.
+- 201 tests (43 new in `tests/test_v05.py`); both fuzz sweeps clean with
+  Bangla seeds and words added.
+
 ## v0.3.1
 
 Packaging fix over v0.3.0: the same language, plus the Windows AI-command

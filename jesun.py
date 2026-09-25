@@ -22,6 +22,7 @@ from __future__ import annotations
 import difflib
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -320,6 +321,42 @@ KEYWORDS: dict[str, str] = {
     "use": "USE", "bring": "BRING",
 }
 
+# v0.5: the Bangla flavor. Same token types as KEYWORDS, Bangla words.
+# Spec: docs/spec-v0.5.md section 23. In Bangla mode these replace the
+# English words one for one; the grammar does not change.
+BANGLA_KEYWORDS: dict[str, str] = {
+    "দেখাও": "SHOW", "হয়": "IS", "না": "NOT", "সত্য": "TRUE",
+    "মিথ্যা": "FALSE", "ফাঁকা": "NOTHING", "জিজ্ঞেস": "ASK",
+    "রেখে": "GIVING", "যদি": "IF", "তাহলে": "THEN", "নইলে": "OTHERWISE",
+    "আবার": "REPEAT", "বার": "TIMES", "যতক্ষণ": "WHILE", "জন্য": "FOR",
+    "প্রতিটি": "EACH", "ভেতরে": "IN", "জন্যে": "TO", "সহ": "WITH",
+    "এবং": "AND", "অথবা": "OR", "দাও": "GIVE", "ফেরত": "BACK",
+    "থামো": "STOP", "এড়িয়ে": "SKIP", "এর": "OF", "প্রথম": "FIRST",
+    "শেষ": "LAST", "দৈর্ঘ্য": "LENGTH", "বড়হাতা": "UPPERCASE",
+    "ছোটহাতা": "LOWERCASE", "বড়": "GREATER", "ছোট": "LESS",
+    "চেয়ে": "THAN", "কমপক্ষে": "LEAST", "সবচেয়ে": "MOST",
+    "নম্বরে": "AT", "আছে": "CONTAINS", "ভাগ": "SPLIT", "জোড়া": "JOIN",
+    "ছাঁটো": "TRIM", "দিয়ে": "BY", "চাবি": "KEYS", "আনো": "IMPORT",
+    "হিসেবে": "AS", "এআই": "AI", "হাতিয়ার": "TOOLS", "মধ্যে": "WITHIN",
+    "ধাপ": "STEPS", "খোলো": "OPEN", "টার্মিনাল": "TERMINAL",
+    "নামে": "NAMED", "পাঠাও": "SEND", "পড়ো": "READ",
+    "বন্ধকরো": "CLOSE", "এজেন্ট": "AGENT", "পারসোনা": "PERSONA",
+    "মনেকরো": "REMEMBER", "সবসময়": "ALWAYS", "ভুলেযাও": "FORGET",
+    "স্মৃতি": "MEMORY", "ফাইল": "FILE", "সরাসরি": "STREAMING",
+    "লেখো": "WRITE", "যোগকরো": "APPEND", "ব্যবহার": "USE",
+    "নিয়ে": "BRING",
+}
+
+# In Bangla mode, comments start with this word instead of `note`.
+BANGLA_COMMENT = "মন্তব্য"
+
+
+def _is_word_char(ch: str) -> bool:
+    """Word characters for the lexer: letters, digits, underscore, and
+    combining marks. Bangla vowel signs (ে, া) are marks, not letters;
+    without this, দেখাও would split into pieces."""
+    return ch.isalnum() or ch == "_" or unicodedata.category(ch).startswith("M")
+
 SIMPLE_TOKENS: dict[str, str] = {
     "+": "PLUS", "-": "MINUS", "*": "STAR", "/": "SLASH", "%": "PERCENT",
     "(": "LPAREN", ")": "RPAREN", "[": "LBRACKET", "]": "RBRACKET",
@@ -327,9 +364,10 @@ SIMPLE_TOKENS: dict[str, str] = {
 }
 
 
-def _cut_comment(line: str) -> str:
-    """Cut a `note` comment to end of line, ignoring the word inside strings."""
+def _cut_comment(line: str, comment_word: str = "note") -> str:
+    """Cut a comment to end of line, ignoring the word inside strings."""
     i, n = 0, len(line)
+    wlen = len(comment_word)
     quote: Optional[str] = None
     while i < n:
         ch = line[i]
@@ -345,12 +383,12 @@ def _cut_comment(line: str) -> str:
             quote = ch
             i += 1
             continue
-        if line.startswith("note", i):
+        if line.startswith(comment_word, i):
             before = line[i - 1] if i > 0 else " "
-            after = line[i + 4] if i + 4 < n else " "
-            if not (before.isalnum() or before == "_") and not (after.isalnum() or after == "_"):
+            after = line[i + wlen] if i + wlen < n else " "
+            if not _is_word_char(before) and not _is_word_char(after):
                 return line[:i]
-            i += 4
+            i += wlen
             continue
         i += 1
     return line
@@ -375,7 +413,8 @@ def _read_string(text: str, start: int, lineno: int) -> tuple[str, int]:
     raise AssertionError("unreachable")
 
 
-def _tokenize_line(text: str, lineno: int) -> list[Token]:
+def _tokenize_line(text: str, lineno: int,
+                   keywords: dict[str, str] = KEYWORDS) -> list[Token]:
     tokens: list[Token] = []
     i, n = 0, len(text)
     while i < n:
@@ -402,10 +441,10 @@ def _tokenize_line(text: str, lineno: int) -> list[Token]:
             continue
         if ch.isalpha() or ch == "_":
             j = i
-            while j < n and (text[j].isalnum() or text[j] == "_"):
+            while j < n and _is_word_char(text[j]):
                 j += 1
             word = text[i:j]
-            tokens.append(Token(KEYWORDS.get(word, "NAME"), word, lineno))
+            tokens.append(Token(keywords.get(word, "NAME"), word, lineno))
             i = j
             continue
         if ch in SIMPLE_TOKENS:
@@ -416,14 +455,36 @@ def _tokenize_line(text: str, lineno: int) -> list[Token]:
     return tokens
 
 
+def _bangla_header_lineno(source: str) -> int:
+    """Line number of the Bangla-mode header, or 0 for English mode.
+
+    The header is the first non-blank line of the file and must be exactly
+    `use bangla` or the lone word `বাংলা` (a trailing English `note`
+    comment is allowed; the header itself is read in English mode).
+    """
+    for lineno, raw in enumerate(source.split("\n"), start=1):
+        if not _cut_comment(raw).strip():
+            continue
+        stripped = _cut_comment(raw).strip()
+        if stripped == "use bangla" or stripped == "বাংলা":
+            return lineno
+        return 0
+    return 0
+
+
 def tokenize(source: str) -> list[Token]:
     source = source.lstrip("\ufeff")  # a BOM is not a word I know
+    header = _bangla_header_lineno(source)
+    keywords = BANGLA_KEYWORDS if header else KEYWORDS
+    comment_word = BANGLA_COMMENT if header else "note"
     tokens: list[Token] = []
     indents: list[int] = [0]
     last_line = 1
     for lineno, raw in enumerate(source.split("\n"), start=1):
         last_line = lineno
-        line = _cut_comment(raw)
+        if lineno == header:
+            continue  # the header is a directive, not a statement
+        line = _cut_comment(raw, comment_word)
         if "\t" in line and line.strip():
             fail(lineno, "I do not understand tabs; please indent with spaces.")
         if not line.strip():
@@ -438,7 +499,7 @@ def tokenize(source: str) -> list[Token]:
                 tokens.append(Token("DEDENT", None, lineno))
             if indent != indents[-1]:
                 fail(lineno, "this line does not line up with any block I opened.")
-        tokens.extend(_tokenize_line(line.strip(), lineno))
+        tokens.extend(_tokenize_line(line.strip(), lineno, keywords))
         tokens.append(Token("NEWLINE", None, lineno))
     while len(indents) > 1:
         indents.pop()
@@ -2663,7 +2724,18 @@ def _last_line_opens_block(buffer: str) -> bool:
     lines = [ln for ln in buffer.split("\n") if ln.strip()]
     if not lines:
         return False
-    s = _cut_comment(lines[-1]).strip()
+    bangla = bool(_bangla_header_lineno("\n".join(lines)))
+    comment_word = BANGLA_COMMENT if bangla else "note"
+    s = _cut_comment(lines[-1], comment_word).strip()
+    if bangla:
+        # NB: \b is useless after Bangla vowel signs (regex sees them as
+        # non-word chars), so block openers use explicit boundaries.
+        if s == "নইলে" or s.startswith("নইলে "):
+            return True
+        if re.match(r"^যদি\s.*\sতাহলে$", s):
+            return True
+        return any(re.match(rf"^{kw}(?:\s|$)", s)
+                   for kw in ("আবার", "জন্য", "জন্যে", "এজেন্ট"))
     if s == "otherwise" or s.startswith("otherwise "):
         return True
     if re.match(r"^if\b.*\bthen$", s):

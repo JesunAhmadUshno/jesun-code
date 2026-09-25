@@ -23,14 +23,14 @@ America/Toronto.
 
 ## In progress
 
-- **v0.5: home turf.**
+- **v0.5: home turf.** Bangla flavor shipped (67 keywords, `use bangla`
+  header, `মন্তব্য` comments, Bengali digits, Bangla-aware REPL), VS Code
+  extension shipped in `editors/vscode/` (generated grammar, snippets,
+  run-file). 201 tests green, fuzz clean. Release v0.5.0 pending: rebuild
+  the Linux binary, verify, tag, `gh release create`.
 
 ## Up next (in order, no skipping)
 
-- **v0.5: home turf.** The Bangla keyword flavor (a `bangla` mode where
-  keywords are Bangla words; spec first) plus a VS Code extension
-  (syntax highlighting, snippets, run-file command) in
-  `editors/vscode/`.
 - **v0.6: fleets.** `fleet` blocks: named agents run asks in parallel,
   results collected into a list. Shared fleet memory.
 - **v1.0: SELF-HOSTING.** `jesun.jc`: the full interpreter (lexer,

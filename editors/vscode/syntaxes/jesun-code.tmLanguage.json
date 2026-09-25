@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Jesun.Code",
+  "scopeName": "source.jesun",
+  "fileTypes": [
+    "jc"
+  ],
+  "patterns": [
+    {
+      "name": "comment.line.jesun",
+      "match": "(?<![\\p{L}\\p{N}_\\p{M}])(মন্তব্য|note)(?![\\p{L}\\p{N}_\\p{M}]).*$"
+    },
+    {
+      "name": "string.quoted.double.jesun",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.jesun",
+          "match": "\\\\."
+        },
+        {
+          "name": "variable.interpolation.jesun",
+          "match": "\\{[^{}]+\\}"
+        }
+      ]
+    },
+    {
+      "name": "string.quoted.single.jesun",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.jesun",
+          "match": "\\\\."
+        },
+        {
+          "name": "variable.interpolation.jesun",
+          "match": "\\{[^{}]+\\}"
+        }
+      ]
+    },
+    {
+      "name": "meta.function.jesun",
+      "match": "^(\\s*)(to|জন্যে)(\\s+)([\\p{L}_][\\p{L}\\p{N}_\\p{M}]*)",
+      "captures": {
+        "2": {
+          "name": "keyword.control.jesun"
+        },
+        "4": {
+          "name": "entity.name.function.jesun"
+        }
+      }
+    },
+    {
+      "name": "keyword.control.bangla.jesun",
+      "match": "(?<![\\p{L}\\p{N}_\\p{M}])(?:টার্মিনাল|হাতিয়ার|জিজ্ঞেস|প্রতিটি|এড়িয়ে|দৈর্ঘ্য|বড়হাতা|ছোটহাতা|কমপক্ষে|সবচেয়ে|বন্ধকরো|পারসোনা|ভুলেযাও|ব্যবহার|মিথ্যা|যতক্ষণ|নম্বরে|হিসেবে|এজেন্ট|মনেকরো|সবসময়|স্মৃতি|সরাসরি|যোগকরো|দেখাও|ফাঁকা|তাহলে|ভেতরে|জন্যে|প্রথম|চেয়ে|জোড়া|ছাঁটো|দিয়ে|মধ্যে|পাঠাও|নিয়ে|সত্য|রেখে|নইলে|আবার|জন্য|অথবা|ফেরত|থামো|চাবি|খোলো|নামে|পড়ো|ফাইল|লেখো|হয়|যদি|বার|এবং|দাও|শেষ|বড়|ছোট|আছে|ভাগ|আনো|এআই|ধাপ|না|সহ|এর)(?![\\p{L}\\p{N}_\\p{M}])"
+    },
+    {
+      "name": "keyword.control.jesun",
+      "match": "(?<![\\p{L}\\p{N}_\\p{M}])(?:otherwise|uppercase|lowercase|streaming|contains|terminal|remember|nothing|greater|persona|giving|repeat|length|import|within|always|forget|memory|append|false|times|while|first|least|split|tools|steps|named|close|agent|write|bring|show|true|then|each|with|give|back|stop|skip|last|less|than|most|join|trim|keys|open|send|read|file|not|ask|for|and|use|is|if|in|to|or|of|at|by|as|ai)(?![\\p{L}\\p{N}_\\p{M}])"
+    },
+    {
+      "name": "constant.numeric.jesun",
+      "match": "(?<![\\p{L}\\p{N}_])[\\p{N}]+(?:\\.[\\p{N}]+)?(?![\\p{L}\\p{N}_])"
+    }
+  ]
+}
