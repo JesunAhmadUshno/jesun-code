@@ -1,0 +1,45 @@
+# Jesun.Code
+
+> Jesun.Code is a programming language that reads like plain English. If a
+> sentence makes sense to a person, it should make sense to the machine.
+
+- Site: https://jesunahmadushno.github.io/jesun-code/
+- Repo: https://github.com/JesunAhmadUshno/jesun-code
+- License: MIT. Current version: 0.5.0 (2026-09-25).
+
+## The language
+
+- `show "hello"` prints. `name is "Jesun"` assigns. `ask "name?" giving n`
+  reads input. `if age is at least 18 then` / `otherwise` branches.
+  `repeat 3 times` and `repeat while ...` loop. `for each item in list`
+  iterates. `to add with a and b` ... `give back a + b` defines functions.
+- Every error is one plain-English sentence with a line number. Tracebacks
+  do not exist.
+- File I/O: `read file "p" giving t`, `write t to file "p"`,
+  `append t to file "p"` (paths sandboxed to the project folder).
+- String interpolation: `"Hello, {name}!"`.
+- Python bridge: `import numpy` (any stdlib or pip package) works.
+- AI: `ask ai "prompt" giving answer` (via `JESUNCODE_AI_COMMAND`);
+  named agents with persona, tools, streaming, persistent memory;
+  tmux terminal control in plain English.
+- jpm package manager: `use "github.com/user/pkg"` installs from GitHub,
+  `bring in "pkg"` loads it. Starter packages: time, files, http.
+- Bangla flavor (v0.5.0): a file starting with `use bangla` (or a lone
+  `বাংলা`) runs in 67 Bangla keywords (`দেখাও`, `হয়`, `যদি...তাহলে`),
+  `মন্তব্য` comments, Bengali digits. Same grammar, errors stay English.
+- VS Code extension in `editors/vscode/` (grammar generated from the
+  interpreter; snippets; run-file).
+
+## Install
+
+- macOS/Linux: `curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh`
+- Windows (PowerShell): `irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex`
+- Run: `jesun program.jc`. REPL: `jesun`. Version: `jesun --version`.
+
+## Roadmap (honest)
+
+- v0.6: agent fleets (parallel agents, shared memory).
+- v1.0: self-hosting (the interpreter rewritten in Jesun.Code itself).
+- v1.1: native binaries (transpile to C, compile with cc).
+- Until v1.0 the interpreter core is Python bundled in the binary; until
+  v1.1 there is no native compiler. Neither is claimed otherwise.

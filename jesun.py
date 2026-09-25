@@ -26,7 +26,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 MAX_CALL_DEPTH = 100  # well under Python's own limit; the guard always fires first
 MAX_LOOP_RUNS = 1_000_000
 TOO_DEEP = "I got in too deep and stopped before falling over."

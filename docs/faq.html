@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAQ — Jesun.Code</title>
+<meta name="description" content="What is Jesun.Code? How do I install it? How does jpm work? Answers, directly.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Jesun.Code">
+<meta property="og:title" content="FAQ — Jesun.Code">
+<meta property="og:description" content="What is Jesun.Code? How do I install it? Answers, directly.">
+<meta property="og:url" content="https://jesunahmadushno.github.io/jesun-code/faq.html">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://jesunahmadushno.github.io/jesun-code/faq.html">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2305080a'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%2300ff88' font-family='monospace' font-weight='bold'>&gt;_</text></svg>">
+<style>.faq{max-width:720px;margin:0 auto;padding:120px 24px 80px}.faq details{background:#0a0f14;border:1px solid #1c2a3a;border-radius:8px;margin-bottom:12px;padding:16px 20px}.faq summary{cursor:pointer;font-weight:600;color:#fff}.faq details p,.faq details li{color:#c6d4e2;line-height:1.75}.faq code{font-family:monospace}</style>
+</head>
+<body>
+<canvas id="grid" aria-hidden="true"></canvas>
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="./"><span class="brand-mark">&gt;_</span><span class="brand-name">Jesun<em>.Code</em></span></a>
+    <nav class="nav-links"><a href="./">Home</a><a href="blog/">Blog</a><a href="./#install">Install</a></nav>
+  </div>
+</header>
+<main class="faq">
+  <p class="kicker">FAQ</p>
+  <h1>Answers, directly.</h1>
+
+  <details open>
+    <summary>What is Jesun.Code?</summary>
+    <p>Jesun.Code is a programming language that reads like plain English. <code>show "hello"</code> prints, <code>ask "name?" giving n</code> reads input, <code>repeat 3 times</code> loops. It ships as a single binary for Windows, macOS, and Linux, so you never install Python and never see it.</p>
+  </details>
+
+  <details>
+    <summary>How do I install it?</summary>
+    <p>One line, no Python needed. On macOS/Linux: <code>curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh</code>. On Windows PowerShell: <code>irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex</code>. Then <code>jesun program.jc</code> runs a file and <code>jesun</code> alone opens the REPL.</p>
+  </details>
+
+  <details>
+    <summary>What happens when my program has an error?</summary>
+    <p>You get one plain-English sentence with a line number, like <code>Line 3: I expected a value here.</code> Tracebacks do not exist in Jesun.Code. Every failure path in the interpreter is tested to produce a human sentence.</p>
+  </details>
+
+  <details>
+    <summary>Can it use Python libraries?</summary>
+    <p>Yes. <code>import numpy</code> (or any stdlib or pip package) works through the Python bridge. Inside Jesun.Code you keep speaking Jesun.Code; at the border with Python you use Python's manners: dotted names, parentheses, commas.</p>
+  </details>
+
+  <details>
+    <summary>How does the AI brain work?</summary>
+    <p><code>ask ai "write a haiku about compilers" giving poem</code> sends the prompt to the connected mind. You connect one with <code>JESUNCODE_AI_COMMAND</code>, a command that reads a prompt on stdin and writes the answer on stdout. Three providers ship with the installer: Pollinations (free forever, no key), Gemini (free with a Google account), and OpenAI (your own key). Named agents add persona, tools, streaming, and persistent memory.</p>
+  </details>
+
+  <details>
+    <summary>What is jpm?</summary>
+    <p><code>jpm</code> is the Jesun.Code package manager. <code>use "github.com/user/pkg"</code> installs a package straight from GitHub into <code>~/.jesun-code/packages/</code>; <code>bring in "pkg"</code> loads it. Three starter packages ship in the repo: <code>time</code>, <code>files</code>, and <code>http</code>.</p>
+  </details>
+
+  <details>
+    <summary>Does Jesun.Code speak Bangla?</summary>
+    <p>Yes, since v0.5.0. Start a file with <code>use bangla</code> (or a lone <code>বাংলা</code>) and all 67 keywords become Bangla words: <code>দেখাও</code> for show, <code>হয়</code> for is, <code>যদি...তাহলে</code> for if...then. Bengali digits and <code>মন্তব্য</code> comments work too. Same grammar, different tongue.</p>
+  </details>
+
+  <details>
+    <summary>Is there a VS Code extension?</summary>
+    <p>Yes, in <code>editors/vscode/</code>: syntax highlighting for English and Bangla keywords, snippets, and run-file on <code>Ctrl+Alt+R</code>. The grammar is generated from the interpreter itself, so it can never drift out of sync.</p>
+  </details>
+
+  <details>
+    <summary>What is the roadmap?</summary>
+    <p>v0.6 brings agent fleets (parallel agents, shared memory). v1.0 is self-hosting: the interpreter rewritten in Jesun.Code itself. v1.1 compiles to real native binaries. The honest framing: until v1.0 the interpreter core is Python bundled inside the binary, and until v1.1 it is not a native compiler. Neither is claimed otherwise.</p>
+  </details>
+
+  <details>
+    <summary>What license is it?</summary>
+    <p>MIT. Do anything with it.</p>
+  </details>
+</main>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "What is Jesun.Code?", "acceptedAnswer": {"@type": "Answer", "text": "Jesun.Code is a programming language that reads like plain English. It ships as a single binary for Windows, macOS, and Linux."}},
+    {"@type": "Question", "name": "How do I install it?", "acceptedAnswer": {"@type": "Answer", "text": "One line via the install script; no Python needed. jesun program.jc runs a file."}},
+    {"@type": "Question", "name": "What happens when my program has an error?", "acceptedAnswer": {"@type": "Answer", "text": "One plain-English sentence with a line number. Tracebacks do not exist."}},
+    {"@type": "Question", "name": "Can it use Python libraries?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, import any stdlib or pip package through the Python bridge."}},
+    {"@type": "Question", "name": "What is jpm?", "acceptedAnswer": {"@type": "Answer", "text": "The Jesun.Code package manager: use github.com/user/pkg installs from GitHub, bring in pkg loads it."}},
+    {"@type": "Question", "name": "Does Jesun.Code speak Bangla?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, since v0.5.0: use bangla switches all 67 keywords to Bangla words."}}
+  ]
+}
+</script>
+<script src="assets/app.js"></script>
+</body>
+</html>
