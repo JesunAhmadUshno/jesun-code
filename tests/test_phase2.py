@@ -303,7 +303,7 @@ class ZeroLeakage(unittest.TestCase):
         with redirect_stdout(buf):
             code = jesun.main(["--version"])
         self.assertEqual(code, 0)
-        self.assertEqual(buf.getvalue(), "Jesun.Code v0.3\n")
+        self.assertEqual(buf.getvalue(), "Jesun.Code v0.3.1\n")
 
 
 if __name__ == "__main__":
