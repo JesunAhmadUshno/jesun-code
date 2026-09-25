@@ -155,6 +155,14 @@ body {
   font-family: var(--mono); font-size: 0.88em; color: var(--cyan);
   background: rgba(34, 211, 238, 0.08); padding: 2px 7px; border-radius: 6px;
 }
+.nw { white-space: nowrap; }
+.mini {
+  font-family: var(--mono); font-size: 13px; line-height: 1.7;
+  background: rgba(8, 13, 17, 0.9); border: 1px solid var(--line-soft);
+  border-radius: 9px; padding: 12px 14px; margin-top: 12px;
+  overflow-x: auto; white-space: pre; color: var(--text);
+}
+.mini code { background: none; padding: 0; color: inherit; font-size: inherit; }
 
 /* code cards */
 .code-card {
