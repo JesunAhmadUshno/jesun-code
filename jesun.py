@@ -2081,8 +2081,9 @@ class Interpreter:
     def _ai_once_streaming(self, argv: list[str], prompt: str, line: int) -> str:
         """Run the mind, printing each chunk of stdout as it arrives."""
         import codecs
-        import select
+        import queue
         import subprocess
+        import threading
         import time
         try:
             proc = subprocess.Popen(argv, stdin=subprocess.PIPE,
@@ -2097,33 +2098,47 @@ class Interpreter:
             assert proc.stdin is not None and proc.stdout is not None
             proc.stdin.write(prompt)
             proc.stdin.close()
-            # read1 does a single raw read, so select() really means
+            # A reader thread does the blocking reads. select() cannot wait
+            # on a pipe on Windows (sockets only), so a thread plus a queue
+            # is the portable way to learn about each chunk as it arrives.
+            # read1 does a single raw read, so one queue item really means
             # "a chunk is here now". read() would block filling 4096 chars.
             raw_out = proc.stdout.buffer
-            decoder = codecs.getincrementaldecoder("utf-8")()
+            pending = queue.Queue()
+            eof = object()
+
+            def _reader() -> None:
+                decoder = codecs.getincrementaldecoder("utf-8")()
+                while True:
+                    data = raw_out.read1(4096)
+                    if not data:
+                        break
+                    text = decoder.decode(data)
+                    if text:
+                        pending.put(text)
+                tail = decoder.decode(b"", final=True)
+                if tail:
+                    pending.put(tail)
+                pending.put(eof)
+
+            reader = threading.Thread(target=_reader, daemon=True)
+            reader.start()
             deadline = time.monotonic() + AI_TIMEOUT
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     proc.kill()
                     fail(line, "the mind took too long to answer (over 60 seconds).")
-                ready, _, _ = select.select([proc.stdout], [], [], remaining)
-                if not ready:
+                try:
+                    item = pending.get(timeout=remaining)
+                except queue.Empty:
                     proc.kill()
                     fail(line, "the mind took too long to answer (over 60 seconds).")
-                data = raw_out.read1(4096)
-                if not data:
+                if item is eof:
                     break
-                text = decoder.decode(data)
-                if text:
-                    self.stdout.write(text)
-                    self.stdout.flush()
-                    chunks.append(text)
-            tail = decoder.decode(b"", final=True)
-            if tail:
-                self.stdout.write(tail)
+                self.stdout.write(item)
                 self.stdout.flush()
-                chunks.append(tail)
+                chunks.append(item)
             proc.wait(timeout=5)
         except JesunError:
             raise

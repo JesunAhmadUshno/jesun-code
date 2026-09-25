@@ -74,7 +74,7 @@ class Bridge(unittest.TestCase):
 
     def test_dotted_module(self):
         out = jesun.execute("import os.path\nshow os.path.sep\n")
-        self.assertEqual(out, "/\n")
+        self.assertEqual(out, os.sep + "\n")
 
     def test_kwargs(self):
         out = jesun.execute(

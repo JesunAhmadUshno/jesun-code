@@ -156,7 +156,7 @@ class PersistentMemory(unittest.TestCase):
             src = (
                 "agent m\n"
                 "    remember is always\n"
-                f'    memory file is "{custom}"\n'
+                f'    memory file is "{custom.as_posix()}"\n'
                 'ask m "hi" giving r\n'
             )
             with mind_and_home("mind_fixed.py", home):
