@@ -2,9 +2,16 @@
 
 Generates small phase-A-only programs (no stdin, no files, no network, no
 minds: nothing with side effects beyond stdout), runs each through
-`python jesun.py prog` and `python jesun.py jesun.jc prog`, and requires
-identical (returncode, stdout). Also enforces the zero-leakage rule on
-both outputs: no tracebacks, no Python exception names, no "0x".
+`python jesun.py prog` and `python jesun.jc prog`, and requires
+identical (returncode, stdout). Every third case is a phase-B program
+(ask with piped stdin, file I/O, the import bridge): those run with a
+fresh temp cwd per case on both sides. Also enforces the zero-leakage
+rule on both outputs: no tracebacks, no Python exception names, no "0x".
+
+The known spec-7.3 gap (call-time foreign failures report at the
+walker's bridge line, not the target line) is classified, not failed:
+when both outputs carry "the python call failed", line numbers are
+normalized before comparing.
 
 Timeouts are reported as skips, not failures: the self-hosted run is an
 interpreter running inside an interpreter, so it is slower by design.
@@ -115,6 +122,130 @@ def mutate(rng: random.Random, src: str) -> str:
     return text
 
 
+PB_MODULES = ["math", "json", "builtins", "os.path", "string"]
+
+
+def phaseb_program(rng: random.Random) -> tuple[str, str]:
+    """Returns (source, stdin_text). Sandboxed side effects only: a fresh
+    temp cwd per case, piped stdin, stdlib imports (no network, no minds,
+    no subprocess)."""
+    lines: list[str] = []
+    stdin_lines = [f"word{rng.randrange(1000)}" for _ in range(3)]
+    n = rng.randint(1, 6)
+    for k in range(n):
+        pick = rng.random()
+        if pick < 0.18:
+            lines.append(f'ask "say a word" giving w{k}')
+            lines.append(f"show w{k}")
+        elif pick < 0.36:
+            lines.append(f'write "v{k}" to file "pb{k}.txt"')
+            lines.append(f'read file "pb{k}.txt" giving r{k}')
+            lines.append(f"show r{k}")
+            if rng.random() < 0.5:
+                lines.append(f'append "!" to file "pb{k}.txt"')
+                lines.append(f'read file "pb{k}.txt" giving s{k}')
+                lines.append(f"show s{k}")
+        elif pick < 0.48:
+            lines.append(rng.choice([
+                f'read file "nope{k}.txt" giving x{k}',
+                f'write "x" to file "../evil{k}.txt"',
+                f'write "x" to file "nodir{k}/f.txt"',
+                f'read file "." giving x{k}',
+            ]))
+        elif pick < 0.72:
+            mod = rng.choice(PB_MODULES)
+            alias = f"m{k}"
+            lines.append(f"import {mod} as {alias}")
+            lines.append(rng.choice([
+                f"show kind of {alias}",
+                f"show {alias}",
+                f"show {alias}.pi" if mod in ("math",) else f"show {alias}",
+                f"show {alias}.sqrt({rng.choice([4, 9, 16])})" if mod == "math" else f"show kind of {alias}",
+            ]))
+            if rng.random() < 0.3:
+                lines.append(f"show {alias}.zzz_nope_{k}")
+        elif pick < 0.84:
+            lines.append(f"import zzz_nope_mod_{k}")
+        else:
+            lines.append("import builtins")
+            lines.append(f"d{k} is builtins.dict(a={k})")
+            lines.append(rng.choice([
+                f'show d{k}["a"]',
+                f'show d{k}["missing_{k}"]',
+                "import json",
+                f"s{k} is json.dumps(d{k}, sort_keys=true)",
+                f"show s{k}",
+            ]))
+            if rng.random() < 0.25:
+                lines.append("import json")
+                lines.append(f"x{k} is json.loads()")
+    if rng.random() < 0.2:
+        lines.insert(0, "ask 42 giving badask")
+    return "\n".join(lines) + "\n", "\n".join(stdin_lines) + "\n"
+
+
+def run_side_pb(args: list[str], cwd: Path, stdin_text: str) -> tuple:
+    """Returns (returncode, stdout) or ("timeout", "")."""
+    try:
+        proc = subprocess.run(
+            [sys.executable] + args,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            input=stdin_text,
+        )
+        return proc.returncode, proc.stdout
+    except subprocess.TimeoutExpired:
+        return "timeout", ""
+
+
+LINE_RE = re.compile(r"Line \d+")
+
+
+def norm_gap(text: str) -> str:
+    return LINE_RE.sub("Line N", text)
+
+
+def check_pb(i: int, src: str, stdin_text: str) -> tuple[list[str], int]:
+    case_dir = TMPDIR / f"pb{i}"
+    case_dir.mkdir(parents=True, exist_ok=True)
+    prog = case_dir / "case.jc"
+    prog.write_text(src, encoding="utf-8")
+    jesun_py = str(ROOT / "jesun.py")
+    jesun_jc = str(ROOT / "jesun.jc")
+    try:
+        boot = run_side_pb([jesun_py, "case.jc"], case_dir, stdin_text)
+        selfhost = run_side_pb([jesun_py, jesun_jc, "case.jc"], case_dir, stdin_text)
+    finally:
+        for child in case_dir.iterdir():
+            if child.is_file():
+                child.unlink(missing_ok=True)
+    if boot[0] == "timeout" or selfhost[0] == "timeout":
+        return [], 1
+    problems: list[str] = []
+    b_out, s_out = boot[1], selfhost[1]
+    if "the python call failed" in b_out and "the python call failed" in s_out:
+        b_out, s_out = norm_gap(b_out), norm_gap(s_out)
+    if (boot[0], b_out) != (selfhost[0], s_out):
+        problems.append(
+            f"case {i}: phase-B MISMATCH\n--- src ---\n{src}\n"
+            f"--- bootstrap {boot[0]} ---\n{boot[1]}\n"
+            f"--- selfhost {selfhost[0]} ---\n{selfhost[1]}\n"
+        )
+    for label, out in (("bootstrap", boot[1]), ("selfhost", selfhost[1])):
+        for marker in ("Traceback", 'File "', "0x"):
+            if marker in out:
+                problems.append(
+                    f"case {i}: {label} leaked {marker!r}\n---\n{src}\n---\n{out}"
+                )
+        if EXC_NAMES.search(out):
+            problems.append(
+                f"case {i}: {label} leaked exception name\n---\n{src}\n---\n{out}"
+            )
+    return problems, 0
+
+
 def run_side(args: list[str], prog: Path) -> tuple:
     """Returns (returncode, stdout) or ("timeout", "")."""
     try:
@@ -169,8 +300,12 @@ def main() -> int:
     problems: list[str] = []
     skipped = 0
     for i in range(count):
-        src = token_soup(rng) if i % 2 == 0 else mutate(rng, rng.choice(SEEDS))
-        case_problems, case_skips = check(i, src)
+        if i % 3 == 2:
+            src, stdin_text = phaseb_program(rng)
+            case_problems, case_skips = check_pb(i, src, stdin_text)
+        else:
+            src = token_soup(rng) if i % 2 == 0 else mutate(rng, rng.choice(SEEDS))
+            case_problems, case_skips = check(i, src)
         problems.extend(case_problems)
         skipped += case_skips
         if len(problems) >= 10:

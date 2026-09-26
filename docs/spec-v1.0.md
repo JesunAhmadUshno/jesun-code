@@ -137,3 +137,115 @@ exactly. Error programs must both fail with a `Line N:` message.
 Honest framing, standing: until v1.0 ships, the binary bundles the
 Python runtime and self-hosting is roadmap. Neither claim is made
 before its time.
+
+## 7. Phase B, part 1: `ask`, file I/O, the `import` bridge (this sprint)
+
+The walker serves these by delegating to the bootstrap through its own
+bridge imports at the top of `jesun.jc` (`builtins`, `sys`, `pathlib`,
+`os`, `importlib.util`, `operator`, `difflib`, `pkgutil`). The walker's
+own source is parsed by the bootstrap, so static bridge calls
+(`sys.stdout.write(prompt)`, `path.read_text(...)`) work directly; only
+the interpreted program's dynamic foreign calls need a dynamic apply.
+
+### 7.1 New syntax
+
+```
+ask <prompt> giving <name>
+read file <path> giving <name>
+write <value> to file <path>
+append <value> to file <path>
+import <dotted.module> [as <alias>]
+<expr>.<name>                (attribute access on python values)
+<expr>(<args>, <name>=<value>)  (foreign call, kwargs allowed)
+<expr>[<index>]              (already parsed; now works on python values)
+```
+
+Tree nodes: `["ask", prompt, name, ln]`, `["readfile", path, name, ln]`,
+`["writefile", value, path, append, ln]`, `["import", modname, alias, ln]`
+(alias is `""` when absent), `["attr", obj, name, ln]`,
+`["callf", func, args, kwargs, ln]` (kwargs: list of `[name, expr]`).
+
+`ask ai` and `ask <agent> ...` stay parse-time errors naming phase B
+part 2; the walker only asks plain questions so far.
+
+### 7.2 Delegation rules
+
+- `ask`: prompt must be text (`the question I ask must be text.`);
+  the walker writes it with `sys.stdout.write` + `flush` (no newline,
+  exactly like the bootstrap), reads `sys.stdin.readline()`, fails
+  `I asked a question, but the input ended.` on `""`, and strips one
+  trailing newline only (a `\r\n` line keeps its `\r`, matching the
+  bootstrap).
+- File I/O: the safe-path rule is replicated (`pathlib`, resolved
+  against the current folder, string-prefix containment check):
+  `I cannot <read|write to> "<shown>": it leaves the current folder.`
+  Pre-checks, in bootstrap order, give byte-identical errors:
+  `"<shown>" is a folder, not a file.`,
+  `I could not find the file "<shown>".`,
+  `I could not write "<shown>": its folder does not exist.`
+  Values are rendered with `text of` (exactly `show_text`).
+- `import`: progressive `find_spec` (top-level first, so a missing
+  parent can never raise), then `import_module`. A missing module
+  fails byte-identically:
+  `I could not find the Python package "<mod>".` plus the same
+  suggestion the bootstrap computes (prefix match over the sorted
+  installed top-level modules, else `difflib.get_close_matches` at
+  cutoff 0.6) plus ` If it is a pip package, install it first:
+  pip install <top>`. Binds the alias, or the top package name.
+- Attribute access: non-python values fail
+  `only python values use dots; this is <kind>, and dots are for the
+  Python bridge.` Missing attributes are pre-checked with `hasattr`:
+  `the python "<typename>" has no "<name>".`
+- Foreign calls: non-python or non-callable targets are pre-checked:
+  `I can only call python functions with parentheses.` The dynamic
+  apply is one `builtins.eval` of the CONSTANT template
+  `__jc_f(*__jc_a, **__jc_k)` with a namespace dict holding the
+  function, the argument list, and the kwargs dict. Security review:
+  the template never contains target-program text; user data travels
+  only as values in the namespace, so nothing can inject. Any Python
+  exception inside becomes `the python call failed: <cleaned>`,
+  exactly like the bootstrap's own foreign calls.
+- Foreign subscript: `operator.getitem`, native key conversion.
+- Foreign values elsewhere: `kind of` is `python value` (automatic);
+  `show` renders `the python module "<name>"` / `a python "<type>"`
+  (automatic via `text of`); equality of two python values is identity
+  (`a is b` on the wrapped values); truthiness follows the bootstrap.
+
+### 7.3 Known gap (honest, not hidden)
+
+The walker cannot catch exceptions: Jesun.Code has no try/catch, so a
+foreign call that fails AT CALL TIME (wrong arity, bad argument types)
+reports at the walker's bridge line instead of the target program's
+line. The message stays plain-English with zero leakage
+(`the python call failed: ...`, never a traceback or an exception
+name); only the line number differs. Foreign subscripts get a
+membership pre-check (`bridge_lookup_miss`): a miss on a container
+(dict, list, set, text) reports byte-identically at the target line
+(`that lookup failed: ...`), exactly like the bootstrap. A subscript
+on a non-container python value still reports at the bridge line.
+Every other failure the walker CAN pre-check (prompt not text, input
+ended, missing file, folder paths, path escapes, missing module,
+missing attribute, non-callable target) carries the target line and is
+byte-identical with the bootstrap. Closing the gap properly wants a
+language-level `attempt`/`catch`, which is a future spec, not a hack.
+
+### 7.4 Differential coverage
+
+Landed: 19 fixtures `tests/fixtures/selfhost/phaseb_*.jc` and 20 new
+tests in `tests/test_selfhost.py` (40 total): ask success with piped
+stdin, ask at EOF, ask with a non-text prompt, file write/read/append
+round-trips, write-overwrites, read-missing, read-folder,
+write-escapes-cwd (with an assertion nothing lands outside the
+sandbox), write-to-missing-folder, import success, dotted import,
+import alias, import-missing byte-identical with and without a
+suggestion hit, attr-missing, attr on a non-python value, foreign
+calls with kwargs (`json.dumps` with `sort_keys=true`), foreign
+subscript on dicts (hit and miss, both byte-identical), and
+`kind of`/`show` on python values. The call-time arity failure runs
+through `check_known_gap` (spec 7.3: line normalized, marker required).
+File fixtures run in a fresh temp sandbox per side (the self-hosted
+sandbox rule); ask fixtures run with piped stdin.
+`tests/fuzz_selfhost.py` gains a phase-B generator: every third case
+is an ask/file/import program with piped stdin and a fresh temp cwd
+per case for both sides; `the python call failed` line-number diffs
+are classified as the known 7.3 gap, not failures.

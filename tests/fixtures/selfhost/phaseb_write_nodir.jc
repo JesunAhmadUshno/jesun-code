@@ -1,0 +1,1 @@
+write "x" to file "no/such/dir/f.txt"

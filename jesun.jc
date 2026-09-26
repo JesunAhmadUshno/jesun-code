@@ -6,7 +6,20 @@ note Run it: python jesun.py jesun.jc program.jc
 note Tokens are [kind, value, line]. Keyword kinds are the words
 note themselves; "name", "number", "text" for the rest; punctuation
 note kinds are the single characters; "indent", "dedent", "eof".
+note
+note Phase B part 1 (spec section 7): the walker delegates stdin, file
+note I/O, and the Python bridge to the bootstrap through these imports.
+note They run once, when the bootstrap loads this file.
 note ============================================================
+
+import builtins
+import sys
+import pathlib
+import os
+import importlib.util
+import operator
+import difflib
+import pkgutil
 
 note ==== SECTION: HELPERS ====
 
@@ -83,7 +96,7 @@ note ==== END HELPERS ====
 note ==== SECTION: LEXER ====
 
 to keyword_kind with word
-    kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"]]
+    kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"], ["ask", "ask"], ["giving", "giving"], ["read", "read"], ["write", "write"], ["append", "append"], ["file", "file"], ["import", "import"], ["as", "as"]]
     for each pair in kinds
         if pair[0] is word then
             give back pair[1]
@@ -343,6 +356,65 @@ to parse_fail with toks and i
     i is expect with toks and pair[1] and "newline" and "the end of the line"
     give back [["fail", pair[0], ln], i]
 
+note ---- phase B part 1: ask, file I/O, import (spec section 7) ----
+
+to parse_ask with toks and i
+    ln is peek_line with toks and i
+    i is i + 1
+    if peek_is with toks and i and "name" then
+        w is peek_value with toks and i
+        if w is "ai" then
+            parse_error with ln and "\"ask ai\" is for phase B part 2; this interpreter only asks plain questions so far."
+        if not peek_is with toks and i + 1 and "giving" then
+            parse_error with ln and "\"ask\" with a named agent is for phase B part 2; this interpreter only asks plain questions so far."
+    pair is parse_or with toks and i
+    i is expect with toks and pair[1] and "giving" and "\"giving\" followed by a name"
+    name is peek_value with toks and i
+    i is expect with toks and i and "name" and "a name to store the answer in"
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["ask", pair[0], name, ln], i]
+
+to parse_readfile with toks and i
+    ln is peek_line with toks and i
+    i is expect with toks and i + 1 and "file" and "\"file\""
+    pair is parse_or with toks and i
+    i is expect with toks and pair[1] and "giving" and "\"giving\" followed by a name"
+    name is peek_value with toks and i
+    i is expect with toks and i and "name" and "a name to store the text in"
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["readfile", pair[0], name, ln], i]
+
+to parse_writefile with toks and i
+    ln is peek_line with toks and i
+    appending is peek_is with toks and i and "append"
+    i is i + 1
+    pair is parse_or with toks and i
+    i is expect with toks and pair[1] and "to" and "\"to\""
+    i is expect with toks and i and "file" and "\"file\""
+    pair2 is parse_or with toks and i
+    i is expect with toks and pair2[1] and "newline" and "the end of the line"
+    give back [["writefile", pair[0], pair2[0], appending, ln], i]
+
+to parse_import with toks and i
+    ln is peek_line with toks and i
+    i is i + 1
+    name is peek_value with toks and i
+    i is expect with toks and i and "name" and "a module name"
+    parts is [name]
+    repeat while peek_is with toks and i and "."
+        i is i + 1
+        name is peek_value with toks and i
+        i is expect with toks and i and "name" and "a module name"
+        push name to parts
+    modname is join of parts with "."
+    alias is ""
+    if peek_is with toks and i and "as" then
+        i is i + 1
+        alias is peek_value with toks and i
+        i is expect with toks and i and "name" and "a name for the module"
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["import", modname, alias, ln], i]
+
 to parse_if with toks and i
     ln is peek_line with toks and i
     pair is parse_or with toks and i + 1
@@ -448,12 +520,22 @@ to parse_statement with toks and i
         give back parse_push with toks and i
     if k is "fail" then
         give back parse_fail with toks and i
+    if k is "otherwise" then
+        parse_error with ln and "\"otherwise\" needs an \"if\" above it."
+    if k is "ask" then
+        give back parse_ask with toks and i
+    if k is "read" then
+        give back parse_readfile with toks and i
+    if k is "write" or k is "append" then
+        give back parse_writefile with toks and i
+    if k is "import" then
+        give back parse_import with toks and i
     if k is "name" then
         if peek_is with toks and i + 1 and "is" then
             give back parse_assign with toks and i
-    if k is "ask" or k is "import" or k is "use" or k is "bring" or k is "agent" or k is "fleet" or k is "memory" or k is "forget" or k is "open" or k is "close" or k is "send" or k is "terminal" or k is "within" then
+    if k is "use" or k is "bring" or k is "agent" or k is "fleet" or k is "memory" or k is "forget" or k is "open" or k is "close" or k is "send" or k is "terminal" or k is "within" then
         w is peek_value with toks and i
-        parse_error with ln and "\"" + w + "\" is for phase B; the phase A core does not speak it yet."
+        parse_error with ln and "\"" + w + "\" is for a later phase; this interpreter does not speak it yet."
     note "with" is not guarded: at the start of a line the bootstrap reads
     note it as a broken expression ("I expected a value here."), and the
     note self-hosted parser must say the same word for word.
@@ -591,7 +673,46 @@ to parse_postfix with toks and i and node
             i is expect with toks and pair[1] and "]" and "a closing \"]\""
             node is ["subscript", node, pair[0], ln]
             skip
+        if peek_is with toks and i and "." then
+            ln is peek_line with toks and i
+            ni is i + 1
+            i is expect with toks and ni and "name" and "a name after the dot"
+            node is ["attr", node, peek_value with toks and ni, ln]
+            skip
+        if peek_is with toks and i and "(" then
+            ln is peek_line with toks and i
+            trio is parse_call_args with toks and i + 1
+            node is ["callf", node, trio[0], trio[1], ln]
+            i is trio[2]
+            skip
         give back [node, i]
+
+to parse_call_args with toks and i
+    args is []
+    kwargs is []
+    if peek_is with toks and i and ")" then
+        give back [args, kwargs, i + 1]
+    repeat while true
+        is_kw is false
+        if peek_is with toks and i and "name" then
+            if peek_is with toks and i + 1 and "=" then
+                is_kw is true
+        if is_kw then
+            kw is peek_value with toks and i
+            pair is parse_or with toks and i + 2
+            push [kw, pair[0]] to kwargs
+            i is pair[1]
+        otherwise
+            if length of kwargs is greater than 0 then
+                parse_error with peek_line with toks and i and "named inputs must come after the plain ones."
+            pair is parse_or with toks and i
+            push pair[0] to args
+            i is pair[1]
+        if peek_is with toks and i and "," then
+            i is i + 1
+            skip
+        i is expect with toks and i and ")" and "a closing \")\""
+        give back [args, kwargs, i]
 
 to parse_expr_fragment with inner and ln
     toks is lex_line with trim of inner and ln
@@ -816,6 +937,8 @@ to values_equal with a and b
         give back a is b
     if ka is "nothing" and kb is "nothing" then
         give back true
+    if ka is "python value" and kb is "python value" then
+        give back a is b
     if ka is "list" and kb is "list" then
         if length of a is not length of b then
             give back false
@@ -1103,6 +1226,11 @@ to ev_subscript with node and env and depth
     if kind of obj is "text" then
         i is subscript_index with index and length of obj and ln and "text"
         give back [obj[i], ""]
+    if kind of obj is "python value" then
+        miss is bridge_lookup_miss with obj and index
+        if miss is not "" then
+            rt_error with ln and "that lookup failed: " + miss
+        give back [operator.getitem(obj, index), ""]
     rt_error with ln and "I cannot look inside " + kind of obj + " with brackets."
 
 to ev with node and env and depth
@@ -1119,6 +1247,10 @@ to ev with node and env and depth
         give back ev_interp with node and env and depth
     if tag is "subscript" then
         give back ev_subscript with node and env and depth
+    if tag is "attr" then
+        give back ev_attr with node and env and depth
+    if tag is "callf" then
+        give back ev_callf with node and env and depth
     if tag is "builtin" then
         give back ev_builtin with node and env and depth
     if tag is "builtin2" then
@@ -1146,6 +1278,215 @@ to ev with node and env and depth
             rt_error with node[2] and "I can only use \"-\" with numbers."
         give back [0 - p[0], ""]
     rt_error with 0 and "I do not know how to work out this value yet."
+
+note ==== SECTION: BRIDGE (phase B part 1, spec section 7) ====
+note stdin, file I/O, and the Python bridge, delegated to the bootstrap
+note through the walker's own bridge imports at the top of this file.
+note Every delegated failure is pre-checked so the target program's line
+note number survives. Failures the walker cannot pre-check (a foreign
+note call failing at call time, a foreign subscript missing its key)
+note surface at the bridge line; see the spec's known-gap note.
+
+to strip_final_newline with line
+    chars is characters of line
+    n is length of chars
+    if n is 0 then
+        give back line
+    if chars[n - 1] is not "\n" then
+        give back line
+    out is ""
+    i is 0
+    repeat while i is less than n - 1
+        out is out + chars[i]
+        i is i + 1
+    give back out
+
+to bridge_ask with prompt and ln
+    emit is builtins.getattr(sys.stdout, "write")
+    emit(prompt)
+    sys.stdout.flush()
+    line is sys.stdin.readline()
+    if line is "" then
+        rt_error with ln and "I asked a question, but the input ended."
+    give back strip_final_newline with line
+
+to safe_path with raw and ln and verb
+    if kind of raw is "text" then
+        shown is raw
+    otherwise
+        shown is text of raw
+    target is pathlib.Path(shown)
+    if not target.is_absolute() then
+        target is pathlib.Path.cwd().joinpath(shown)
+    resolved is target.resolve()
+    base is builtins.str(pathlib.Path.cwd().resolve())
+    rs is builtins.str(resolved)
+    if rs is not base and not starts_with with rs and base + os.sep then
+        rt_error with ln and "I cannot " + verb + " \"" + shown + "\": it leaves the current folder."
+    give back resolved
+
+to exec_ask with stmt and env and depth
+    ln is stmt[3]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    prompt is p[0]
+    if kind of prompt is not "text" then
+        rt_error with ln and "the question I ask must be text."
+    env_set with env and stmt[2] and bridge_ask with prompt and ln
+    give back ["none"]
+
+to exec_readfile with stmt and env and depth
+    ln is stmt[3]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    raw is p[0]
+    if kind of raw is "text" then
+        shown is raw
+    otherwise
+        shown is text of raw
+    path is safe_path with raw and ln and "read"
+    if path.is_dir() then
+        rt_error with ln and "\"" + shown + "\" is a folder, not a file."
+    if not path.exists() then
+        rt_error with ln and "I could not find the file \"" + shown + "\"."
+    env_set with env and stmt[2] and path.read_text(encoding="utf-8", errors="replace")
+    give back ["none"]
+
+to exec_writefile with stmt and env and depth
+    ln is stmt[4]
+    vp is ev with stmt[1] and env and depth
+    if vp[1] is not "" then
+        give back [vp[1]]
+    pp is ev with stmt[2] and env and depth
+    if pp[1] is not "" then
+        give back [pp[1]]
+    raw is pp[0]
+    if kind of raw is "text" then
+        shown is raw
+    otherwise
+        shown is text of raw
+    path is safe_path with raw and ln and "write to"
+    if path.is_dir() then
+        rt_error with ln and "\"" + shown + "\" is a folder, not a file."
+    if not path.parent.exists() then
+        rt_error with ln and "I could not write \"" + shown + "\": its folder does not exist."
+    content is text of vp[0]
+    if stmt[3] then
+        opener is builtins.getattr(builtins, "open")
+        handle is opener(path, "a", encoding="utf-8")
+        emit is builtins.getattr(handle, "write")
+        emit(content)
+        closer is builtins.getattr(handle, "close")
+        closer()
+    otherwise
+        path.write_text(content, encoding="utf-8")
+    give back ["none"]
+
+to installed_module_names
+    infos is builtins.list(pkgutil.iter_modules())
+    names is []
+    for each info in infos
+        n is info[1]
+        if not names contains n then
+            push n to names
+    give back builtins.sorted(names)
+
+to suggest_module with name
+    lower is lowercase of name
+    cands is installed_module_names
+    for each cand in cands
+        if cand is not name then
+            cl is lowercase of cand
+            if starts_with with cl and lower or starts_with with lower and cl then
+                give back " Did you mean \"" + cand + "\"?"
+    matches is difflib.get_close_matches(name, cands, 1, 0.6)
+    if length of matches is greater than 0 then
+        give back " Did you mean \"" + matches[0] + "\"?"
+    give back ""
+
+to import_missing_msg with modname
+    parts is split of modname by "."
+    top is parts[0]
+    msg is "I could not find the Python package \"" + modname + "\"."
+    msg is msg + suggest_module with top
+    msg is msg + " If it is a pip package, install it first: pip install " + top
+    give back msg
+
+to bridge_import with modname and ln
+    parts is split of modname by "."
+    head is parts[0]
+    if importlib.util.find_spec(head) is nothing then
+        rt_error with ln and import_missing_msg with modname
+    fullname is head
+    i is 1
+    repeat while i is less than length of parts
+        fullname is fullname + "." + parts[i]
+        if importlib.util.find_spec(fullname) is nothing then
+            rt_error with ln and import_missing_msg with modname
+        i is i + 1
+    give back importlib.import_module(modname)
+
+to exec_import with stmt and env and depth
+    ln is stmt[3]
+    modname is stmt[1]
+    alias is stmt[2]
+    imported is bridge_import with modname and ln
+    if alias is "" then
+        topparts is split of modname by "."
+        head is topparts[0]
+        env_set with env and head and operator.getitem(sys.modules, head)
+    otherwise
+        env_set with env and alias and imported
+    give back ["none"]
+
+to ev_attr with node and env and depth
+    ln is node[3]
+    op is ev with node[1] and env and depth
+    if op[1] is not "" then
+        give back op
+    obj is op[0]
+    name is node[2]
+    if kind of obj is not "python value" then
+        rt_error with ln and "only python values use dots; this is " + kind of obj + ", and dots are for the Python bridge."
+    if not builtins.hasattr(obj, name) then
+        tname is builtins.getattr(builtins.type(obj), "__name__")
+        rt_error with ln and "the python \"" + tname + "\" has no \"" + name + "\"."
+    give back [builtins.getattr(obj, name), ""]
+
+to bridge_call with f and args and kwpairs
+    kh is builtins.dict(kwpairs)
+    ns is builtins.dict([["__jc_f", f], ["__jc_a", args], ["__jc_k", kh]])
+    give back builtins.eval("__jc_f(*__jc_a, **__jc_k)", ns)
+
+to bridge_lookup_miss with obj and key
+    ns is builtins.dict([["__jc_o", obj], ["__jc_k", key]])
+    give back builtins.eval("((__import__('re').sub('0x[0-9a-fA-F]+', '?', repr(__jc_k))[:200] or 'something went wrong') if __jc_k not in __jc_o else '') if hasattr(__jc_o, '__contains__') else ''", ns)
+
+to ev_callf with node and env and depth
+    ln is node[4]
+    fp is ev with node[1] and env and depth
+    if fp[1] is not "" then
+        give back fp
+    f is fp[0]
+    if kind of f is not "python value" then
+        rt_error with ln and "I can only call python functions with parentheses."
+    if not builtins.callable(f) then
+        rt_error with ln and "I can only call python functions with parentheses."
+    args is []
+    for each anode in node[2]
+        ap is ev with anode and env and depth
+        if ap[1] is not "" then
+            give back ap
+        push ap[0] to args
+    kwpairs is []
+    for each kw in node[3]
+        kp is ev with kw[1] and env and depth
+        if kp[1] is not "" then
+            give back kp
+        push [kw[0], kp[0]] to kwpairs
+    give back [bridge_call with f and args and kwpairs, ""]
 
 note ---- statement execution: exec_stmt gives back a signal
 
@@ -1278,6 +1619,14 @@ to exec_stmt with stmt and env and depth
         if kind of p[0] is not "text" then
             rt_error with stmt[2] and "\"fail with\" needs some text to say."
         fail with p[0]
+    if tag is "ask" then
+        give back exec_ask with stmt and env and depth
+    if tag is "readfile" then
+        give back exec_readfile with stmt and env and depth
+    if tag is "writefile" then
+        give back exec_writefile with stmt and env and depth
+    if tag is "import" then
+        give back exec_import with stmt and env and depth
     if tag is "if" then
         give back exec_if with stmt and env and depth
     if tag is "repeat_times" then
