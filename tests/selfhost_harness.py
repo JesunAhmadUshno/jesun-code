@@ -560,25 +560,45 @@ class SelfHostDiffCase(unittest.TestCase):
 
 
 class InlineSandbox:
-    """A temp working dir shared by several inline runs inside one test.
+    """Two hermetic working dirs (one per interpreter leg) for one test.
 
     Some migrated tests run multiple programs that share files (v0.4
-    file I/O). Each program is written as prog<N>.jc in the sandbox
-    dir, which stays the working folder for every run (the walker's
-    sandbox rule needs the target inside the working folder). Close it
-    in tearDown; the dir is removed.
+    file I/O). Each leg gets its own working folder so files created
+    by the bootstrap leg never leak into the walker leg (and vice
+    versa); within a leg, every program shares its leg's folder, so
+    write-then-read sequences still work. Each program is written as
+    prog<N>.jc in each leg's dir, which stays the working folder for
+    the run (the walker's sandbox rule needs the target inside the
+    working folder). Close it in tearDown; the dir is removed.
     """
 
     def __init__(self):
         self.dir = tempfile.mkdtemp(prefix="selfhost_inline_")
+        self.boot_dir = os.path.join(self.dir, "boot")
+        self.self_dir = os.path.join(self.dir, "self")
+        os.makedirs(self.boot_dir)
+        os.makedirs(self.self_dir)
         self.n = 0
 
+    def mkdir(self, name):
+        # Make a folder in both legs (per-leg fixtures, like run()).
+        for leg_dir in (self.boot_dir, self.self_dir):
+            os.makedirs(os.path.join(leg_dir, name), exist_ok=True)
+
     def run(self, src, stdin=""):
+        # One interpreter per leg dir: the other leg's files must not
+        # pollute this leg's view (e.g. append-then-read sequences).
         self.n += 1
-        path = os.path.join(self.dir, f"prog{self.n}.jc")
-        with open(path, "w", encoding="utf-8") as handle:
-            handle.write(src)
-        return run_both(path, stdin=stdin, cwd=self.dir)
+        outs = []
+        for leg_dir, args in (
+            (self.boot_dir, [JESUN_PY]),
+            (self.self_dir, [JESUN_PY, JESUN_JC]),
+        ):
+            path = os.path.join(leg_dir, f"prog{self.n}.jc")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(src)
+            outs.append(run(args + [path], cwd=leg_dir, stdin_text=stdin))
+        return tuple(outs)
 
     def close(self):
         shutil.rmtree(self.dir, ignore_errors=True)
