@@ -1,0 +1,7 @@
+agent mem
+    remember is true
+
+ask mem "first question" giving a
+show a
+ask mem "second question" giving b
+show b

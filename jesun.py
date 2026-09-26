@@ -2701,8 +2701,8 @@ class Interpreter:
 
     def _no_session(self, detail: str) -> bool:
         detail = detail.lower()
-        return ("can't find session" in detail or "no server running" in detail
-                or "failed to connect" in detail)
+        return ("can't find session" in detail or "can't find pane" in detail
+                or "no server running" in detail or "failed to connect" in detail)
 
     def _tmux(self, line: int, *args: str) -> str:
         import subprocess

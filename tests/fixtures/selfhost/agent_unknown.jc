@@ -1,0 +1,7 @@
+agent scout
+    steps are 5
+
+agent scoot
+    steps are 5
+
+ask scou "hi" giving a

@@ -34,7 +34,27 @@ it.
   10 differential fixtures against fixture minds; the differential
   fuzzer now generates `ask ai` cases (grammar shapes, error codes,
   Bangla flavor).
-- Still to come in phase B part 2: agents, fleets, jpm.
+- Phase B part 2, agents (spec 8.3): agent blocks (persona, tools,
+  remember off/run/always, memory file, max steps), `ask <agent>
+  <prompt> giving <name> [streaming]`, `forget <name>`. Agents are
+  nested-list values with in-place history; memory files go through a
+  second constant bridge template (`_AGENT_HELPERS_SRC`). Agents can
+  call agents (3-level cap, bootstrap-identical refusal). One pinned
+  honest gap (spec 8.3.1): a tool failing mid-loop ends the
+  self-hosted run with the failure's message where the bootstrap
+  feeds it back to the mind; the suite asserts the exact divergence.
+  22 differential fixtures against fixture minds; the differential
+  fuzzer now generates agent cases (failing tools excluded).
+- Later-phase statement parsing parity (spec 8.3.2): the walker now
+  parses `use`, `bring in`, `fleet`, and the tmux terminal
+  statements with the bootstrap's exact diagnostics (`read` routes
+  on `file` vs `terminal`, `fleet` reuses the bootstrap's own block
+  checks). Valid shapes fail at run time with the honest later-phase
+  line; `bring in` first mirrors the bootstrap's package-name and
+  "not fetched" errors via a `_jc_jpm_find` bridge helper. Caught by
+  differential fuzzing: the old guard rejected `read terminal ...`
+  with the wrong message.
+- Still to come in phase B part 2: fleets, jpm execution.
 
 ## v0.6 - 2026-09-25
 

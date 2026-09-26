@@ -1,0 +1,8 @@
+to boom
+    fail with "kaboom"
+
+agent ops
+    tools are [boom]
+
+ask ops "try the tool" giving a
+show a

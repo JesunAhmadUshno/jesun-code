@@ -138,6 +138,98 @@ class TestSelfHost(unittest.TestCase):
             if saved is not None:
                 os.environ["JESUNCODE_AI_COMMAND"] = saved
 
+    def check_agent(self, name, mind=None, fresh_count=True, corrupt_mem=None):
+        """Differential agent run (spec 8.3) with a fixture mind via
+        JESUNCODE_AI_COMMAND. Each side gets its own fresh
+        JESUN_CODE_HOME, so agent memory files never leak between the
+        two sides; counting minds get a fresh MIND_COUNT_FILE per side.
+        corrupt_mem seeds a garbage memory file for the named agent on
+        both sides (the unreadable-memory path)."""
+        fixture = os.path.join("tests", "fixtures", "selfhost", name)
+        base_env = dict(os.environ)
+        base_env.pop("JESUNCODE_AI_COMMAND", None)
+        if mind is not None:
+            base_env["JESUNCODE_AI_COMMAND"] = (
+                sys.executable + " " + os.path.join(REPO, "tests", "fixtures", mind))
+        home_b = tempfile.mkdtemp(prefix="agent_home_b_")
+        home_s = tempfile.mkdtemp(prefix="agent_home_s_")
+        count_path = None
+        if fresh_count:
+            fd, count_path = tempfile.mkstemp(prefix="mindcount_")
+            os.close(fd)
+        try:
+            envs = []
+            for home in (home_b, home_s):
+                env = dict(base_env)
+                env["JESUN_CODE_HOME"] = home
+                if corrupt_mem is not None:
+                    memdir = os.path.join(home, "memory")
+                    os.makedirs(memdir, exist_ok=True)
+                    with open(os.path.join(memdir, corrupt_mem + ".json"),
+                              "w", encoding="utf-8") as handle:
+                        handle.write("{garbage")
+                envs.append(env)
+            if count_path is not None:
+                with open(count_path, "w", encoding="utf-8") as handle:
+                    handle.write("0")
+                envs[0]["MIND_COUNT_FILE"] = count_path
+                envs[1]["MIND_COUNT_FILE"] = count_path
+            boot = run(["jesun.py", fixture], env=envs[0])
+            if count_path is not None:
+                # the bootstrap side consumed the counter; the self-hosted
+                # side must see the identical call sequence.
+                with open(count_path, "w", encoding="utf-8") as handle:
+                    handle.write("0")
+            selfhost = run(["jesun.py", "jesun.jc", fixture], env=envs[1])
+            self.assertEqual(
+                selfhost, boot,
+                f"fixture {name} differs:\nbootstrap={boot!r}\nselfhost={selfhost!r}",
+            )
+        finally:
+            shutil.rmtree(home_b, ignore_errors=True)
+            shutil.rmtree(home_s, ignore_errors=True)
+            if count_path is not None:
+                os.unlink(count_path)
+
+    def check_agent_gap(self, name, mind):
+        """Spec 8.3.1 (known gap): a tool that fails inside the tool loop
+        diverges by design. The bootstrap feeds the failure back to the
+        mind and finishes; the self-hosted walker ends the run with the
+        failure's text. Both sides are pinned exactly, so this fails if
+        either side changes behavior."""
+        fixture = os.path.join("tests", "fixtures", "selfhost", name)
+        base_env = dict(os.environ)
+        base_env.pop("JESUNCODE_AI_COMMAND", None)
+        base_env["JESUNCODE_AI_COMMAND"] = (
+            sys.executable + " " + os.path.join(REPO, "tests", "fixtures", mind))
+        home_b = tempfile.mkdtemp(prefix="agent_home_b_")
+        home_s = tempfile.mkdtemp(prefix="agent_home_s_")
+        fd, count_path = tempfile.mkstemp(prefix="mindcount_")
+        os.close(fd)
+        try:
+            envs = []
+            for home in (home_b, home_s):
+                env = dict(base_env)
+                env["JESUN_CODE_HOME"] = home
+                env["MIND_COUNT_FILE"] = count_path
+                envs.append(env)
+            with open(count_path, "w", encoding="utf-8") as handle:
+                handle.write("0")
+            boot = run(["jesun.py", fixture], env=envs[0])
+            with open(count_path, "w", encoding="utf-8") as handle:
+                handle.write("0")
+            selfhost = run(["jesun.py", "jesun.jc", fixture], env=envs[1])
+            self.assertEqual(
+                boot, (0, "got it\n"),
+                f"fixture {name}: bootstrap changed behavior:\n{boot!r}")
+            self.assertEqual(
+                selfhost, (1, "kaboom\n"),
+                f"fixture {name}: self-host changed behavior:\n{selfhost!r}")
+        finally:
+            shutil.rmtree(home_b, ignore_errors=True)
+            shutil.rmtree(home_s, ignore_errors=True)
+            os.unlink(count_path)
+
     def test_core(self):
         self.check("core.jc")
 
@@ -342,6 +434,75 @@ class TestSelfHost(unittest.TestCase):
 
     def test_bn_err_arrow(self):
         self.check("bn_err_arrow.jc")
+
+    # -- phase B part 2: agents (spec 8.3) ---------------------------------
+
+    def test_agent_basic(self):
+        self.check_agent("agent_basic.jc", "mind_fixed.py", fresh_count=False)
+
+    def test_agent_tools(self):
+        self.check_agent("agent_tools.jc", "mind_tools.py")
+
+    def test_agent_to_agent(self):
+        self.check_agent("agent_to_agent.jc", "mind_agent_inner.py")
+
+    def test_agent_depth(self):
+        self.check_agent("agent_depth.jc", "mind_agent_deep.py")
+
+    def test_agent_streaming(self):
+        self.check_agent("agent_streaming.jc", "mind_fixed.py", fresh_count=False)
+
+    def test_agent_remember_run(self):
+        self.check_agent("agent_remember_run.jc", "mind_agent_one_call.py")
+
+    def test_agent_remember_always(self):
+        self.check_agent("agent_remember_always.jc", "mind_agent_one_call.py")
+
+    def test_agent_forget(self):
+        self.check_agent("agent_forget.jc", "mind_agent_one_call.py")
+
+    def test_agent_corrupt_memory(self):
+        self.check_agent("agent_corrupt_memory.jc", "mind_agent_one_call.py",
+                         corrupt_mem="mem")
+
+    def test_agent_tool_fail_gap(self):
+        self.check_agent_gap("agent_tool_fail_gap.jc", "mind_agent_one_call.py")
+
+    def test_agent_bangla(self):
+        self.check_agent("agent_bangla.jc", "mind_fixed.py", fresh_count=False)
+
+    def test_agent_nontext_persona(self):
+        self.check_agent("agent_nontext_persona.jc")
+
+    def test_agent_nontext_prompt(self):
+        self.check_agent("agent_nontext_prompt.jc")
+
+    def test_agent_not_agent(self):
+        self.check_agent("agent_not_agent.jc")
+
+    def test_agent_not_agent2(self):
+        self.check_agent("agent_not_agent2.jc")
+
+    def test_agent_unknown(self):
+        self.check_agent("agent_unknown.jc")
+
+    def test_agent_parse_no_block(self):
+        self.check_agent("agent_parse_no_block.jc")
+
+    def test_agent_parse_dup(self):
+        self.check_agent("agent_parse_dup.jc")
+
+    def test_agent_parse_unknown_setting(self):
+        self.check_agent("agent_parse_unknown_setting.jc")
+
+    def test_agent_parse_bad_remember(self):
+        self.check_agent("agent_parse_bad_remember.jc")
+
+    def test_agent_parse_bad_steps(self):
+        self.check_agent("agent_parse_bad_steps.jc")
+
+    def test_agent_parse_self_tool(self):
+        self.check_agent("agent_parse_self_tool.jc")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,5 @@
+agent mem
+    remember is always
+
+ask mem "a question" giving a
+show a

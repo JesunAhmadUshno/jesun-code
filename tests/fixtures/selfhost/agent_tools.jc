@@ -1,0 +1,8 @@
+to read_logs
+    give back "3 errors"
+
+agent ops
+    tools are [read_logs]
+
+ask ops "what do the logs say" giving a
+show a

@@ -365,17 +365,127 @@ carries `ask_ai_basic.jc`, `ask_ai_tools.jc`, and
 `ask_ai_bangla.jc`, and `tests/fuzz_selfhost.py` covers the error
 codes plus the `within`/`streaming` grammar shapes.
 
-### 8.3 Agents (after `ask ai`)
+### 8.3 Agents (this sprint)
 
 `agent <name>` blocks (persona, tools, remember on/off/always, memory
-file, max steps), `ask <agent> <prompt> giving <name>`, `forget`.
-Agent values live in the walker's env as nested lists
-(`["agent", name, persona, tools, remember, memory_file, max_steps,
-history]`); history appends `[prompt, answer]` pairs, newest last,
-capped at 200, exactly like the bootstrap. Memory files load/save JSON
-through the walker's file-I/O path (sandboxed). `forget` clears memory
-and history. Differential fixtures use fixture minds; memory fixtures
-run in a temp sandbox.
+file, max steps), `ask <agent> <prompt> giving <name> [streaming]`,
+`forget <name>`. Agent values live in the walker's env as nested lists
+`["agent", name, persona, tools, remember, memory_file, max_steps,
+history]`; `persona`/`memory_file` are text or `nothing` when unset;
+`remember` is `"off"`, `"run"`, or `"always"`; history is a list of
+`[prompt, answer]` pairs, newest last, appended in place so aliases see
+the same history.
+
+The subprocess half is the same `_AI_HELPERS_SRC` template: `agent_ask`
+always runs the mind through `ai_tool_loop` (never the direct path,
+even with no tools), extended with four arguments:
+
+- `persona`: text or `nothing`. The system head becomes
+  `rstrip(persona) + "\n\n"` instead of the plain helper voice,
+  exactly like the bootstrap.
+- `history`: the agent's history list, or `nothing` when
+  `remember is off`. Non-empty history is spliced into the transcript
+  as `\n\nEarlier in this conversation:` followed by
+  `\nHuman: <prompt>\nMind: <answer>` per turn, newest last.
+- `agent_name`: text, or `""` for plain `ask ai`. Step exhaustion
+  fails `<agent> used all <n> steps without giving an answer.` at the
+  target line; the `ask ai` wording is unchanged.
+- `agent_depth`: the agent-nesting depth (0 at a top-level ask).
+  `ai_run_tool` takes it too: the function branch keeps the walker's
+  own `depth` for the 100-call cap; the agent branch uses
+  `agent_depth`.
+
+Agents calling agents: when a declared tool names an agent value,
+`ai_run_tool` parses the CALL arguments, then requires exactly one
+text argument
+(`RESULT of <name>: I can only ask <name> one question at a time, as
+text.`), and refuses deeper nesting: at `agent_depth + 1 > 3` the
+run fails with `agents called agents too deep (3 levels max).`
+(the bootstrap raises `_AgentDepthExceeded`, which its own tool loop
+re-raises instead of feeding back, so both sides end the run with the
+identical message at the target line). It then runs the sub-agent's
+own tool loop with `agent_depth + 1`, no streaming. The sub-agent's
+answer comes back as `RESULT of <name>: <answer>`.
+
+Memory on disk: one more constant audited bridge template,
+`_AGENT_HELPERS_SRC` (generated mechanically from a Python source like
+`_AI_HELPERS_SRC`; never contains program text; nothing in it raises:
+every outcome is a `["code", ...]` list). `_jc_agent_mempath`
+replicates the bootstrap exactly: the explicit `memory file` when set,
+else `JESUN_CODE_HOME/memory/<safe>.json` (or
+`~/.jesun-code/memory/<safe>.json`), with the same
+`[^A-Za-z0-9_-] -> _` sanitization and `agent` fallback.
+`_jc_agent_load` returns `["missing"]` (silent, like the bootstrap's
+`FileNotFoundError`), `["unreadable"]` (the walker emits
+`Line N: saved memory for <name> was unreadable, starting fresh.` and
+continues), or `["ok", turns]`. `_jc_agent_save` caps at the newest
+200 turns and returns `["failed"]` on any error (the walker emits
+`Line N: I could not save memory for <name>.`). `forget` clears the
+in-run history in place (bridge `clear`, so aliases see it), unlinks
+the file: missing prints `<name> has nothing to forget.`, an OSError
+fails `Line N: I could not forget <name>.`, success prints
+`Memory of <name> cleared.` Forgetting an unknown name uses the
+default path, exactly like the bootstrap.
+
+Parse notes: `ask` + NAME + not-`giving` now parses as an agent ask
+(the old "phase B part 2" parse error is gone); `ask` + NAME +
+`giving` stays the classic human ask. `agent` and `forget` leave the
+"later phase" guard; stray `memory` also leaves it (the bootstrap
+reads it as a broken expression: `I expected a value here.`). The
+agent block requires its indented settings block
+(`an agent needs an indented block of settings.`); duplicate settings
+fail `"<field>" is already set for this agent.`; unknown settings
+fail `I do not know the agent setting "<got>". I know: persona,
+tools, remember, steps, memory file.`; `tools are [...]` accepts `is`
+or `are`; `remember` takes `true`/`false`/`always`
+(`"remember" needs true, false, or always.`); `steps` takes a whole
+number of at least 1 (`"steps" needs a whole number of steps, at
+least 1.`). Bangla works through the existing kinds (no parser
+changes). Unknown agents fail with did-you-mean over defined agents
+(prefix match, then `difflib` at 0.6, mirroring the bootstrap);
+asking a non-agent value fails `"<name>" is a function, not an
+agent.` / `"<name>" is not an agent, not an agent.`
+
+### 8.3.1 Known gap: failures inside the tool loop (honest, not hidden)
+
+Jesun.Code has no try/catch, so the walker cannot do what the
+bootstrap does in `_run_tool`: catch a failing tool and feed
+`RESULT of <name>: <message>` back to the mind. When a Jesun.Code
+tool function or a sub-agent fails during a tool loop, the
+self-hosted run ends with the failure's message (for `fail with`,
+the bare text; for runtime errors, `Line N: <message>`), where the
+bootstrap feeds the mind `RESULT of <name>: <message>` and continues
+the loop. The depth-cap refusal is NOT part of this gap: both sides
+end the run with the identical fatal
+`Line N: agents called agents too deep (3 levels max).` (the
+bootstrap re-raises its `_AgentDepthExceeded` instead of feeding it
+back). The proper fix is a language-level `attempt`/`catch`, the same
+future spec that unblocks the 7.3 gap; until then the differential
+suite pins the exact divergence with a dedicated assertion (it fails
+if either side changes behavior). The fuzzer never generates failing
+tools, so differential fuzzing stays byte-identical.
+
+### 8.3.2 Later-phase statements parse in the walker too
+
+Statements that belong to later phases (`use`, `bring in`, `fleet`,
+`open`/`send`/`close`/`read` terminal) parse in the walker with the
+bootstrap's exact diagnostics instead of the generic "later phase"
+rejection: `read` looks at the next word (`file` vs anything else),
+`fleet` reuses the bootstrap's own block/field checks (`a fleet
+needs an indented block of asks.`, `I do not know the fleet setting
+"<got>". I know: ask, memory.`, ask-name validation). Statement-leading
+`terminal` and `within` fall through to the broken-expression parse
+(`I expected a value here.`), exactly like the bootstrap. Operands are
+evaluated first so their errors match; a shape that survives that fails
+at the target line with the honest `"X" is for a later phase; this
+interpreter does not speak it yet.` line. `bring in` mirrors the
+bootstrap's deterministic checks first (package-name validation, the
+"not fetched" message via a `_jc_jpm_find` bridge helper that
+replicates the bootstrap's `~/.jesun-code/packages` dir scan); only a
+package that is actually fetched hits the later-phase line. Valid
+`fleet` and terminal shapes are known execution gaps: the walker does
+not run threads, tmux, or the network. The differential fuzzer covers
+these grammar shapes.
 
 ### 8.4 Fleets (after agents)
 

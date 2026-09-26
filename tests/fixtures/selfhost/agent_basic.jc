@@ -1,0 +1,6 @@
+agent scout
+    persona is "You are a launch scout."
+    steps are 5
+
+ask scout "when is launch" giving a
+show a

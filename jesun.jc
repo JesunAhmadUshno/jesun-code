@@ -31,6 +31,19 @@ note raise: every outcome is a ["code", ...] list. The walker maps
 note codes to plain-English errors at the target line (ai_finish).
 _AI_HELPERS_SRC is join of ["# Jesun.Code \"ask ai\" bridge helpers (spec 8.2). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is [\"ok\", answer] or an error", "# code list, so the walker keeps the target program's line numbers.", "def _jc_ai_detail(text):", "    import re", "    first = (text or \"\").strip().split(\"\\n\")[0][:160]", "    if not first:", "        return \"\"", "    if re.search(r'Traceback|File \"|^\\w*Error:|0x[0-9a-fA-F]+', first):", "        return \"\"", "    return first", "def _jc_ai_argv():", "    import os", "    import shlex", "    command = os.environ.get(\"JESUNCODE_AI_COMMAND\", \"\").strip()", "    if not command:", "        return [\"missing\"]", "    if os.name == \"nt\":", "        argv = []", "        for token in shlex.split(command, posix=False):", "            if len(token) >= 2 and token.startswith('\"') and token.endswith('\"'):", "                token = token[1:-1]", "            argv.append(token)", "    else:", "        argv = shlex.split(command)", "    if not argv:", "        return [\"missing\"]", "    return [\"ok\", argv]", "def _jc_ai_once(argv, prompt):", "    import subprocess", "    try:", "        proc = subprocess.run(argv, input=prompt, capture_output=True, text=True, timeout=60)", "    except FileNotFoundError:", "        return [\"not_found\"]", "    except subprocess.TimeoutExpired:", "        return [\"timeout\"]", "    except Exception:", "        return [\"talk\"]", "    if proc.returncode != 0:", "        return [\"bad_exit\", _jc_ai_detail(proc.stderr or \"\")]", "    out = proc.stdout or \"\"", "    if out.endswith(\"\\n\"):", "        out = out[:-1]", "    if out.endswith(\"\\r\"):", "        out = out[:-1]", "    return [\"ok\", out]", "def _jc_ai_stream(argv, prompt, stdout):", "    import codecs", "    import queue", "    import subprocess", "    import threading", "    import time", "    try:", "        proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)", "    except FileNotFoundError:", "        return [\"not_found\"]", "    except Exception:", "        return [\"talk\"]", "    chunks = []", "    try:", "        proc.stdin.write(prompt)", "        proc.stdin.close()", "        raw_out = proc.stdout.buffer", "        pending = queue.Queue()", "        eof = object()", "        def _reader():", "            decoder = codecs.getincrementaldecoder(\"utf-8\")()", "            carry = \"\"", "            while True:", "                data = raw_out.read1(4096)", "                if not data:", "                    break", "                text = carry + decoder.decode(data)", "                if text.endswith(\"\\r\"):", "                    carry = \"\\r\"", "                    text = text[:-1]", "                else:", "                    carry = \"\"", "                text = text.replace(\"\\r\\n\", \"\\n\").replace(\"\\r\", \"\\n\")", "                if text:", "                    pending.put(text)", "            tail = carry + decoder.decode(b\"\", final=True)", "            tail = tail.replace(\"\\r\\n\", \"\\n\").replace(\"\\r\", \"\\n\")", "            if tail:", "                pending.put(tail)", "            pending.put(eof)", "        reader = threading.Thread(target=_reader, daemon=True)", "        reader.start()", "        deadline = time.monotonic() + 60", "        while True:", "            remaining = deadline - time.monotonic()", "            if remaining <= 0:", "                proc.kill()", "                return [\"timeout\"]", "            try:", "                item = pending.get(timeout=remaining)", "            except queue.Empty:", "                proc.kill()", "                return [\"timeout\"]", "            if item is eof:", "                break", "            stdout.write(item)", "            stdout.flush()", "            chunks.append(item)", "        proc.wait(timeout=5)", "    except Exception:", "        try:", "            proc.kill()", "        except Exception:", "            pass", "        return [\"talk\"]", "    if proc.returncode != 0:", "        return [\"bad_exit\", \"\"]", "    out = \"\".join(chunks)", "    if out.endswith(\"\\n\"):", "        out = out[:-1]", "    if out.endswith(\"\\r\"):", "        out = out[:-1]", "    return [\"ok\", out]", "def _jc_call_match(line):", "    import re", "    m = re.match(r\"^CALL:\\s*([A-Za-z_][A-Za-z0-9_]*)\\((.*)\\)\\s*$\", line.strip())", "    if not m:", "        return []", "    return [m.group(1), m.group(2)]", "def _jc_ai_run(prompt, streaming, stdout):", "    try:", "        r = _jc_ai_argv()", "        if r[0] == \"missing\":", "            return [\"missing\"]", "        argv = r[1]", "        if streaming:", "            return _jc_ai_stream(argv, prompt, stdout)", "        return _jc_ai_once(argv, prompt)", "    except Exception:", "        return [\"talk\"]", ""] with "\n"
 
+note ---- agent memory bridge source (spec 8.3): one CONSTANT Python template
+note defining the memory-path/load/save/forget helpers (_jc_agent_mempath,
+note _jc_agent_load, _jc_agent_save, _jc_agent_forget). Same contract as
+note _AI_HELPERS_SRC: never contains program text, never raises, every
+note outcome is a ["code", ...] list.
+_AGENT_HELPERS_SRC is join of ["# Jesun.Code \"agents\" bridge helpers (spec 8.3). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is a [\"code\", ...] list, so the", "# walker keeps the target program's line numbers.", "def _jc_agent_mempath(name, memfile):", "    import os", "    from pathlib import Path", "    if memfile:", "        return memfile", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    safe = \"\".join(c if (c.isalnum() or c in \"-_\") else \"_\" for c in name)", "    return str(base / \"memory\" / ((safe or \"agent\") + \".json\"))", "", "def _jc_agent_load(path):", "    import json", "    from pathlib import Path", "    try:", "        raw = Path(path).read_text(encoding=\"utf-8\")", "    except FileNotFoundError:", "        return [\"missing\"]", "    except OSError:", "        return [\"unreadable\"]", "    try:", "        data = json.loads(raw)", "        if not isinstance(data, list):", "            raise ValueError(\"bad memory\")", "        turns = []", "        for item in data:", "            if not isinstance(item, (list, tuple)) or len(item) != 2:", "                raise ValueError(\"bad turn\")", "            prompt_text, answer_text = item", "            if not isinstance(prompt_text, str) or not isinstance(answer_text, str):", "                raise ValueError(\"bad turn\")", "            turns.append([prompt_text, answer_text])", "        return [\"ok\", turns]", "    except Exception:", "        return [\"unreadable\"]", "", "def _jc_agent_save(path, turns):", "    import json", "    from pathlib import Path", "    try:", "        target = Path(path)", "        target.parent.mkdir(parents=True, exist_ok=True)", "        kept = turns[-200:]", "        target.write_text(json.dumps(kept, ensure_ascii=False, indent=1), encoding=\"utf-8\")", "        return [\"ok\"]", "    except Exception:", "        return [\"failed\"]", "", "def _jc_agent_forget(path):", "    from pathlib import Path", "    try:", "        Path(path).unlink()", "        return [\"ok\"]", "    except FileNotFoundError:", "        return [\"missing\"]", "    except OSError:", "        return [\"failed\"]"] with "\n"
+
+note ---- jpm package-find bridge source (spec 8.4): one CONSTANT Python template
+note defining _jc_jpm_find (mirrors the bootstrap _jpm_find dir scan).
+note Same contract as _AI_HELPERS_SRC: never contains program text,
+note never raises, every outcome is a ["code", ...] list.
+_JPM_HELPERS_SRC is join of ["# Jesun.Code \"bring in\" bridge helper (spec 8.4). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is a [\"code\", ...] list, so the", "# walker keeps the target program's line numbers.", "def _jc_jpm_find(name):", "    import os", "    from pathlib import Path", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    pkgs = base / \"packages\"", "    try:", "        if not pkgs.is_dir():", "            return [\"missing\"]", "        hosts = sorted(p for p in pkgs.iterdir() if p.is_dir())", "    except OSError:", "        return [\"missing\"]", "    for host_dir in hosts:", "        try:", "            users = sorted(p for p in host_dir.iterdir() if p.is_dir())", "        except OSError:", "            continue", "        for user_dir in users:", "            candidate = user_dir / name", "            try:", "                if candidate.is_dir():", "                    return [\"ok\", str(candidate)]", "            except OSError:", "                continue", "    return [\"missing\"]", ""] with "\n"
+
 note ==== SECTION: HELPERS ====
 
 to parse_error with lineno and msg
@@ -414,7 +427,7 @@ to parse_ask with toks and i
         give back parse_ask_ai with toks and i
     if peek_is with toks and i and "name" then
         if not peek_is with toks and i + 1 and "giving" then
-            parse_error with ln and "\"ask\" with a named agent is for phase B part 2; this interpreter only asks plain questions so far."
+            give back parse_ask_agent with toks and i
     pair is parse_or with toks and i
     i is expect with toks and pair[1] and "giving" and "\"giving\" followed by a name"
     name is peek_value with toks and i
@@ -459,6 +472,262 @@ to parse_ask_ai with toks and i
         dostream is true
     i is expect with toks and i and "newline" and "the end of the line"
     give back [["askai", pair[0], toolnames, max_steps, name, dostream, ln], i]
+
+to parse_ask_agent with toks and i
+    ln is peek_line with toks and i
+    aname is peek_value with toks and i
+    i is expect with toks and i and "name" and "an agent name"
+    pair is parse_or with toks and i
+    i is pair[1]
+    i is expect with toks and i and "giving" and "\"giving\" followed by a name"
+    name is peek_value with toks and i
+    i is expect with toks and i and "name" and "a name to store the answer in"
+    dostream is false
+    if peek_is with toks and i and "streaming" then
+        i is i + 1
+        dostream is true
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["askagent", aname, pair[0], name, dostream, ln], i]
+
+to parse_forget with toks and i
+    ln is peek_line with toks and i
+    name is peek_value with toks and i + 1
+    i is expect with toks and i + 1 and "name" and "an agent name to forget"
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["forget", name, ln], i]
+
+to parse_agent_is_or_are with toks and i
+    if peek_is with toks and i and "is" then
+        give back i + 1
+    if peek_is with toks and i and "name" then
+        w is peek_value with toks and i
+        if w is "are" then
+            give back i + 1
+    ln is peek_line with toks and i
+    parse_error with ln and "I expected \"is\" or \"are\" here."
+
+to agent_dup_check with seen and field and fline
+    if seen contains field then
+        parse_error with fline and "\"" + field + "\" is already set for this agent."
+    push field to seen
+    give back nothing
+
+to parse_agentdef with toks and i
+    ln is peek_line with toks and i
+    name is peek_value with toks and i + 1
+    i is expect with toks and i + 1 and "name" and "a name for the agent"
+    i is expect with toks and i and "newline" and "the end of the line"
+    if not peek_is with toks and i and "indent" then
+        eln is peek_line with toks and i
+        parse_error with eln and "an agent needs an indented block of settings."
+    i is i + 1
+    per is nothing
+    toolnames is []
+    rmode is "off"
+    memfile is nothing
+    max_steps is 10
+    seen is []
+    repeat while not peek_is with toks and i and "dedent"
+        if peek_is with toks and i and "eof" then
+            eln is peek_line with toks and i
+            parse_error with eln and "this block never ends."
+        fline is peek_line with toks and i
+        fkind is peek_kind with toks and i
+        if fkind is "persona" then
+            agent_dup_check with seen and "persona" and fline
+            i is i + 1
+            i is expect with toks and i and "is" and "\"is\""
+            pair is parse_or with toks and i
+            per is pair[0]
+            i is pair[1]
+        otherwise if fkind is "tools" then
+            agent_dup_check with seen and "tools" and fline
+            i is i + 1
+            i is parse_agent_is_or_are with toks and i
+            i is expect with toks and i and "[" and "\"[\" around the tool names"
+            if not peek_is with toks and i and "]" then
+                push peek_value with toks and i to toolnames
+                i is expect with toks and i and "name" and "a tool name"
+                repeat while peek_is with toks and i and ","
+                    i is i + 1
+                    push peek_value with toks and i to toolnames
+                    i is expect with toks and i and "name" and "a tool name"
+            i is expect with toks and i and "]" and "a closing \"]\""
+        otherwise if fkind is "remember" then
+            agent_dup_check with seen and "remember" and fline
+            i is i + 1
+            i is expect with toks and i and "is" and "\"is\""
+            if peek_is with toks and i and "true" then
+                i is i + 1
+                rmode is "run"
+            otherwise if peek_is with toks and i and "false" then
+                i is i + 1
+                rmode is "off"
+            otherwise if peek_is with toks and i and "always" then
+                i is i + 1
+                rmode is "always"
+            otherwise
+                eln is peek_line with toks and i
+                parse_error with eln and "\"remember\" needs true, false, or always."
+        otherwise if fkind is "memory" then
+            agent_dup_check with seen and "memory file" and fline
+            i is i + 1
+            i is expect with toks and i and "file" and "\"file\""
+            i is expect with toks and i and "is" and "\"is\""
+            pair is parse_or with toks and i
+            memfile is pair[0]
+            i is pair[1]
+        otherwise if fkind is "steps" then
+            agent_dup_check with seen and "steps" and fline
+            i is i + 1
+            i is parse_agent_is_or_are with toks and i
+            sln is peek_line with toks and i
+            sval is peek_value with toks and i
+            i is expect with toks and i and "number" and "a number of steps"
+            if not builtins.isinstance(sval, builtins.int) or sval is less than 1 then
+                parse_error with sln and "\"steps\" needs a whole number of steps, at least 1."
+            max_steps is sval
+        otherwise
+            if fkind is "name" then
+                got is peek_value with toks and i
+            otherwise
+                got is fkind
+            parse_error with fline and "I do not know the agent setting \"" + got + "\". I know: persona, tools, remember, steps, memory file."
+        i is expect with toks and i and "newline" and "the end of the line"
+    i is i + 1
+    give back [["agentdef", name, per, toolnames, rmode, memfile, max_steps, ln], i]
+
+note ---- later-phase statements (spec 8.4): the walker parses use,
+note bring, fleet, and the tmux terminal statements exactly like the
+note bootstrap, so every parse error matches word for word. Execution
+note is not implemented yet: valid shapes fail at run time with the
+note honest later-phase message (later_phase_error). "terminal" and
+note "within" are not statement starters in the bootstrap either; they
+note fall through to parse_or below.
+
+to later_phase_error with ln and word
+    rt_error with ln and "\"" + word + "\" is for a later phase; this interpreter does not speak it yet."
+
+to parse_usepkg with toks and i
+    ln is peek_line with toks and i
+    pair is parse_or with toks and i + 1
+    i is pair[1]
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["usepkg", pair[0], ln], i]
+
+to parse_bringin with toks and i
+    ln is peek_line with toks and i
+    i is expect with toks and i + 1 and "in" and "\"in\""
+    pair is parse_or with toks and i
+    i is pair[1]
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["bringin", pair[0], ln], i]
+
+to parse_termopen with toks and i
+    ln is peek_line with toks and i
+    i is expect with toks and i + 1 and "terminal" and "\"terminal\""
+    i is expect with toks and i and "named" and "\"named\""
+    pair is parse_or with toks and i
+    i is pair[1]
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["termopen", pair[0], ln], i]
+
+to parse_termsend with toks and i
+    ln is peek_line with toks and i
+    pair is parse_or with toks and i + 1
+    cmd is pair[0]
+    i is pair[1]
+    i is expect with toks and i and "to" and "\"to\""
+    i is expect with toks and i and "terminal" and "\"terminal\""
+    pair is parse_or with toks and i
+    i is pair[1]
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["termsend", cmd, pair[0], ln], i]
+
+to parse_termread with toks and i
+    ln is peek_line with toks and i
+    i is expect with toks and i + 1 and "terminal" and "\"terminal\""
+    pair is parse_or with toks and i
+    i is pair[1]
+    i is expect with toks and i and "giving" and "\"giving\" followed by a name"
+    target is peek_value with toks and i
+    i is expect with toks and i and "name" and "a name to store the output in"
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["termread", pair[0], target, ln], i]
+
+to parse_termclose with toks and i
+    ln is peek_line with toks and i
+    i is expect with toks and i + 1 and "terminal" and "\"terminal\""
+    pair is parse_or with toks and i
+    i is pair[1]
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["termclose", pair[0], ln], i]
+
+to fleet_got with toks and i
+    fkind is peek_kind with toks and i
+    if fkind is "name" then
+        give back peek_value with toks and i
+    pairs is [["text", "string"], ["[", "lbracket"], ["]", "rbracket"], ["(", "lparen"], [")", "rparen"], [",", "comma"], [".", "dot"], ["+", "plus"], ["-", "minus"], ["*", "star"], ["/", "slash"], ["%", "percent"], ["=", "eq"]]
+    for each pair in pairs
+        if fkind is pair[0] then
+            give back pair[1]
+    give back fkind
+
+to parse_fleetdef with toks and i
+    ln is peek_line with toks and i
+    name is peek_value with toks and i + 1
+    i is expect with toks and i + 1 and "name" and "a name for the fleet"
+    i is expect with toks and i and "with" and "\"with\""
+    members is [peek_value with toks and i]
+    i is expect with toks and i and "name" and "an agent name"
+    repeat while peek_is with toks and i and "and"
+        i is i + 1
+        push peek_value with toks and i to members
+        i is expect with toks and i and "name" and "an agent name"
+    i is expect with toks and i and "newline" and "the end of the line"
+    if not peek_is with toks and i and "indent" then
+        eln is peek_line with toks and i
+        parse_error with eln and "a fleet needs an indented block of asks."
+    i is i + 1
+    asks is []
+    memfile is nothing
+    repeat while not peek_is with toks and i and "dedent"
+        if peek_is with toks and i and "eof" then
+            eln is peek_line with toks and i
+            parse_error with eln and "this block never ends."
+        fline is peek_line with toks and i
+        fkind is peek_kind with toks and i
+        if fkind is "ask" then
+            i is i + 1
+            member is peek_value with toks and i
+            i is expect with toks and i and "name" and "a fleet member to ask"
+            if not members contains member then
+                parse_error with fline and "\"" + member + "\" is not a member of fleet \"" + name + "\"."
+            pair is parse_or with toks and i
+            prompt is pair[0]
+            i is pair[1]
+            i is expect with toks and i and "giving" and "\"giving\" followed by a name"
+            gname is peek_value with toks and i
+            i is expect with toks and i and "name" and "a name to store the answer in"
+            if peek_is with toks and i and "streaming" then
+                parse_error with fline and "streaming asks cannot run in a fleet; take \"streaming\" out."
+            i is expect with toks and i and "newline" and "the end of the line"
+            push [member, prompt, gname, fline] to asks
+        otherwise if fkind is "memory" then
+            if memfile is not nothing then
+                parse_error with fline and "\"memory file\" is already set for this fleet."
+            i is i + 1
+            i is expect with toks and i and "file" and "\"file\""
+            i is expect with toks and i and "is" and "\"is\""
+            pair is parse_or with toks and i
+            memfile is pair[0]
+            i is pair[1]
+            i is expect with toks and i and "newline" and "the end of the line"
+        otherwise
+            got is fleet_got with toks and i
+            parse_error with fline and "I do not know the fleet line \"" + got + "\". A fleet holds one ask per line, like ask scout \"is it up?\" giving answer, and optionally one line: memory file is \"crew.json\"."
+    i is i + 1
+    give back [["fleetdef", name, members, asks, memfile, ln], i]
 
 to parse_readfile with toks and i
     ln is peek_line with toks and i
@@ -611,7 +880,9 @@ to parse_statement with toks and i
     if k is "ask" then
         give back parse_ask with toks and i
     if k is "read" then
-        give back parse_readfile with toks and i
+        if peek_is with toks and i + 1 and "file" then
+            give back parse_readfile with toks and i
+        give back parse_termread with toks and i
     if k is "write" or k is "append" then
         give back parse_writefile with toks and i
     if k is "import" then
@@ -619,10 +890,25 @@ to parse_statement with toks and i
     if k is "name" then
         if peek_is with toks and i + 1 and "is" then
             give back parse_assign with toks and i
-    if k is "use" or k is "bring" or k is "agent" or k is "fleet" or k is "memory" or k is "forget" or k is "open" or k is "close" or k is "send" or k is "terminal" or k is "within" then
-        w is peek_value with toks and i
-        parse_error with ln and "\"" + w + "\" is for a later phase; this interpreter does not speak it yet."
-    note "with" is not guarded: at the start of a line the bootstrap reads
+    if k is "agent" then
+        give back parse_agentdef with toks and i
+    if k is "forget" then
+        give back parse_forget with toks and i
+    if k is "use" then
+        give back parse_usepkg with toks and i
+    if k is "bring" then
+        give back parse_bringin with toks and i
+    if k is "fleet" then
+        give back parse_fleetdef with toks and i
+    if k is "open" then
+        give back parse_termopen with toks and i
+    if k is "close" then
+        give back parse_termclose with toks and i
+    if k is "send" then
+        give back parse_termsend with toks and i
+    note "terminal" and "within" are not statement starters in the
+    note bootstrap either: they fall through to parse_or, which reads
+    note them as a broken expression ("I expected a value here.").
     note it as a broken expression ("I expected a value here."), and the
     note self-hosted parser must say the same word for word.
     pair is parse_or with toks and i
@@ -1679,7 +1965,7 @@ to ai_tool_args with argtext and ln and env
         push v[0] to values
     give back values
 
-to ai_run_tool with name and argtext and toolnames and ln and env and depth
+to ai_run_tool with name and argtext and toolnames and ln and env and depth and agent_depth
     if not toolnames contains name then
         give back "RESULT of " + name + ": I only have these tools: " + join of toolnames with ", " + ". I do not know a tool called \"" + name + "\"."
     target is ai_env_lookup with env and name
@@ -1693,13 +1979,32 @@ to ai_run_tool with name and argtext and toolnames and ln and env and depth
             give back "RESULT of " + name + ": \"" + name + "\" needs " + text of need + " " + word + ", but got " + text of length of argvals + "."
         rv is call_function with target and argvals and env and depth and ln
         give back "RESULT of " + name + ": " + render with rv[0]
+    if is_agent_value with target then
+        argvals is ai_tool_args with argtext and ln and env
+        if length of argvals is not 1 or kind of argvals[0] is not "text" then
+            give back "RESULT of " + name + ": I can only ask " + name + " one question at a time, as text."
+        if agent_depth + 1 is greater than 3 then
+            rt_error with ln and "agents called agents too deep (3 levels max)."
+        sub is agent_ask with target and argvals[0] and ln and env and depth and agent_depth + 1 and false
+        give back "RESULT of " + name + ": " + sub
     give back "RESULT of " + name + ": I do not know a tool called \"" + name + "\"."
 
-to ai_tool_loop with ns and prompt and toolnames and max_steps and dostream and ln and env and depth
+to ai_tool_loop with ns and prompt and toolnames and max_steps and dostream and ln and env and depth and per and history and agent_name and agent_depth
     run_fn is ns["_jc_ai_run"]
     match_fn is ns["_jc_call_match"]
-    system is "You are a helper inside Jesun.Code. You can call tools by writing one per line like this:\nCALL: toolname(\"some text\", 2)\nAvailable tools: " + join of toolnames with ", " + "\nCall no other tools. Anything you write outside CALL lines is your final answer to the human."
-    transcript is system + "\n\nHuman: " + prompt
+    if per is not nothing and per is not "" then
+        stripped is bridge_rstrip with per
+        head is stripped + "\n\n"
+    otherwise
+        head is "You are a helper inside Jesun.Code. "
+    system is head + "You can call tools by writing one per line like this:\nCALL: toolname(\"some text\", 2)\nAvailable tools: " + join of toolnames with ", " + "\nCall no other tools. Anything you write outside CALL lines is your final answer to the human."
+    transcript is system
+    if history is not nothing then
+        if length of history is greater than 0 then
+            transcript is transcript + "\n\nEarlier in this conversation:"
+            for each turn in history
+                transcript is transcript + "\nHuman: " + turn[0] + "\nMind: " + turn[1]
+    transcript is transcript + "\n\nHuman: " + prompt
     step is 1
     repeat while step is less than max_steps + 1
         r is run_fn(transcript + "\n\n(You have used " + text of step + " of " + text of max_steps + " steps.)", dostream, sys.stdout)
@@ -1716,9 +2021,11 @@ to ai_tool_loop with ns and prompt and toolnames and max_steps and dostream and 
             give back trim of join of answer_lines with "\n"
         results is []
         for each c in calls
-            push ai_run_tool with c[0] and c[1] and toolnames and ln and env and depth to results
+            push ai_run_tool with c[0] and c[1] and toolnames and ln and env and depth and agent_depth to results
         transcript is transcript + "\n\nMind:\n" + reply + "\n\nResults:\n" + join of results with "\n"
         step is step + 1
+    if agent_name is not "" then
+        rt_error with ln and agent_name + " used all " + text of max_steps + " steps without giving an answer."
     rt_error with ln and "the mind used all " + text of max_steps + " steps without giving an answer."
 
 to exec_askai with stmt and env and depth
@@ -1736,9 +2043,289 @@ to exec_askai with stmt and env and depth
         answer is ai_finish with r and ln
         env_set with env and stmt[4] and answer
         give back ["none"]
-    answer is ai_tool_loop with ns and prompt and stmt[2] and stmt[3] and stmt[5] and ln and env and depth
+    answer is ai_tool_loop with ns and prompt and stmt[2] and stmt[3] and stmt[5] and ln and env and depth and nothing and nothing and "" and 0
     env_set with env and stmt[4] and answer
     give back ["none"]
+
+note ---- phase B part 2: agents (spec 8.3) ----
+note Agent values are ["agent", name, per, tools, rmode, memory_file,
+note max_steps, history]. per/memory_file are msg or nothing; rmode
+note is "off", "run", or "always"; history is a list of [prompt, answer]
+note pairs, newest last, appended in place.
+
+to bridge_rstrip with s
+    ns is builtins.dict([["__jc_s", s]])
+    give back builtins.eval("__jc_s.rstrip()", ns)
+
+to bridge_list_clear with lst
+    ns is builtins.dict([["__jc_l", lst]])
+    builtins.eval("__jc_l.clear()", ns)
+    give back nothing
+
+to agent_bridge_ns
+    ns is builtins.dict()
+    builtins.exec(_AGENT_HELPERS_SRC, ns)
+    give back ns
+
+to jpm_bridge_ns
+    ns is builtins.dict()
+    builtins.exec(_JPM_HELPERS_SRC, ns)
+    give back ns
+
+to agent_emit with msg
+    emit is builtins.getattr(sys.stdout, "write")
+    emit(msg + "\n")
+    sys.stdout.flush()
+    give back nothing
+
+to agent_mempath with name and memfile
+    ns is agent_bridge_ns
+    fn is ns["_jc_agent_mempath"]
+    give back fn(name, memfile)
+
+to agent_memory_load with ag and ln
+    ns is agent_bridge_ns
+    fn is ns["_jc_agent_load"]
+    r is fn(agent_mempath with ag[1] and ag[5])
+    code is r[0]
+    if code is "missing" then
+        give back nothing
+    if code is "unreadable" then
+        agent_emit with "Line " + text of ln + ": saved memory for " + ag[1] + " was unreadable, starting fresh."
+        give back nothing
+    hist is ag[7]
+    for each turn in r[1]
+        push turn to hist
+    give back nothing
+
+to agent_memory_save with ag and ln
+    ns is agent_bridge_ns
+    fn is ns["_jc_agent_save"]
+    r is fn(agent_mempath with ag[1] and ag[5], ag[7])
+    if r[0] is "failed" then
+        agent_emit with "Line " + text of ln + ": I could not save memory for " + ag[1] + "."
+    give back nothing
+
+to is_agent_value with v
+    if kind of v is "list" then
+        if length of v is 8 then
+            if v[0] is "agent" then
+                give back true
+    give back false
+
+to suggest_agents with name and env
+    cands is []
+    i is length of env
+    repeat while i is greater than 0
+        i is i - 1
+        for each pair in env[i]
+            if is_agent_value with pair[1] then
+                if not cands contains pair[0] then
+                    push pair[0] to cands
+    lower is lowercase of name
+    for each cand in cands
+        if cand is not name then
+            cl is lowercase of cand
+            if starts_with with cl and lower or starts_with with lower and cl then
+                give back " Did you mean \"" + cand + "\"?"
+    matches is difflib.get_close_matches(name, cands, 1, 0.6)
+    if length of matches is greater than 0 then
+        give back " Did you mean \"" + matches[0] + "\"?"
+    give back ""
+
+to agent_find with name and env and ln
+    i is length of env
+    repeat while i is greater than 0
+        i is i - 1
+        scope is env[i]
+        j is length of scope
+        repeat while j is greater than 0
+            j is j - 1
+            pair is scope[j]
+            if pair[0] is name then
+                v is pair[1]
+                if is_agent_value with v then
+                    give back v
+                if is_function_value with v then
+                    rt_error with ln and "\"" + name + "\" is a function, not an agent."
+                rt_error with ln and "\"" + name + "\" is not an agent, not an agent."
+    rt_error with ln and "I do not know an agent called \"" + name + "\"." + suggest_agents with name and env
+
+to agent_find_soft with name and env
+    i is length of env
+    repeat while i is greater than 0
+        i is i - 1
+        scope is env[i]
+        j is length of scope
+        repeat while j is greater than 0
+            j is j - 1
+            pair is scope[j]
+            if pair[0] is name then
+                if is_agent_value with pair[1] then
+                    give back pair[1]
+    give back nothing
+
+to agent_ask with ag and prompt and ln and env and depth and agent_depth and dostream
+    ns is ai_bridge_ns
+    hist is nothing
+    if ag[4] is not "off" then
+        hist is ag[7]
+    answer is ai_tool_loop with ns and prompt and ag[3] and ag[6] and dostream and ln and env and depth and ag[2] and hist and ag[1] and agent_depth
+    if ag[4] is not "off" then
+        push [prompt, answer] to hist
+        if ag[4] is "always" then
+            agent_memory_save with ag and ln
+    give back answer
+
+to exec_agentdef with stmt and env and depth
+    ln is stmt[7]
+    name is stmt[1]
+    if stmt[3] contains name then
+        rt_error with ln and name + " cannot list itself as a tool."
+    per is nothing
+    if stmt[2] is not nothing then
+        p is ev with stmt[2] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        if kind of p[0] is not "text" then
+            rt_error with ln and "the agent's persona must be text."
+        per is p[0]
+    memfile is ""
+    if stmt[5] is not nothing then
+        p is ev with stmt[5] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        if kind of p[0] is not "text" then
+            rt_error with ln and "the agent's memory file must be text."
+        memfile is p[0]
+    ag is ["agent", name, per, stmt[3], stmt[4], memfile, stmt[6], []]
+    if stmt[4] is "always" then
+        agent_memory_load with ag and ln
+    env_set with env and name and ag
+    give back ["none"]
+
+to exec_askagent with stmt and env and depth
+    ln is stmt[5]
+    ag is agent_find with stmt[1] and env and ln
+    p is ev with stmt[2] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    if kind of p[0] is not "text" then
+        rt_error with ln and "the question I ask the agent must be text."
+    answer is agent_ask with ag and p[0] and ln and env and depth and 0 and stmt[4]
+    env_set with env and stmt[3] and answer
+    give back ["none"]
+
+to exec_forget with stmt and env and depth
+    ln is stmt[2]
+    name is stmt[1]
+    ag is agent_find_soft with name and env
+    memfile is ""
+    if ag is not nothing then
+        memfile is ag[5]
+        bridge_list_clear with ag[7]
+    ns is agent_bridge_ns
+    fn is ns["_jc_agent_forget"]
+    r is fn(agent_mempath with name and memfile)
+    code is r[0]
+    if code is "missing" then
+        agent_emit with name + " has nothing to forget."
+        give back ["none"]
+    if code is "failed" then
+        rt_error with ln and "I could not forget " + name + "."
+    agent_emit with "Memory of " + name + " cleared."
+    give back ["none"]
+
+note Later-phase statements parse like the bootstrap but do not run
+note yet: jpm needs the network, fleets need threads, tmux needs tmux.
+note Operands are evaluated first so their errors match the bootstrap;
+note a shape that survives that fails with the honest later-phase line.
+
+to jpm_segment_ok with seg
+    if seg is "" then
+        give back false
+    if seg contains ".." then
+        give back false
+    allowed is "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-"
+    for each ch in characters of seg
+        if not allowed contains ch then
+            give back false
+    give back true
+
+to exec_usepkg with stmt and env and depth
+    ln is stmt[2]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    raw is p[0]
+    if kind of raw is "text" then
+        addr is raw
+    otherwise
+        addr is text of raw
+    parts is split of addr by "/"
+    ok is length of parts is 3
+    if ok then
+        for each seg in parts
+            if not jpm_segment_ok with seg then
+                ok is false
+    if not ok then
+        rt_error with ln and "\"" + addr + "\" is not a package address; write it like \"github.com/user/pkg\"."
+    if parts[0] is not "github.com" then
+        rt_error with ln and "I can only fetch packages from github.com, not \"" + parts[0] + "\"."
+    later_phase_error with ln and "use"
+
+to exec_bringin with stmt and env and depth
+    ln is stmt[2]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    raw is p[0]
+    if kind of raw is "text" then
+        pname is raw
+    otherwise
+        pname is text of raw
+    if pname is "" or pname is "." or pname is ".." or not jpm_segment_ok with pname then
+        rt_error with ln and "\"" + pname + "\" is not a package name; bring in a name like \"time\"."
+    ns is jpm_bridge_ns
+    fn is ns["_jc_jpm_find"]
+    r is fn(pname)
+    if r[0] is "missing" then
+        rt_error with ln and "I have not fetched the package \"" + pname + "\" yet; run use \"github.com/user/" + pname + "\" first."
+    later_phase_error with ln and "bring"
+
+to exec_fleetdef with stmt and env and depth
+    later_phase_error with stmt[5] and "fleet"
+
+to exec_termopen with stmt and env and depth
+    ln is stmt[2]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    later_phase_error with ln and "open"
+
+to exec_termsend with stmt and env and depth
+    ln is stmt[3]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    p is ev with stmt[2] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    later_phase_error with ln and "send"
+
+to exec_termread with stmt and env and depth
+    ln is stmt[3]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    later_phase_error with ln and "read"
+
+to exec_termclose with stmt and env and depth
+    ln is stmt[2]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    later_phase_error with ln and "close"
 
 note ---- statement execution: exec_stmt gives back a signal
 
@@ -1875,6 +2462,26 @@ to exec_stmt with stmt and env and depth
         give back exec_ask with stmt and env and depth
     if tag is "askai" then
         give back exec_askai with stmt and env and depth
+    if tag is "agentdef" then
+        give back exec_agentdef with stmt and env and depth
+    if tag is "askagent" then
+        give back exec_askagent with stmt and env and depth
+    if tag is "forget" then
+        give back exec_forget with stmt and env and depth
+    if tag is "usepkg" then
+        give back exec_usepkg with stmt and env and depth
+    if tag is "bringin" then
+        give back exec_bringin with stmt and env and depth
+    if tag is "fleetdef" then
+        give back exec_fleetdef with stmt and env and depth
+    if tag is "termopen" then
+        give back exec_termopen with stmt and env and depth
+    if tag is "termsend" then
+        give back exec_termsend with stmt and env and depth
+    if tag is "termread" then
+        give back exec_termread with stmt and env and depth
+    if tag is "termclose" then
+        give back exec_termclose with stmt and env and depth
     if tag is "readfile" then
         give back exec_readfile with stmt and env and depth
     if tag is "writefile" then

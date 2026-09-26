@@ -1,0 +1,4 @@
+to helper
+    give back 1
+
+ask helper "hi" giving a
