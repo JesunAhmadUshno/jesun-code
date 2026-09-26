@@ -42,9 +42,13 @@ America/Toronto.
   package error tagging identical to the bootstrap, with the pinned
   8.5.5 deep-source gap), and later-phase statement parsing (`use`,
   `bring in`, tmux terminal shapes) are differential-green against the
-  bootstrap (spec `docs/spec-v1.0.md`). Still to come: sprint 4, the
-  full test suite passing through `jesun.jc`. The milestone is claimed
-  only when the full suite passes through `jesun.jc`.
+  bootstrap (spec `docs/spec-v1.0.md`). Sprint 4 is under way: the
+  shared differential harness (`tests/selfhost_harness.py`) is in, and
+  the suite itself is being migrated onto it file by file, 364 tests
+  green (2026-09-26). Migrated so far: `test_core`, `test_v04`. The
+  migration already caught two real walker fidelity bugs (unknown-word
+  suggestions, per-leg file sandboxing), both fixed. The milestone is
+  claimed only when the full suite passes through `jesun.jc`.
 
 ## Up next (in order, no skipping)
 
