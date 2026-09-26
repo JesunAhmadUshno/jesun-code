@@ -225,6 +225,17 @@ it.
   Jesun.Code brace-escaping (`{{`/`}}` in the source), and dropping a
   level broke both legs identically.
 
+- Sprint 4 exit classification (spec 9.7): new
+  `tests/check_classification.py` tags every one of the 365 test
+  methods into exactly one bucket and fails if a tag drifts from the
+  code: 309 differential-green, 8 pinned gaps (8.3.1/8.4.1/8.5.5/9.1/
+  9.2/7.3), 2 pinned divergences (spec 8.3.2 no-tmux and terminal-name
+  lines), 46 pinned exclusions (spec 9.2c). It also caught the
+  jpm-bridge tests misclassified as differential: the module docstring
+  now pins the circular exclusion. The 9.7 classification table is in
+  `docs/spec-v1.0.md`; the audit reader can tag any single test in
+  under a minute.
+
 ## v0.6 - 2026-09-25
 
 Fleets. Named agents run asks in parallel as a team, answers collected
