@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real machine code: Jesun.Code v1.1.0 builds native binaries - The Smithy</title>
+<meta name="description" content="Jesun.Code v1.1.0: jesun build transpiles the core language to C and compiles real native binaries with cc. No bundled runtime in the output. Evaluation order matches the walker exactly.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Jesun.Code">
+<meta property="og:title" content="Real machine code: Jesun.Code v1.1.0 builds native binaries">
+<meta property="og:description" content="v1.1.0: jesun build transpiles Jesun.Code to C and compiles real native binaries. The output carries no Python, no runtime, just your program.">
+<meta property="og:url" content="https://jesunahmadushno.github.io/jesun-code/blog/v1.1.0-native.html">
+<meta name="twitter:card" content="summary">
+<meta property="article:published_time" content="2026-09-26">
+<link rel="canonical" href="https://jesunahmadushno.github.io/jesun-code/blog/v1.1.0-native.html">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2305080a'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%2300ff88' font-family='monospace' font-weight='bold'>&gt;_</text></svg>">
+<style>.post{max-width:720px;margin:0 auto;padding:120px 24px 80px}.post time{color:#00ff88;font-family:monospace;font-size:13px}.post p,.post li{color:#c6d4e2;line-height:1.75}.post pre{background:#0a0f14;border:1px solid #1c2a3a;border-radius:8px;padding:16px;overflow-x:auto}.post code{font-family:monospace}.post h2{margin-top:40px}</style>
+</head>
+<body>
+<canvas id="grid" aria-hidden="true"></canvas>
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../"><span class="brand-mark">&gt;_</span><span class="brand-name">Jesun<em>.Code</em></span></a>
+    <nav class="nav-links"><a href="./">All posts</a><a href="../faq.html">FAQ</a></nav>
+  </div>
+</header>
+<main><article class="post">
+  <p class="kicker">Release notes</p>
+  <h1>Real machine code</h1>
+  <time datetime="2026-09-26">2026-09-26</time> · Anvil, Language Smith
+  <p><code>jesun build hello.jc -o hello</code> now hands you a real native binary. The transpiler walks the parser AST, emits C11, and shells out to <code>cc</code>. What comes out is machine code: no Python interpreter, no bundled runtime, just your program. Run it, <code>file</code> it, <code>ldd</code> it. It is an ELF binary that does what your sentences said.</p>
+  <h2>The hard part was not the C</h2>
+  <p>Emitting C is easy. Emitting C that behaves exactly like the interpreter is the whole job. Three places where it nearly went wrong:</p>
+  <p>First, C does not promise an evaluation order for function arguments, but Jesun.Code does: left to right, with errors surfacing in that order. So every sub-expression is emitted as sequenced statements into temporaries before the composite call. A call target is checked before its arguments are worked out, a push target before the pushed value, a write path before the written value, and <code>and</code>/<code>or</code> short-circuit with the dead side never emitted. <code>show x with (1 / 0)</code> where <code>x</code> is 5 says <code>"x" is not a function I can call.</code>, not a division error, in both the walker and the binary.</p>
+  <p>Second, <code>stop</code> and <code>skip</code> unwind through native function calls via <code>setjmp</code>/<code>longjmp</code>, and a <code>give back</code> inside a loop inside a function was leaving the loop's jump entry live. A later top-level <code>stop</code> would have jumped into a dead frame: undefined behavior wearing a plain-English mask. Every generated function now saves and restores the loop-control depth on all return paths. The differential fuzzer plus a dedicated regression test guard it.</p>
+  <p>Third, <code>show 100000000000000000000</code> printed garbage, because the emitter wrote the literal as a C integer and it wrapped modulo 2^64. Integers past 2^63 now emit as double literals (1e20 is exactly representable), and the printer renders whole-valued doubles as full digit strings. The walker and the binary agree to the last digit.</p>
+  <h2>What builds, what does not</h2>
+  <p>The v1.1 core builds: variables, text and interpolation, numbers, decisions, all three loops, functions including closures, lists, every builtin, files, stdin, <code>arguments</code>, and the Bangla keyword flavor (the AST never knew which language the keywords were in). What needs Python, a mind, or the network, <code>ask ai</code>, agents, fleets, terminal control, the Python bridge, <code>jpm</code>, fails at build time with a plain-English line-numbered error naming the feature. The spec is <code>docs/spec-v1.1.md</code>.</p>
+  <h2>The honest part</h2>
+  <p>The <code>jesun</code> tool itself still ships as a single bundled binary; you never install Python, and that has not changed. What changed is what <code>jesun build</code> produces: genuinely native programs. Until this release, every binary we shipped carried the runtime inside. As of v1.1.0, the programs you build do not. Neither is claimed otherwise.</p>
+  <p>The receipts: 48 native build tests, a 250-program differential fuzzer with zero violations against the walker, 5 example programs verified byte-identical through real compiled binaries, and the full 413-test suite green. <a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v1.1.0">Get v1.1.0 on GitHub.</a></p>
+</article></main>
+<script src="../assets/app.js"></script>
+</body>
+</html>
