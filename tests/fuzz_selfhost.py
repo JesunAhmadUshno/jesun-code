@@ -51,7 +51,7 @@ WORDS = [
     "of", "first", "last", "length", "uppercase", "lowercase",
     "greater", "less", "than", "least", "most", "at", "contains",
     "split", "join", "trim", "by", "note",
-    "push", "characters", "text", "kind", "fail",
+    "push", "characters", "text", "kind", "fail", "keys",
     "x", "y", "z", "name", "total", "count", "item", "f",
     '"hello"', '"hi"', '""', '"a b c"', '"1,2,3"', '"  padded  "',
     '"unterminated', "'q'",
@@ -294,6 +294,38 @@ def check(i: int, src: str) -> tuple[list[str], int]:
     return problems, skips
 
 
+BN_WORDS = [
+    "দেখাও", "হয়", "না", "সত্য", "মিথ্যা", "ফাঁকা", "জিজ্ঞেস", "রেখে",
+    "যদি", "তাহলে", "নইলে", "আবার", "বার", "যতক্ষণ", "জন্য", "প্রতিটি",
+    "ভেতরে", "জন্যে", "সহ", "এবং", "অথবা", "দাও", "ফেরত", "থামো", "এড়িয়ে",
+    "এর", "প্রথম", "শেষ", "দৈর্ঘ্য", "বড়হাতা", "ছোটহাতা", "বড়", "ছোট",
+    "চেয়ে", "কমপক্ষে", "সবচেয়ে", "নম্বরে", "আছে", "ভাগ", "জোড়া", "ছাঁটো",
+    "দিয়ে", "চাবি", "আনো", "হিসেবে", "পড়ো", "লেখো", "যোগকরো", "ফাইল",
+    "মন্তব্য",
+    "show", "is", "note",
+    "ক", "খ", "গ",
+    '"নমস্কার"', '"hello"',
+    "০", "১", "২", "৩", "৪", "৫", "৪২", "৩.৫", "১০",
+    "0", "1", "2",
+    "+", "-", "*", "/", "%", "(", ")", "[", "]", ",", ".", "=",
+    "    ", "        ",
+]
+
+
+def bangla_program(rng: random.Random) -> str:
+    """A Bangla-mode program: a valid header, then word soup. Both sides
+    must agree on header detection, the comment word, and keyword kinds."""
+    lines = []
+    if rng.random() < 0.3:
+        lines.append(rng.choice(["", "note leading comment", ""]))
+    lines.append(rng.choice(["use bangla", "বাংলা"]))
+    for _ in range(rng.randint(1, 6)):
+        indent = rng.choice(["", "", "", "    "])
+        body = " ".join(rng.choice(BN_WORDS) for _ in range(rng.randint(0, 7)))
+        lines.append(indent + body)
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 150
     rng = random.Random(20260925)
@@ -303,6 +335,9 @@ def main() -> int:
         if i % 3 == 2:
             src, stdin_text = phaseb_program(rng)
             case_problems, case_skips = check_pb(i, src, stdin_text)
+        elif i % 5 == 4:
+            src = bangla_program(rng)
+            case_problems, case_skips = check(i, src)
         else:
             src = token_soup(rng) if i % 2 == 0 else mutate(rng, rng.choice(SEEDS))
             case_problems, case_skips = check(i, src)

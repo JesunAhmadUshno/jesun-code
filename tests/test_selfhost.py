@@ -229,6 +229,39 @@ class TestSelfHost(unittest.TestCase):
     def test_phaseb_call_fail(self):
         self.check_known_gap("phaseb_call_fail.jc")
 
+    def test_bn_basic(self):
+        self.check("bn_basic.jc")
+
+    def test_bn_header_alt(self):
+        self.check("bn_header_alt.jc")
+
+    def test_bn_header_blank(self):
+        self.check("bn_header_blank.jc")
+
+    def test_bn_digits(self):
+        self.check("bn_digits.jc")
+
+    def test_bn_comment(self):
+        self.check("bn_comment.jc")
+
+    def test_bn_compare(self):
+        self.check("bn_compare.jc")
+
+    def test_bn_builtin(self):
+        self.check("bn_builtin.jc")
+
+    def test_bn_loop(self):
+        self.check("bn_loop.jc")
+
+    def test_bn_keys(self):
+        self.check("bn_keys.jc")
+
+    def test_bn_err_sup(self):
+        self.check("bn_err_sup.jc")
+
+    def test_bn_err_arrow(self):
+        self.check("bn_err_arrow.jc")
+
 
 if __name__ == "__main__":
     unittest.main()

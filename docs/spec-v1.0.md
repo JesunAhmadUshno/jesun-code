@@ -249,3 +249,93 @@ sandbox rule); ask fixtures run with piped stdin.
 is an ask/file/import program with piped stdin and a fresh temp cwd
 per case for both sides; `the python call failed` line-number diffs
 are classified as the known 7.3 gap, not failures.
+
+## 8. Phase B, part 2: agents, fleets, jpm, Bangla keywords
+
+Part 2 brings the v0.2-v0.6 surface into the walker: `ask ai` (spec
+16/17), agents with memory and tool loops, `fleet` blocks, `jpm`
+(`use`/`bring in`), and the Bangla keyword flavor (spec v0.5 s23).
+Sprint order inside part 2: Bangla first (lexer-only, no subprocess),
+then `ask ai`, then agents, then fleets, then jpm.
+
+### 8.1 Bangla keyword flavor in the walker (this sprint)
+
+The parser needs no changes: Bangla keywords map to the same kinds
+(`দেখাও` is `show`), so the tree format and the walker are untouched.
+All the work is in the lexer, mirroring the bootstrap exactly:
+
+- Header detection (`bangla_header`): the first non-blank line of the
+  file, where blank means blank after cutting an English `note`
+  comment (the header itself is read in English mode). The header is
+  exactly `use bangla` or the lone word `বাংলা`, else 0. `lex` skips
+  the header line: it is a directive, not a statement.
+- `bangla_kinds`: the Bangla word-to-kind table, one for one with the
+  bootstrap's `BANGLA_KEYWORDS`. `keyword_kind` takes the mode and
+  picks the table; unknown words are `name` in both modes (English
+  keywords are plain names in Bangla mode and vice versa).
+- Comment word: `cut_comment` takes the comment word (`মন্তব্য` in
+  Bangla mode, `note` otherwise), with the same word-boundary rule.
+- `is_word_start` widens through the bridge (`str.isalpha()`), so
+  `দ` starts a word exactly like the bootstrap's `ch.isalpha()`.
+  Combining marks never start a word (`isalpha()` is false for marks),
+  matching the bootstrap.
+- `is_digit` goes through the bridge (`str.isdigit()`), so Bengali
+  digits (`৫`) read as numbers. The digit run is accumulated as text
+  and converted with `int()` on the whole run; a run that is not
+  decimal (e.g. `²`, where `isdigit()` is true but `int()` raises)
+  fails with the bootstrap's bare
+  `I hit something I did not expect and stopped instead of guessing.`
+  (no line prefix, via `fail with`), exactly like the bootstrap's
+  unexpected-exception path.
+- `is_word_char` is tightened to the exact bootstrap predicate
+  (`isalnum()` or `_` or a combining mark, via `unicodedata.category`),
+  closing the phase-A exotic-symbol gap: a non-letter symbol like `→`
+  now ends the word and fails `I do not know what "→" means here.`
+  on both sides.
+
+### 8.2 `ask ai` (next sprint)
+
+`parse_ask_ai`: `ask ai <prompt> giving <name>` with optional
+`with tools [...]`, `within <n> steps`, `streaming`. The walker
+delegates to the bootstrap the same way phase B part 1 does: `argv`
+from `JESUNCODE_AI_COMMAND` (shlex-split, Windows-aware) via a bridge
+helper, subprocess through the bridge with a timeout, streaming as
+plain text chunks. Missing command fails
+`I have no mind to ask. Set JESUNCODE_AI_COMMAND first.` at the target
+line. Differential fixtures use fixture minds (`tests/fixtures/mind_*.py`)
+with `JESUNCODE_AI_COMMAND` pointed at them, so both sides are
+deterministic. The tool loop (`with tools`) reuses the walker's own
+foreign-call path for tool functions.
+
+### 8.3 Agents (after `ask ai`)
+
+`agent <name>` blocks (persona, tools, remember on/off/always, memory
+file, max steps), `ask <agent> <prompt> giving <name>`, `forget`.
+Agent values live in the walker's env as nested lists
+(`["agent", name, persona, tools, remember, memory_file, max_steps,
+history]`); history appends `[prompt, answer]` pairs, newest last,
+capped at 200, exactly like the bootstrap. Memory files load/save JSON
+through the walker's file-I/O path (sandboxed). `forget` clears memory
+and history. Differential fixtures use fixture minds; memory fixtures
+run in a temp sandbox.
+
+### 8.4 Fleets (after agents)
+
+`fleet <name>:` blocks with named `ask`s running in parallel and
+answers collected into a list in ask order, plus shared fleet memory
+(`The fleet remembers:`). The walker runs the asks through the
+bridge's threads (`threading.Thread`, one per ask, results joined in
+order), each ask a child scope with per-agent locks, mirroring the
+bootstrap. No streaming inside fleets, no nested fleets: both stay
+parse-time errors naming the rule. Differential fixtures use fixture
+minds with small sleeps to prove parallelism does not reorder
+answers.
+
+### 8.5 jpm (after fleets)
+
+`use "github.com/user/pkg"` and `bring in "pkg"`. The walker
+delegates the install to the bootstrap's jpm path through the bridge
+(`~/.jesun-code/packages/`, path-escape checks, no `..` traversal),
+then loads the package's `.jc` files through its own lexer/parser.
+Differential tests sandbox `JESUN_CODE_HOME` to a temp dir and use a
+local `packages/` fixture tree instead of the network.

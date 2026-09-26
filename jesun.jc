@@ -20,50 +20,50 @@ import importlib.util
 import operator
 import difflib
 import pkgutil
+import unicodedata
 
 note ==== SECTION: HELPERS ====
 
 to parse_error with lineno and msg
     fail with "Line " + text of lineno + ": " + msg
 
+to bridge_is_digit with ch
+    ns is builtins.dict([["__jc_c", ch]])
+    give back builtins.eval("__jc_c.isdigit()", ns)
+
+to bridge_is_alpha with ch
+    ns is builtins.dict([["__jc_c", ch]])
+    give back builtins.eval("__jc_c.isalpha()", ns)
+
+to bridge_is_word_char with ch
+    ns is builtins.dict([["__jc_c", ch]])
+    give back builtins.eval("__jc_c.isalnum() or __jc_c == '_' or __import__('unicodedata').category(__jc_c).startswith('M')", ns)
+
+to bridge_number_text with digits
+    ns is builtins.dict([["__jc_t", digits]])
+    give back builtins.eval("(__import__('builtins').int(__jc_t) if __jc_t.isdecimal() else (__import__('builtins').float(__jc_t) if __jc_t.replace('.', '', 1).isdecimal() else 'NAN'))", ns)
+
+to bridge_dict_keys with v
+    ns is builtins.dict([["__jc_v", v]])
+    give back builtins.eval("list(__jc_v.keys()) if isinstance(__jc_v, dict) else None", ns)
+
 to is_digit with ch
-    if "0123456789" contains ch then
-        give back true
-    give back false
+    give back bridge_is_digit with ch
 
 to is_word_start with ch
     if ch is "_" then
         give back true
     if "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" contains ch then
         give back true
-    give back false
+    note Bangla mode: any letter starts a word, mirroring the
+    note bootstrap's ch.isalpha(). Combining marks never start one.
+    give back bridge_is_alpha with ch
 
 to is_word_char with ch
-    if is_word_start with ch then
-        give back true
-    if is_digit with ch then
-        give back true
-    note Non-ASCII letters and marks are word chars; other symbols are
-    note not. Phase A fidelity note: exotic non-ASCII symbols may differ
-    note from the bootstrap here; ASCII is exact. Whitespace can never be
-    note a word char; the trim test below covers space, tab, LF, and CR.
-    note It is written this way because the "\r" escape reads as "r" in
-    note string literals (the escape table has no r), so a literal CR
-    note cannot be spelled here.
-    if length of ch is 1 then
-        if trim of ch is "" then
-            give back false
-        if " !\"#$%&'()*+,-./:;<=>?@[\\]^`{{|}}~\t\n" contains ch then
-            give back false
-        give back true
-    give back false
-
-to digit_value with ch
-    pairs is [["0", 0], ["1", 1], ["2", 2], ["3", 3], ["4", 4], ["5", 5], ["6", 6], ["7", 7], ["8", 8], ["9", 9]]
-    for each pair in pairs
-        if pair[0] is ch then
-            give back pair[1]
-    give back 0
+    note Mirrors the bootstrap's is_word_char exactly: alnum, "_",
+    note or a combining mark (unicodedata category M). Symbols like
+    note arrows end the word on both sides now.
+    give back bridge_is_word_char with ch
 
 to pop_last with xs
     trimmed is []
@@ -95,9 +95,17 @@ note ==== END HELPERS ====
 
 note ==== SECTION: LEXER ====
 
-to keyword_kind with word
-    kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"], ["ask", "ask"], ["giving", "giving"], ["read", "read"], ["write", "write"], ["append", "append"], ["file", "file"], ["import", "import"], ["as", "as"]]
-    for each pair in kinds
+kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"], ["ask", "ask"], ["giving", "giving"], ["read", "read"], ["write", "write"], ["append", "append"], ["file", "file"], ["import", "import"], ["as", "as"], ["keys", "keys"], ["ai", "ai"], ["tools", "tools"], ["within", "within"], ["steps", "steps"], ["open", "open"], ["terminal", "terminal"], ["named", "named"], ["send", "send"], ["close", "close"], ["agent", "agent"], ["persona", "persona"], ["remember", "remember"], ["always", "always"], ["forget", "forget"], ["memory", "memory"], ["streaming", "streaming"], ["use", "use"], ["fleet", "fleet"], ["bring", "bring"]]
+
+note Bangla keyword flavor (spec v0.5 s23): mirrors the bootstrap's
+note BANGLA_KEYWORDS one for one, mapping to the same walker kinds.
+bangla_kinds is [["অথবা", "or"], ["আছে", "contains"], ["আনো", "import"], ["আবার", "repeat"], ["এআই", "ai"], ["এজেন্ট", "agent"], ["এড়িয়ে", "skip"], ["এবং", "and"], ["এর", "of"], ["কমপক্ষে", "least"], ["খোলো", "open"], ["চাবি", "keys"], ["চেয়ে", "than"], ["ছাঁটো", "trim"], ["ছোট", "less"], ["ছোটহাতা", "lowercase"], ["জন্য", "for"], ["জন্যে", "to"], ["জিজ্ঞেস", "ask"], ["জোড়া", "join"], ["টার্মিনাল", "terminal"], ["তাহলে", "then"], ["থামো", "stop"], ["দল", "fleet"], ["দাও", "give"], ["দিয়ে", "by"], ["দেখাও", "show"], ["দৈর্ঘ্য", "length"], ["ধাপ", "steps"], ["নইলে", "otherwise"], ["নম্বরে", "at"], ["না", "not"], ["নামে", "named"], ["নিয়ে", "bring"], ["পড়ো", "read"], ["পাঠাও", "send"], ["পারসোনা", "persona"], ["প্রতিটি", "each"], ["প্রথম", "first"], ["ফাঁকা", "nothing"], ["ফাইল", "file"], ["ফেরত", "back"], ["বড়", "greater"], ["বড়হাতা", "uppercase"], ["বন্ধকরো", "close"], ["বার", "times"], ["ব্যবহার", "use"], ["ভাগ", "split"], ["ভুলেযাও", "forget"], ["ভেতরে", "in"], ["মধ্যে", "within"], ["মনেকরো", "remember"], ["মিথ্যা", "false"], ["যতক্ষণ", "while"], ["যদি", "if"], ["যোগকরো", "append"], ["রেখে", "giving"], ["লেখো", "write"], ["শেষ", "last"], ["সত্য", "true"], ["সবচেয়ে", "most"], ["সবসময়", "always"], ["সরাসরি", "streaming"], ["সহ", "with"], ["স্মৃতি", "memory"], ["হয়", "is"], ["হাতিয়ার", "tools"], ["হিসেবে", "as"]]
+
+to keyword_kind with word and bangla
+    table is kinds
+    if bangla then
+        table is bangla_kinds
+    for each pair in table
         if pair[0] is word then
             give back pair[1]
     give back "name"
@@ -109,20 +117,27 @@ to simple_kind with ch
             give back pair[1]
     give back ""
 
-to is_note_here with cs and i and n
-    if i + 4 is greater than n then
+to is_comment_here with cs and i and n and word
+    note The comment word is "note" in English mode, "মন্তব্য" in
+    note Bangla mode. Header detection always reads in English mode.
+    wcs is characters of word
+    wlen is length of wcs
+    if i + wlen is greater than n then
         give back false
-    if cs[i] is "n" and cs[i + 1] is "o" and cs[i + 2] is "t" and cs[i + 3] is "e" then
-        before_ok is true
-        if i is greater than 0 then
-            before_ok is not is_word_char with cs[i - 1]
-        after_ok is true
-        if i + 4 is less than n then
-            after_ok is not is_word_char with cs[i + 4]
-        give back before_ok and after_ok
-    give back false
+    j is 0
+    repeat while j is less than wlen
+        if cs[i + j] is not wcs[j] then
+            give back false
+        j is j + 1
+    before_ok is true
+    if i is greater than 0 then
+        before_ok is not is_word_char with cs[i - 1]
+    after_ok is true
+    if i + wlen is less than n then
+        after_ok is not is_word_char with cs[i + wlen]
+    give back before_ok and after_ok
 
-to cut_comment with rawline
+to cut_comment with rawline and comment_word
     out is ""
     cs is characters of rawline
     n is length of cs
@@ -145,11 +160,25 @@ to cut_comment with rawline
             out is out + ch
             i is i + 1
             skip
-        if is_note_here with cs and i and n then
+        if is_comment_here with cs and i and n and comment_word then
             give back out
         out is out + ch
         i is i + 1
     give back out
+
+to bangla_header with source
+    note Mirrors the bootstrap's _bangla_header_lineno: the first
+    note non-blank line (blank after cutting an English "note"
+    note comment), exactly "use bangla" or the lone word "বাংলা".
+    lineno is 0
+    for each rawline in split of source by "\n"
+        lineno is lineno + 1
+        cleaned is cut_comment with rawline and "note"
+        if trim of cleaned is not "" then
+            if trim of cleaned is "use bangla" or trim of cleaned is "বাংলা" then
+                give back lineno
+            give back 0
+    give back 0
 
 to count_leading_spaces with given_line
     n is 0
@@ -189,29 +218,35 @@ to read_string with cs and i and n and lineno
     parse_error with lineno and "this text never ends; close the quote."
 
 to read_number with cs and i and n and lineno
-    whole is 0
+    note The digit run is text until the bridge converts it: the
+    note bootstrap accepts any isdigit() run (Bengali digits work) and
+    note converts with int()/float(), failing "I did not expect" when
+    note the run is not decimal (e.g. a lone superscript 2).
+    digits is ""
     repeat while i is less than n and is_digit with cs[i]
-        whole is whole * 10 + digit_value with cs[i]
+        digits is digits + cs[i]
         i is i + 1
     if i + 1 is less than n and cs[i] is "." and is_digit with cs[i + 1] then
+        digits is digits + "."
         i is i + 1
-        frac is 0
-        divisor is 1
         repeat while i is less than n and is_digit with cs[i]
-            frac is frac * 10 + digit_value with cs[i]
-            divisor is divisor * 10
+            digits is digits + cs[i]
             i is i + 1
-        give back [["number", whole + frac / divisor, lineno], i]
-    give back [["number", whole, lineno], i]
+    val is bridge_number_text with digits
+    if val is "NAN" then
+        note The bootstrap's lexer reports this with no line prefix
+        note (its unexpected-exception path), so the bare fail matches.
+        fail with "I hit something I did not expect and stopped instead of guessing."
+    give back [["number", val, lineno], i]
 
-to read_word with cs and i and n and lineno
+to read_word with cs and i and n and lineno and bangla
     word is ""
     repeat while i is less than n and is_word_char with cs[i]
         word is word + cs[i]
         i is i + 1
-    give back [[keyword_kind with word, word, lineno], i]
+    give back [[keyword_kind with word and bangla, word, lineno], i]
 
-to lex_line with stripped and lineno
+to lex_line with stripped and lineno and bangla
     toks is []
     cs is characters of stripped
     n is length of cs
@@ -234,7 +269,7 @@ to lex_line with stripped and lineno
             i is pair[1]
             skip
         if is_word_start with ch then
-            pair is read_word with cs and i and n and lineno
+            pair is read_word with cs and i and n and lineno and bangla
             push pair[0] to toks
             i is pair[1]
             skip
@@ -246,14 +281,19 @@ to lex_line with stripped and lineno
         parse_error with lineno and "I do not know what \"" + ch + "\" means here."
     give back toks
 
-to lex with source
+to lex with source and header and bangla
     source is strip_bom with source
     toks is []
     indents is [0]
     lineno is 0
+    comment_word is "note"
+    if bangla then
+        comment_word is "মন্তব্য"
     for each rawline in split of source by "\n"
         lineno is lineno + 1
-        cleaned is cut_comment with rawline
+        if lineno is header then
+            skip
+        cleaned is cut_comment with rawline and comment_word
         if cleaned contains "\t" and trim of cleaned is not "" then
             parse_error with lineno and "I do not understand tabs; please indent with spaces."
         if trim of cleaned is "" then
@@ -268,7 +308,7 @@ to lex with source
                 push ["dedent", "", lineno] to toks
             if indent is not last of indents then
                 parse_error with lineno and "this line does not line up with any block I opened."
-        for each tok in lex_line with trim of cleaned and lineno
+        for each tok in lex_line with trim of cleaned and lineno and bangla
             push tok to toks
         push ["newline", "", lineno] to toks
     repeat while length of indents is greater than 1
@@ -361,7 +401,7 @@ note ---- phase B part 1: ask, file I/O, import (spec section 7) ----
 to parse_ask with toks and i
     ln is peek_line with toks and i
     i is i + 1
-    if peek_is with toks and i and "name" then
+    if peek_is with toks and i and "name" or peek_is with toks and i and "ai" then
         w is peek_value with toks and i
         if w is "ai" then
             parse_error with ln and "\"ask ai\" is for phase B part 2; this interpreter only asks plain questions so far."
@@ -715,7 +755,7 @@ to parse_call_args with toks and i
         give back [args, kwargs, i]
 
 to parse_expr_fragment with inner and ln
-    toks is lex_line with trim of inner and ln
+    toks is lex_line with trim of inner and ln and bangla_mode
     push ["newline", "", ln] to toks
     push ["eof", "", ln] to toks
     pair is parse_or with toks and 0
@@ -808,7 +848,7 @@ to parse_primary with toks and i
                 i is pair[1]
         i is expect with toks and i and "]" and "a closing \"]\""
         give back [["list", items, ln], i]
-    if k is "first" or k is "last" or k is "length" or k is "uppercase" or k is "lowercase" or k is "trim" or k is "characters" or k is "text" or k is "kind" or k is "split" or k is "join" then
+    if k is "first" or k is "last" or k is "length" or k is "uppercase" or k is "lowercase" or k is "trim" or k is "characters" or k is "text" or k is "kind" or k is "split" or k is "join" or k is "keys" then
         i is i + 1
         i is expect with toks and i and "of" and "\"of\""
         if k is "split" or k is "join" then
@@ -1182,6 +1222,11 @@ to ev_builtin with node and env and depth
         give back [render with v, ""]
     if bkind is "kind" then
         give back [kind of v, ""]
+    if bkind is "keys" then
+        ks is bridge_dict_keys with v
+        if ks is nothing then
+            rt_error with ln and "\"keys of\" needs a python dictionary."
+        give back [ks, ""]
     rt_error with ln and "I do not know that built-in."
 
 to ev_builtin2 with node and env and depth
@@ -1667,7 +1712,11 @@ if length of arguments is 0 then
 otherwise
     path is arguments[0]
     read file path giving source
-    toks is lex with source
+    header is bangla_header with source
+    bangla_mode is false
+    if header is not 0 then
+        bangla_mode is true
+    toks is lex with source and header and bangla_mode
     tree is parse_program with toks
     env is [[]]
     sig is exec_block with tree and env and 0
