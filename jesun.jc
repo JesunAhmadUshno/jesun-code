@@ -1306,6 +1306,8 @@ to is_real_list with v
 to render with v
     if is_function_value with v then
         give back "<function " + v[1] + ">"
+    if is_agent_value with v then
+        give back "<agent " + v[1] + ">"
     if kind of v is "list" then
         parts is []
         for each item in v

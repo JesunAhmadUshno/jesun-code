@@ -168,6 +168,18 @@ it.
   rejected with the bootstrap's exact messages, lists are checked
   recursively, and a depth cap reports `I got in too deep` at the
   call line for cyclic lists, matching the bootstrap.
+- `tests/test_agents.py` migrated (spec 9.2a): all 18 agent tests
+  differential-green as subprocess runs (agent blocks, `ask <agent>`,
+  persona reaching the mind, tools with per-leg mind call counts,
+  unlisted-tool blocking, steps exhaustion, remember true/false via
+  prompt-file comparison, agent error shapes, stdin `ask`). Each
+  interpreter leg gets its own `MIND_COUNT_FILE`, `MIND_PROMPT_FILE`,
+  and `JESUN_CODE_HOME`, so agent memory and mind transcripts never
+  leak across legs; saved prompt files are byte-identical on both
+  legs. No exclusions. The migration caught a real walker fidelity
+  bug: `show` rendered an agent as its raw nested list instead of
+  `<agent scout>`. The walker's `render` now has the agent branch,
+  matching the bootstrap's `show_text`.
 
 ## v0.6 - 2026-09-25
 

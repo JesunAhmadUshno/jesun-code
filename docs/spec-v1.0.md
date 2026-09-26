@@ -784,7 +784,8 @@ function to a foreign call recursed forever instead of failing with
 twin (`bridge_check_arg`): function/agent rejection with the
 bootstrap's exact messages, recursive list checking, and a depth cap
 that reports `I got in too deep` at the call line for cyclic lists.
-Suite 365/365 green after the migration (the zero-leakage split added one test).]
+Suite 365/365 green after the migration (the zero-leakage split added one test).
+`test_agents` (commit pending): 18 differential-green (agent blocks, ask-agent, tools, memory, leakage; per-leg count/prompt files and hermetic homes), no exclusions. The migration caught and fixed a real walker fidelity bug: `show` rendered agents as raw nested lists; the walker's `render` now emits `<agent name>`.]
 
 ### 9.5 Fuzzers
 
