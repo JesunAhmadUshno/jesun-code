@@ -2,6 +2,29 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## Unreleased (v1.0 self-hosting grind)
+
+`jesun.jc`: the interpreter rewritten in Jesun.Code itself, developed
+against the Python bootstrap with differential testing (spec
+`docs/spec-v1.0.md`). Not claimed until the full suite passes through
+it.
+
+- Phase A (v0.1 core): lexer, parser, tree-walker for the full v0.1
+  language. Differential suite green.
+- Phase B part 1: plain `ask`, file read/write/append, the `import`
+  bridge (Python attributes, calls, subscripts, kwargs). 19
+  differential fixtures; differential fuzzing clean.
+- Phase B part 2, first slice: the Bangla keyword flavor in the
+  walker. Header detection (`use bangla` / `বাংলা`), the 68-word
+  keyword table, `মন্তব্য` comments, Bengali digits, and the exact
+  bootstrap word-boundary rules. 11 differential fixtures; the
+  differential fuzzer now generates Bangla-mode cases.
+- Fidelity fixes found by differential fuzzing: `keys of` for Python
+  dictionaries (a phase-A hole), exotic symbols (e.g. arrows) now end
+  words and fail exactly like the bootstrap, non-decimal digit runs
+  (e.g. superscripts) fail with the bootstrap's bare unexpected error.
+- Still to come in phase B part 2: `ask ai`, agents, fleets, jpm.
+
 ## v0.6 - 2026-09-25
 
 Fleets. Named agents run asks in parallel as a team, answers collected
