@@ -1,0 +1,3 @@
+import builtins
+d is builtins.dict(a=1)
+show d["a"]

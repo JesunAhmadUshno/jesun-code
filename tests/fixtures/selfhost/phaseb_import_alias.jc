@@ -1,0 +1,3 @@
+import math as m
+show m.pi
+show m.pow(2, 3)

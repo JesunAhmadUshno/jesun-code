@@ -1,0 +1,5 @@
+import builtins
+d is builtins.dict(a=1)
+import json
+s is json.dumps(d, sort_keys=true)
+show s

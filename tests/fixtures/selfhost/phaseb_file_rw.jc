@@ -1,0 +1,9 @@
+write "alpha" to file "phaseb_a.txt"
+read file "phaseb_a.txt" giving first
+show first
+append "beta" to file "phaseb_a.txt"
+read file "phaseb_a.txt" giving second
+show second
+write "overwritten" to file "phaseb_a.txt"
+read file "phaseb_a.txt" giving third
+show third

@@ -1,0 +1,2 @@
+read file "phaseb_nope.txt" giving x
+show x

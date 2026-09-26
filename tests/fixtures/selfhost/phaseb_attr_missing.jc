@@ -1,0 +1,2 @@
+import math
+show math.nonexistent_thing

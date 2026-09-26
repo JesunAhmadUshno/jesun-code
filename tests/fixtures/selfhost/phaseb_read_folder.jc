@@ -1,0 +1,2 @@
+read file "." giving x
+show x

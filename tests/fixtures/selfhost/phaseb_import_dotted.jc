@@ -1,0 +1,3 @@
+import os.path
+show kind of os
+show os.path.join("a", "b")
