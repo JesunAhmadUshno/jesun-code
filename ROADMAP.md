@@ -52,6 +52,30 @@ America/Toronto.
   binaries (transpile Jesun.Code to C, compile with cc). No bundled
   runtime.
 
+## The founder's law (2026-09-25): one language, all solutions
+
+Everything below must be possible NATIVELY in Jesun.Code. The Python
+bridge is bootstrap only; it never counts as the solution. If a domain
+works only through the bridge, that domain is not done.
+
+- **v1.2: jweb.** Native web framework in Jesun.Code: HTTP server,
+  routing, JSON, sessions, sqlite. Frontend and backend, full stack,
+  no Python in the path.
+- **v1.3: frontend.** Native HTML DSL, templates, and JS interop, so
+  real sites and React-level apps are expressible in Jesun.Code.
+- **v1.4: interop packages.** Native jpm packages for the stacks the
+  world runs on: wordpress, react, PHP/laravel helpers. Calling them
+  works today; this phase replaces the need to leave the language.
+- **v2.0: games on PC.** Native 2D graphics, input, audio, and game
+  loop. A visual game written in Jesun.Code, running on PC, no
+  bridge.
+- **v2.1: 3D and physics.** Native 3D rendering and physics on PC.
+- **v3.0: mobile.** Native mobile pipeline: touch input, mobile
+  rendering, APK/IPA packaging. The hardest phase, saved for last.
+
+Order is dependency order; no skipping. Each phase ships only when
+its domain runs natively, tested, in Jesun.Code.
+
 ## Honest framing
 
 Until v1.1, releases ship as a single binary that bundles a runtime; you
