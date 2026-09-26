@@ -34,9 +34,10 @@ America/Toronto.
 ## In progress
 
 - **v1.0: SELF-HOSTING.** `jesun.jc` exists and runs: phase A (v0.1
-  core), phase B part 1 (`ask`, file I/O, the `import` bridge), and the
-  Bangla keyword flavor are differential-green against the bootstrap
-  (spec `docs/spec-v1.0.md`). Still to come: `ask ai`, agents, fleets,
+  core), phase B part 1 (`ask`, file I/O, the `import` bridge), the
+  Bangla keyword flavor, and `ask ai` (spec 8.2, with the `CALL:`
+  tool loop) are differential-green against the bootstrap
+  (spec `docs/spec-v1.0.md`). Still to come: agents, fleets,
   jpm. The milestone is claimed only when the full suite passes
   through `jesun.jc`.
 

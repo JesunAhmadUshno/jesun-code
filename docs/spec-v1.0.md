@@ -293,19 +293,77 @@ All the work is in the lexer, mirroring the bootstrap exactly:
   now ends the word and fails `I do not know what "→" means here.`
   on both sides.
 
-### 8.2 `ask ai` (next sprint)
+### 8.2 `ask ai` (shipped)
 
-`parse_ask_ai`: `ask ai <prompt> giving <name>` with optional
-`with tools [...]`, `within <n> steps`, `streaming`. The walker
-delegates to the bootstrap the same way phase B part 1 does: `argv`
-from `JESUNCODE_AI_COMMAND` (shlex-split, Windows-aware) via a bridge
-helper, subprocess through the bridge with a timeout, streaming as
-plain text chunks. Missing command fails
-`I have no mind to ask. Set JESUNCODE_AI_COMMAND first.` at the target
-line. Differential fixtures use fixture minds (`tests/fixtures/mind_*.py`)
-with `JESUNCODE_AI_COMMAND` pointed at them, so both sides are
-deterministic. The tool loop (`with tools`) reuses the walker's own
-foreign-call path for tool functions.
+`parse_ask_ai`: `ask ai <prompt> giving <name>`, with optional
+`with tools [name, ...]`, optional `within <n> steps` (only when
+`with tools` is present, matching the bootstrap), and optional
+trailing `streaming`. `within` takes a whole number of at least 1
+(Bengali digits work: `within ২ steps`); anything else is a parse
+error at the target line. `ask` with a named agent stays a parse
+error for the next sprint. Bangla spells it
+`জিজ্ঞেস এআই ... রেখে ...` with `হাতিয়ার`, `মধ্যে`, `ধাপ`,
+`সরাসরি`; the walker's lexer maps them to the same kinds, so one
+parser covers both flavors.
+
+The subprocess half lives in one constant template,
+`_AI_HELPERS_SRC`, defined once at the top of `jesun.jc` as joined
+text and loaded with `builtins.exec` into a fresh namespace per
+`ask ai`. Security review: the template is fixed source; it never
+contains program text, and user data travels only as values in the
+helper arguments. It cannot raise: every outcome is a
+`["code", ...]` list, and the walker (`ai_finish`) maps each code to
+a plain-English error at the target program's line:
+
+- `missing`: `no mind connected. Set JESUNCODE_AI_COMMAND to a
+  command that reads a prompt and writes an answer, for example:
+  export JESUNCODE_AI_COMMAND="ollama run llama3.1"`
+- `not_found`: `I could not run the mind command.`
+- `timeout`: `the mind took too long to answer (over 60 seconds).`
+- `talk`: `I could not talk to the mind.`
+- `bad_exit`: `the mind exited with an error.` plus the first safe
+  stderr line when it carries no traceback or address.
+
+`argv` comes from `JESUNCODE_AI_COMMAND`, shlex-split
+(Windows-aware), exactly like the bootstrap. The prompt goes on
+stdin; the answer is stdout with one trailing newline trimmed.
+Streaming writes each chunk to stdout as it arrives and normalizes
+CRLF to LF.
+
+The tool loop (`ai_tool_loop`) is Jesun.Code. The transcript starts
+with the system prompt
+`You are a helper inside Jesun.Code. You can call tools by writing
+one per line like this:\nCALL: toolname("some text", 2)\nAvailable
+tools: <names>\nCall no other tools. Anything you write outside CALL
+lines is your final answer to the human.`
+followed by `Human: <prompt>`; each round appends `(You have used
+<n> of <m> steps.)`, then `Mind:\n<reply>\n\nResults:\n<results>`.
+A reply line matches `CALL: name(args)` (leading/trailing spaces
+allowed); every other line is a candidate answer line. With no CALL
+lines, the answer is the non-CALL lines joined and trimmed. Tool
+arguments split at top-level commas (strings and nested brackets
+respected, mirroring the bootstrap's `_split_top_level`) and parse
+as Jesun.Code expressions in the current scope. Dispatch:
+
+- a name not in the declared list, or a declared name that is not a
+  Jesun function, answers
+  `RESULT of <name>: I do not know a tool called "<name>".`
+  (undeclared names also get the `I only have these tools: ...`
+  prefix, matching the bootstrap);
+- a wrong argument count answers
+  `RESULT of <name>: "<name>" needs <n> input(s), but got <m>.`;
+- otherwise the tool runs through the walker's own foreign-call
+  path (`call_function`) and its rendered return becomes
+  `RESULT of <name>: <value>`.
+
+Step exhaustion fails
+`the mind used all <n> steps without giving an answer.` at the
+target line. Differential fixtures use fixture minds
+(`tests/fixtures/mind_*.py`) with `JESUNCODE_AI_COMMAND` pointed at
+them, so both sides are deterministic; `tests/fixtures/selfhost/`
+carries `ask_ai_basic.jc`, `ask_ai_tools.jc`, and
+`ask_ai_bangla.jc`, and `tests/fuzz_selfhost.py` covers the error
+codes plus the `within`/`streaming` grammar shapes.
 
 ### 8.3 Agents (after `ask ai`)
 

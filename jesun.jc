@@ -22,6 +22,15 @@ import difflib
 import pkgutil
 import unicodedata
 
+note ---- ask ai bridge source (spec 8.2): one CONSTANT Python template
+note defining the mind-protocol helpers (_jc_ai_run, _jc_ai_argv,
+note _jc_ai_once, _jc_ai_stream, _jc_call_match, _jc_ai_detail).
+note Security review: the template never contains program text; user
+note data travels only as values in the helper arguments. It cannot
+note raise: every outcome is a ["code", ...] list. The walker maps
+note codes to plain-English errors at the target line (ai_finish).
+_AI_HELPERS_SRC is join of ["# Jesun.Code \"ask ai\" bridge helpers (spec 8.2). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is [\"ok\", answer] or an error", "# code list, so the walker keeps the target program's line numbers.", "def _jc_ai_detail(text):", "    import re", "    first = (text or \"\").strip().split(\"\\n\")[0][:160]", "    if not first:", "        return \"\"", "    if re.search(r'Traceback|File \"|^\\w*Error:|0x[0-9a-fA-F]+', first):", "        return \"\"", "    return first", "def _jc_ai_argv():", "    import os", "    import shlex", "    command = os.environ.get(\"JESUNCODE_AI_COMMAND\", \"\").strip()", "    if not command:", "        return [\"missing\"]", "    if os.name == \"nt\":", "        argv = []", "        for token in shlex.split(command, posix=False):", "            if len(token) >= 2 and token.startswith('\"') and token.endswith('\"'):", "                token = token[1:-1]", "            argv.append(token)", "    else:", "        argv = shlex.split(command)", "    if not argv:", "        return [\"missing\"]", "    return [\"ok\", argv]", "def _jc_ai_once(argv, prompt):", "    import subprocess", "    try:", "        proc = subprocess.run(argv, input=prompt, capture_output=True, text=True, timeout=60)", "    except FileNotFoundError:", "        return [\"not_found\"]", "    except subprocess.TimeoutExpired:", "        return [\"timeout\"]", "    except Exception:", "        return [\"talk\"]", "    if proc.returncode != 0:", "        return [\"bad_exit\", _jc_ai_detail(proc.stderr or \"\")]", "    out = proc.stdout or \"\"", "    if out.endswith(\"\\n\"):", "        out = out[:-1]", "    if out.endswith(\"\\r\"):", "        out = out[:-1]", "    return [\"ok\", out]", "def _jc_ai_stream(argv, prompt, stdout):", "    import codecs", "    import queue", "    import subprocess", "    import threading", "    import time", "    try:", "        proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)", "    except FileNotFoundError:", "        return [\"not_found\"]", "    except Exception:", "        return [\"talk\"]", "    chunks = []", "    try:", "        proc.stdin.write(prompt)", "        proc.stdin.close()", "        raw_out = proc.stdout.buffer", "        pending = queue.Queue()", "        eof = object()", "        def _reader():", "            decoder = codecs.getincrementaldecoder(\"utf-8\")()", "            carry = \"\"", "            while True:", "                data = raw_out.read1(4096)", "                if not data:", "                    break", "                text = carry + decoder.decode(data)", "                if text.endswith(\"\\r\"):", "                    carry = \"\\r\"", "                    text = text[:-1]", "                else:", "                    carry = \"\"", "                text = text.replace(\"\\r\\n\", \"\\n\").replace(\"\\r\", \"\\n\")", "                if text:", "                    pending.put(text)", "            tail = carry + decoder.decode(b\"\", final=True)", "            tail = tail.replace(\"\\r\\n\", \"\\n\").replace(\"\\r\", \"\\n\")", "            if tail:", "                pending.put(tail)", "            pending.put(eof)", "        reader = threading.Thread(target=_reader, daemon=True)", "        reader.start()", "        deadline = time.monotonic() + 60", "        while True:", "            remaining = deadline - time.monotonic()", "            if remaining <= 0:", "                proc.kill()", "                return [\"timeout\"]", "            try:", "                item = pending.get(timeout=remaining)", "            except queue.Empty:", "                proc.kill()", "                return [\"timeout\"]", "            if item is eof:", "                break", "            stdout.write(item)", "            stdout.flush()", "            chunks.append(item)", "        proc.wait(timeout=5)", "    except Exception:", "        try:", "            proc.kill()", "        except Exception:", "            pass", "        return [\"talk\"]", "    if proc.returncode != 0:", "        return [\"bad_exit\", \"\"]", "    out = \"\".join(chunks)", "    if out.endswith(\"\\n\"):", "        out = out[:-1]", "    if out.endswith(\"\\r\"):", "        out = out[:-1]", "    return [\"ok\", out]", "def _jc_call_match(line):", "    import re", "    m = re.match(r\"^CALL:\\s*([A-Za-z_][A-Za-z0-9_]*)\\((.*)\\)\\s*$\", line.strip())", "    if not m:", "        return []", "    return [m.group(1), m.group(2)]", "def _jc_ai_run(prompt, streaming, stdout):", "    try:", "        r = _jc_ai_argv()", "        if r[0] == \"missing\":", "            return [\"missing\"]", "        argv = r[1]", "        if streaming:", "            return _jc_ai_stream(argv, prompt, stdout)", "        return _jc_ai_once(argv, prompt)", "    except Exception:", "        return [\"talk\"]", ""] with "\n"
+
 note ==== SECTION: HELPERS ====
 
 to parse_error with lineno and msg
@@ -401,10 +410,9 @@ note ---- phase B part 1: ask, file I/O, import (spec section 7) ----
 to parse_ask with toks and i
     ln is peek_line with toks and i
     i is i + 1
-    if peek_is with toks and i and "name" or peek_is with toks and i and "ai" then
-        w is peek_value with toks and i
-        if w is "ai" then
-            parse_error with ln and "\"ask ai\" is for phase B part 2; this interpreter only asks plain questions so far."
+    if peek_is with toks and i and "ai" then
+        give back parse_ask_ai with toks and i
+    if peek_is with toks and i and "name" then
         if not peek_is with toks and i + 1 and "giving" then
             parse_error with ln and "\"ask\" with a named agent is for phase B part 2; this interpreter only asks plain questions so far."
     pair is parse_or with toks and i
@@ -413,6 +421,44 @@ to parse_ask with toks and i
     i is expect with toks and i and "name" and "a name to store the answer in"
     i is expect with toks and i and "newline" and "the end of the line"
     give back [["ask", pair[0], name, ln], i]
+
+to parse_ask_ai with toks and i
+    ln is peek_line with toks and i
+    i is i + 1
+    pair is parse_or with toks and i
+    i is pair[1]
+    toolnames is []
+    max_steps is 10
+    if peek_is with toks and i and "with" then
+        i is i + 1
+        i is expect with toks and i and "tools" and "\"tools\""
+        i is expect with toks and i and "[" and "\"[\" around the tool names"
+        if not peek_is with toks and i and "]" then
+            push peek_value with toks and i to toolnames
+            i is expect with toks and i and "name" and "a tool name"
+            repeat while peek_is with toks and i and ","
+                i is i + 1
+                push peek_value with toks and i to toolnames
+                i is expect with toks and i and "name" and "a tool name"
+        i is expect with toks and i and "]" and "a closing \"]\""
+        if peek_is with toks and i and "within" then
+            i is i + 1
+            sln is peek_line with toks and i
+            sval is peek_value with toks and i
+            i is expect with toks and i and "number" and "a number of steps"
+            if not builtins.isinstance(sval, builtins.int) or sval is less than 1 then
+                parse_error with sln and "\"within\" needs a whole number of steps, at least 1."
+            max_steps is sval
+            i is expect with toks and i and "steps" and "\"steps\""
+    i is expect with toks and i and "giving" and "\"giving\" followed by a name"
+    name is peek_value with toks and i
+    i is expect with toks and i and "name" and "a name to store the answer in"
+    dostream is false
+    if peek_is with toks and i and "streaming" then
+        i is i + 1
+        dostream is true
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["askai", pair[0], toolnames, max_steps, name, dostream, ln], i]
 
 to parse_readfile with toks and i
     ln is peek_line with toks and i
@@ -1533,6 +1579,167 @@ to ev_callf with node and env and depth
         push [kw[0], kp[0]] to kwpairs
     give back [bridge_call with f and args and kwpairs, ""]
 
+note ---- phase B part 2: ask ai (spec 8.2) ----
+note The mind protocol (argv from JESUNCODE_AI_COMMAND, subprocess with a
+note 60s timeout, the streaming reader) is the constant _AI_HELPERS_SRC
+note template at the top of this file. Everything else, the transcript,
+note the CALL loop, tool dispatch, RESULT lines, lives here in Jesun.Code.
+
+to ai_bridge_ns
+    ns is builtins.dict()
+    builtins.exec(_AI_HELPERS_SRC, ns)
+    give back ns
+
+to ai_finish with r and ln
+    code is r[0]
+    if code is "missing" then
+        rt_error with ln and "no mind connected. Set JESUNCODE_AI_COMMAND to a command that reads a prompt and writes an answer, for example: export JESUNCODE_AI_COMMAND=\"ollama run llama3.1\""
+    if code is "not_found" then
+        rt_error with ln and "I could not run the mind command."
+    if code is "timeout" then
+        rt_error with ln and "the mind took too long to answer (over 60 seconds)."
+    if code is "talk" then
+        rt_error with ln and "I could not talk to the mind."
+    if code is "bad_exit" then
+        msg is "the mind exited with an error."
+        if r[1] is not "" then
+            msg is msg + " It said: " + r[1]
+        rt_error with ln and msg
+    if code is "ok" then
+        give back r[1]
+    rt_error with ln and "I could not talk to the mind."
+
+to ai_env_lookup with env and name
+    i is length of env
+    repeat while i is greater than 0
+        i is i - 1
+        scope is env[i]
+        j is length of scope
+        repeat while j is greater than 0
+            j is j - 1
+            pair is scope[j]
+            if pair[0] is name then
+                give back pair[1]
+    give back nothing
+
+to ai_split_top_level with intext
+    parts is []
+    depth is 0
+    cur is ""
+    quote is ""
+    cs is characters of intext
+    n is length of cs
+    i is 0
+    repeat while i is less than n
+        ch is cs[i]
+        if quote is not "" then
+            cur is cur + ch
+            if ch is "\\" and i + 1 is less than n then
+                cur is cur + cs[i + 1]
+                i is i + 2
+                skip
+            if ch is quote then
+                quote is ""
+            i is i + 1
+            skip
+        if ch is "\"" or ch is "'" then
+            quote is ch
+            cur is cur + ch
+        otherwise
+            if ch is "(" or ch is "[" or ch is "{{" then
+                depth is depth + 1
+                cur is cur + ch
+            otherwise
+                if ch is ")" or ch is "]" or ch is "}" then
+                    if depth is greater than 0 then
+                        depth is depth - 1
+                    cur is cur + ch
+                otherwise
+                    if ch is "," and depth is 0 then
+                        push cur to parts
+                        cur is ""
+                    otherwise
+                        cur is cur + ch
+        i is i + 1
+    push cur to parts
+    give back parts
+
+to ai_tool_args with argtext and ln and env
+    if trim of argtext is "" then
+        give back []
+    values is []
+    for each part in ai_split_top_level with argtext
+        p is trim of part
+        if p is "" then
+            rt_error with ln and "a tool call has an empty input."
+        toks is lex with p + "\n" and 0 and false
+        pair is parse_or with toks and 0
+        i is expect with toks and pair[1] and "newline" and "the end of the line"
+        v is ev with pair[0] and [env[0]] and 0
+        push v[0] to values
+    give back values
+
+to ai_run_tool with name and argtext and toolnames and ln and env and depth
+    if not toolnames contains name then
+        give back "RESULT of " + name + ": I only have these tools: " + join of toolnames with ", " + ". I do not know a tool called \"" + name + "\"."
+    target is ai_env_lookup with env and name
+    if is_function_value with target then
+        argvals is ai_tool_args with argtext and ln and env
+        need is length of target[2]
+        if length of argvals is not need then
+            word is "input"
+            if need is not 1 then
+                word is "inputs"
+            give back "RESULT of " + name + ": \"" + name + "\" needs " + text of need + " " + word + ", but got " + text of length of argvals + "."
+        rv is call_function with target and argvals and env and depth and ln
+        give back "RESULT of " + name + ": " + render with rv[0]
+    give back "RESULT of " + name + ": I do not know a tool called \"" + name + "\"."
+
+to ai_tool_loop with ns and prompt and toolnames and max_steps and dostream and ln and env and depth
+    run_fn is ns["_jc_ai_run"]
+    match_fn is ns["_jc_call_match"]
+    system is "You are a helper inside Jesun.Code. You can call tools by writing one per line like this:\nCALL: toolname(\"some text\", 2)\nAvailable tools: " + join of toolnames with ", " + "\nCall no other tools. Anything you write outside CALL lines is your final answer to the human."
+    transcript is system + "\n\nHuman: " + prompt
+    step is 1
+    repeat while step is less than max_steps + 1
+        r is run_fn(transcript + "\n\n(You have used " + text of step + " of " + text of max_steps + " steps.)", dostream, sys.stdout)
+        reply is ai_finish with r and ln
+        calls is []
+        answer_lines is []
+        for each raw in split of reply by "\n"
+            m is match_fn(raw)
+            if length of m is 2 then
+                push m to calls
+            otherwise
+                push raw to answer_lines
+        if length of calls is 0 then
+            give back trim of join of answer_lines with "\n"
+        results is []
+        for each c in calls
+            push ai_run_tool with c[0] and c[1] and toolnames and ln and env and depth to results
+        transcript is transcript + "\n\nMind:\n" + reply + "\n\nResults:\n" + join of results with "\n"
+        step is step + 1
+    rt_error with ln and "the mind used all " + text of max_steps + " steps without giving an answer."
+
+to exec_askai with stmt and env and depth
+    ln is stmt[6]
+    p is ev with stmt[1] and env and depth
+    if p[1] is not "" then
+        give back [p[1]]
+    prompt is p[0]
+    if kind of prompt is not "text" then
+        rt_error with ln and "the question I ask the mind must be text."
+    ns is ai_bridge_ns
+    run_fn is ns["_jc_ai_run"]
+    if length of stmt[2] is 0 then
+        r is run_fn(prompt, stmt[5], sys.stdout)
+        answer is ai_finish with r and ln
+        env_set with env and stmt[4] and answer
+        give back ["none"]
+    answer is ai_tool_loop with ns and prompt and stmt[2] and stmt[3] and stmt[5] and ln and env and depth
+    env_set with env and stmt[4] and answer
+    give back ["none"]
+
 note ---- statement execution: exec_stmt gives back a signal
 
 to exec_block with stmts and env and depth
@@ -1666,6 +1873,8 @@ to exec_stmt with stmt and env and depth
         fail with p[0]
     if tag is "ask" then
         give back exec_ask with stmt and env and depth
+    if tag is "askai" then
+        give back exec_askai with stmt and env and depth
     if tag is "readfile" then
         give back exec_readfile with stmt and env and depth
     if tag is "writefile" then

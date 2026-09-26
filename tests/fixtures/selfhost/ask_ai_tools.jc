@@ -1,0 +1,5 @@
+to read_logs
+    give back "3 errors"
+
+ask ai "what do the logs say" with tools [read_logs] giving a
+show a

@@ -1,0 +1,5 @@
+to read_logs with x
+    give back "saw " + text of x
+
+ask ai "read them" with tools [read_logs] giving a
+show a

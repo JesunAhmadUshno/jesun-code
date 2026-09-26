@@ -1,0 +1,5 @@
+to helper with x
+    give back "helped"
+
+ask ai "do the thing" with tools [helper] giving a
+show a
