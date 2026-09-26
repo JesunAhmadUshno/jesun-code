@@ -1859,6 +1859,25 @@ to ev_attr with node and env and depth
         rt_error with ln and "the python \"" + tname + "\" has no \"" + name + "\"."
     give back [builtins.getattr(obj, name), ""]
 
+note to_python twin (bootstrap jesun.py to_python): a foreign call
+note takes plain data only. Function and agent values are rejected with
+note the bootstrap's exact messages at the call line, checked
+note recursively because the bootstrap converts lists element-wise.
+note The depth cap stands in for the bootstrap's RecursionError guard:
+note a cyclic list reports "I got in too deep" at the call line instead
+note of recursing until the host gives out.
+to bridge_check_arg with v and ln and depth
+    if is_function_value with v then
+        rt_error with ln and "I cannot hand function to Python."
+    if is_agent_value with v then
+        rt_error with ln and "I cannot hand value to Python."
+    if depth is at least 30 then
+        rt_error with ln and "I got in too deep and stopped before falling over."
+    if is_real_list with v then
+        for each item in v
+            bridge_check_arg with item and ln and depth + 1
+    give back nothing
+
 to bridge_call with f and args and kwpairs
     kh is builtins.dict(kwpairs)
     ns is builtins.dict([["__jc_f", f], ["__jc_a", args], ["__jc_k", kh]])
@@ -1883,12 +1902,14 @@ to ev_callf with node and env and depth
         ap is ev with anode and env and depth
         if ap[1] is not "" then
             give back ap
+        bridge_check_arg with ap[0] and ln and 0
         push ap[0] to args
     kwpairs is []
     for each kw in node[3]
         kp is ev with kw[1] and env and depth
         if kp[1] is not "" then
             give back kp
+        bridge_check_arg with kp[0] and ln and 0
         push [kw[0], kp[0]] to kwpairs
     give back [bridge_call with f and args and kwpairs, ""]
 

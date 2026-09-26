@@ -144,6 +144,30 @@ it.
   while the walker leg runs in a subprocess whose pipe writes
   coalesce by design. The migration caught a test bug in the draft
   (memory read after the second run instead of the first).
+- `tests/test_phase2.py` migrated (spec 9.2a): all 14 bridge tests
+  differential-green (imports, aliases, kwargs, list conversion,
+  foreign dicts, missing-module suggestions, native subscripts, error
+  shapes) and all 6 `ask ai` mind tests differential-green through
+  fixture minds with a fresh `MIND_COUNT_FILE` per interpreter leg
+  (call counts asserted on both legs). The foreign-call-error test
+  uses the pinned spec 7.3 line normalizer (call-time foreign
+  failures report at the walker's bridge line). Two pinned
+  exclusions: `MindCommand` (the mock patches `os.name`, changing
+  platform identity; the walker runs on the real platform, spec 9c)
+  and `MachinesLive` (live tmux sessions; the walker does not run
+  terminals, spec 8.3.2). Two pinned divergences: `MachinesNoTmux`
+  (no-tmux message vs the walker's later-phase line, both legs with
+  tmux scrubbed from `PATH`) and the `open terminal named 42`
+  zero-leakage program (terminal-name type error vs the later-phase
+  line). The migration caught a real walker fidelity bug: handing a
+  function to a foreign call recursed forever (the bootstrap
+  deep-copies lists handed to foreign calls; the walker's cyclic
+  function value blew the copy up) instead of failing with `I cannot
+  hand function to Python.` The walker now has a `to_python` twin
+  (`bridge_check_arg` in `jesun.jc`): function and agent values are
+  rejected with the bootstrap's exact messages, lists are checked
+  recursively, and a depth cap reports `I got in too deep` at the
+  call line for cyclic lists, matching the bootstrap.
 
 ## v0.6 - 2026-09-25
 
