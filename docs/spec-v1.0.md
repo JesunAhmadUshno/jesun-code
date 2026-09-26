@@ -763,7 +763,11 @@ green, 2 pinned walker-guard gaps (9.1/9.2). `test_v04` (commit
 working folder per interpreter leg). `test_v05`: 36 differential-
 green (Bangla core, keywords, file I/O, error shapes, stdin `ask`,
 Python-bridge import), 2 pinned exclusions (BanglaRepl per spec 9c,
-VSCodeExtension asset tests). The migration caught and fixed
+VSCodeExtension asset tests). `test_v03`: 15 differential-green
+(deeper agents: cross-run memory with one hermetic home per leg,
+prompt files byte-identical, agent-to-agent, depth cap, streaming;
+write-granularity assertion pinned bootstrap-harness-only). The
+migration caught and fixed
 two real walker fidelity bugs: unknown-word suggestion parity
 (`suggest_name`, 3 fixtures) and per-leg file sandboxing in the
 harness. Suite 364/364 green before the test_v05 migration.]
