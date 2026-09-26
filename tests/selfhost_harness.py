@@ -90,9 +90,25 @@ def run_both(src, stdin="", env=None, cwd=None, sandbox=False):
             shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def run_inline(src, stdin=""):
+    """Write an inline program to a fresh temp dir and run it through
+    run_both with that dir as the working folder. The walker's sandbox
+    rule only reads programs inside the working folder, so inline
+    sources cannot live in the repo or the system temp root; each call
+    gets its own hermetic dir, removed afterwards. Returns the
+    (boot, selfhost) pair like run_both."""
+    tmpdir = tempfile.mkdtemp(prefix="selfhost_inline_")
+    try:
+        path = os.path.join(tmpdir, "inline.jc")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(src)
+        return run_both(path, stdin=stdin, cwd=tmpdir)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 class SelfHostTestCase(unittest.TestCase):
     """Base class carrying every differential run helper."""
-
     def check(self, name):
         boot, selfhost = run_both(name)
         self.assertEqual(
@@ -513,3 +529,56 @@ def _seed_jpm_dirty(home):
     git("commit", "-qm", "seed")
     (dest / "dirty.jc").write_text('show "dirty modified"\n',
                                    encoding="utf-8")
+
+
+class SelfHostDiffCase(unittest.TestCase):
+    """Differential-green assertions for migrated suite files (spec 9.2a).
+
+    check_program(src, expected, stdin=""): an inline program runs on
+    both interpreters; the walker leg must equal the bootstrap leg, and
+    the exact-output assertion stays on the bootstrap leg. check_example
+    is the same for a .jc file path. Both return the bootstrap leg.
+    """
+
+    def assert_differential(self, boot, selfhost, label):
+        self.assertEqual(
+            selfhost, boot,
+            f"{label} differs:\nbootstrap={boot!r}\nselfhost={selfhost!r}",
+        )
+
+    def check_program(self, src, expected, stdin=""):
+        boot, selfhost = run_inline(src, stdin=stdin)
+        self.assert_differential(boot, selfhost, f"program {src!r}")
+        self.assertEqual(boot[1], expected)
+        return boot
+
+    def check_example(self, path, expected, stdin=""):
+        boot, selfhost = run_both(path, stdin=stdin)
+        self.assert_differential(boot, selfhost, f"example {path}")
+        self.assertEqual(boot[1], expected)
+        return boot
+
+
+class InlineSandbox:
+    """A temp working dir shared by several inline runs inside one test.
+
+    Some migrated tests run multiple programs that share files (v0.4
+    file I/O). Each program is written as prog<N>.jc in the sandbox
+    dir, which stays the working folder for every run (the walker's
+    sandbox rule needs the target inside the working folder). Close it
+    in tearDown; the dir is removed.
+    """
+
+    def __init__(self):
+        self.dir = tempfile.mkdtemp(prefix="selfhost_inline_")
+        self.n = 0
+
+    def run(self, src, stdin=""):
+        self.n += 1
+        path = os.path.join(self.dir, f"prog{self.n}.jc")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(src)
+        return run_both(path, stdin=stdin, cwd=self.dir)
+
+    def close(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
