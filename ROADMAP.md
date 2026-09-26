@@ -38,11 +38,13 @@ America/Toronto.
   Bangla keyword flavor, `ask ai` (spec 8.2, with the `CALL:` tool
   loop), agents (spec 8.3, with the one pinned tool-failure gap),
   fleets (spec 8.4, sequential in the walker, with the pinned 8.4.1
-  gap), and later-phase statement parsing (`use`, `bring in`, tmux
-  terminal shapes) are differential-green against the
-  bootstrap (spec `docs/spec-v1.0.md`). Still to come: jpm
-  execution. The milestone is claimed only when the full suite
-  passes through `jesun.jc`.
+  gap), jpm execution (spec 8.5: `use`/`bring in` in the walker,
+  package error tagging identical to the bootstrap, with the pinned
+  8.5.5 deep-source gap), and later-phase statement parsing (`use`,
+  `bring in`, tmux terminal shapes) are differential-green against the
+  bootstrap (spec `docs/spec-v1.0.md`). Still to come: sprint 4, the
+  full test suite passing through `jesun.jc`. The milestone is claimed
+  only when the full suite passes through `jesun.jc`.
 
 ## Up next (in order, no skipping)
 

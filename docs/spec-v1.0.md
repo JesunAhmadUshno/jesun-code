@@ -258,7 +258,7 @@ Part 2 brings the v0.2-v0.6 surface into the walker: `ask ai` (spec
 Sprint order inside part 2: Bangla first (lexer-only, no subprocess),
 then `ask ai`, then agents, then fleets, then jpm.
 
-### 8.1 Bangla keyword flavor in the walker (this sprint)
+### 8.1 Bangla keyword flavor in the walker (shipped)
 
 The parser needs no changes: Bangla keywords map to the same kinds
 (`দেখাও` is `show`), so the tree format and the walker are untouched.
@@ -365,7 +365,7 @@ carries `ask_ai_basic.jc`, `ask_ai_tools.jc`, and
 `ask_ai_bangla.jc`, and `tests/fuzz_selfhost.py` covers the error
 codes plus the `within`/`streaming` grammar shapes.
 
-### 8.3 Agents (this sprint)
+### 8.3 Agents (shipped)
 
 `agent <name>` blocks (persona, tools, remember on/off/always, memory
 file, max steps), `ask <agent> <prompt> giving <name> [streaming]`,
@@ -542,11 +542,116 @@ dedicated fixtures (a failing ask followed by a side-effect ask);
 the differential fuzzer never generates failing fleet asks, so
 fuzzing stays byte-identical.
 
-### 8.5 jpm (after fleets)
+### 8.5 jpm in self-host (shipped)
 
-`use "github.com/user/pkg"` and `bring in "pkg"`. The walker
-delegates the install to the bootstrap's jpm path through the bridge
-(`~/.jesun-code/packages/`, path-escape checks, no `..` traversal),
-then loads the package's `.jc` files through its own lexer/parser.
-Differential tests sandbox `JESUN_CODE_HOME` to a temp dir and use a
-local `packages/` fixture tree instead of the network.
+`use "github.com/user/pkg"` and `bring in "pkg"` run in the walker.
+The subprocess and filesystem halves stay in one constant audited
+bridge template (`_JPM_HELPERS_SRC`: `_jc_jpm_find` already shipped,
+plus `_jc_jpm_use`, `_jc_jpm_main`, `_jc_jpm_read`). The address and
+name validation, the find/exec flow, and the package-body execution
+are pure Jesun.Code. The walker's lexer/parser read the package's
+`.jc` source exactly the way the driver reads a target program
+(BOM strip, Bangla header detection, same line numbers).
+
+#### 8.5.1 The bridge
+
+`_jc_jpm_use(host, user, pkg)` mirrors the bootstrap's `exec_use_pkg`
+outcome for outcome, and cannot raise:
+
+- dest exists: `["already"]` when clean (or when git is missing, or
+  when it is not a git checkout, matching `_jpm_check_clean`'s
+  silent return); `["dirty"]` when `git status --porcelain` is
+  non-empty.
+- dest missing: `["no_git"]` when git is absent;
+  `["fetch_failed"]` when the clone fails (the half-made folder is
+  removed, like the bootstrap); `["cloned"]` on success. Clone is
+  `git clone --depth 1 https://host/user/pkg dest`, arg list only,
+  120s timeout, output discarded.
+
+`_jc_jpm_main(dest, name)` mirrors `_jpm_main_file`: `["ok", fname,
+resolved]` for the manifest-picked (or `<name>.jc`) main file;
+`["manifest_bad"]` when `jpm.json` cannot be read;
+`["escape"]` when the resolved main file is not under the package
+folder; `["no_file"]` when the main file is absent. `["ok"]`'s
+resolved path is absolute.
+
+`_jc_jpm_read(path)` reads the main file (`utf-8`, `errors="replace"`):
+`["ok", text]` or `["failed"]`.
+
+#### 8.5.2 `use` in the walker
+
+`exec_usepkg` evaluates the address operand first (its errors match the
+bootstrap), validates the three segments with `jpm_segment_ok` (the
+exact `_JPM_SEGMENT` predicate plus the `..` ban), rejects non-github
+hosts, then calls `_jc_jpm_use`. Outcome map: `already`/`cloned` are
+silent no-ops; `no_git` fails `I need git to fetch packages, and I
+cannot find it.`; `dirty` fails `the package "user/pkg" has local
+changes; move them away before I fetch it again.`; `fetch_failed`
+fails `I could not fetch "host/user/pkg"; check the address and your
+connection.` All at the `use` line, all plain English.
+
+#### 8.5.3 `bring in` in the walker
+
+`exec_bringin` evaluates the name operand first, validates it (empty,
+`.`, `..`, bad segments), then checks the circularity guard
+(`jpm_loading_stack`, a module-level Jesun.Code list): a name already
+on the stack fails `these packages bring each other in a circle:
+a, b, a.` exactly like the bootstrap's `_jpm_loading` chain.
+
+`_jc_jpm_find` locates the folder (`missing` fails with the
+not-fetched line, naming the expected `use` address). `_jc_jpm_main`
+resolves the main file (the three failure lines above). The name is
+pushed on the loading stack and the error-tag stack; `_jc_jpm_read`
+reads the source; the walker's own `lex`/`parse_program` parse it
+(driver flow, so Bangla packages work and line numbers are the
+package's own). Each statement runs through `exec_stmt` in the
+current environment, exactly like the bootstrap's body loop.
+
+After the body, every function the package defined is tagged with
+its package: the walker compares the current scope's names against a
+pre-body snapshot and rebinds each new function value with its
+origin slot set (`["function", name, params, body, closure, lineno,
+origin]`; functions created by `to` carry `""` until a package tags
+them). The loading stack and the tag stack are popped before any
+error can propagate, because `rt_error` aborts the run.
+
+#### 8.5.4 Package error tagging
+
+The bootstrap prefixes package errors with `in the "pkg" package: `,
+once, at the innermost package frame first. The walker does the same
+with a module-level tag stack (`jpm_tag_stack`, top `""` when no
+package code runs): `rt_error` and `parse_error` prepend every
+non-empty tag on the stack, outermost first. `exec_bringin` pushes
+the package name around the parse and body of `bring in`;
+`call_function` pushes a function's origin around its body when the
+origin is non-empty. Because errors abort the run, tagging happens
+exactly once, at the failure point, and nested packages accumulate
+tags outward just like the bootstrap.
+
+#### 8.5.5 Known gap (honest, not hidden)
+
+A package whose source nests expressions deeper than the walker's
+parser can recurse diverges exactly the way a deep main program
+already diverges (pre-existing walker behavior, not jpm-specific):
+the bootstrap fails `Line <bring-ln>: I got in too deep and stopped
+before falling over.`; the walker fails `Line <walker-ln>: the
+functions are calling each other too deep; I stopped before falling
+over.` (the walker's own call-depth guard trips inside its parser
+functions). The differential suite pins the divergence shape with a
+dedicated fixture; the differential fuzzer never generates such
+shapes, so fuzzing stays byte-identical.
+
+#### 8.5.6 Differential coverage
+
+Fixtures sandbox `JESUN_CODE_HOME` to a temp dir and build a local
+`packages/github.com/u/<pkg>/` tree (no network): a working package,
+a package whose body fails at load, a package function that fails at
+call time (origin tagging), a package calling another package's
+function (tag accumulation), a circular pair, a bad `jpm.json`, an
+escaping `main`, a missing main file, a Bangla package, a `use`
+against a git repo with local changes (dirty), and a `use` of a
+missing address with git stubbed absent. `use` clone-success is not
+fixture-tested (no network in tests); the bridge template's clone
+path is covered by direct unit tests of the template source.
+Differential tests compare stdout and exit code; the known 8.5.5 gap
+fixture asserts the pinned divergence.

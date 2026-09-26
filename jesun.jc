@@ -38,11 +38,11 @@ note _AI_HELPERS_SRC: never contains program text, never raises, every
 note outcome is a ["code", ...] list.
 _AGENT_HELPERS_SRC is join of ["# Jesun.Code \"agents\" bridge helpers (spec 8.3). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is a [\"code\", ...] list, so the", "# walker keeps the target program's line numbers.", "def _jc_agent_mempath(name, memfile):", "    import os", "    from pathlib import Path", "    if memfile:", "        return memfile", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    safe = \"\".join(c if (c.isalnum() or c in \"-_\") else \"_\" for c in name)", "    return str(base / \"memory\" / ((safe or \"agent\") + \".json\"))", "", "def _jc_agent_load(path):", "    import json", "    from pathlib import Path", "    try:", "        raw = Path(path).read_text(encoding=\"utf-8\")", "    except FileNotFoundError:", "        return [\"missing\"]", "    except OSError:", "        return [\"unreadable\"]", "    try:", "        data = json.loads(raw)", "        if not isinstance(data, list):", "            raise ValueError(\"bad memory\")", "        turns = []", "        for item in data:", "            if not isinstance(item, (list, tuple)) or len(item) != 2:", "                raise ValueError(\"bad turn\")", "            prompt_text, answer_text = item", "            if not isinstance(prompt_text, str) or not isinstance(answer_text, str):", "                raise ValueError(\"bad turn\")", "            turns.append([prompt_text, answer_text])", "        return [\"ok\", turns]", "    except Exception:", "        return [\"unreadable\"]", "", "def _jc_agent_save(path, turns):", "    import json", "    from pathlib import Path", "    try:", "        target = Path(path)", "        target.parent.mkdir(parents=True, exist_ok=True)", "        kept = turns[-200:]", "        target.write_text(json.dumps(kept, ensure_ascii=False, indent=1), encoding=\"utf-8\")", "        return [\"ok\"]", "    except Exception:", "        return [\"failed\"]", "", "def _jc_agent_forget(path):", "    from pathlib import Path", "    try:", "        Path(path).unlink()", "        return [\"ok\"]", "    except FileNotFoundError:", "        return [\"missing\"]", "    except OSError:", "        return [\"failed\"]"] with "\n"
 
-note ---- jpm package-find bridge source (spec 8.4): one CONSTANT Python template
-note defining _jc_jpm_find (mirrors the bootstrap _jpm_find dir scan).
+note ---- jpm bridge source (spec 8.5): one CONSTANT Python template
+note defining _jc_jpm_find, _jc_jpm_use, _jc_jpm_main, _jc_jpm_read.
 note Same contract as _AI_HELPERS_SRC: never contains program text,
 note never raises, every outcome is a ["code", ...] list.
-_JPM_HELPERS_SRC is join of ["# Jesun.Code \"bring in\" bridge helper (spec 8.4). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is a [\"code\", ...] list, so the", "# walker keeps the target program's line numbers.", "def _jc_jpm_find(name):", "    import os", "    from pathlib import Path", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    pkgs = base / \"packages\"", "    try:", "        if not pkgs.is_dir():", "            return [\"missing\"]", "        hosts = sorted(p for p in pkgs.iterdir() if p.is_dir())", "    except OSError:", "        return [\"missing\"]", "    for host_dir in hosts:", "        try:", "            users = sorted(p for p in host_dir.iterdir() if p.is_dir())", "        except OSError:", "            continue", "        for user_dir in users:", "            candidate = user_dir / name", "            try:", "                if candidate.is_dir():", "                    return [\"ok\", str(candidate)]", "            except OSError:", "                continue", "    return [\"missing\"]", ""] with "\n"
+_JPM_HELPERS_SRC is join of ["# Jesun.Code \"bring in\" bridge helpers (spec 8.5). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is a [\"code\", ...] list, so the", "# walker keeps the target program's line numbers.", "def _jc_jpm_find(name):", "    import os", "    from pathlib import Path", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    pkgs = base / \"packages\"", "    try:", "        if not pkgs.is_dir():", "            return [\"missing\"]", "        hosts = sorted(p for p in pkgs.iterdir() if p.is_dir())", "    except OSError:", "        return [\"missing\"]", "    for host_dir in hosts:", "        try:", "            users = sorted(p for p in host_dir.iterdir() if p.is_dir())", "        except OSError:", "            continue", "        for user_dir in users:", "            candidate = user_dir / name", "            try:", "                if candidate.is_dir():", "                    return [\"ok\", str(candidate)]", "            except OSError:", "                continue", "    return [\"missing\"]", "def _jc_jpm_use(host, user, pkg):", "    import os", "    import shutil", "    import subprocess", "    from pathlib import Path", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    dest = base / \"packages\" / host / user / pkg", "    git = shutil.which(\"git\")", "    if dest.exists():", "        if git is None:", "            return [\"already\"]", "        try:", "            done = subprocess.run([git, \"-C\", str(dest), \"status\", \"--porcelain\"], timeout=30, capture_output=True, text=True)", "        except Exception:", "            return [\"already\"]", "        if done.returncode == 0 and done.stdout.strip():", "            return [\"dirty\"]", "        return [\"already\"]", "    if git is None:", "        return [\"no_git\"]", "    try:", "        dest.parent.mkdir(parents=True, exist_ok=True)", "        subprocess.run([git, \"clone\", \"--depth\", \"1\", \"https://\" + host + \"/\" + user + \"/\" + pkg, str(dest)], check=True, timeout=120, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)", "        return [\"cloned\"]", "    except Exception:", "        shutil.rmtree(dest, ignore_errors=True)", "        return [\"fetch_failed\"]", "def _jc_jpm_main(dest, name):", "    import json", "    from pathlib import Path", "    fname = name + \".jc\"", "    manifest = Path(dest) / \"jpm.json\"", "    if manifest.is_file():", "        try:", "            data = json.loads(manifest.read_text(encoding=\"utf-8\"))", "            picked = data.get(\"main\")", "            if isinstance(picked, str) and picked.strip():", "                fname = picked.strip()", "        except Exception:", "            return [\"manifest_bad\"]", "    target = Path(dest) / fname", "    try:", "        resolved = target.resolve()", "        resolved.relative_to(Path(dest).resolve())", "    except Exception:", "        return [\"escape\"]", "    if not resolved.is_file():", "        return [\"no_file\", fname]", "    return [\"ok\", fname, str(resolved)]", "def _jc_jpm_read(path):", "    from pathlib import Path", "    try:", "        return [\"ok\", Path(path).read_text(encoding=\"utf-8\", errors=\"replace\")]", "    except Exception:", "        return [\"failed\"]", ""] with "\n"
 
 note ---- fleet memory bridge source (spec 8.4): one CONSTANT Python template
 note defining the fleet memory load/save helpers (_jc_fleet_load,
@@ -54,7 +54,7 @@ _FLEET_HELPERS_SRC is join of ["# Jesun.Code \"fleet\" bridge helpers (spec 8.4)
 note ==== SECTION: HELPERS ====
 
 to parse_error with lineno and msg
-    fail with "Line " + text of lineno + ": " + msg
+    fail with "Line " + text of lineno + ": " + jpm_error_prefix + msg
 
 to bridge_is_digit with ch
     ns is builtins.dict([["__jc_c", ch]])
@@ -1231,7 +1231,7 @@ note signal: ["none"], ["giveback", v, ln], ["stop", ln], ["skip", ln].
 note "fail with" ends everything at once, so the walker never carries it.
 
 to rt_error with ln and msg
-    fail with "Line " + text of ln + ": " + msg
+    fail with "Line " + text of ln + ": " + jpm_error_prefix + msg
 
 note ---- environments: a list of scopes; each scope is a list of
 note [name, value] pairs. Setting always shadows in the current scope,
@@ -1282,10 +1282,14 @@ note ---- value kinds and rendering
 
 to is_function_value with v
     if kind of v is "list" then
-        if length of v is 6 then
+        if length of v is 6 or length of v is 7 then
             if v[0] is "function" then
                 give back true
     give back false
+
+note A function value is ["function", name, params, body, closure,
+note lineno, origin]. origin is "" for plain definitions; bring in
+note (spec 8.5) rebinds package functions with the package name.
 
 to is_real_list with v
     if is_function_value with v then
@@ -1465,7 +1469,15 @@ to call_function with fn and argvals and env and depth and ln
     repeat while i is less than length of params
         env_set with new_env and params[i] and argvals[i]
         i is i + 1
+    origin is ""
+    if length of fn is 7 then
+        if fn[6] is not "" then
+            origin is fn[6]
+    if origin is not "" then
+        jpm_tag_push with origin
     sig is exec_block with fn[3] and new_env and depth + 1
+    if origin is not "" then
+        jpm_tag_pop
     if sig[0] is "giveback" then
         give back [sig[1], ""]
     if sig[0] is "none" then
@@ -2268,12 +2280,62 @@ to exec_forget with stmt and env and depth
     agent_emit with "Memory of " + name + " cleared."
     give back ["none"]
 
-note Later-phase statements parse like the bootstrap but do not run
-note yet: jpm needs the network, tmux needs tmux. Fleets run now (spec
-note 8.4), sequentially: the walker has one thread, so the asks run in
-note ask order and the run stops at the first failing ask (spec 8.4.1).
-note Operands are evaluated first so their errors match the bootstrap;
-note a shape that survives that fails with the honest later-phase line.
+note Later-phase statements parse like the bootstrap. jpm runs now (spec
+note 8.5): use fetches through the bridge, bring in loads the package
+note through the walker's own lexer/parser. tmux still needs tmux.
+note Fleets run now (spec 8.4), sequentially: the walker has one thread,
+note so the asks run in ask order and the run stops at the first failing
+note ask (spec 8.4.1). Operands are evaluated first so their errors match
+note the bootstrap; a tmux shape that survives that fails with the honest
+note later-phase line.
+
+note ---- jpm error tagging and the bring-in guard (spec 8.5.4). The tag
+note stack only ever grows: a pop is a " jpm pop " tombstone, and readers
+note replay the stack to find the active tags. Package names can never
+note equal the tombstone (spaces are not in _JPM_SEGMENT), so a package
+note named anything legal is safe.
+jpm_tag_stack is []
+jpm_loading_stack is []
+
+to jpm_tag_push with tag
+    push tag to jpm_tag_stack
+    give back nothing
+
+to jpm_tag_pop
+    push " jpm pop " to jpm_tag_stack
+    give back nothing
+
+to jpm_loading_push with name
+    push name to jpm_loading_stack
+    give back nothing
+
+to jpm_loading_pop
+    push " jpm pop " to jpm_loading_stack
+    give back nothing
+
+to jpm_active_entries with stack
+    active is []
+    for each entry in stack
+        if entry is " jpm pop " then
+            active is pop_last with active
+        otherwise
+            push entry to active
+    give back active
+
+to jpm_error_prefix
+    note Spec 8.5.4: consecutive duplicate tags collapse, mirroring the
+    note bootstrap's "do not tag twice" rule (a frame skips its tag when
+    note the message already starts with it).
+    out is ""
+    prev is " jpm pop "
+    for each tag in jpm_active_entries with jpm_tag_stack
+        if tag is not prev then
+            out is out + "in the \"" + tag + "\" package: "
+        prev is tag
+    give back out
+
+to jpm_loading_active
+    give back jpm_active_entries with jpm_loading_stack
 
 to jpm_segment_ok with seg
     if seg is "" then
@@ -2306,7 +2368,17 @@ to exec_usepkg with stmt and env and depth
         rt_error with ln and "\"" + addr + "\" is not a package address; write it like \"github.com/user/pkg\"."
     if parts[0] is not "github.com" then
         rt_error with ln and "I can only fetch packages from github.com, not \"" + parts[0] + "\"."
-    later_phase_error with ln and "use"
+    ns is jpm_bridge_ns
+    usefn is ns["_jc_jpm_use"]
+    r is usefn(parts[0], parts[1], parts[2])
+    code is r[0]
+    if code is "cloned" or code is "already" then
+        give back ["none"]
+    if code is "no_git" then
+        rt_error with ln and "I need git to fetch packages, and I cannot find it."
+    if code is "dirty" then
+        rt_error with ln and "the package \"" + parts[1] + "/" + parts[2] + "\" has local changes; move them away before I fetch it again."
+    rt_error with ln and "I could not fetch \"" + parts[0] + "/" + parts[1] + "/" + parts[2] + "\"; check the address and your connection."
 
 to exec_bringin with stmt and env and depth
     ln is stmt[2]
@@ -2322,10 +2394,61 @@ to exec_bringin with stmt and env and depth
         rt_error with ln and "\"" + pname + "\" is not a package name; bring in a name like \"time\"."
     ns is jpm_bridge_ns
     fn is ns["_jc_jpm_find"]
+    active is jpm_loading_active
+    if active contains pname then
+        chain is active
+        push pname to chain
+        rt_error with ln and "these packages bring each other in a circle: " + join of chain with ", " + "."
     r is fn(pname)
     if r[0] is "missing" then
         rt_error with ln and "I have not fetched the package \"" + pname + "\" yet; run use \"github.com/user/" + pname + "\" first."
-    later_phase_error with ln and "bring"
+    dest is r[1]
+    mainfn is ns["_jc_jpm_main"]
+    m is mainfn(dest, pname)
+    if m[0] is "manifest_bad" then
+        rt_error with ln and "the package \"" + pname + "\" has a jpm.json I cannot read."
+    if m[0] is "escape" then
+        rt_error with ln and "the package \"" + pname + "\" points outside its own folder; I will not load it."
+    if m[0] is "no_file" then
+        rt_error with ln and "I fetched the package \"" + pname + "\" but I cannot find its code file \"" + m[1] + "\"."
+    jpm_tag_push with pname
+    jpm_loading_push with pname
+    readfn is ns["_jc_jpm_read"]
+    rd is readfn(m[2])
+    if rd[0] is "failed" then
+        rt_error with ln and "I could not read the package \"" + pname + "\"."
+    src is rd[1]
+    header is bangla_header with src
+    bangla_mode is false
+    if header is not 0 then
+        bangla_mode is true
+    toks is lex with src and header and bangla_mode
+    tree is parse_program with toks
+    scope is last of env
+    before is []
+    for each pair in scope
+        push pair[0] to before
+    sig is exec_block with tree and env and depth
+    jpm_tag_pop
+    jpm_loading_pop
+    if sig[0] is "giveback" then
+        rt_error with sig[2] and "\"give back\" only makes sense inside a function."
+    if sig[0] is "stop" then
+        rt_error with sig[1] and "\"stop\" only makes sense inside a loop."
+    if sig[0] is "skip" then
+        rt_error with sig[1] and "\"skip\" only makes sense inside a loop."
+    if sig[0] is not "none" then
+        give back sig
+    scope is last of env
+    to_tag is []
+    for each pair in scope
+        if not before contains pair[0] then
+            if is_function_value with pair[1] then
+                push pair to to_tag
+    for each pair in to_tag
+        f is pair[1]
+        env_set with env and pair[0] and ["function", f[1], f[2], f[3], f[4], f[5], pname]
+    give back ["none"]
 
 note The fleet nesting guard is a plain Jesun.Code stack, read via
 note "last of". A flag mutated through builtins.eval cannot work: the
@@ -2602,7 +2725,15 @@ to exec_stmt with stmt and env and depth
             give back [p[1]]
         if kind of p[0] is not "text" then
             rt_error with stmt[2] and "\"fail with\" needs some text to say."
-        fail with p[0]
+        note Spec 8.5.4: the bootstrap tags a "fail with" raised inside
+        note package code (its _BareError carries line 0). With no package
+        note on the tag stack the message stays bare, exactly like the
+        note bootstrap.
+        prefix is jpm_error_prefix
+        if prefix is "" then
+            fail with p[0]
+        otherwise
+            fail with "Line 0: " + prefix + p[0]
     if tag is "ask" then
         give back exec_ask with stmt and env and depth
     if tag is "askai" then
@@ -2642,7 +2773,7 @@ to exec_stmt with stmt and env and depth
     if tag is "foreach" then
         give back exec_foreach with stmt and env and depth
     if tag is "to" then
-        env_set with env and stmt[1] and ["function", stmt[1], stmt[2], stmt[3], env, stmt[4]]
+        env_set with env and stmt[1] and ["function", stmt[1], stmt[2], stmt[3], env, stmt[4], ""]
         give back ["none"]
     if tag is "giveback" then
         p is ev with stmt[1] and env and depth
