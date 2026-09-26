@@ -117,6 +117,14 @@ it.
   zero-leakage checks on both legs) and 2 pinned walker-guard gaps
   (spec 9.1 call-depth, 9.2 million-iteration loop: identical message
   text, jesun.jc line attribution, line numbers normalized).
+- `tests/test_v04.py` migrated (spec 9.2a): all 25 file-I/O and
+  interpolation tests differential-green through `InlineSandbox`,
+  which gives each interpreter leg its own hermetic working folder
+  (bootstrap files never leak into the walker leg's view, and
+  write-then-read sequences still work within a leg). The migration
+  caught a test-isolation flaw in the harness itself (shared cwd let
+  the bootstrap leg's files pollute the walker leg); the harness now
+  runs one interpreter per leg dir.
 
 ## v0.6 - 2026-09-25
 
