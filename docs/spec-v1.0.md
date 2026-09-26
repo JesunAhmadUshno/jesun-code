@@ -770,7 +770,21 @@ write-granularity assertion pinned bootstrap-harness-only). The
 migration caught and fixed
 two real walker fidelity bugs: unknown-word suggestion parity
 (`suggest_name`, 3 fixtures) and per-leg file sandboxing in the
-harness. Suite 364/364 green before the test_v05 migration.]
+harness. Suite 364/364 green before the test_v05 migration.
+`test_phase2` (commit pending): 20 differential-green (14 bridge, 6
+`ask ai` minds with per-leg count files), 1 pinned spec 7.3 gap
+(foreign-call-error line normalizer), 2 pinned exclusions
+(`MindCommand` platform mock and `MachinesLive` live tmux, spec 9c),
+2 pinned divergences (`MachinesNoTmux` no-tmux vs later-phase line
+with tmux scrubbed from `PATH`; `open terminal named 42`
+zero-leakage program, terminal-name type error vs later-phase line).
+The migration caught and fixed a real walker fidelity bug: handing a
+function to a foreign call recursed forever instead of failing with
+`I cannot hand function to Python.` The walker now has a `to_python`
+twin (`bridge_check_arg`): function/agent rejection with the
+bootstrap's exact messages, recursive list checking, and a depth cap
+that reports `I got in too deep` at the call line for cyclic lists.
+Suite 365/365 green after the migration (the zero-leakage split added one test).]
 
 ### 9.5 Fuzzers
 
