@@ -1,0 +1,11 @@
+agent scout
+    persona is "You are Scout."
+    remember is true
+    steps are 5
+
+fleet crew with scout
+    ask scout "first" giving a1
+    ask scout "second" giving a2
+
+show a1
+show a2

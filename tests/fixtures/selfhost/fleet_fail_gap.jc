@@ -1,0 +1,19 @@
+to mark
+    write "ran" to file "side.txt"
+    give back "marked"
+
+agent bad
+    persona is "You are Bad."
+    tools are [mark]
+    steps are 3
+
+agent good
+    persona is "You are Good."
+    tools are [mark]
+    steps are 3
+
+fleet f with bad and good
+    ask bad "knock knock" giving r1
+    ask good "say hi" giving r2
+
+show "unreached"

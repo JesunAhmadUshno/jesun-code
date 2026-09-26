@@ -1,0 +1,16 @@
+agent scout
+    persona is "You are Scout."
+    steps are 5
+
+fleet crew with scout
+    memory file is "crew.json"
+    ask scout "first question" giving a1
+
+fleet crew2 with scout
+    memory file is "crew.json"
+    ask scout "second question" giving a2
+
+show a1
+show a2
+read file "crew.json" giving mem
+show mem

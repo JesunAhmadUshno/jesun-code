@@ -1,0 +1,5 @@
+agent scout
+    persona is "You are Scout."
+
+fleet crew with scout
+    ask scout 42 giving a

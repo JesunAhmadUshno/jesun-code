@@ -1,0 +1,14 @@
+to open_fleet
+    fleet inner with scout
+        ask scout "hi" giving x
+    give back x
+
+agent scout
+    persona is "You are Scout."
+    tools are [open_fleet]
+    steps are 5
+
+fleet outer with scout
+    ask scout "start" giving r
+
+show r

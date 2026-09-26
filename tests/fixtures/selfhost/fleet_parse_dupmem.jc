@@ -1,0 +1,7 @@
+agent scout
+    persona is "You are Scout."
+
+fleet crew with scout
+    memory file is "a.json"
+    memory file is "b.json"
+    ask scout "one" giving a

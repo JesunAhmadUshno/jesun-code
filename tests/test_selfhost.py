@@ -504,6 +504,213 @@ class TestSelfHost(unittest.TestCase):
     def test_agent_parse_self_tool(self):
         self.check_agent("agent_parse_self_tool.jc")
 
+    def test_agent_forget_history(self):
+        self.check_agent("agent_forget_history.jc", "mind_histprobe.py")
+
+    def check_fleet(self, name, mind="mind_fixed.py", fresh_count=True,
+                    corrupt_mem=None):
+        """Differential fleet run (spec 8.4) with a fixture mind via
+        JESUNCODE_AI_COMMAND. Each side gets its own fresh
+        JESUN_CODE_HOME AND its own scratch working folder: fleet
+        memory files and tool side effects are cwd-relative on both
+        sides, so without the sandbox they would leak between the two
+        sides and between runs (a stale crew.json in the repo once
+        poisoned this very test). Counting minds get a fresh
+        MIND_COUNT_FILE per side."""
+        jesun_py = os.path.join(REPO, "jesun.py")
+        jesun_jc = os.path.join(REPO, "jesun.jc")
+        base_env = dict(os.environ)
+        base_env.pop("JESUNCODE_AI_COMMAND", None)
+        if mind is not None:
+            base_env["JESUNCODE_AI_COMMAND"] = (
+                sys.executable + " " + os.path.join(REPO, "tests", "fixtures", mind))
+        home_b = tempfile.mkdtemp(prefix="fleet_home_b_")
+        home_s = tempfile.mkdtemp(prefix="fleet_home_s_")
+        cwd_b = tempfile.mkdtemp(prefix="fleet_cwd_b_")
+        cwd_s = tempfile.mkdtemp(prefix="fleet_cwd_s_")
+        count_path = None
+        if fresh_count:
+            fd, count_path = tempfile.mkstemp(prefix="mindcount_")
+            os.close(fd)
+        try:
+            envs = []
+            for home, cwd in ((home_b, cwd_b), (home_s, cwd_s)):
+                shutil.copy(os.path.join(FIXTURES, name), cwd)
+                env = dict(base_env)
+                env["JESUN_CODE_HOME"] = home
+                if corrupt_mem is not None:
+                    with open(os.path.join(cwd, corrupt_mem),
+                              "w", encoding="utf-8") as handle:
+                        handle.write("{garbage")
+                envs.append((cwd, env))
+            if count_path is not None:
+                with open(count_path, "w", encoding="utf-8") as handle:
+                    handle.write("0")
+                envs[0][1]["MIND_COUNT_FILE"] = count_path
+                envs[1][1]["MIND_COUNT_FILE"] = count_path
+            boot = run([jesun_py, name], cwd=envs[0][0], env=envs[0][1])
+            if count_path is not None:
+                with open(count_path, "w", encoding="utf-8") as handle:
+                    handle.write("0")
+            selfhost = run([jesun_py, jesun_jc, name], cwd=envs[1][0],
+                           env=envs[1][1])
+            self.assertEqual(
+                selfhost, boot,
+                f"fixture {name} differs:\nbootstrap={boot!r}\nselfhost={selfhost!r}",
+            )
+        finally:
+            for path in (home_b, home_s, cwd_b, cwd_s):
+                shutil.rmtree(path, ignore_errors=True)
+            if count_path is not None:
+                os.unlink(count_path)
+
+    def check_fleet_gap(self, name, mind, boot_expected, selfhost_expected,
+                        gap_note):
+        """Spec 8.4.1 (known gap): the bootstrap and the walker diverge by
+        design. Both sides are pinned exactly, so this fails if either
+        side changes behavior."""
+        fixture = os.path.join("tests", "fixtures", "selfhost", name)
+        base_env = dict(os.environ)
+        base_env.pop("JESUNCODE_AI_COMMAND", None)
+        base_env["JESUNCODE_AI_COMMAND"] = (
+            sys.executable + " " + os.path.join(REPO, "tests", "fixtures", mind))
+        home_b = tempfile.mkdtemp(prefix="fleet_home_b_")
+        home_s = tempfile.mkdtemp(prefix="fleet_home_s_")
+        fd, count_path = tempfile.mkstemp(prefix="mindcount_")
+        os.close(fd)
+        try:
+            envs = []
+            for home in (home_b, home_s):
+                env = dict(base_env)
+                env["JESUN_CODE_HOME"] = home
+                env["MIND_COUNT_FILE"] = count_path
+                envs.append(env)
+            with open(count_path, "w", encoding="utf-8") as handle:
+                handle.write("0")
+            boot = run(["jesun.py", fixture], env=envs[0])
+            with open(count_path, "w", encoding="utf-8") as handle:
+                handle.write("0")
+            selfhost = run(["jesun.py", "jesun.jc", fixture], env=envs[1])
+            self.assertEqual(
+                boot, boot_expected,
+                f"fixture {name}: bootstrap changed behavior ({gap_note}):\n{boot!r}")
+            self.assertEqual(
+                selfhost, selfhost_expected,
+                f"fixture {name}: self-host changed behavior ({gap_note}):\n{selfhost!r}")
+        finally:
+            shutil.rmtree(home_b, ignore_errors=True)
+            shutil.rmtree(home_s, ignore_errors=True)
+            os.unlink(count_path)
+
+    def test_fleet_basic(self):
+        self.check_fleet("fleet_basic.jc")
+
+    def test_fleet_memory(self):
+        self.check_fleet("fleet_memory.jc")
+
+    def test_fleet_memory_corrupt(self):
+        self.check_fleet("fleet_memory_corrupt.jc", corrupt_mem="crew.json")
+
+    def test_fleet_bangla(self):
+        self.check_fleet("fleet_bangla.jc")
+
+    def test_fleet_agent_history(self):
+        self.check_fleet("fleet_agent_history.jc")
+
+    def test_fleet_parse_bad_memfile(self):
+        self.check_fleet("fleet_parse_bad_memfile.jc", mind=None,
+                         fresh_count=False)
+
+    def test_fleet_parse_bad_prompt(self):
+        self.check_fleet("fleet_parse_bad_prompt.jc", mind=None,
+                         fresh_count=False)
+
+    def test_fleet_parse_dupmem(self):
+        self.check_fleet("fleet_parse_dupmem.jc", mind=None,
+                         fresh_count=False)
+
+    def test_fleet_parse_member_not_agent(self):
+        self.check_fleet("fleet_parse_member_not_agent.jc", mind=None,
+                         fresh_count=False)
+
+    def test_fleet_parse_noblock(self):
+        self.check_fleet("fleet_parse_noblock.jc", mind=None,
+                         fresh_count=False)
+
+    def test_fleet_parse_nonmember(self):
+        self.check_fleet("fleet_parse_nonmember.jc", mind=None,
+                         fresh_count=False)
+
+    def test_fleet_parse_streaming(self):
+        self.check_fleet("fleet_parse_streaming.jc", mind=None,
+                         fresh_count=False)
+
+    def test_fleet_parse_unknown_agent(self):
+        self.check_fleet("fleet_parse_unknown_agent.jc", mind=None,
+                         fresh_count=False)
+
+    def test_fleet_parse_unknownline(self):
+        self.check_fleet("fleet_parse_unknownline.jc", mind=None,
+                         fresh_count=False)
+
+    def test_fleet_nested_gap(self):
+        self.check_fleet_gap(
+            "fleet_nested.jc", "mind_fleet_nested.py",
+            (0, "nested done\n"),
+            (1, "Line 2: a fleet cannot open inside another fleet's asks.\n"),
+            "nested fleets are refused; the bootstrap feeds the refusal "
+            "back to the mind as a tool RESULT, the walker ends the run",
+        )
+
+    def test_fleet_fail_gap(self):
+        """Spec 8.4.1: the bootstrap runs fleet threads side by side, the
+        walker runs the asks in order. When the first ask fails, the
+        bootstrap has already run the second thread's tool (side.txt
+        exists); the walker stops before it (side.txt absent)."""
+        fixture = os.path.join(FIXTURES, "fleet_fail_gap.jc")
+        mind = sys.executable + " " + os.path.join(
+            REPO, "tests", "fixtures", "mind_fleet_gap.py")
+        jesun_py = os.path.join(REPO, "jesun.py")
+        jesun_jc = os.path.join(REPO, "jesun.jc")
+        for tag, args in (("boot", [jesun_py]),
+                          ("selfhost", [jesun_py, jesun_jc])):
+            sandbox = tempfile.mkdtemp(prefix="fleet_gap_")
+            try:
+                shutil.copy(fixture, sandbox)
+                fd, count_path = tempfile.mkstemp(prefix="mindcount_")
+                os.close(fd)
+                with open(count_path, "w", encoding="utf-8") as handle:
+                    handle.write("0")
+                env = dict(os.environ)
+                env["JESUNCODE_AI_COMMAND"] = mind
+                env["MIND_COUNT_FILE"] = count_path
+                code, out = run(args + ["fleet_fail_gap.jc"], cwd=sandbox,
+                                env=env)
+                side = os.path.join(sandbox, "side.txt")
+                if tag == "boot":
+                    self.assertEqual(
+                        (code, out),
+                        (1, "Line 16: the mind exited with an error. "
+                            "It said: mind exploded\n"),
+                        f"fleet_fail_gap.jc: bootstrap changed:\n{(code, out)!r}")
+                    self.assertTrue(
+                        os.path.exists(side),
+                        "fleet_fail_gap.jc: bootstrap should have run the "
+                        "second thread's tool (side.txt missing)")
+                else:
+                    self.assertEqual(
+                        (code, out),
+                        (1, "Line 16: the mind exited with an error. "
+                            "It said: mind exploded\n"),
+                        f"fleet_fail_gap.jc: self-host changed:\n{(code, out)!r}")
+                    self.assertFalse(
+                        os.path.exists(side),
+                        "fleet_fail_gap.jc: walker should stop before the "
+                        "second ask's tool (side.txt present)")
+            finally:
+                shutil.rmtree(sandbox, ignore_errors=True)
+                os.unlink(count_path)
+
 
 if __name__ == "__main__":
     unittest.main()

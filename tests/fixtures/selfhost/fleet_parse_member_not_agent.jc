@@ -1,0 +1,5 @@
+to helper
+    give back "x"
+
+fleet crew with helper
+    ask helper "one" giving a

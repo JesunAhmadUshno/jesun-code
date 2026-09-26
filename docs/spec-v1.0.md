@@ -487,17 +487,60 @@ package that is actually fetched hits the later-phase line. Valid
 not run threads, tmux, or the network. The differential fuzzer covers
 these grammar shapes.
 
-### 8.4 Fleets (after agents)
+### 8.4 Fleets (shipped)
 
-`fleet <name>:` blocks with named `ask`s running in parallel and
-answers collected into a list in ask order, plus shared fleet memory
-(`The fleet remembers:`). The walker runs the asks through the
-bridge's threads (`threading.Thread`, one per ask, results joined in
-order), each ask a child scope with per-agent locks, mirroring the
-bootstrap. No streaming inside fleets, no nested fleets: both stay
-parse-time errors naming the rule. Differential fixtures use fixture
-minds with small sleeps to prove parallelism does not reorder
-answers.
+`fleet <name> with <a> [and <b> ...]` blocks hold one ask per line
+(`ask <member> <prompt> giving <name>`) plus an optional
+`memory file is "<p>"` line. The fleet name becomes the answers list
+in ask order; each `giving` name is set too. Fleet memory appends
+(question, answer, agent) triples to the file, capped at 200, and
+prepends `The fleet remembers:` lines to every ask's prompt.
+
+The walker runs the asks SEQUENTIALLY, in ask order, one agent ask
+(spec 8.3) to completion at a time. Everything else matches the
+bootstrap: prompts are evaluated up front in the enclosing scope in
+ask order; each ask runs in a child scope with the fleet memory
+prefix; the fleet name and every `giving` name land in the enclosing
+scope; `memory file is` needs text and may appear only once;
+`streaming` inside a fleet stays the parse error
+(`streaming asks cannot run in a fleet; take "streaming" out.`);
+unknown members fail at the fleet line with the agent did-you-mean
+(`"<m>" is not a member of fleet "<name>".` stays the parse error;
+unresolvable members fail through the normal agent lookup);
+a `fleet` statement inside another fleet's asks fails with
+`a fleet cannot open inside another fleet's asks.`
+
+Per-agent locks are unnecessary in the walker: there is only one
+thread, so one agent's history can never interleave with itself.
+Agent history from a fleet's asks appends in ask order.
+
+One more constant audited bridge template, `_FLEET_HELPERS_SRC`
+(same contract as `_AGENT_HELPERS_SRC`: never contains program text,
+never raises, every outcome a `["code", ...]` list):
+`_jc_fleet_load(path)` returns `["missing"]` (silent, like the
+bootstrap), `["unreadable"]` (the walker emits
+`Line N: the fleet's saved memory was unreadable, starting fresh.`
+and continues), or `["ok", triples]` of `[question, answer, agent]`
+lists, newest last. `_jc_fleet_save(path, triples)` keeps the newest
+200 and returns `["failed"]` on any error (the walker emits
+`Line N: I could not save the fleet's memory.`).
+
+### 8.4.1 Known gap: sequential, not parallel (honest, not hidden)
+
+The bootstrap runs the asks on threads and, when any ask fails, runs
+them ALL and reports the lowest-index failure. Jesun.Code has no
+try/catch, so the walker cannot do that: it runs the asks in ask
+order and stops at the first failure with that ask's message at that
+ask's line. Both sides report the identical message at the identical
+line whenever zero or one ask fails. The pinned divergences: (1)
+wall time (parallel vs sequential); (2) when an earlier ask fails,
+the bootstrap still runs the later asks' side effects, the walker
+does not; (3) agent-history append order when several asks hit the
+same agent (bootstrap: completion order, nondeterministic; walker:
+ask order). The differential suite pins the exact divergence with
+dedicated fixtures (a failing ask followed by a side-effect ask);
+the differential fuzzer never generates failing fleet asks, so
+fuzzing stays byte-identical.
 
 ### 8.5 jpm (after fleets)
 

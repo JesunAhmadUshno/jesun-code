@@ -1,0 +1,17 @@
+agent scout
+    persona is "You are Scout."
+    steps are 5
+
+agent risk
+    persona is "You are Risk."
+    steps are 5
+
+topic is "launch"
+
+fleet crew with scout and risk
+    ask scout "what about " + topic giving brief1
+    ask risk "risks for " + topic giving brief2
+
+show brief1
+show brief2
+show crew

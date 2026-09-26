@@ -37,9 +37,10 @@ America/Toronto.
   core), phase B part 1 (`ask`, file I/O, the `import` bridge), the
   Bangla keyword flavor, `ask ai` (spec 8.2, with the `CALL:` tool
   loop), agents (spec 8.3, with the one pinned tool-failure gap),
-  and later-phase statement parsing (`use`, `bring in`, `fleet`,
-  tmux terminal shapes) are differential-green against the
-  bootstrap (spec `docs/spec-v1.0.md`). Still to come: fleets, jpm
+  fleets (spec 8.4, sequential in the walker, with the pinned 8.4.1
+  gap), and later-phase statement parsing (`use`, `bring in`, tmux
+  terminal shapes) are differential-green against the
+  bootstrap (spec `docs/spec-v1.0.md`). Still to come: jpm
   execution. The milestone is claimed only when the full suite
   passes through `jesun.jc`.
 
