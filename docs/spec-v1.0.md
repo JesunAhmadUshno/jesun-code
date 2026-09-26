@@ -856,8 +856,52 @@ million interpreted iterations) and dominates the suite budget; it is
 kept because it exercises the walker's loop guard end to end.
 
 ### 9.7 Exit checklist
-- Every test method in `tests/test_*.py` is tagged
-  differential-green, pinned gap, or pinned exclusion.
+
+[CLASSIFIED 2026-09-26: `python3 tests/check_classification.py` tags
+every test method in `tests/test_*.py` into exactly one bucket and
+fails if a tag drifts from the code. Result on 2026-09-26: 365 tests
+- 309 differential-green, 8 pinned gaps, 2 pinned divergences,
+46 pinned exclusions.]
+
+**Pinned gaps** (both legs run; both outputs quoted in the test,
+mechanism explained in the named subsection):
+- `test_selfhost` 8.3.1: `test_agent_tool_fail_gap`; 8.4.1:
+  `test_fleet_nested_gap`, `test_fleet_fail_gap`; 8.5.5:
+  `test_jpm_deep_gap`.
+- `test_fleet` 8.4.1: `test_fleet_cannot_nest_in_asks`.
+- `test_core` 9.1: `test_recursion_depth_guard_gap`; 9.2:
+  `test_loop_millions_guard_gap`.
+- `test_phase2` 7.3: `test_foreign_call_error_gap`.
+
+**Pinned divergences** (both legs run; each side takes its honest
+later-phase path, both messages pinned exactly):
+- `test_phase2.MachinesNoTmux.test_tmux_missing_is_plain_english`
+  (spec 8.3.2): bootstrap "tmux is not installed" vs walker's
+  later-phase line.
+- `test_phase2.ZeroLeakage.test_tmux_program_divergence`
+  (spec 8.3.2): bootstrap terminal-name type error vs walker's
+  later-phase line.
+
+**Pinned exclusions** (cannot run through the walker by construction;
+class or module docstring says "Pinned exclusion" with the reason,
+spec 9.2c):
+- `test_selfhost_jpm_bridge` (22): the audited bridge-template
+  contract; the walker consumes the template, so running it through
+  the walker is circular.
+- `test_v05.BanglaRepl` (1), `test_audit.ReplBehavior` (6): the
+  walker has no REPL (out of scope, spec 2.2).
+- `test_v05.VSCodeExtension` (6): editor asset validation, not
+  interpreter behavior.
+- `test_jpm.JpmMockedClone` (3): `subprocess.run` is mocked in
+  Python; the walker twin would need a real git server.
+- `test_phase2.MindCommand` (3): `os.name` is patched (platform
+  identity change).
+- `test_phase2.MachinesLive` (3): live tmux; the walker does not run
+  terminals (spec 8.3.2).
+- `test_audit.AuditExcluded` (2): the SIGINT mock test
+  (bootstrap-harness-only) and the `_parse_call_args` unit test
+  (bootstrap internals, not a program).
+
 - `python -m unittest discover -s tests` passes in one command.
 - No test was weakened to pass: exact-output pins remain on the
   bootstrap leg; gaps quote both sides.

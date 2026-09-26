@@ -12,6 +12,10 @@ clone-success path that no fixture can reach (no network in tests:
 
 The template contract under test: it never contains program text,
 nothing in it raises, every outcome is a ["code", ...] list.
+
+Pinned exclusion (spec 9.2c): the walker consumes this template, so
+running these tests "through" the walker is circular. The template's
+codes are the contract; the clone-success path stays covered here.
 """
 import ast
 import os
