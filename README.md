@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/JesunAhmadUshno/jesun-code)](https://github.com/JesunAhmadUshno/jesun-code/releases)
 [![CI](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml/badge.svg)](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-112%20passing-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
+[![Tests](https://img.shields.io/badge/tests-364%20passing-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 A programming language that reads like plain English. If a sentence makes
@@ -426,8 +426,10 @@ VS Code extension in `docs/spec-v0.5.md`, and agent fleets in
 The public milestone ladder lives in [ROADMAP.md](ROADMAP.md): v0.4
 files and sharing (shipped), v0.5 Bangla flavor plus the VS Code
 extension (shipped), v0.6 agent fleets (shipped), v1.0 self-hosting (the interpreter rewritten
-in Jesun.Code itself; the grind is underway and agents, fleets, and
-jpm just went differential-green, but the milestone is not claimed until the full
+in Jesun.Code itself; sprint 4 is under way (shared differential
+harness in, the suite migrating onto it file by file: `test_core` and
+`test_v04` done, 364 tests green, the migration already catching and
+fixing real walker bugs), but the milestone is not claimed until the full
 suite passes through it), v1.1 native binaries.
 
 ## License
