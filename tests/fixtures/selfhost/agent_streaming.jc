@@ -1,0 +1,5 @@
+agent scout
+    steps are 3
+
+ask scout "hi" giving a streaming
+show a

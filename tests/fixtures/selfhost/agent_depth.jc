@@ -1,0 +1,18 @@
+agent a4
+    tools are [a3]
+    steps are 3
+
+agent a3
+    tools are [a4]
+    steps are 3
+
+agent a2
+    tools are [a3]
+    steps are 3
+
+agent a1
+    tools are [a2]
+    steps are 3
+
+ask a1 "go deep" giving r
+show r

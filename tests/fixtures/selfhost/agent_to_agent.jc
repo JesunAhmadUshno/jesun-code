@@ -1,0 +1,9 @@
+agent inner
+    steps are 3
+
+agent outer
+    tools are [inner]
+    steps are 5
+
+ask outer "what says inner" giving a
+show a

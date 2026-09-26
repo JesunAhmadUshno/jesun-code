@@ -1,0 +1,4 @@
+agent scout
+    steps are 3
+
+ask scout 42 giving a

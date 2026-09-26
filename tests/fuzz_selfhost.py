@@ -19,12 +19,21 @@ normalized before comparing.
 Timeouts are reported as skips, not failures: the self-hosted run is an
 interpreter running inside an interpreter, so it is slower by design.
 
+Every eleventh case is an agent program (spec 8.3): agent defs
+(persona/tools/remember/steps/memory file), ask/forget shapes, parse
+errors, the Bangla flavor, and the nested/depth templates, all driven
+by deterministic fixture minds with a fresh JESUN_CODE_HOME and a
+fresh MIND_COUNT_FILE per side. Failing tools are never generated:
+spec 8.3.1 documents that shape as a known divergence, so the fuzzer
+stays byte-identical.
+
 Run: python3 tests/fuzz_selfhost.py [count]
 Exit 0 when clean, 1 on the first mismatch batch (up to 10 shown).
 """
 import os
 import random
 import re
+import shutil
 import subprocess
 import sys
 import tempfile  # noqa: F401
@@ -221,9 +230,7 @@ def check_pb(i: int, src: str, stdin_text: str) -> tuple[list[str], int]:
         boot = run_side_pb([jesun_py, "case.jc"], case_dir, stdin_text)
         selfhost = run_side_pb([jesun_py, jesun_jc, "case.jc"], case_dir, stdin_text)
     finally:
-        for child in case_dir.iterdir():
-            if child.is_file():
-                child.unlink(missing_ok=True)
+        shutil.rmtree(case_dir, ignore_errors=True)
     if boot[0] == "timeout" or selfhost[0] == "timeout":
         return [], 1
     problems: list[str] = []
@@ -381,6 +388,197 @@ def run_side(args: list[str], prog: Path) -> tuple:
         return "timeout", ""
 
 
+# -- agents (spec 8.3): valid defs, ask/forget, parse errors, Bangla,
+#    nested and depth templates. Failing tools are never generated. --
+AG_DEPTH_SRC = """agent a4
+    tools are [a3]
+    steps are 3
+
+agent a3
+    tools are [a4]
+    steps are 3
+
+agent a2
+    tools are [a3]
+    steps are 3
+
+agent a1
+    tools are [a2]
+    steps are 3
+
+ask a1 "go deep" giving r
+show r
+"""
+
+AG_NESTED_SRC = """agent inner
+    steps are 3
+
+agent outer
+    tools are [inner]
+    steps are 5
+
+ask outer "what says inner" giving a
+show a
+"""
+
+
+def agent_program(rng: random.Random) -> tuple[str, str | None]:
+    """Returns (source, mind_name). Grammar shapes for spec 8.3 agents.
+    Counting minds (mind_tools, mind_agent_inner, mind_agent_deep) get a
+    fresh MIND_COUNT_FILE per side in check_agent_case."""
+    k = rng.randrange(100000)
+    shape = rng.random()
+    if shape < 0.06:
+        return AG_DEPTH_SRC, "mind_agent_deep.py"
+    if shape < 0.12:
+        return AG_NESTED_SRC, "mind_agent_inner.py"
+    bangla = rng.random() < 0.2
+    if bangla:
+        src = (
+            "বাংলা\n"
+            "এজেন্ট ag\n"
+            '    পারসোনা হয় "a helper."\n'
+            "    মনেকরো হয় সত্য\n"
+            "\n"
+            'জিজ্ঞেস ag "fuzz hi" রেখে ans\n'
+            "দেখাও ans\n"
+        )
+        if rng.random() < 0.5:
+            src += "ভুলেযাও ag\n"
+        return src, "mind_fixed.py"
+    lines: list[str] = []
+    tools: list[str] = []
+    if shape < 0.35:
+        for t in (f"t{k}a", f"t{k}b"):
+            lines.append(f"to {t}")
+            lines.append(f'    give back "r-{t}"')
+            tools.append(t)
+    elif shape < 0.45:
+        lines.append("to read_logs")
+        lines.append('    give back "3 errors"')
+        tools.append("read_logs")
+    lines.append("agent ag")
+    settings = []
+    if rng.random() < 0.7:
+        settings.append(('    persona is "a fuzz helper."', None))
+    if tools:
+        settings.append(("    tools are [" + ", ".join(tools) + "]", None))
+    if rng.random() < 0.5:
+        settings.append((f"    remember is {rng.choice(['true', 'false', 'always'])}", None))
+    if rng.random() < 0.7:
+        settings.append((f"    steps are {rng.choice([1, 2, 3, 5])}", None))
+    if rng.random() < 0.25:
+        settings.append((f'    memory file is "agmem{k}.json"', None))
+    # parse-error shapes: at most one bad setting, so the error is sharp
+    bad = None
+    if shape >= 0.75:
+        bad = rng.choice([
+            '    frobnicate is true',
+            '    steps are 0',
+            '    remember is maybe',
+            '    steps are 5\n    steps are 5',
+            '    tools are [ag]',
+            '    persona is 42',
+        ])
+    if bad is not None:
+        settings.append((bad, "bad"))
+    for text, _ in settings:
+        lines.append(text)
+    lines.append("")
+    has_bad = any(tag == "bad" for _, tag in settings)
+    if has_bad:
+        return "\n".join(lines) + "\n", None
+    mind = "mind_tools.py" if tools == ["read_logs"] else "mind_fixed.py"
+    ask_line = 'ask ag "fuzz question" giving ans'
+    if rng.random() < 0.2:
+        ask_line += " streaming"
+    lines.append(ask_line)
+    lines.append("show ans")
+    if rng.random() < 0.3:
+        lines.append('ask ag "second question" giving ans2')
+        lines.append("show ans2")
+    if rng.random() < 0.3:
+        lines.append("forget ag")
+    if rng.random() < 0.15:
+        lines.append('ask nosuchagent "hi" giving zzz')
+    return "\n".join(lines) + "\n", mind
+
+
+def run_side_ag(args: list[str], prog: Path, cwd: Path, env: dict) -> tuple:
+    """Returns (returncode, stdout) or ("timeout", "")."""
+    try:
+        proc = subprocess.run(
+            [sys.executable] + args + [str(prog)],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            stdin=subprocess.DEVNULL,
+            env=env,
+        )
+        return proc.returncode, proc.stdout
+    except subprocess.TimeoutExpired:
+        return "timeout", ""
+
+
+def check_agent_case(i: int, src: str, mind: str | None) -> tuple[list[str], int]:
+    skips = 0
+    TMPDIR.mkdir(parents=True, exist_ok=True)
+    dir_b = TMPDIR / f"ag{i}b"
+    dir_s = TMPDIR / f"ag{i}s"
+    dir_b.mkdir(parents=True, exist_ok=True)
+    dir_s.mkdir(parents=True, exist_ok=True)
+    home_b = Path(tempfile.mkdtemp(prefix="aghome_b_"))
+    home_s = Path(tempfile.mkdtemp(prefix="aghome_s_"))
+    count_file = TMPDIR / f"agcount{i}.txt"
+    try:
+        (dir_b / "case.jc").write_text(src, encoding="utf-8")
+        (dir_s / "case.jc").write_text(src, encoding="utf-8")
+        envs = []
+        for home in (home_b, home_s):
+            env = dict(os.environ)
+            env.pop("JESUNCODE_AI_COMMAND", None)
+            if mind is not None:
+                env["JESUNCODE_AI_COMMAND"] = (
+                    sys.executable + " " + str(ROOT / "tests" / "fixtures" / mind))
+            env["JESUN_CODE_HOME"] = str(home)
+            count_file.write_text("0", encoding="utf-8")
+            env["MIND_COUNT_FILE"] = str(count_file)
+            envs.append(env)
+        jesun_py = str(ROOT / "jesun.py")
+        jesun_jc = str(ROOT / "jesun.jc")
+        boot = run_side_ag([jesun_py, "case.jc"], Path("case.jc"), dir_b, envs[0])
+        count_file.write_text("0", encoding="utf-8")
+        selfhost = run_side_ag([jesun_py, jesun_jc, "case.jc"],
+                               Path("case.jc"), dir_s, envs[1])
+    finally:
+        for d in (dir_b, dir_s):
+            shutil.rmtree(d, ignore_errors=True)
+        shutil.rmtree(home_b, ignore_errors=True)
+        shutil.rmtree(home_s, ignore_errors=True)
+        count_file.unlink(missing_ok=True)
+    if boot[0] == "timeout" or selfhost[0] == "timeout":
+        return [], 1
+    problems: list[str] = []
+    if boot != selfhost:
+        problems.append(
+            f"case {i}: agent MISMATCH (mind={mind})\n--- src ---\n{src}\n"
+            f"--- bootstrap {boot[0]} ---\n{boot[1]}\n"
+            f"--- selfhost {selfhost[0]} ---\n{selfhost[1]}\n"
+        )
+    for label, out in (("bootstrap", boot[1]), ("selfhost", selfhost[1])):
+        for marker in ("Traceback", 'File "', "0x"):
+            if marker in out:
+                problems.append(
+                    f"case {i}: {label} leaked {marker!r}\n---\n{src}\n---\n{out}"
+                )
+        if EXC_NAMES.search(out):
+            problems.append(
+                f"case {i}: {label} leaked exception name\n---\n{src}\n---\n{out}"
+            )
+    return problems, skips
+
+
 def check(i: int, src: str) -> tuple[list[str], int]:
     skips = 0
     TMPDIR.mkdir(parents=True, exist_ok=True)
@@ -460,6 +658,9 @@ def main() -> int:
         elif i % 7 == 6:
             src, mind = ai_program(rng)
             case_problems, case_skips = check_ai(i, src, mind)
+        elif i % 11 == 10:
+            src, mind = agent_program(rng)
+            case_problems, case_skips = check_agent_case(i, src, mind)
         else:
             src = token_soup(rng) if i % 2 == 0 else mutate(rng, rng.choice(SEEDS))
             case_problems, case_skips = check(i, src)
