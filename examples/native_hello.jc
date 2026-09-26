@@ -1,0 +1,9 @@
+show "Hello from a real native binary."
+name is first of arguments
+show "Hello, {name}."
+count is length of arguments
+show "You gave {count} argument(s)."
+total is 0
+for each word in arguments
+    total is total + length of word
+show "Total letters in your arguments: {total}."

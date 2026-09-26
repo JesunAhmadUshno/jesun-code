@@ -43,9 +43,13 @@ America/Toronto.
 
 ## Up next (in order, no skipping)
 
-- **v1.1: native.** A `jesun build` command producing real native
-  binaries (transpile Jesun.Code to C, compile with cc). No bundled
-  runtime.
+- **v1.1: native (IN PROGRESS, not shipped).** A `jesun build` command
+  producing real native binaries (transpile Jesun.Code to C, compile
+  with cc). No bundled runtime. Spec: `docs/spec-v1.1.md`. The core
+  language, decisions, loops, functions (including closures), lists,
+  text, and files build natively today; unsupported features fail at
+  build time with plain-English errors. Until v1.1 ships green, releases
+  remain honestly described as runtime-bundled.
 
 ## The founder's law (2026-09-25): one language, all solutions
 

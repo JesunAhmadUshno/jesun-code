@@ -1,0 +1,7 @@
+write "alpha\n" to file "native_demo.txt"
+append "beta\n" to file "native_demo.txt"
+append "gamma\n" to file "native_demo.txt"
+read file "native_demo.txt" giving contents
+show contents
+lines is split of trim of contents by "\n"
+show "That is {length of lines} lines, all written natively."

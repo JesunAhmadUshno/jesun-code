@@ -2,6 +2,37 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## Unreleased: v1.1.0 NATIVE (in progress, not shipped)
+
+`jesun build`: the Jesun.Code transpiler (`jesun_build.py`) turns the v1.1
+core subset into C11 and compiles it with `cc` into a real native binary
+(spec `docs/spec-v1.1.md`). No bundled Python interpreter. The core
+language, decisions, loops, functions (including closures), lists, text,
+interpolation, files, and stdin build natively. Unsupported features
+(`ask ai`, agents, fleets, terminal control, the Python bridge, jpm)
+fail at build time with plain-English line-numbered errors.
+
+- Sequenced evaluation: every sub-expression emits as statements into
+  temporaries, so evaluation order and error precedence match the
+  interpreter exactly (call targets and arity check before arguments,
+  push targets and write paths check before their values, `and`/`or`
+  short-circuit, left-to-right binaries).
+- Loop control survives function calls: `stop`/`skip` unwind through
+  native frames to the caller's loop, and `give back` inside a loop
+  retires the loop's control entry so a later `stop` cannot jump into a
+  dead frame.
+- Numbers: Python's shortest-round-trip float formatting is matched,
+  whole-valued doubles print as full integer digits, and integer
+  literals past 2**63 go out as double literals (no C overflow).
+- Bangla keyword flavor builds natively; the AST is keyword-agnostic.
+- New tests: `tests/test_build.py` (native build suite) and
+  `tests/fuzz_build.py` (differential interpreter-vs-native fuzzer).
+  Example programs: `examples/native_*.jc`, each verified through a
+  real compiled binary.
+
+Until v1.1 ships green, releases remain honestly described as
+runtime-bundled.
+
 ## v1.0.0 - 2026-09-26: SELF-HOSTING
 
 `jesun.jc`: the Jesun.Code interpreter rewritten in Jesun.Code

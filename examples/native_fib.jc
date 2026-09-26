@@ -1,0 +1,9 @@
+to fib with n
+    if n is at most 1 then
+        give back n
+    give back (fib with (n - 1)) + (fib with (n - 2))
+
+show "fib(0) = {fib with 0}"
+show "fib(1) = {fib with 1}"
+show "fib(10) = {fib with 10}"
+show "fib(20) = {fib with 20}"
