@@ -1,19 +1,36 @@
 """Audit regression tests: bugs found by the audit/fuzz, plus new built-ins.
 
-Each test here pins a specific bug fix. See the audit report for details.
+Sprint 4 migration (spec 9.2a): every program test is differential-green.
+Each program runs through the bootstrap and through jesun.jc as
+subprocesses (mind fixtures via JESUNCODE_AI_COMMAND with a fresh
+per-leg MIND_COUNT_FILE, so mind transcripts never leak across legs).
+The exact-output assertion stays on the bootstrap leg; the walker leg
+must be byte-identical.
+
+Pinned exclusions (spec 9.2c):
+- ReplBehavior (6 tests): the REPL is the bootstrap's interactive loop;
+  the walker has no REPL (out of scope: the spec covers running
+  programs, section 2.2).
+- test_keyboard_interrupt_in_main_is_plain: mocks SIGINT delivery;
+  bootstrap-harness-only.
+- test_tool_call_deeply_nested_parens_is_plain_english: calls the
+  bootstrap's _parse_call_args directly (unit test of interpreter
+  internals, not a program).
 """
+
 import os
+import shutil
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
-from io import StringIO
 from pathlib import Path
 from unittest import mock
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import jesun  # noqa: E402
+from selfhost_harness import JESUN_JC, JESUN_PY  # noqa: E402
+from selfhost_harness import SelfHostDiffCase, run  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 AI_VAR = "JESUNCODE_AI_COMMAND"
@@ -25,74 +42,108 @@ def mind_command(script: str) -> str:
     return '"{}" "{}"'.format(sys.executable, (FIXTURES / script).as_posix())
 
 
-def with_env(**extra):
-    old = dict(os.environ)
-    os.environ.update(extra)
-    return old
+class AuditDiff(SelfHostDiffCase):
+    """Hermetic per-leg runs: own count file, own working folder."""
+
+    def run_legs(self, src, script=None):
+        outs = []
+        for args in ([JESUN_PY], [JESUN_PY, JESUN_JC]):
+            d = tempfile.mkdtemp(prefix="audit_leg_")
+            self.addCleanup(shutil.rmtree, d, True)
+            env = dict(os.environ)
+            if script is None:
+                env.pop(AI_VAR, None)
+            else:
+                env[AI_VAR] = mind_command(script)
+            count = os.path.join(d, "count")
+            open(count, "w", encoding="utf-8").close()
+            env[COUNT_VAR] = count
+            prog = os.path.join(d, "prog.jc")
+            mode = "wb" if isinstance(src, bytes) else "w"
+            with open(prog, mode) as handle:
+                handle.write(src)
+            outs.append(run(args + [prog], cwd=d, env=env))
+        return tuple(outs)
+
+    def run_both(self, src, script=None):
+        boot, selfhost = self.run_legs(src, script)
+        return boot, selfhost
 
 
-def restore_env(old):
-    os.environ.clear()
-    os.environ.update(old)
-
-
-def run_mind(script, src):
-    count = tempfile.NamedTemporaryFile(delete=False)
-    count.close()
-    old = with_env(**{AI_VAR: mind_command(script), COUNT_VAR: count.name})
-    try:
-        return jesun.execute(src, "")
-    finally:
-        restore_env(old)
-        os.unlink(count.name)
-
-
-def run_repl(lines):
-    """Feed lines to the REPL; return everything printed."""
-    it = iter(lines)
-    buf = StringIO()
-    with mock.patch("builtins.input", side_effect=lambda _p="": next(it)), \
-            redirect_stdout(buf):
-        try:
-            jesun.repl()
-        except StopIteration:
-            pass
-    return buf.getvalue()
-
-
-class AuditBugs(unittest.TestCase):
+class AuditBugs(AuditDiff):
     def test_ai_stderr_traceback_sanitized(self):
-        out = run_mind("mind_traceback.py", 'ask ai "hi" giving r\n')
-        self.assertEqual(out, "Line 1: the mind exited with an error.\n")
-        self.assertNotIn("Traceback", out)
-        self.assertNotIn("ValueError", out)
+        boot, selfhost = self.run_both('ask ai "hi" giving r\n',
+                                       script="mind_traceback.py")
+        self.assert_differential(boot, selfhost, "ai-stderr-sanitized")
+        self.assertEqual(boot[1], "Line 1: the mind exited with an error.\n")
+        self.assertNotIn("Traceback", boot[1])
+        self.assertNotIn("ValueError", boot[1])
+
+    def test_mind_cannot_call_unlisted_tool(self):
+        boot, selfhost = self.run_both(
+            'to listed\n    give back "ok"\n'
+            'to secret\n    give back "CLASSIFIED"\n'
+            'ask ai "hi" with tools [listed] giving answer\n'
+            "show answer\n",
+            script="mind_sneaky.py")
+        self.assert_differential(boot, selfhost, "unlisted-tool")
+        self.assertEqual(boot[1], "done\n")
+
+    def test_function_type_name_in_bridge_error(self):
+        boot, selfhost = self.run_both(
+            "to f with x\n    show x\nimport builtins\nshow builtins.len(f)\n")
+        self.assert_differential(boot, selfhost, "function-to-bridge")
+        self.assertIn("I cannot hand function to Python.", boot[1])
+
+    def test_bom_is_ignored(self):
+        boot, selfhost = self.run_both("﻿show 1\n".encode("utf-8-sig"))
+        self.assert_differential(boot, selfhost, "bom")
+        self.assertEqual(boot[1], "1\n")
+
+    def test_crlf_line_endings(self):
+        boot, selfhost = self.run_both(
+            b'x is 5\r\nshow x\r\nif x is 5 then\r\n    show "y"\r\n')
+        self.assert_differential(boot, selfhost, "crlf")
+        self.assertEqual(boot[1], "5\ny\n")
+
+    def test_empty_file(self):
+        boot, selfhost = self.run_both("")
+        self.assert_differential(boot, selfhost, "empty")
+        self.assertEqual(boot[1], "")
+        boot, selfhost = self.run_both("\n\n  \n")
+        self.assert_differential(boot, selfhost, "empty-whitespace")
+        self.assertEqual(boot[1], "")
+
+    def test_unicode_strings(self):
+        boot, selfhost = self.run_both(
+            'show "héllo wörld 中"\nshow length of "héllo"\n')
+        self.assert_differential(boot, selfhost, "unicode")
+        self.assertEqual(boot[1], "héllo wörld 中\n5\n")
+
+    def test_huge_numbers(self):
+        boot, selfhost = self.run_both(
+            "show 999999999999999999999 * 999999999999999999999\n")
+        self.assert_differential(boot, selfhost, "huge-numbers")
+        self.assertEqual(
+            boot[1], "999999999999999999998000000000000000000001\n")
+
+
+class AuditExcluded(unittest.TestCase):
+    """Pinned exclusions (spec 9.2c): unit tests of bootstrap internals
+    or platform behavior the walker twin cannot share. The original
+    bootstrap-only tests stay."""
 
     def test_tool_call_deeply_nested_parens_is_plain_english(self):
+        import jesun
         interp = jesun.Interpreter()
         with self.assertRaises(jesun.JesunError) as ctx:
             interp._parse_call_args("(" * 5000, 7)
         self.assertIn("too deep", str(ctx.exception))
 
-    def test_mind_cannot_call_unlisted_tool(self):
-        out = run_mind(
-            "mind_sneaky.py",
-            'to listed\n    give back "ok"\n'
-            'to secret\n    give back "CLASSIFIED"\n'
-            'ask ai "hi" with tools [listed] giving answer\n'
-            "show answer\n",
-        )
-        self.assertEqual(out, "done\n")
-
-    def test_function_type_name_in_bridge_error(self):
-        out = jesun.execute(
-            "to f with x\n    show x\nimport builtins\nshow builtins.len(f)\n"
-        )
-        self.assertIn("I cannot hand function to Python.", out)
-
-    def test_bom_is_ignored(self):
-        self.assertEqual(jesun.execute("\ufeffshow 1\n"), "1\n")
-
     def test_keyboard_interrupt_in_main_is_plain(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        import jesun
         with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".jc", delete=False) as tmp:
             tmp.write('show 1\n')
@@ -108,113 +159,132 @@ class AuditBugs(unittest.TestCase):
         self.assertEqual(code, 130)
         self.assertIn("Stopped.", buf.getvalue())
 
-    def test_crlf_line_endings(self):
-        self.assertEqual(
-            jesun.execute('x is 5\r\nshow x\r\nif x is 5 then\r\n    show "y"\r\n'),
-            "5\ny\n",
-        )
-
-    def test_empty_file(self):
-        self.assertEqual(jesun.execute(""), "")
-        self.assertEqual(jesun.execute("\n\n  \n"), "")
-
-    def test_unicode_strings(self):
-        out = jesun.execute('show "héllo wörld 中"\nshow length of "héllo"\n')
-        self.assertEqual(out, "héllo wörld 中\n5\n")
-
-    def test_huge_numbers(self):
-        out = jesun.execute("show 999999999999999999999 * 999999999999999999999\n")
-        self.assertEqual(out, "999999999999999999998000000000000000000001\n")
-
 
 class ReplBehavior(unittest.TestCase):
+    """Pinned exclusion (spec 9.2c): the REPL is the bootstrap's
+    interactive loop; the walker has no REPL. The original tests stay."""
+
+    def run_repl(self, lines):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        import jesun
+        it = iter(lines)
+        buf = StringIO()
+        with mock.patch("builtins.input",
+                        side_effect=lambda _p="": next(it)), \
+                redirect_stdout(buf):
+            try:
+                jesun.repl()
+            except StopIteration:
+                pass
+        return buf.getvalue()
+
     def test_multiline_block(self):
-        out = run_repl(['if true then', '    show "a"', '    show "b"', "", ""])
+        out = self.run_repl(
+            ['if true then', '    show "a"', '    show "b"', "", ""])
         self.assertIn("a\nb\n", out)
 
     def test_single_line_runs_immediately(self):
-        out = run_repl(["show 40 + 2", ""])
+        out = self.run_repl(["show 40 + 2", ""])
         self.assertIn("42\n", out)
 
     def test_repl_error_is_plain_english(self):
-        out = run_repl(["show zebra", ""])
+        out = self.run_repl(["show zebra", ""])
         self.assertIn('Line 1: I do not know the word "zebra".', out)
 
     def test_repl_give_back_translated(self):
-        out = run_repl(["give back 1", ""])
+        out = self.run_repl(["give back 1", ""])
         self.assertIn('"give back" only makes sense inside a function.', out)
 
     def test_repl_stop_translated(self):
-        out = run_repl(["stop", ""])
+        out = self.run_repl(["stop", ""])
         self.assertIn('"stop" only makes sense inside a loop.', out)
 
     def test_repl_bad_indent_shows_error(self):
-        out = run_repl(["if true then", "show 1", "", ""])
+        out = self.run_repl(["if true then", "show 1", "", ""])
         self.assertIn("I expected an indented block here.", out)
 
 
-class NewBuiltins(unittest.TestCase):
+class NewBuiltins(AuditDiff):
     def test_split(self):
-        self.assertEqual(
-            jesun.execute('show split of "a,b,c" by ","\n'), "[a, b, c]\n"
-        )
+        boot, selfhost = self.run_both('show split of "a,b,c" by ","\n')
+        self.assert_differential(boot, selfhost, "split")
+        self.assertEqual(boot[1], "[a, b, c]\n")
 
     def test_split_needs_nonempty_by(self):
-        out = jesun.execute('show split of "abc" by ""\n')
-        self.assertEqual(out, 'Line 1: "split of" needs a non-empty "by" text.\n')
+        boot, selfhost = self.run_both('show split of "abc" by ""\n')
+        self.assert_differential(boot, selfhost, "split-empty-by")
+        self.assertEqual(
+            boot[1], 'Line 1: "split of" needs a non-empty "by" text.\n')
 
     def test_split_needs_text(self):
-        out = jesun.execute("show split of 42 by \",\"\n")
-        self.assertEqual(out, 'Line 1: "split of" needs text.\n')
+        boot, selfhost = self.run_both('show split of 42 by ","\n')
+        self.assert_differential(boot, selfhost, "split-needs-text")
+        self.assertEqual(boot[1], 'Line 1: "split of" needs text.\n')
 
     def test_join(self):
-        self.assertEqual(
-            jesun.execute('show join of ["a", "b"] with " and "\n'), "a and b\n"
-        )
+        boot, selfhost = self.run_both('show join of ["a", "b"] with " and "\n')
+        self.assert_differential(boot, selfhost, "join")
+        self.assertEqual(boot[1], "a and b\n")
 
     def test_join_of_variable_operand(self):
         # Regression: the with keyword belongs to the built-in, not to a
         # call on the operand. Used to fail with: I expected "with" here.
-        out = jesun.execute('words is ["a", "b"]\nshow join of words with "-"\n')
-        self.assertEqual(out, "a-b\n")
+        boot, selfhost = self.run_both(
+            'words is ["a", "b"]\nshow join of words with "-"\n')
+        self.assert_differential(boot, selfhost, "join-variable-operand")
+        self.assertEqual(boot[1], "a-b\n")
 
     def test_split_of_variable_operand(self):
-        out = jesun.execute('csv is "a,b"\nshow split of csv by ","\n')
-        self.assertEqual(out, "[a, b]\n")
+        boot, selfhost = self.run_both(
+            'csv is "a,b"\nshow split of csv by ","\n')
+        self.assert_differential(boot, selfhost, "split-variable-operand")
+        self.assertEqual(boot[1], "[a, b]\n")
 
     def test_join_of_call_result_operand(self):
         # A call's result works as an operand when parenthesized.
-        out = jesun.execute(
+        boot, selfhost = self.run_both(
             'to shout with word\n'
             '    give back [word, word]\n'
-            'show join of (shout with "hey") with "-"\n'
-        )
-        self.assertEqual(out, "hey-hey\n")
+            'show join of (shout with "hey") with "-"\n')
+        self.assert_differential(boot, selfhost, "join-call-operand")
+        self.assertEqual(boot[1], "hey-hey\n")
 
     def test_join_needs_list_of_text(self):
-        out = jesun.execute('show join of [1, 2] with ","\n')
-        self.assertEqual(out, 'Line 1: "join of" needs a list of text.\n')
+        boot, selfhost = self.run_both('show join of [1, 2] with ","\n')
+        self.assert_differential(boot, selfhost, "join-needs-list-of-text")
+        self.assertEqual(boot[1], 'Line 1: "join of" needs a list of text.\n')
 
     def test_trim(self):
-        self.assertEqual(jesun.execute('show trim of "  hi  "\n'), "hi\n")
+        boot, selfhost = self.run_both('show trim of "  hi  "\n')
+        self.assert_differential(boot, selfhost, "trim")
+        self.assertEqual(boot[1], "hi\n")
 
     def test_keys_of_foreign_dict(self):
-        out = jesun.execute(
-            "import json\nd is json.loads('{{\"a\": 1}}')\nshow keys of d\n"
-        )
-        self.assertEqual(out, "[a]\n")
+        # Note the doubled braces: {{ }} is Jesun.Code brace-escaping
+        # for a literal { } inside a string (the walker reads the same
+        # source, so the same rule applies on both legs).
+        boot, selfhost = self.run_both(
+            "import json\nd is json.loads('{{\"a\": 1}}')\n"
+            "show keys of d\n")
+        self.assert_differential(boot, selfhost, "keys-of-foreign-dict")
+        self.assertEqual(boot[1], "[a]\n")
 
     def test_keys_of_non_dict(self):
-        out = jesun.execute('show keys of "hi"\n')
-        self.assertEqual(out, 'Line 1: "keys of" needs a python dictionary.\n')
+        boot, selfhost = self.run_both('show keys of "hi"\n')
+        self.assert_differential(boot, selfhost, "keys-of-non-dict")
+        self.assertEqual(
+            boot[1], 'Line 1: "keys of" needs a python dictionary.\n')
 
     def test_suggest_prefix_match(self):
-        out = jesun.execute('name is "Jesun"\nshow nam\n')
-        self.assertIn('Did you mean "name"?', out)
+        boot, selfhost = self.run_both('name is "Jesun"\nshow nam\n')
+        self.assert_differential(boot, selfhost, "suggest-prefix")
+        self.assertIn('Did you mean "name"?', boot[1])
 
     def test_suggest_still_fixes_typos(self):
-        out = jesun.execute('name is "Jesun"\nshow naem\n')
-        self.assertIn('Did you mean "name"?', out)
+        boot, selfhost = self.run_both('name is "Jesun"\nshow naem\n')
+        self.assert_differential(boot, selfhost, "suggest-typo")
+        self.assertIn('Did you mean "name"?', boot[1])
 
 
 if __name__ == "__main__":

@@ -212,6 +212,19 @@ it.
   harness-class flake fixed (clock ticks between legs are
   normalized, the date/time shape still asserted).
 
+- `tests/test_audit.py` migrated (spec 9.2a): 21 differential-green
+  (stderr-traceback sanitization, unlisted-tool call, function handed
+  to the bridge, BOM, CRLF, empty file, unicode strings, huge
+  numbers, split/join/trim/keys/suggest built-ins). 8 pinned
+  exclusions (spec 9.2c): the 6 REPL tests (the walker has no REPL),
+  the SIGINT-delivery test (bootstrap-harness-only), and the
+  `_parse_call_args` unit test (bootstrap internals, not a program).
+  The exact-output assertion stays on the bootstrap leg. No walker
+  fidelity bugs found this round; the migration did catch a test
+  authoring bug: the JSON braces in `test_keys_of_foreign_dict` are
+  Jesun.Code brace-escaping (`{{`/`}}` in the source), and dropping a
+  level broke both legs identically.
+
 ## v0.6 - 2026-09-25
 
 Fleets. Named agents run asks in parallel as a team, answers collected
