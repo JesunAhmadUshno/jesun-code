@@ -425,12 +425,9 @@ VS Code extension in `docs/spec-v0.5.md`, and agent fleets in
 
 The public milestone ladder lives in [ROADMAP.md](ROADMAP.md): v0.4
 files and sharing (shipped), v0.5 Bangla flavor plus the VS Code
-extension (shipped), v0.6 agent fleets (shipped), v1.0 self-hosting (the interpreter rewritten
-in Jesun.Code itself; sprint 4 is under way (shared differential
-harness in, the suite migrating onto it file by file: `test_core` and
-`test_v04` done, 364 tests green, the migration already catching and
-fixing real walker bugs), but the milestone is not claimed until the full
-suite passes through it), v1.1 native binaries.
+extension (shipped), v0.6 agent fleets (shipped), v1.0 self-hosting (shipped: `jesun.jc`
+passes the full 365-test suite through the differential harness),
+v1.1 native binaries (next).
 
 ## License
 

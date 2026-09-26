@@ -30,33 +30,19 @@ America/Toronto.
   into a list in ask order, shared fleet memory
   (`The fleet remembers:`). Plain-English failures, no nesting, no
   streaming in fleets. 220 tests.
+- **v1.0.0 (2026-09-26): SELF-HOSTING.** `jesun.jc`: the full
+  interpreter (lexer, parser, tree-walker) written in Jesun.Code,
+  using the Python bridge only for file I/O and subprocess. It passes
+  the entire test suite: 365 tests, 309 differential-green (walker
+  byte-identical to the bootstrap), 8 pinned gaps, 2 pinned
+  divergences, 46 pinned exclusions (spec `docs/spec-v1.0.md`,
+  section 9.7; `tests/check_classification.py` enforces the tagging).
+  The victory condition of the grind; the Python implementation is now
+  the bootstrap only.
 
-## In progress
-
-- **v1.0: SELF-HOSTING.** `jesun.jc` exists and runs: phase A (v0.1
-  core), phase B part 1 (`ask`, file I/O, the `import` bridge), the
-  Bangla keyword flavor, `ask ai` (spec 8.2, with the `CALL:` tool
-  loop), agents (spec 8.3, with the one pinned tool-failure gap),
-  fleets (spec 8.4, sequential in the walker, with the pinned 8.4.1
-  gap), jpm execution (spec 8.5: `use`/`bring in` in the walker,
-  package error tagging identical to the bootstrap, with the pinned
-  8.5.5 deep-source gap), and later-phase statement parsing (`use`,
-  `bring in`, tmux terminal shapes) are differential-green against the
-  bootstrap (spec `docs/spec-v1.0.md`). Sprint 4 is under way: the
-  shared differential harness (`tests/selfhost_harness.py`) is in, and
-  the suite itself is being migrated onto it file by file, 364 tests
-  green (2026-09-26). Migrated so far: `test_core`, `test_v04`. The
-  migration already caught two real walker fidelity bugs (unknown-word
-  suggestions, per-leg file sandboxing), both fixed. The milestone is
-  claimed only when the full suite passes through `jesun.jc`.
 
 ## Up next (in order, no skipping)
 
-- **v1.0: SELF-HOSTING.** `jesun.jc`: the full interpreter (lexer,
-  parser, tree-walker) written in Jesun.Code, using the Python bridge
-  only for file I/O and subprocess. It must pass the entire test suite.
-  This is the victory condition of the grind; the Python implementation
-  becomes the bootstrap only.
 - **v1.1: native.** A `jesun build` command producing real native
   binaries (transpile Jesun.Code to C, compile with cc). No bundled
   runtime.
@@ -89,7 +75,8 @@ its domain runs natively, tested, in Jesun.Code.
 
 Until v1.1, releases ship as a single binary that bundles a runtime; you
 never install Python, but the interpreter core inside is Python-based.
-Self-hosting is roadmap until v1.0. Neither claim will be made before
+Self-hosting is real: `jesun.jc` is the interpreter. Packaging is
+roadmap until v1.1. Neither claim will be made before
 its milestone ships green.
 
 ## Blocked on the founder (not worked around)

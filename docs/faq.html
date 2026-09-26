@@ -75,7 +75,7 @@
 
   <details>
     <summary>What is the roadmap?</summary>
-    <p>v0.6.0 shipped agent fleets (parallel agents, shared memory). v1.0 is self-hosting: the interpreter rewritten in Jesun.Code itself. v1.1 compiles to real native binaries. The honest framing: until v1.0 the interpreter core is Python bundled inside the binary, and until v1.1 it is not a native compiler. Neither is claimed otherwise.</p>
+    <p>v1.0.0 shipped self-hosting: the interpreter (jesun.jc) is written in Jesun.Code itself and passes the full 365-test suite through the differential harness (the Python implementation is the bootstrap only). v1.1 compiles to real native binaries. The honest framing: until v1.1 the shipped binary still bundles the Python runtime; it is not a native compiler. Neither is claimed otherwise.</p>
   </details>
 
   <details>
@@ -97,7 +97,7 @@
     {"@type": "Question", "name": "What is a fleet in Jesun.Code?", "acceptedAnswer": {"@type": "Answer", "text": "Since v0.6.0: a fleet block runs named agents in parallel and collects their answers into a list in ask order, with optional shared fleet memory."}},
     {"@type": "Question", "name": "How does the AI brain work?", "acceptedAnswer": {"@type": "Answer", "text": "ask ai sends a prompt to the connected mind via JESUNCODE_AI_COMMAND. Three providers ship with the installer: Pollinations (free forever, no key), Gemini (free with a Google account), and OpenAI (your own key). Named agents add persona, tools, streaming, and persistent memory."}},
     {"@type": "Question", "name": "Is there a VS Code extension?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, in editors/vscode/: syntax highlighting for English and Bangla keywords, snippets, and run-file on Ctrl+Alt+R. The grammar is generated from the interpreter itself, so it never drifts out of sync."}},
-    {"@type": "Question", "name": "What is the roadmap?", "acceptedAnswer": {"@type": "Answer", "text": "v0.6.0 shipped agent fleets. v1.0 is self-hosting: the interpreter rewritten in Jesun.Code itself. v1.1 compiles to real native binaries."}},
+    {"@type": "Question", "name": "What is the roadmap?", "acceptedAnswer": {"@type": "Answer", "text": "v1.0.0 shipped self-hosting: the interpreter is written in Jesun.Code itself and passes the full 365-test suite. v1.1 compiles to real native binaries."}},
     {"@type": "Question", "name": "What license is it?", "acceptedAnswer": {"@type": "Answer", "text": "MIT. Do anything with it."}}
   ]
 }
