@@ -757,6 +757,14 @@ One commit per file, suite green before moving on:
 first, alone. Each commit reports the count moved
 differential-green, gaps pinned, exclusions pinned.
 
+[LANDED 2026-09-26: `test_core` (commit 23c4089): 23 differential-
+green, 2 pinned walker-guard gaps (9.1/9.2). `test_v04` (commit
+44d0161): 25 differential-green via `InlineSandbox` (one hermetic
+working folder per interpreter leg). The migration caught and fixed
+two real walker fidelity bugs: unknown-word suggestion parity
+(`suggest_name`, 3 fixtures) and per-leg file sandboxing in the
+harness. Suite 364/364 green.]
+
 ### 9.5 Fuzzers
 
 `tests/fuzz_selfhost.py` already runs every generated case through
@@ -766,6 +774,11 @@ agents, fleets, jpm, Bangla). Shapes the walker parses but does not
 execute (threads, tmux, network `use`) stay parse-level by design
 (spec 8.3.2); the fuzzer asserts the honest later-phase line on the
 walker leg, exactly like the bootstrap leg.
+
+[EXTENDED 2026-09-26: `suggest_program` generator (near-miss
+spellings: transposition, dropped char, prefix, case flip, suffix;
+shadowed definitions) covers the unknown-word suggestion rule both
+sides now share (spec 9.2a).]
 
 ### 9.6 Runtime budget
 

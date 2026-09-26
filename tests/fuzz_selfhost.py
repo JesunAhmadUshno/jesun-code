@@ -884,6 +884,48 @@ def bangla_program(rng: random.Random) -> str:
     return "\n".join(lines) + "\n"
 
 
+SUGGEST_NAMES = ["name", "total", "count", "alpha", "alpine", "username", "value"]
+
+
+def near_miss(rng: random.Random, name: str) -> str:
+    """A near-miss spelling of a defined name: transposition, dropped
+    char, prefix, case flip, or suffix. Exercises the unknown-word
+    suggestion rule (prefix, then difflib) on both sides."""
+    op = rng.random()
+    if op < 0.3 and len(name) > 2:
+        i = rng.randrange(len(name) - 1)
+        return name[:i] + name[i + 1] + name[i] + name[i + 2:]
+    if op < 0.5 and len(name) > 1:
+        i = rng.randrange(len(name))
+        return name[:i] + name[i + 1:]
+    if op < 0.7 and len(name) > 1:
+        return name[: rng.randint(1, len(name) - 1)]
+    if op < 0.85:
+        i = rng.randrange(len(name))
+        c = name[i]
+        flipped = c.upper() if c.islower() else c.lower()
+        return name[:i] + flipped + name[i + 1:]
+    return name + "z"
+
+
+def suggest_program(rng: random.Random) -> str:
+    """Unknown-name suggestion shapes (spec 9.2a, sprint 4): define some
+    names, then use near-miss spellings. Both sides must suggest the
+    same name (or none) with the same innermost-first, prefix-then-
+    difflib rule; shadowing (the same stem defined in a function)
+    checks candidate order."""
+    defs = rng.sample(SUGGEST_NAMES, rng.randint(1, 4))
+    lines = [f"{n} is {rng.randint(0, 9)}" for n in defs]
+    if rng.random() < 0.4:
+        shadow = rng.choice(defs) + rng.choice(["s", "x", "2"])
+        lines.append("to f with q")
+        lines.append(f"    {shadow} is 1")
+        lines.append(f"    show {near_miss(rng, shadow)}")
+        lines.append("f with 0")
+    lines.append(f"show {near_miss(rng, rng.choice(defs))}")
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 150
     rng = random.Random(20260925)
@@ -908,6 +950,9 @@ def main() -> int:
         elif i % 17 == 16:
             src, no_git, dirty = jpm_program(rng)
             case_problems, case_skips = check_jpm_case(i, src, no_git, dirty)
+        elif i % 19 == 18:
+            src = suggest_program(rng)
+            case_problems, case_skips = check(i, src)
         else:
             src = token_soup(rng) if i % 2 == 0 else mutate(rng, rng.choice(SEEDS))
             case_problems, case_skips = check(i, src)
