@@ -180,6 +180,20 @@ it.
   bug: `show` rendered an agent as its raw nested list instead of
   `<agent scout>`. The walker's `render` now has the agent branch,
   matching the bootstrap's `show_text`.
+- `tests/test_fleet.py` migrated (spec 9.2a): 18 differential-green and
+  1 pinned gap. All 19 fleet tests run through both interpreters as
+  subprocesses (basics, errors, shared memory round trip with
+  byte-identical `crew.json` files, member-history prompt comparison,
+  Bangla, the parallel timing case). Each interpreter leg gets its own
+  `MIND_COUNT_FILE`, `MIND_PROMPT_FILE`, `JESUN_CODE_HOME`, and working
+  folder (fleet memory files are cwd-relative); saved prompt files are
+  byte-identical on both legs. The wall-time assertion stays on the
+  bootstrap leg only, since the walker runs fleet asks in order by
+  design (spec 8.4.1). Pinned gap: `test_fleet_cannot_nest_in_asks`:
+  the bootstrap feeds the nesting refusal back to the mind as the
+  tool's RESULT and finishes `(0, "noted, no more tools")`; the walker
+  ends the run with `(1, "Line 2: a fleet cannot open inside another
+  fleet's asks.")`. No walker fidelity bugs found this round.
 
 ## v0.6 - 2026-09-25
 

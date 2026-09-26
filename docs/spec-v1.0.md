@@ -786,6 +786,7 @@ bootstrap's exact messages, recursive list checking, and a depth cap
 that reports `I got in too deep` at the call line for cyclic lists.
 Suite 365/365 green after the migration (the zero-leakage split added one test).
 `test_agents` (commit pending): 18 differential-green (agent blocks, ask-agent, tools, memory, leakage; per-leg count/prompt files and hermetic homes), no exclusions. The migration caught and fixed a real walker fidelity bug: `show` rendered agents as raw nested lists; the walker's `render` now emits `<agent name>`.]
+[LANDED 2026-09-26: `test_fleet` (commit pending): 18 differential-green (basics, errors, shared memory round trip with byte-identical `crew.json` per leg, member-history prompt comparison, Bangla, parallel timing with the wall-time assertion on the bootstrap leg only per 8.4.1) and 1 pinned gap: `test_fleet_cannot_nest_in_asks` pins the 8.4.1 behavior exactly, bootstrap `(0, "noted, no more tools\n")` feeding the refusal back as the tool's RESULT, walker `(1, "Line 2: a fleet cannot open inside another fleet's asks.\n")`. No walker fidelity bugs found this round.]
 
 ### 9.5 Fuzzers
 
