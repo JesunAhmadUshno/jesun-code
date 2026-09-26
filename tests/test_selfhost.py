@@ -25,7 +25,11 @@ TIMEOUT = 120
 LINE_RE = re.compile(r"Line \d+")
 
 
-def run(args, cwd=REPO, stdin_text=None):
+def run(args, cwd=REPO, stdin_text=None, env=None):
+    full_env = None
+    if env is not None:
+        full_env = dict(os.environ)
+        full_env.update(env)
     proc = subprocess.run(
         [sys.executable] + args,
         cwd=cwd,
@@ -33,6 +37,7 @@ def run(args, cwd=REPO, stdin_text=None):
         text=True,
         timeout=TIMEOUT,
         input=stdin_text,
+        env=full_env,
     )
     return proc.returncode, proc.stdout
 
@@ -88,6 +93,50 @@ class TestSelfHost(unittest.TestCase):
             f"fixture {name} differs beyond the known 7.3 gap:\n"
             f"bootstrap={boot!r}\nselfhost={selfhost!r}",
         )
+
+    def check_ai(self, name, mind=None, fresh_count=True):
+        """Differential ask-ai run (spec 8.2) with JESUNCODE_AI_COMMAND
+        pointed at a fixture mind, or unset when mind is None. Counting
+        minds (mind_tools, mind_unknown_tool) get a fresh MIND_COUNT_FILE
+        before each side, so both sides see the same call sequence."""
+        fixture = os.path.join("tests", "fixtures", "selfhost", name)
+        env = {}
+        if mind is not None:
+            env["JESUNCODE_AI_COMMAND"] = (
+                sys.executable + " " + os.path.join(REPO, "tests", "fixtures", mind))
+        count_path = None
+        if fresh_count:
+            fd, count_path = tempfile.mkstemp(prefix="mindcount_")
+            os.close(fd)
+            env["MIND_COUNT_FILE"] = count_path
+        try:
+            boot = run(["jesun.py", fixture], env=env)
+            if count_path is not None:
+                with open(count_path, "w", encoding="utf-8") as handle:
+                    handle.write("0")
+            selfhost = run(["jesun.py", "jesun.jc", fixture], env=env)
+            self.assertEqual(
+                selfhost, boot,
+                f"fixture {name} differs:\nbootstrap={boot!r}\nselfhost={selfhost!r}",
+            )
+        finally:
+            if count_path is not None:
+                os.unlink(count_path)
+
+    def check_ai_nomind(self, name):
+        """ask-ai with JESUNCODE_AI_COMMAND scrubbed from the environment."""
+        fixture = os.path.join("tests", "fixtures", "selfhost", name)
+        saved = os.environ.pop("JESUNCODE_AI_COMMAND", None)
+        try:
+            boot = run(["jesun.py", fixture])
+            selfhost = run(["jesun.py", "jesun.jc", fixture])
+            self.assertEqual(
+                selfhost, boot,
+                f"fixture {name} differs:\nbootstrap={boot!r}\nselfhost={selfhost!r}",
+            )
+        finally:
+            if saved is not None:
+                os.environ["JESUNCODE_AI_COMMAND"] = saved
 
     def test_core(self):
         self.check("core.jc")
@@ -228,6 +277,38 @@ class TestSelfHost(unittest.TestCase):
 
     def test_phaseb_call_fail(self):
         self.check_known_gap("phaseb_call_fail.jc")
+
+    # -- phase B part 2: ask ai (spec 8.2) --------------------------------
+
+    def test_askai_basic(self):
+        self.check_ai("ask_ai_basic.jc", "mind_fixed.py", fresh_count=False)
+
+    def test_askai_nomind(self):
+        self.check_ai_nomind("ask_ai_nomind.jc")
+
+    def test_askai_fails(self):
+        self.check_ai("ask_ai_fails.jc", "mind_fails.py", fresh_count=False)
+
+    def test_askai_tools(self):
+        self.check_ai("ask_ai_tools.jc", "mind_tools.py")
+
+    def test_askai_unknown_tool(self):
+        self.check_ai("ask_ai_unknown_tool.jc", "mind_unknown_tool.py")
+
+    def test_askai_steps_exhausted(self):
+        self.check_ai("ask_ai_steps.jc", "mind_tools.py")
+
+    def test_askai_arity(self):
+        self.check_ai("ask_ai_arity.jc", "mind_tools.py")
+
+    def test_askai_streaming(self):
+        self.check_ai("ask_ai_streaming.jc", "mind_fixed.py", fresh_count=False)
+
+    def test_askai_within_zero(self):
+        self.check_ai("ask_ai_within_zero.jc", fresh_count=False)
+
+    def test_askai_bangla(self):
+        self.check_ai("ask_ai_bangla.jc", "mind_fixed.py", fresh_count=False)
 
     def test_bn_basic(self):
         self.check("bn_basic.jc")

@@ -23,7 +23,18 @@ it.
   dictionaries (a phase-A hole), exotic symbols (e.g. arrows) now end
   words and fail exactly like the bootstrap, non-decimal digit runs
   (e.g. superscripts) fail with the bootstrap's bare unexpected error.
-- Still to come in phase B part 2: `ask ai`, agents, fleets, jpm.
+- Phase B part 2, `ask ai` (spec 8.2): the self-hosted walker now asks
+  minds. `ask ai <prompt> giving <name>` with optional `with tools
+  [...]`, `within <n> steps`, and trailing `streaming`. The subprocess
+  half (argv from `JESUNCODE_AI_COMMAND`, 60s timeout, the streaming
+  reader) is one constant, audited bridge template that never contains
+  program text; the transcript, the `CALL:` tool loop, and tool
+  dispatch (the walker's own foreign-call path, with arity checks)
+  are Jesun.Code. Bangla spells it `জিজ্ঞেস এআই ... রেখে ...`.
+  10 differential fixtures against fixture minds; the differential
+  fuzzer now generates `ask ai` cases (grammar shapes, error codes,
+  Bangla flavor).
+- Still to come in phase B part 2: agents, fleets, jpm.
 
 ## v0.6 - 2026-09-25
 

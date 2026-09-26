@@ -5,7 +5,10 @@ minds: nothing with side effects beyond stdout), runs each through
 `python jesun.py prog` and `python jesun.jc prog`, and requires
 identical (returncode, stdout). Every third case is a phase-B program
 (ask with piped stdin, file I/O, the import bridge): those run with a
-fresh temp cwd per case on both sides. Also enforces the zero-leakage
+fresh temp cwd per case on both sides. Every seventh case is an ask-ai
+program (spec 8.2) driven by a deterministic fixture mind
+(`tests/fixtures/mind_*.py`) with a fresh MIND_COUNT_FILE per side;
+`None` means no JESUNCODE_AI_COMMAND at all. Also enforces the zero-leakage
 rule on both outputs: no tracebacks, no Python exception names, no "0x".
 
 The known spec-7.3 gap (call-time foreign failures report at the
@@ -246,6 +249,122 @@ def check_pb(i: int, src: str, stdin_text: str) -> tuple[list[str], int]:
     return problems, 0
 
 
+# -- ask ai (spec 8.2): deterministic fixture minds, so both sides agree --
+AI_MINDS = ["mind_fixed.py", "mind_tools.py", "mind_unknown_tool.py",
+            "mind_fails.py", None]  # None: no JESUNCODE_AI_COMMAND at all
+AI_COUNTING = {"mind_tools.py", "mind_unknown_tool.py"}
+AI_TOOLNAMES = ["read_logs", "helper", "nope"]
+
+
+def ai_program(rng: random.Random) -> tuple[str, str | None]:
+    """Returns (source, mind_name). Grammar shapes: bare ask ai, with
+    tools, within N steps (valid and invalid), streaming, and the
+    Bangla flavor. Counting minds get a fresh MIND_COUNT_FILE per
+    side in check_ai, so both sides see the same call sequence."""
+    bangla = rng.random() < 0.2
+    mind = rng.choice(AI_MINDS)
+    lines: list[str] = []
+    tools: list[str] = []
+    if rng.random() < 0.6:
+        for _ in range(rng.randint(1, 2)):
+            t = rng.choice(AI_TOOLNAMES)
+            if t in tools:
+                continue
+            tools.append(t)
+            if bangla:
+                lines.append(f"জন্যে {t} সহ x")
+                lines.append('    দাও ফেরত "r"')
+            else:
+                params = rng.choice([[], ["x"], ["x", "y"]])
+                if params:
+                    lines.append(f"to {t} with {' and '.join(params)}")
+                else:
+                    lines.append(f"to {t}")
+                lines.append('    give back "r"')
+    prompt = '"fuzz prompt"'
+    if bangla:
+        stmt = f'জিজ্ঞেস এআই {prompt}'
+        if tools:
+            stmt += " সহ হাতিয়ার [" + ", ".join(tools) + "]"
+            if rng.random() < 0.4:
+                stmt += " মধ্যে " + rng.choice(["১", "২", "০", "two"]) + " ধাপ"
+        stmt += " রেখে উত্তর"
+        if rng.random() < 0.25:
+            stmt += " সরাসরি"
+        lines = ["বাংলা"] + lines + [stmt, "দেখাও উত্তর"]
+    else:
+        stmt = f"ask ai {prompt}"
+        if tools:
+            stmt += " with tools [" + ", ".join(tools) + "]"
+            if rng.random() < 0.4:
+                stmt += " within " + rng.choice(["1", "2", "3", "0", "two"]) + " steps"
+        stmt += " giving ans"
+        if rng.random() < 0.25:
+            stmt += " streaming"
+        lines = lines + [stmt, "show ans"]
+    return "\n".join(lines) + "\n", mind
+
+
+def run_side_ai(args: list[str], prog: Path, env: dict) -> tuple:
+    """Returns (returncode, stdout) or ("timeout", "")."""
+    try:
+        proc = subprocess.run(
+            [sys.executable] + args + [str(prog)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            stdin=subprocess.DEVNULL,
+            env=env,
+        )
+        return proc.returncode, proc.stdout
+    except subprocess.TimeoutExpired:
+        return "timeout", ""
+
+
+def check_ai(i: int, src: str, mind: str | None) -> tuple[list[str], int]:
+    skips = 0
+    TMPDIR.mkdir(parents=True, exist_ok=True)
+    prog = TMPDIR / f"case{i}.jc"
+    prog.write_text(src, encoding="utf-8")
+    count_file = TMPDIR / f"mindcount{i}.txt"
+    try:
+        env = dict(os.environ)
+        env.pop("JESUNCODE_AI_COMMAND", None)
+        if mind is not None:
+            env["JESUNCODE_AI_COMMAND"] = (
+                sys.executable + " " + str(ROOT / "tests" / "fixtures" / mind))
+        count_file.write_text("0", encoding="utf-8")
+        env["MIND_COUNT_FILE"] = str(count_file)
+        boot = run_side_ai(["jesun.py"], prog.relative_to(ROOT), env)
+        count_file.write_text("0", encoding="utf-8")
+        selfhost = run_side_ai(["jesun.py", "jesun.jc"],
+                               prog.relative_to(ROOT), env)
+    finally:
+        prog.unlink(missing_ok=True)
+        count_file.unlink(missing_ok=True)
+    if boot[0] == "timeout" or selfhost[0] == "timeout":
+        return [], 1
+    problems: list[str] = []
+    if boot != selfhost:
+        problems.append(
+            f"case {i}: ask-ai MISMATCH (mind={mind})\n--- src ---\n{src}\n"
+            f"--- bootstrap {boot[0]} ---\n{boot[1]}\n"
+            f"--- selfhost {selfhost[0]} ---\n{selfhost[1]}\n"
+        )
+    for label, out in (("bootstrap", boot[1]), ("selfhost", selfhost[1])):
+        for marker in ("Traceback", 'File "', "0x"):
+            if marker in out:
+                problems.append(
+                    f"case {i}: {label} leaked {marker!r}\n---\n{src}\n---\n{out}"
+                )
+        if EXC_NAMES.search(out):
+            problems.append(
+                f"case {i}: {label} leaked exception name\n---\n{src}\n---\n{out}"
+            )
+    return problems, skips
+
+
 def run_side(args: list[str], prog: Path) -> tuple:
     """Returns (returncode, stdout) or ("timeout", "")."""
     try:
@@ -338,6 +457,9 @@ def main() -> int:
         elif i % 5 == 4:
             src = bangla_program(rng)
             case_problems, case_skips = check(i, src)
+        elif i % 7 == 6:
+            src, mind = ai_program(rng)
+            case_problems, case_skips = check_ai(i, src, mind)
         else:
             src = token_soup(rng) if i % 2 == 0 else mutate(rng, rng.choice(SEEDS))
             case_problems, case_skips = check(i, src)
