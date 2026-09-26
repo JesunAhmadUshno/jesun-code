@@ -112,6 +112,11 @@ it.
   differential fixtures: `err_suggest_close.jc`,
   `err_suggest_prefix.jc`, `err_suggest_first.jc` (shadowing:
   innermost name wins).
+- `tests/test_core.py` migrated (spec 9.2a): 23 differential-green
+  (7 example programs, 12 error shapes, 4 semantics including
+  zero-leakage checks on both legs) and 2 pinned walker-guard gaps
+  (spec 9.1 call-depth, 9.2 million-iteration loop: identical message
+  text, jesun.jc line attribution, line numbers normalized).
 
 ## v0.6 - 2026-09-25
 

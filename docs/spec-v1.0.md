@@ -697,11 +697,14 @@ minds), `test_fleet.py` (19, fixture minds), and the local
 mechanism-explained way, pinned by a dedicated fixture and a spec
 subsection. The existing four stay: 7.3 (foreign call failure
 reported at the walker's bridge line), 8.3.1 (tool-loop failure),
-8.4.1 (sequential fleets), 8.5.5 (deep package sources). New gaps
-found during migration get the same treatment: both outputs quoted,
-mechanism explained, and a statement of what would have to break to
-close it. A gap is never "the walker is worse"; it is a boundary
-with a receipt.
+8.4.1 (sequential fleets), 8.5.5 (deep package sources). Migration
+added the walker-guard family below (9.1, 9.2): the message text is
+identical on both sides; only the line attribution differs, because
+the bootstrap's own resource guards fire while it interprets
+`jesun.jc`. New gaps found during migration get the same treatment:
+both outputs quoted, mechanism explained, and a statement of what
+would have to break to close it. A gap is never "the walker is
+worse"; it is a boundary with a receipt.
 
 (c) **Pinned exclusion, with reason.** The test cannot run through
 the walker by construction:
@@ -772,8 +775,49 @@ adds roughly two minutes to the suite. No persistent-walker
 optimization: process-per-case keeps runs hermetic, and hermetic
 beats fast for a victory gate.
 
-### 9.7 Exit checklist
+### 9.1 Walker-guard gap: call-depth (pinned 2026-09-26)
 
+Program: `to f with n / f with n / f with 1` (infinite recursion).
+
+- Bootstrap: `(1, "Line 2: the functions are calling each other too
+  deep; I stopped before falling over.\n")`.
+- Walker: `(1, "Line 1638: the functions are calling each other too
+  deep; I stopped before falling over.\n")` (the jesun.jc line number
+  moves with the source; the pin normalizes `Line \d+` to `Line N`).
+
+Mechanism: the target program's recursion drives the walker's own
+Jesun.Code call stack deep, so the bootstrap's call-depth guard fires
+while it is interpreting the walker's exec recursion. The message text
+is the walker's; the line is the jesun.jc line the bootstrap was
+interpreting. Same family as 8.5.5. Closing it would need the walker's
+target-level depth guard to fire before the bootstrap's own guard does
+while it interprets jesun.jc. Pinned by
+`CoreSemantics.test_recursion_depth_guard_gap`.
+
+### 9.2 Walker-guard gap: million-iteration loop (pinned 2026-09-26)
+
+Program: `repeat while true / show 1` (a million `1` lines, then the
+guard message).
+
+- Bootstrap: `(1, "1\n" * 1000000 + "Line 1: this loop ran a million
+  times; I stopped it.\n")`.
+- Walker: identical output except the guard line reads `Line 2660`
+  (a jesun.jc line inside `exec_repeat_while`; moves with the source,
+  normalized to `Line N` in the pin).
+
+Mechanism: each target iteration is one iteration of the walker's own
+`repeat while keep_going` in `exec_repeat_while`, so the bootstrap's
+million-iteration guard fires while it interprets the walker, before
+the walker's own `runs is greater than 1000000` check (which carries
+the target line) can run. Same family as 8.5.5 and 9.1. Closing it
+would need the walker's target-level iteration guard to fire before
+the bootstrap's own guard does while it interprets jesun.jc. Pinned by
+`CoreSemantics.test_loop_millions_guard_gap`, which also leak-checks
+both legs. Runtime note: this case costs ~90s through the walker (a
+million interpreted iterations) and dominates the suite budget; it is
+kept because it exercises the walker's loop guard end to end.
+
+### 9.7 Exit checklist
 - Every test method in `tests/test_*.py` is tagged
   differential-green, pinned gap, or pinned exclusion.
 - `python -m unittest discover -s tests` passes in one command.
