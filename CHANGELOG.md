@@ -125,6 +125,15 @@ it.
   caught a test-isolation flaw in the harness itself (shared cwd let
   the bootstrap leg's files pollute the walker leg); the harness now
   runs one interpreter per leg dir.
+- `tests/test_v05.py` migrated (spec 9.2a): all 36 Bangla
+  interpreter-behavior tests differential-green (headers, core,
+  keywords, file I/O through `InlineSandbox`, error shapes, stdin
+  `ask`, the Python-bridge `আনো ... হিসেবে ...` import), zero-leakage
+  checks on both legs. Two pinned exclusions: `BanglaRepl` (the REPL
+  is the bootstrap's interactive loop; the walker has none, spec 9c)
+  and `VSCodeExtension` (asset validation tests, no interpreter
+  behavior). The migration caught a helper bug in the draft (the
+  Bangla-header helper double-applied the header on header tests).
 
 ## v0.6 - 2026-09-25
 

@@ -760,10 +760,13 @@ differential-green, gaps pinned, exclusions pinned.
 [LANDED 2026-09-26: `test_core` (commit 23c4089): 23 differential-
 green, 2 pinned walker-guard gaps (9.1/9.2). `test_v04` (commit
 44d0161): 25 differential-green via `InlineSandbox` (one hermetic
-working folder per interpreter leg). The migration caught and fixed
+working folder per interpreter leg). `test_v05`: 36 differential-
+green (Bangla core, keywords, file I/O, error shapes, stdin `ask`,
+Python-bridge import), 2 pinned exclusions (BanglaRepl per spec 9c,
+VSCodeExtension asset tests). The migration caught and fixed
 two real walker fidelity bugs: unknown-word suggestion parity
 (`suggest_name`, 3 fixtures) and per-leg file sandboxing in the
-harness. Suite 364/364 green.]
+harness. Suite 364/364 green before the test_v05 migration.]
 
 ### 9.5 Fuzzers
 
