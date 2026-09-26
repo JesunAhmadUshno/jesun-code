@@ -1,0 +1,10 @@
+to make_adder with base
+    to add with x
+        give back base + x
+    give back add
+
+add5 is make_adder with 5
+add100 is make_adder with 100
+show add5 with 10
+show add100 with 10
+show add5 with 7

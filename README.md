@@ -427,7 +427,10 @@ The public milestone ladder lives in [ROADMAP.md](ROADMAP.md): v0.4
 files and sharing (shipped), v0.5 Bangla flavor plus the VS Code
 extension (shipped), v0.6 agent fleets (shipped), v1.0 self-hosting (shipped: `jesun.jc`
 passes the full 365-test suite through the differential harness),
-v1.1 native binaries (next).
+v1.1 native binaries (in progress: `jesun build` transpiles the v1.1 core
+subset to C and compiles real native binaries; spec
+`docs/spec-v1.1.md`; unsupported features fail at build time in plain
+English).
 
 ## License
 

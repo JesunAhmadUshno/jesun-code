@@ -3123,6 +3123,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args in (["--version"], ["-v"]):
         print(f"Jesun.Code v{VERSION}")
         return 0
+    if args and args[0] == "build":
+        # v1.1 native: transpile to C and compile. Lazy import: jesun_build
+        # imports this module for the parser, so importing it here avoids a
+        # circular import at startup.
+        from jesun_build import build_command
+
+        return build_command(args[1:])
     if not args:
         return repl()
     path = args[0]  # v1.0: words after the file become `arguments`
