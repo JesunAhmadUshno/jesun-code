@@ -712,5 +712,208 @@ class TestSelfHost(unittest.TestCase):
                 os.unlink(count_path)
 
 
+def _seed_jpm_tree(home, deep_n=0):
+    """Seed a local packages/github.com/u/ tree under a temp JESUN_CODE_HOME
+    (spec 8.5.6). No network: every fixture's packages are files on disk."""
+    from pathlib import Path
+    pkgs = Path(home) / "packages" / "github.com" / "u"
+
+    def put(pkg, files):
+        for rel, content in files.items():
+            path = pkgs / pkg / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+
+    put("greeter", {"greeter.jc":
+                    'to greet with name\n    give back "hello, " + name\n'})
+    put("oops", {"oops.jc": 'fail with "kablam"\n'})
+    put("badmod", {"badmod.jc":
+                   'to bad with x\n    fail with "kaboom"\n'})
+    put("alpha", {"alpha.jc":
+                  'to afail with x\n    bfail with x\n'})
+    put("beta", {"beta.jc":
+                 'to bfail with x\n    fail with "deep trouble"\n'})
+    put("circa", {"circa.jc": 'bring in "circb"\n'})
+    put("circb", {"circb.jc": 'bring in "circa"\n'})
+    put("badjson", {"badjson.jc": 'show "never"\n',
+                    "jpm.json": "{oops"})
+    put("esc", {"esc.jc": 'show "never"\n',
+                "jpm.json": '{"main": "../evil.jc"}'})
+    (pkgs / "empty").mkdir(parents=True, exist_ok=True)
+    put("multi", {"lib.jc": 'to libfn with x\n    give back x + 1\n',
+                  "jpm.json": '{"main": "lib.jc"}'})
+    put("banglapkg", {"banglapkg.jc":
+                      "বাংলা\n"
+                      "জন্যে সালাম সহ নাম\n"
+                      '    দাও ফেরত "স্বাগতম, " + নাম\n'})
+    put("cleanpkg", {"cleanpkg.jc": 'show "installed"\n'})
+    if deep_n:
+        deep = "show " + "((((((((((" * deep_n + "1" + "))))))))))" * deep_n
+        put("deep", {"deep.jc": deep + "\n"})
+
+
+def _seed_jpm_dirty(home):
+    """A package dir that is a git checkout with uncommitted changes, so
+    `use` takes the dirty path on both sides (spec 8.5.6)."""
+    from pathlib import Path
+    dest = Path(home) / "packages" / "github.com" / "u" / "dirty"
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "dirty.jc").write_text('show "dirty"\n', encoding="utf-8")
+    git_env = dict(os.environ)
+    git_env["GIT_CONFIG_NOSYSTEM"] = "1"
+
+    def git(*args):
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t",
+             "-c", "init.defaultBranch=main", *args],
+            cwd=str(dest), check=True, capture_output=True, env=git_env)
+
+    git("init", "-q")
+    git("add", "-A")
+    git("commit", "-qm", "seed")
+    (dest / "dirty.jc").write_text('show "dirty modified"\n',
+                                   encoding="utf-8")
+
+
+class TestSelfHostJpm(unittest.TestCase):
+    def check_jpm(self, name, git_dirty=False, no_git=False):
+        """Differential jpm run (spec 8.5). Each side gets its own fresh
+        JESUN_CODE_HOME seeded with the identical local package tree and
+        its own scratch working folder; the fixture never touches the
+        network. no_git scrubs git from PATH so `use` takes the
+        no-git path on both sides."""
+        jesun_py = os.path.join(REPO, "jesun.py")
+        jesun_jc = os.path.join(REPO, "jesun.jc")
+        home_b = tempfile.mkdtemp(prefix="jpm_home_b_")
+        home_s = tempfile.mkdtemp(prefix="jpm_home_s_")
+        cwd_b = tempfile.mkdtemp(prefix="jpm_cwd_b_")
+        cwd_s = tempfile.mkdtemp(prefix="jpm_cwd_s_")
+        empty_bin = None
+        try:
+            _seed_jpm_tree(home_b)
+            _seed_jpm_tree(home_s)
+            if git_dirty:
+                _seed_jpm_dirty(home_b)
+                _seed_jpm_dirty(home_s)
+            envs = []
+            for home, cwd in ((home_b, cwd_b), (home_s, cwd_s)):
+                shutil.copy(os.path.join(FIXTURES, name), cwd)
+                env = dict(os.environ)
+                env["JESUN_CODE_HOME"] = home
+                if no_git:
+                    empty_bin = tempfile.mkdtemp(prefix="jpm_nogit_")
+                    env["PATH"] = empty_bin
+                envs.append((cwd, env))
+            boot = run([jesun_py, name], cwd=envs[0][0], env=envs[0][1])
+            selfhost = run([jesun_py, jesun_jc, name], cwd=envs[1][0],
+                           env=envs[1][1])
+            self.assertEqual(
+                selfhost, boot,
+                f"fixture {name} differs:\nbootstrap={boot!r}\n"
+                f"selfhost={selfhost!r}",
+            )
+        finally:
+            for path in (home_b, home_s, cwd_b, cwd_s):
+                shutil.rmtree(path, ignore_errors=True)
+            if empty_bin is not None:
+                shutil.rmtree(empty_bin, ignore_errors=True)
+
+    def check_jpm_gap(self, name):
+        """Spec 8.5.5 (known gap): a package whose source nests deeper
+        than the parsers can recurse. The bootstrap's package loader
+        catches its own RecursionError and reports TOO_DEEP at the
+        bring-in line with the package tag; the self-hosted side trips
+        the call-depth guard while the bootstrap interprets the walker's
+        parser, so the line is a jesun.jc line and the walker's package
+        tag never applies. Both sides are pinned exactly (line numbers
+        normalized), so a real change on either side fails loudly."""
+        jesun_py = os.path.join(REPO, "jesun.py")
+        jesun_jc = os.path.join(REPO, "jesun.jc")
+        home_b = tempfile.mkdtemp(prefix="jpm_gap_home_b_")
+        home_s = tempfile.mkdtemp(prefix="jpm_gap_home_s_")
+        cwd_b = tempfile.mkdtemp(prefix="jpm_gap_cwd_b_")
+        cwd_s = tempfile.mkdtemp(prefix="jpm_gap_cwd_s_")
+        try:
+            _seed_jpm_tree(home_b, deep_n=30)
+            _seed_jpm_tree(home_s, deep_n=30)
+            envs = []
+            for home, cwd in ((home_b, cwd_b), (home_s, cwd_s)):
+                shutil.copy(os.path.join(FIXTURES, name), cwd)
+                env = dict(os.environ)
+                env["JESUN_CODE_HOME"] = home
+                envs.append((cwd, env))
+            boot = run([jesun_py, name], cwd=envs[0][0], env=envs[0][1])
+            selfhost = run([jesun_py, jesun_jc, name], cwd=envs[1][0],
+                           env=envs[1][1])
+            self.assertEqual(
+                boot,
+                (1, "Line 1: in the \"deep\" package: I got in too deep "
+                    "and stopped before falling over.\n"),
+                f"fixture {name}: bootstrap changed behavior:\n{boot!r}")
+            self.assertEqual(selfhost[0], 1,
+                             f"fixture {name}: self-host exit changed:\n"
+                             f"{selfhost!r}")
+            self.assertEqual(
+                LINE_RE.sub("Line N", selfhost[1]),
+                "Line N: the functions are calling each other too deep; "
+                "I stopped before falling over.\n",
+                f"fixture {name}: self-host changed behavior:\n"
+                f"{selfhost!r}")
+        finally:
+            for path in (home_b, home_s, cwd_b, cwd_s):
+                shutil.rmtree(path, ignore_errors=True)
+
+    def test_jpm_basic(self):
+        self.check_jpm("jpm_basic.jc")
+
+    def test_jpm_body_fail(self):
+        self.check_jpm("jpm_body_fail.jc")
+
+    def test_jpm_call_fail(self):
+        self.check_jpm("jpm_call_fail.jc")
+
+    def test_jpm_nested(self):
+        self.check_jpm("jpm_nested.jc")
+
+    def test_jpm_circle(self):
+        self.check_jpm("jpm_circle.jc")
+
+    def test_jpm_manifest_bad(self):
+        self.check_jpm("jpm_manifest_bad.jc")
+
+    def test_jpm_escape(self):
+        self.check_jpm("jpm_escape.jc")
+
+    def test_jpm_no_file(self):
+        self.check_jpm("jpm_no_file.jc")
+
+    def test_jpm_manifest_main(self):
+        self.check_jpm("jpm_manifest_main.jc")
+
+    def test_jpm_bangla(self):
+        self.check_jpm("jpm_bangla.jc")
+
+    def test_jpm_use_dirty(self):
+        self.check_jpm("jpm_use_dirty.jc", git_dirty=True)
+
+    def test_jpm_use_no_git(self):
+        self.check_jpm("jpm_use_no_git.jc", no_git=True)
+
+    def test_jpm_use_already(self):
+        self.check_jpm("jpm_use_already.jc")
+
+    def test_jpm_missing(self):
+        self.check_jpm("jpm_missing.jc")
+
+    def test_jpm_bad_address(self):
+        self.check_jpm("jpm_bad_address.jc")
+
+    def test_jpm_bad_host(self):
+        self.check_jpm("jpm_bad_host.jc")
+
+    def test_jpm_deep_gap(self):
+        self.check_jpm_gap("jpm_deep_gap.jc")
+
+
 if __name__ == "__main__":
     unittest.main()

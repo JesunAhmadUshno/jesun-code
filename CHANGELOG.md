@@ -73,7 +73,31 @@ it.
   corrupt memory, Bangla, agent-history, 10 parse-error shapes, 2
   pinned gaps); the differential fuzzer now generates fleet cases
   (failing asks excluded).
-- Still to come in phase B part 2: jpm execution.
+- Phase B part 2, jpm in self-host (spec 8.5): `use
+  "github.com/user/pkg"` and `bring in "pkg"` now run in the walker.
+  The subprocess and filesystem halves are one constant, audited
+  bridge template (`_JPM_HELPERS_SRC`: find, fetch, manifest-pick,
+  read); address and name validation, the find/exec flow, and the
+  package-body execution are Jesun.Code, and the walker's own
+  lexer/parser read package sources (BOM strip, Bangla header
+  detection, the package's own line numbers). Package functions are
+  re-bound with their origin, so errors say `in the "pkg" package:`
+  exactly like the bootstrap, including nested-package accumulation
+  and the no-double-tag rule; circular packages fail with the
+  bootstrap's exact chain message. One pinned honest gap (spec
+  8.5.5): a package source nested deeper than the parsers can recurse
+  diverges the way deep main programs already do (the bootstrap
+  reports its own TOO_DEEP at the bring-in line with the tag; the
+  self-hosted side trips the call-depth guard at a jesun.jc line
+  without the tag); the suite asserts the exact divergence. 16
+  differential fixtures (working, body-fail, call-fail, nested tags,
+  circle, bad manifest, escape, missing file, manifest main, Bangla,
+  dirty `use`, no-git `use`, already-installed `use`, not-fetched,
+  bad address, bad host, plus the pinned deep gap); the differential
+  fuzzer now generates jpm cases (never a network `use` or a deep
+  shape).
+- Still to come in v1.0: sprint 4, the full test suite passing
+  through `jesun.jc` (the victory condition).
 
 ## v0.6 - 2026-09-25
 

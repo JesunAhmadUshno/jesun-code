@@ -29,7 +29,13 @@ stays byte-identical. Every thirteenth case is a fleet program (spec
 8.4): valid blocks, memory files, parse-error shapes, the Bangla
 flavor, all driven by deterministic fixture minds; failing fleet asks
 are never generated (spec 8.4.1 is a pinned divergence, kept out of
-the fuzzer by design).
+the fuzzer by design). Every seventeenth case is a jpm program (spec
+8.5): bring-in of seeded packages, package error shapes, circles,
+manifest/escape failures, `use` validation and already-installed
+shapes, dirty-`use` (seeded git checkout) and no-git `use` (git
+scrubbed from PATH); `use` of a missing address with git present is
+never generated (it would attempt a real network clone), and neither
+are deep-nesting shapes (spec 8.5.5 is a pinned divergence).
 
 Run: python3 tests/fuzz_selfhost.py [count]
 Exit 0 when clean, 1 on the first mismatch batch (up to 10 shown).
@@ -644,6 +650,176 @@ def fleet_program(rng: random.Random) -> tuple[str, str | None]:
     return src, None
 
 
+# -- jpm (spec 8.5): bring-in/use shapes against a seeded local tree.
+# Never generates `use` of a missing address with git present (that
+# would attempt a real network clone), deep-nesting shapes (spec 8.5.5
+# pins that as a known divergence), or failing-then-continuing
+# programs (any jpm failure ends the run on both sides, so shapes are
+# single-shot).
+
+
+def seed_jpm_fuzz_tree(home: Path, dirty: bool = False) -> None:
+    """Seed packages/github.com/u/ with a fixed small tree (no network).
+    dirty=True also builds a git checkout with uncommitted changes for
+    the dirty-`use` shape."""
+    pkgs = home / "packages" / "github.com" / "u"
+
+    def put(pkg: str, files: dict) -> None:
+        for rel, content in files.items():
+            path = pkgs / pkg / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+
+    put("greeter", {"greeter.jc":
+                    'to greet with name\n    give back "hello, " + name\n'})
+    put("oops", {"oops.jc": 'fail with "kablam"\n'})
+    put("circa", {"circa.jc": 'bring in "circb"\n'})
+    put("circb", {"circb.jc": 'bring in "circa"\n'})
+    put("badjson", {"badjson.jc": 'show "never"\n', "jpm.json": "{oops"})
+    put("esc", {"esc.jc": 'show "never"\n',
+                "jpm.json": '{"main": "../evil.jc"}'})
+    (pkgs / "empty").mkdir(parents=True, exist_ok=True)
+    put("multi", {"lib.jc": 'to libfn with x\n    give back x + 1\n',
+                  "jpm.json": '{"main": "lib.jc"}'})
+    put("cleanpkg", {"cleanpkg.jc": 'show "installed"\n'})
+    if dirty:
+        dest = pkgs / "dirty"
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "dirty.jc").write_text('show "dirty"\n', encoding="utf-8")
+        git_env = dict(os.environ)
+        git_env["GIT_CONFIG_NOSYSTEM"] = "1"
+
+        def git(*args: str) -> None:
+            subprocess.run(
+                ["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                 "-c", "init.defaultBranch=main", *args],
+                cwd=str(dest), check=True, capture_output=True,
+                env=git_env)
+
+        git("init", "-q")
+        git("add", "-A")
+        git("commit", "-qm", "seed")
+        (dest / "dirty.jc").write_text('show "dirty modified"\n',
+                                       encoding="utf-8")
+
+
+def jpm_program(rng: random.Random) -> tuple[str, bool, bool]:
+    """Returns (source, no_git, dirty). Grammar shapes for spec 8.5 jpm:
+    bring-in of seeded packages, package error shapes, circle, manifest
+    and escape failures, `use` validation shapes, already-installed and
+    dirty `use`, and the Bangla `use` spelling. no_git scrubs git from
+    PATH; dirty seeds the dirty checkout."""
+    k = rng.randrange(100000)
+    shape = rng.random()
+    no_git = False
+    dirty = False
+    if shape < 0.35:
+        pkg = rng.choice(["greeter", "multi", "cleanpkg"])
+        lines = [f'bring in "{pkg}"']
+        if pkg == "greeter":
+            lines.append(f'show greet with "fuzz{k}"')
+        elif pkg == "multi":
+            lines.append(f"show libfn with {k % 100}")
+        else:
+            lines.append("show 1 + 1")
+        return "\n".join(lines) + "\n", no_git, dirty
+    if shape < 0.55:
+        bad = rng.choice([
+            'bring in "oops"',
+            'bring in "circa"',
+            'bring in "badjson"',
+            'bring in "esc"',
+            'bring in "empty"',
+            'bring in "neverfetched"',
+            'bring in "a b"',
+            "bring in 42",
+            'bring in ".."',
+            'bring in ""',
+        ])
+        return bad + "\n", no_git, dirty
+    if shape < 0.75:
+        use = rng.choice([
+            'use "not-an-address"',
+            'use "a/b"',
+            'use "a/b/c/d"',
+            'use "example.com/u/pkg"',
+            'use "github.com/u/cleanpkg"',
+        ])
+        tail = "\nshow \"after use\"\n" if "cleanpkg" in use else "\n"
+        return use + tail, no_git, dirty
+    if shape < 0.85:
+        dirty = True
+        return 'use "github.com/u/dirty"\n', no_git, dirty
+    if shape < 0.95:
+        no_git = True
+        return 'use "github.com/u/ghost"\n', no_git, dirty
+    src = ("বাংলা\n"
+           'ব্যবহার "github.com/u/cleanpkg"\n'
+           "দেখাও ৪২\n")
+    return src, no_git, dirty
+
+
+def check_jpm_case(i: int, src: str, no_git: bool,
+                   dirty: bool) -> tuple[list[str], int]:
+    skips = 0
+    TMPDIR.mkdir(parents=True, exist_ok=True)
+    dir_b = TMPDIR / f"jpm{i}b"
+    dir_s = TMPDIR / f"jpm{i}s"
+    dir_b.mkdir(parents=True, exist_ok=True)
+    dir_s.mkdir(parents=True, exist_ok=True)
+    home_b = Path(tempfile.mkdtemp(prefix="jpmhome_b_"))
+    home_s = Path(tempfile.mkdtemp(prefix="jpmhome_s_"))
+    empty_bin = None
+    try:
+        (dir_b / "case.jc").write_text(src, encoding="utf-8")
+        (dir_s / "case.jc").write_text(src, encoding="utf-8")
+        seed_jpm_fuzz_tree(home_b, dirty=dirty)
+        seed_jpm_fuzz_tree(home_s, dirty=dirty)
+        envs = []
+        for home in (home_b, home_s):
+            env = dict(os.environ)
+            env.pop("JESUNCODE_AI_COMMAND", None)
+            env["JESUN_CODE_HOME"] = str(home)
+            if no_git:
+                if empty_bin is None:
+                    empty_bin = tempfile.mkdtemp(prefix="jpmnogit_")
+                env["PATH"] = empty_bin
+            envs.append(env)
+        jesun_py = str(ROOT / "jesun.py")
+        jesun_jc = str(ROOT / "jesun.jc")
+        boot = run_side_ag([jesun_py, "case.jc"], Path("case.jc"), dir_b,
+                           envs[0])
+        selfhost = run_side_ag([jesun_py, jesun_jc, "case.jc"],
+                               Path("case.jc"), dir_s, envs[1])
+    finally:
+        for d in (dir_b, dir_s):
+            shutil.rmtree(d, ignore_errors=True)
+        shutil.rmtree(home_b, ignore_errors=True)
+        shutil.rmtree(home_s, ignore_errors=True)
+        if empty_bin is not None:
+            shutil.rmtree(empty_bin, ignore_errors=True)
+    if boot[0] == "timeout" or selfhost[0] == "timeout":
+        return [], 1
+    problems: list[str] = []
+    if boot != selfhost:
+        problems.append(
+            f"case {i}: jpm MISMATCH\n--- src ---\n{src}\n"
+            f"--- bootstrap {boot[0]} ---\n{boot[1]}\n"
+            f"--- selfhost {selfhost[0]} ---\n{selfhost[1]}\n"
+        )
+    for label, out in (("bootstrap", boot[1]), ("selfhost", selfhost[1])):
+        for marker in ("Traceback", 'File "', "0x"):
+            if marker in out:
+                problems.append(
+                    f"case {i}: {label} leaked {marker!r}\n---\n{src}\n---\n{out}"
+                )
+        if EXC_NAMES.search(out):
+            problems.append(
+                f"case {i}: {label} leaked exception name\n---\n{src}\n---\n{out}"
+            )
+    return problems, skips
+
+
 def check(i: int, src: str) -> tuple[list[str], int]:
     skips = 0
     TMPDIR.mkdir(parents=True, exist_ok=True)
@@ -729,6 +905,9 @@ def main() -> int:
         elif i % 13 == 12:
             src, mind = fleet_program(rng)
             case_problems, case_skips = check_agent_case(i, src, mind)
+        elif i % 17 == 16:
+            src, no_git, dirty = jpm_program(rng)
+            case_problems, case_skips = check_jpm_case(i, src, no_git, dirty)
         else:
             src = token_soup(rng) if i % 2 == 0 else mutate(rng, rng.choice(SEEDS))
             case_problems, case_skips = check(i, src)
