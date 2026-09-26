@@ -728,6 +728,10 @@ the walker by construction:
 
 ### 9.3 The shared harness
 
+[LANDED 2026-09-26: `tests/selfhost_harness.py`; pure refactor of the
+helpers out of `tests/test_selfhost.py`, behavior identical, suite
+360/360 green before and after. Migrated files import it from here on.]
+
 The run helpers currently inline in `tests/test_selfhost.py`
 (`check`, `check_stdin`, `check_sandbox`, `check_ai`,
 `check_known_gap`, `check_agent_gap`, `check_fleet_gap`,
