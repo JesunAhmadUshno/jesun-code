@@ -655,3 +655,125 @@ fixture-tested (no network in tests); the bridge template's clone
 path is covered by direct unit tests of the template source.
 Differential tests compare stdout and exit code; the known 8.5.5 gap
 fixture asserts the pinned divergence.
+
+## 9. Sprint 4: the full suite through `jesun.jc` (design, 2026-09-26)
+
+Victory (spec section 1, section 6): `jesun.jc` passes the entire
+test suite. This section designs what "passes" means, per test, so
+the migration is mechanical and the result is auditable.
+
+### 9.1 The runner decision
+
+A Python harness that swaps the interpreter under test, not a
+Jesun.Code test runner. The established differential protocol
+(`tests/test_selfhost.py`: `python jesun.py <program>` vs
+`python jesun.py jesun.jc <program>`, stdout and exit code compared
+exactly) extends to every suite test that executes a Jesun.Code
+program. Rationale: the assertions (exact expected strings) stay in
+Python where they are maintainable; what sprint 4 verifies is the
+differential property, walker == bootstrap, on top of the existing
+exact-output pins. A test runner written in Jesun.Code would
+re-implement unittest badly and prove nothing extra: the walker is
+already the system under test.
+
+### 9.2 What "passes" means, per category
+
+Every test in the suite ends in exactly one of three states. Zero
+tests remain unclassified.
+
+(a) **Differential-green.** The test's Jesun.Code program(s) run
+under both interpreters; walker stdout and exit code equal the
+bootstrap's, and the existing exact-output assertion still holds
+against the bootstrap result. This is the common case:
+`test_core.py` (24 tests: examples plus inline programs),
+`test_v04.py` (25), `test_v05.py` (43, Bangla), `test_v03.py` (15,
+with fixture minds via env like `check_ai`), `test_audit.py`
+program tests (minds, BOM, CRLF, split/join/trim, suggest),
+`test_phase2.py` program tests, `test_agents.py` (18, fixture
+minds), `test_fleet.py` (19, fixture minds), and the local
+`test_jpm.py` tests (git-backed fixtures, no network).
+
+(b) **Pinned gap.** Both sides run; outputs diverge in a documented,
+mechanism-explained way, pinned by a dedicated fixture and a spec
+subsection. The existing four stay: 7.3 (foreign call failure
+reported at the walker's bridge line), 8.3.1 (tool-loop failure),
+8.4.1 (sequential fleets), 8.5.5 (deep package sources). New gaps
+found during migration get the same treatment: both outputs quoted,
+mechanism explained, and a statement of what would have to break to
+close it. A gap is never "the walker is worse"; it is a boundary
+with a receipt.
+
+(c) **Pinned exclusion, with reason.** The test cannot run through
+the walker by construction:
+- `tests/test_selfhost_jpm_bridge.py` (22 tests): unit-tests the
+  bridge template the walker itself consumes; running it "through"
+  the walker is circular. The template's codes are the contract.
+- `test_jpm.py` mocked-clone tests: `subprocess.run` is mocked in
+  Python; the walker twin would need a real git server. The clone
+  path stays covered by the template unit tests plus the no-git
+  differential fixture.
+- `test_phase2.py` mock-based tests (`os.name`, `shutil.which`
+  patches): the walker twin runs on the real platform. Where the
+  mock only removes a binary from `PATH` (no-tmux message), the
+  twin runs with a scrubbed `PATH` like the jpm no-git fixture;
+  where the mock changes platform identity, exclusion.
+- `test_audit.py` REPL tests: the REPL is the bootstrap's
+  interactive loop; the walker has no REPL (out of scope: the spec
+  covers running programs, section 2.2).
+- Live tmux tests (`MachinesLive`): the walker does not run
+  terminals (spec 8.3.2); grammar shapes stay covered by the
+  differential fuzzer at parse level.
+- `test_keyboard_interrupt_in_main_is_plain`: mocks SIGINT
+  delivery; bootstrap-harness-only.
+
+### 9.3 The shared harness
+
+The run helpers currently inline in `tests/test_selfhost.py`
+(`check`, `check_stdin`, `check_sandbox`, `check_ai`,
+`check_known_gap`, `check_agent_gap`, `check_fleet_gap`,
+`check_jpm_*`) consolidate into `tests/selfhost_harness.py` with one
+protocol: `run_both(src, stdin="", env=None, cwd=None, sandbox=False)`
+returns the `(returncode, stdout)` pair for each side, and gap
+variants apply their documented normalizer before comparing.
+Consolidation is a pure refactor: behavior identical, then the
+migrated test files import it. Inline `jesun.execute(src)` programs
+in the migrated files are written to a temp `.jc` file and run
+through `run_both`; the exact-output assertion stays on the
+bootstrap leg.
+
+### 9.4 Migration order
+
+One commit per file, suite green before moving on:
+`test_core` -> `test_v04` -> `test_v05` -> `test_v03` ->
+`test_phase2` -> `test_agents` -> `test_fleet` -> `test_jpm` (local)
+-> `test_audit` (program tests). The harness consolidation lands
+first, alone. Each commit reports the count moved
+differential-green, gaps pinned, exclusions pinned.
+
+### 9.5 Fuzzers
+
+`tests/fuzz_selfhost.py` already runs every generated case through
+both interpreters. Sprint 4 extends its generator until it covers
+every grammar shape the walker parses (phase A, phase B, ask-ai,
+agents, fleets, jpm, Bangla). Shapes the walker parses but does not
+execute (threads, tmux, network `use`) stay parse-level by design
+(spec 8.3.2); the fuzzer asserts the honest later-phase line on the
+walker leg, exactly like the bootstrap leg.
+
+### 9.6 Runtime budget
+
+Measured 2026-09-26: one walker run costs ~0.23s wall (the
+bootstrap interprets `jesun.jc` fast). Doubling ~200 program tests
+adds roughly two minutes to the suite. No persistent-walker
+optimization: process-per-case keeps runs hermetic, and hermetic
+beats fast for a victory gate.
+
+### 9.7 Exit checklist
+
+- Every test method in `tests/test_*.py` is tagged
+  differential-green, pinned gap, or pinned exclusion.
+- `python -m unittest discover -s tests` passes in one command.
+- No test was weakened to pass: exact-output pins remain on the
+  bootstrap leg; gaps quote both sides.
+- This section's classification table matches the code; the next
+  reader can audit any single test's state in under a minute.
