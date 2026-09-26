@@ -2,7 +2,43 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
-## Unreleased (v1.0 self-hosting grind)
+## v1.0.0 - 2026-09-26: SELF-HOSTING
+
+`jesun.jc`: the Jesun.Code interpreter rewritten in Jesun.Code
+itself (lexer, parser, tree-walker), developed against the Python
+bootstrap with differential testing (spec `docs/spec-v1.0.md`). The
+Python implementation is now the bootstrap only. Victory condition
+met: the full suite passes through `jesun.jc`.
+
+- Phase A (v0.1 core): lexer, parser, tree-walker for the full v0.1
+  language.
+- Phase B: plain `ask`, file read/write/append, the `import` bridge
+  (Python attributes, calls, subscripts, kwargs); the Bangla keyword
+  flavor (header detection, 68-word keyword table, comments, Bengali
+  digits); `ask ai` (spec 8.2, with the `CALL:` tool loop, step
+  budgets, streaming) via one audited constant bridge template;
+  agents (spec 8.3, tool loop, memory files, the pinned 8.3.1
+  tool-failure gap); fleets (spec 8.4, sequential in the walker, the
+  pinned 8.4.1 gap); jpm execution (spec 8.5: `use`/`bring in` in
+  the walker, package error tagging identical to the bootstrap, the
+  pinned 8.5.5 deep-source gap); later-phase statement parsing
+  (`use`, `bring in`, tmux terminal shapes).
+- Sprint 4: the suite itself migrated onto the shared differential
+  harness (`tests/selfhost_harness.py`): all 9 program-behavior test
+  files run each program through both interpreters as subprocesses.
+  The migration caught and fixed real walker fidelity bugs
+  (unknown-word suggestions, per-leg file sandboxing, `show`
+  rendering agents, foreign-call argument checking).
+- Classification audit (`tests/check_classification.py`, spec 9.7):
+  365 tests - 309 differential-green (walker byte-identical to the
+  bootstrap), 8 pinned gaps, 2 pinned divergences, 46 pinned
+  exclusions (spec 9.2c). No test was weakened to pass.
+- Differential fuzzer (`tests/fuzz_selfhost.py`) clean on every run.
+
+Honest framing: the shipped binary still bundles the Python runtime
+until v1.1; self-hosting is the interpreter, not yet the packaging.
+
+## v1.0 grind details
 
 `jesun.jc`: the interpreter rewritten in Jesun.Code itself, developed
 against the Python bootstrap with differential testing (spec

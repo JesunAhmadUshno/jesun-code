@@ -7,7 +7,7 @@
 - About the builder: https://jesunahmadushno.github.io/jesun-code/about.html
 - Community wall: https://jesunahmadushno.github.io/jesun-code/community.html
 - Repo: https://github.com/JesunAhmadUshno/jesun-code
-- License: MIT. Current version: 0.6.0 (2026-09-25).
+- License: MIT. Current version: 1.0.0 (2026-09-26).
 
 ## The language
 
@@ -40,6 +40,7 @@
 
 ## Roadmap (honest)
 
+- v1.0.0: self-hosting. The interpreter (jesun.jc: lexer, parser, tree-walker) is written in Jesun.Code itself and passes the full 365-test suite through the differential harness; the Python implementation is the bootstrap only. The binary still bundles the Python runtime until v1.1.
 - v0.6.0: agent fleets. `fleet <name> with <a> [and <b> ...]` runs named agents in parallel; answers collected into a list in ask order; optional shared fleet memory via `memory file is "<path>"` (The fleet remembers:). Bangla: `দল` / `সহ` / `জিজ্ঞেস` / `রেখে`.
 - v1.0: self-hosting (the interpreter rewritten in Jesun.Code itself).
 - v1.1: native binaries (transpile to C, compile with cc).
