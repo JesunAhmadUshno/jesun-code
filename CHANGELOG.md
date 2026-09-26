@@ -195,6 +195,23 @@ it.
   ends the run with `(1, "Line 2: a fleet cannot open inside another
   fleet's asks.")`. No walker fidelity bugs found this round.
 
+- `tests/test_jpm.py` migrated (spec 9.2a): 15 differential-green
+  (bad addresses each as its own program, non-string address,
+  non-github host, dirty checkout refusing before any clone, bad
+  names, unknown package, load-and-call, manifest main, manifest
+  escape, missing code file, package error tag, package circle,
+  no-git via a scrubbed PATH, starter time/files packages through
+  both interpreters). Each interpreter leg gets its own
+  `JESUN_CODE_HOME` with the identical package tree seeded on disk
+  and its own working folder; the exact-output assertion stays on
+  the bootstrap leg. Pinned exclusions (spec 9.2c): the three
+  mocked-clone tests stay bootstrap-only (`test_clone_failure_is_
+  plain`, `test_install_then_reuse`, `test_address_expression`); the
+  clone path is covered by `test_selfhost_jpm_bridge.py` plus the
+  no-git fixture. No walker fidelity bugs found this round; one
+  harness-class flake fixed (clock ticks between legs are
+  normalized, the date/time shape still asserted).
+
 ## v0.6 - 2026-09-25
 
 Fleets. Named agents run asks in parallel as a team, answers collected
