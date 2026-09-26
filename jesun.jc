@@ -1268,14 +1268,21 @@ to starts_with with s and prefix
 
 to suggest_name with name and env
     seen is []
-    for each scope in env
-        for each pair in scope
+    i is length of env
+    repeat while i is greater than 0
+        i is i - 1
+        for each pair in env[i]
             if not seen contains pair[0] then
                 push pair[0] to seen
+    lower is lowercase of name
     for each cand in seen
         if cand is not name then
-            if starts_with with cand and name or starts_with with name and cand then
+            cl is lowercase of cand
+            if starts_with with cl and lower or starts_with with lower and cl then
                 give back " Did you mean \"" + cand + "\"?"
+    matches is difflib.get_close_matches(name, seen, 1, 0.6)
+    if length of matches is greater than 0 then
+        give back " Did you mean \"" + matches[0] + "\"?"
     give back ""
 
 note ---- value kinds and rendering

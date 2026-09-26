@@ -90,6 +90,15 @@ class TestSelfHost(SelfHostTestCase):
     def test_err_with_lead(self):
         self.check("err_with_lead.jc")
 
+    def test_err_suggest_close(self):
+        self.check("err_suggest_close.jc")
+
+    def test_err_suggest_prefix(self):
+        self.check("err_suggest_prefix.jc")
+
+    def test_err_suggest_first(self):
+        self.check("err_suggest_first.jc")
+
     def test_err_bare_params(self):
         self.check("err_bare_params.jc")
 

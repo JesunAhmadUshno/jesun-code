@@ -98,6 +98,20 @@ it.
   shape).
 - Still to come in v1.0: sprint 4, the full test suite passing
   through `jesun.jc` (the victory condition).
+- Sprint 4 begins (spec section 9): the shared harness
+  `tests/selfhost_harness.py` consolidates every differential run
+  helper (`run_both` protocol, `run_inline`, `InlineSandbox`,
+  `SelfHostDiffCase`, plus the mind/agent/fleet/jpm category helpers)
+  as a pure refactor of `tests/test_selfhost.py`; suite 360/360 green
+  before and after.
+- Fidelity fix found by the sprint-4 migration: the walker's
+  unknown-word suggestion (`suggest_name` in `jesun.jc`) now matches
+  the bootstrap exactly: case-insensitive prefix check, innermost-scope
+  candidate order, and the `difflib.get_close_matches` fallback (the
+  module and agent suggestion sites already had it). Three new
+  differential fixtures: `err_suggest_close.jc`,
+  `err_suggest_prefix.jc`, `err_suggest_first.jc` (shadowing:
+  innermost name wins).
 
 ## v0.6 - 2026-09-25
 
