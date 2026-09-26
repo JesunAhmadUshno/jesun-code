@@ -134,6 +134,16 @@ it.
   and `VSCodeExtension` (asset validation tests, no interpreter
   behavior). The migration caught a helper bug in the draft (the
   Bangla-header helper double-applied the header on header tests).
+- `tests/test_v03.py` migrated (spec 9.2a): all 15 deeper-agent tests
+  differential-green as subprocess runs with one hermetic
+  `JESUN_CODE_HOME` per interpreter leg (cross-run memory works
+  within a leg, never across legs). Memory triples and saved prompt
+  files are byte-identical on both legs. One pinned exclusion: the
+  streaming write-granularity assertion (`writes > 2`) stays
+  bootstrap-harness-only, because it observes in-process write calls
+  while the walker leg runs in a subprocess whose pipe writes
+  coalesce by design. The migration caught a test bug in the draft
+  (memory read after the second run instead of the first).
 
 ## v0.6 - 2026-09-25
 
