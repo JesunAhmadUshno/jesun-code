@@ -1,0 +1,5 @@
+agent scout
+    persona is "You are Scout."
+
+fleet crew with scout
+    ask stranger "one" giving a

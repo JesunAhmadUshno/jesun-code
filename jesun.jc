@@ -44,6 +44,13 @@ note Same contract as _AI_HELPERS_SRC: never contains program text,
 note never raises, every outcome is a ["code", ...] list.
 _JPM_HELPERS_SRC is join of ["# Jesun.Code \"bring in\" bridge helper (spec 8.4). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is a [\"code\", ...] list, so the", "# walker keeps the target program's line numbers.", "def _jc_jpm_find(name):", "    import os", "    from pathlib import Path", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    pkgs = base / \"packages\"", "    try:", "        if not pkgs.is_dir():", "            return [\"missing\"]", "        hosts = sorted(p for p in pkgs.iterdir() if p.is_dir())", "    except OSError:", "        return [\"missing\"]", "    for host_dir in hosts:", "        try:", "            users = sorted(p for p in host_dir.iterdir() if p.is_dir())", "        except OSError:", "            continue", "        for user_dir in users:", "            candidate = user_dir / name", "            try:", "                if candidate.is_dir():", "                    return [\"ok\", str(candidate)]", "            except OSError:", "                continue", "    return [\"missing\"]", ""] with "\n"
 
+note ---- fleet memory bridge source (spec 8.4): one CONSTANT Python template
+note defining the fleet memory load/save helpers (_jc_fleet_load,
+note _jc_fleet_save). Same contract as _AGENT_HELPERS_SRC: never
+note contains program text, never raises, every outcome is a
+note ["code", ...] list.
+_FLEET_HELPERS_SRC is join of ["# Jesun.Code \"fleet\" bridge helpers (spec 8.4). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is a [\"code\", ...] list, so the", "# walker keeps the target program's line numbers.", "def _jc_fleet_load(path):", "    import json", "    from pathlib import Path", "    try:", "        raw = Path(path).read_text(encoding=\"utf-8\")", "    except FileNotFoundError:", "        return [\"missing\"]", "    except OSError:", "        return [\"unreadable\"]", "    try:", "        data = json.loads(raw)", "        if not isinstance(data, list):", "            raise ValueError(\"bad memory\")", "        triples = []", "        for item in data:", "            if not isinstance(item, (list, tuple)) or len(item) != 3:", "                raise ValueError(\"bad triple\")", "            q, a, who = item", "            if not isinstance(q, str) or not isinstance(a, str) or not isinstance(who, str):", "                raise ValueError(\"bad triple\")", "            triples.append([q, a, who])", "        return [\"ok\", triples]", "    except Exception:", "        return [\"unreadable\"]", "", "def _jc_fleet_save(path, triples):", "    import json", "    from pathlib import Path", "    try:", "        target = Path(path)", "        target.parent.mkdir(parents=True, exist_ok=True)", "        kept = triples[-200:]", "        target.write_text(json.dumps(kept, ensure_ascii=False, indent=1), encoding=\"utf-8\")", "        return [\"ok\"]", "    except Exception:", "        return [\"failed\"]", ""] with "\n"
+
 note ==== SECTION: HELPERS ====
 
 to parse_error with lineno and msg
@@ -598,10 +605,11 @@ to parse_agentdef with toks and i
     give back [["agentdef", name, per, toolnames, rmode, memfile, max_steps, ln], i]
 
 note ---- later-phase statements (spec 8.4): the walker parses use,
-note bring, fleet, and the tmux terminal statements exactly like the
+note bring, and the tmux terminal statements exactly like the
 note bootstrap, so every parse error matches word for word. Execution
 note is not implemented yet: valid shapes fail at run time with the
-note honest later-phase message (later_phase_error). "terminal" and
+note honest later-phase message (later_phase_error). Fleets parse the
+note same way and now EXECUTE (exec_fleetdef, spec 8.4); "terminal" and
 note "within" are not statement starters in the bootstrap either; they
 note fall through to parse_or below.
 
@@ -2051,16 +2059,37 @@ note ---- phase B part 2: agents (spec 8.3) ----
 note Agent values are ["agent", name, per, tools, rmode, memory_file,
 note max_steps, history]. per/memory_file are msg or nothing; rmode
 note is "off", "run", or "always"; history is a list of [prompt, answer]
-note pairs, newest last, appended in place.
+note pairs, newest last, appended in place. A forget pushes a
+note ["__jc_cleared__"] marker onto the history; readers use
+note history_entries to see only the turns after the last marker. The
+note marker survives aliasing (b is mem) because push mutates the
+note shared list in place, which a bridge clear could not do: the
+note bootstrap deep-copies lists handed to foreign calls.
+
+to is_clear_marker with e
+    if kind of e is "list" then
+        if length of e is 1 then
+            if e[0] is "__jc_cleared__" then
+                give back true
+    give back false
+
+to history_entries with hist
+    start is 0
+    j is 0
+    repeat while j is less than length of hist
+        if is_clear_marker with hist[j] then
+            start is j + 1
+        j is j + 1
+    out is []
+    k is start
+    repeat while k is less than length of hist
+        push hist[k] to out
+        k is k + 1
+    give back out
 
 to bridge_rstrip with s
     ns is builtins.dict([["__jc_s", s]])
     give back builtins.eval("__jc_s.rstrip()", ns)
-
-to bridge_list_clear with lst
-    ns is builtins.dict([["__jc_l", lst]])
-    builtins.eval("__jc_l.clear()", ns)
-    give back nothing
 
 to agent_bridge_ns
     ns is builtins.dict()
@@ -2101,7 +2130,7 @@ to agent_memory_load with ag and ln
 to agent_memory_save with ag and ln
     ns is agent_bridge_ns
     fn is ns["_jc_agent_save"]
-    r is fn(agent_mempath with ag[1] and ag[5], ag[7])
+    r is fn(agent_mempath with ag[1] and ag[5], history_entries with ag[7])
     if r[0] is "failed" then
         agent_emit with "Line " + text of ln + ": I could not save memory for " + ag[1] + "."
     give back nothing
@@ -2168,11 +2197,13 @@ to agent_find_soft with name and env
 to agent_ask with ag and prompt and ln and env and depth and agent_depth and dostream
     ns is ai_bridge_ns
     hist is nothing
+    rawhist is nothing
     if ag[4] is not "off" then
-        hist is ag[7]
+        rawhist is ag[7]
+        hist is history_entries with rawhist
     answer is ai_tool_loop with ns and prompt and ag[3] and ag[6] and dostream and ln and env and depth and ag[2] and hist and ag[1] and agent_depth
     if ag[4] is not "off" then
-        push [prompt, answer] to hist
+        push [prompt, answer] to rawhist
         if ag[4] is "always" then
             agent_memory_save with ag and ln
     give back answer
@@ -2223,7 +2254,8 @@ to exec_forget with stmt and env and depth
     memfile is ""
     if ag is not nothing then
         memfile is ag[5]
-        bridge_list_clear with ag[7]
+        hist is ag[7]
+        push ["__jc_cleared__"] to hist
     ns is agent_bridge_ns
     fn is ns["_jc_agent_forget"]
     r is fn(agent_mempath with name and memfile)
@@ -2237,7 +2269,9 @@ to exec_forget with stmt and env and depth
     give back ["none"]
 
 note Later-phase statements parse like the bootstrap but do not run
-note yet: jpm needs the network, fleets need threads, tmux needs tmux.
+note yet: jpm needs the network, tmux needs tmux. Fleets run now (spec
+note 8.4), sequentially: the walker has one thread, so the asks run in
+note ask order and the run stops at the first failing ask (spec 8.4.1).
 note Operands are evaluated first so their errors match the bootstrap;
 note a shape that survives that fails with the honest later-phase line.
 
@@ -2293,8 +2327,119 @@ to exec_bringin with stmt and env and depth
         rt_error with ln and "I have not fetched the package \"" + pname + "\" yet; run use \"github.com/user/" + pname + "\" first."
     later_phase_error with ln and "bring"
 
+note The fleet nesting guard is a plain Jesun.Code stack, read via
+note "last of". A flag mutated through builtins.eval cannot work: the
+note bootstrap deep-copies every list handed to a foreign call
+note (to_python), so the eval would flip a copy and the walker would
+note never see it. push appends in place with no copy, so the stack top
+note is always the live value.
+fleet_guard_stack is [false]
+
+to fleet_guard_on
+    give back last of fleet_guard_stack
+
+to fleet_guard_set with on
+    push on to fleet_guard_stack
+    give back nothing
+
+to fleet_index_of with names and want
+    i is 0
+    repeat while i is less than length of names
+        if names[i] is want then
+            give back i
+        i is i + 1
+    give back -1
+
+to fleet_bridge_ns
+    ns is builtins.dict()
+    builtins.exec(_FLEET_HELPERS_SRC, ns)
+    give back ns
+
+to fleet_head with shared
+    if length of shared is 0 then
+        give back ""
+    out is "The fleet remembers:\n"
+    for each triple in shared
+        out is out + "- " + triple[2] + " was asked \"" + triple[0] + "\" and answered \"" + triple[1] + "\"\n"
+    out is out + "\n"
+    give back out
+
+to fleet_memory_load with mempath and ln
+    ns is fleet_bridge_ns
+    fn is ns["_jc_fleet_load"]
+    r is fn(mempath)
+    code is r[0]
+    if code is "unreadable" then
+        agent_emit with "Line " + text of ln + ": the fleet's saved memory was unreadable, starting fresh."
+        give back []
+    if code is "ok" then
+        give back r[1]
+    give back []
+
+to fleet_memory_save with mempath and triples and ln
+    ns is fleet_bridge_ns
+    fn is ns["_jc_fleet_save"]
+    r is fn(mempath, triples)
+    if r[0] is "failed" then
+        agent_emit with "Line " + text of ln + ": I could not save the fleet's memory."
+    give back nothing
+
 to exec_fleetdef with stmt and env and depth
-    later_phase_error with stmt[5] and "fleet"
+    ln is stmt[5]
+    if fleet_guard_on then
+        rt_error with ln and "a fleet cannot open inside another fleet's asks."
+    flname is stmt[1]
+    flmembers is stmt[2]
+    flasks is stmt[3]
+    flmem is stmt[4]
+    aglist is []
+    for each m in flmembers
+        push agent_find with m and env and ln to aglist
+    prompts is []
+    for each fq in flasks
+        p is ev with fq[1] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        if kind of p[0] is not "text" then
+            rt_error with fq[3] and "the question I ask the fleet member must be text."
+        push p[0] to prompts
+    mempath is ""
+    shared is []
+    if flmem is not nothing then
+        p is ev with flmem and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        if kind of p[0] is not "text" then
+            rt_error with ln and "the fleet's memory file must be text."
+        mempath is p[0]
+        shared is fleet_memory_load with mempath and ln
+    head is fleet_head with shared
+    answers is []
+    i is 0
+    repeat while i is less than length of flasks
+        fq is flasks[i]
+        ag is aglist[fleet_index_of with flmembers and fq[0]]
+        child is []
+        for each scope in env
+            push scope to child
+        push [] to child
+        fleet_guard_set with true
+        answer is agent_ask with ag and head + prompts[i] and fq[3] and child and depth and 0 and false
+        fleet_guard_set with false
+        push answer to answers
+        i is i + 1
+    if flmem is not nothing then
+        j is 0
+        repeat while j is less than length of flasks
+            push [prompts[j], answers[j], flasks[j][0]] to shared
+            j is j + 1
+        fleet_memory_save with mempath and shared and ln
+    env_set with env and flname and answers
+    k is 0
+    repeat while k is less than length of flasks
+        env_set with env and flasks[k][2] and answers[k]
+        k is k + 1
+    give back ["none"]
 
 to exec_termopen with stmt and env and depth
     ln is stmt[2]

@@ -54,7 +54,26 @@ it.
   "not fetched" errors via a `_jc_jpm_find` bridge helper. Caught by
   differential fuzzing: the old guard rejected `read terminal ...`
   with the wrong message.
-- Still to come in phase B part 2: fleets, jpm execution.
+- Phase B part 2, fleets (spec 8.4): the self-hosted walker now
+  runs `fleet <name> with <a> [and <b> ...]` blocks. Prompts are
+  evaluated up front in the enclosing scope in ask order; each ask
+  runs to completion as a spec-8.3 agent ask in a child scope with
+  the fleet memory prefix, sequentially, stopping at the first
+  failure. Shared fleet memory goes through a third constant bridge
+  template (`_FLEET_HELPERS_SRC`): `memory file is "<p>"` loads
+  (question, answer, agent) triples, prepends `The fleet remembers:`
+  lines, and saves the newest 200; corrupt files start fresh with a
+  note. No streaming in fleets and no nested fleets stay parse-time
+  errors. One pinned honest gap (spec 8.4.1): the bootstrap runs
+  asks on threads and reports the lowest-index failure after running
+  them all; the walker runs sequentially and stops at the first, so
+  wall time, later-ask side effects, and same-agent history order
+  diverge by design; the suite pins the exact divergence. 16
+  differential fixtures against fixture minds (valid, memory,
+  corrupt memory, Bangla, agent-history, 10 parse-error shapes, 2
+  pinned gaps); the differential fuzzer now generates fleet cases
+  (failing asks excluded).
+- Still to come in phase B part 2: jpm execution.
 
 ## v0.6 - 2026-09-25
 

@@ -1,0 +1,8 @@
+agent mem
+    remember is true
+
+ask mem "first" giving a1
+forget mem
+ask mem "second" giving a2
+show a1
+show a2

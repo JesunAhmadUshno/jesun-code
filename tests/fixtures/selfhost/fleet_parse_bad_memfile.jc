@@ -1,0 +1,6 @@
+agent scout
+    persona is "You are Scout."
+
+fleet crew with scout
+    memory file is 42
+    ask scout "one" giving a

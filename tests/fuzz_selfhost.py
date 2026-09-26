@@ -25,7 +25,11 @@ errors, the Bangla flavor, and the nested/depth templates, all driven
 by deterministic fixture minds with a fresh JESUN_CODE_HOME and a
 fresh MIND_COUNT_FILE per side. Failing tools are never generated:
 spec 8.3.1 documents that shape as a known divergence, so the fuzzer
-stays byte-identical.
+stays byte-identical. Every thirteenth case is a fleet program (spec
+8.4): valid blocks, memory files, parse-error shapes, the Bangla
+flavor, all driven by deterministic fixture minds; failing fleet asks
+are never generated (spec 8.4.1 is a pinned divergence, kept out of
+the fuzzer by design).
 
 Run: python3 tests/fuzz_selfhost.py [count]
 Exit 0 when clean, 1 on the first mismatch batch (up to 10 shown).
@@ -579,6 +583,67 @@ def check_agent_case(i: int, src: str, mind: str | None) -> tuple[list[str], int
     return problems, skips
 
 
+# -- fleets (spec 8.4): valid blocks, memory files, parse errors, Bangla.
+# Never generates failing fleet asks: spec 8.4.1 pins that shape as a
+# known divergence, so the fuzzer stays byte-identical.
+
+
+def fleet_program(rng: random.Random) -> tuple[str, str | None]:
+    """Returns (source, mind_name). Grammar shapes for spec 8.4 fleets.
+    mind is None for parse-error shapes (no ask ever runs). Valid
+    shapes reuse check_agent_case's harness: per-side scratch folders
+    isolate the cwd-relative fleet memory files."""
+    k = rng.randrange(100000)
+    shape = rng.random()
+    if rng.random() < 0.2:
+        src = (
+            "বাংলা\n"
+            "এজেন্ট স্কাউট\n"
+            '    পারসোনা হয় "তুমি স্কাউট।"\n'
+            "    ধাপ হয় ৫\n"
+            "\n"
+            "দল ক্রু সহ স্কাউট\n"
+            f'    স্মৃতি ফাইল হয় "flmem{k}.json"\n'
+            '    জিজ্ঞেস স্কাউট "ফাজ প্রশ্ন" রেখে উত্তর\n'
+            "\n"
+            "দেখাও উত্তর\n"
+            "দেখাও ক্রু\n"
+        )
+        return src, "mind_fixed.py"
+    head = (
+        "agent a1\n"
+        '    persona is "a fuzz helper."\n'
+        "    steps are 3\n"
+        "\n"
+        "agent a2\n"
+        '    persona is "another fuzz helper."\n'
+        "    steps are 3\n"
+        "\n"
+    )
+    if shape < 0.6:
+        lines = ["fleet fl with a1 and a2"]
+        if rng.random() < 0.5:
+            lines.append(f'    memory file is "flmem{k}.json"')
+        members = ["a1", "a2"]
+        for q in range(rng.choice([1, 2, 3])):
+            lines.append(
+                f'    ask {rng.choice(members)} "fuzz question {q}" giving r{q}')
+        lines += ["", "show fl", "show r0"]
+        return head + "\n".join(lines) + "\n", "mind_fixed.py"
+    # parse-error shapes: the fleet never runs, so no mind is needed
+    bad = rng.choice([
+        '    ask a9 "hi" giving r',
+        '    ask a1 "hi" giving r streaming',
+        (f'    memory file is "a{k}.json"\n'
+         f'    memory file is "b{k}.json"\n'
+         '    ask a1 "hi" giving r'),
+        '    dance a1 "hi"',
+        '    ask a1 42 giving r',
+    ])
+    src = head + "fleet fl with a1 and a2\n" + bad + "\n"
+    return src, None
+
+
 def check(i: int, src: str) -> tuple[list[str], int]:
     skips = 0
     TMPDIR.mkdir(parents=True, exist_ok=True)
@@ -660,6 +725,9 @@ def main() -> int:
             case_problems, case_skips = check_ai(i, src, mind)
         elif i % 11 == 10:
             src, mind = agent_program(rng)
+            case_problems, case_skips = check_agent_case(i, src, mind)
+        elif i % 13 == 12:
+            src, mind = fleet_program(rng)
             case_problems, case_skips = check_agent_case(i, src, mind)
         else:
             src = token_soup(rng) if i % 2 == 0 else mutate(rng, rng.choice(SEEDS))
