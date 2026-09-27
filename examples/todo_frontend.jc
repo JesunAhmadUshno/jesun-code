@@ -1,0 +1,18 @@
+note v1.3 flagship demo: a todo frontend written in Jesun.Code itself.
+note The html package builds the page, the template package renders the
+note list, and the js package writes the client-side wiring. Pure
+note Jesun.Code: no imports, no bridge. Run it and it prints the page.
+
+bring in "html"
+bring in "template"
+bring in "js"
+
+todos is [{"task": "Buy milk", "done": true}, {"task": "Ship v1.3", "done": false}]
+list_html is render_file with "examples/todo_template.html" and {"title": "Todos", "count": 2, "todos": todos}
+
+add_code is on_event with "click" and "add" and js_fetch with "/api/todos" and "POST" and "JSON.stringify({{task: document.getElementById(\"task\").value}})"
+load_code is dom_ready with js_fetch with "/api/todos" and "GET" and "null"
+client is script_tag with (load_code + "\n" + add_code)
+
+body_html is list_html + (element with "div" and nothing and [(input_field with "task" and "text"), (button with "Add")]) + client
+show page with "Todo demo" and body_html

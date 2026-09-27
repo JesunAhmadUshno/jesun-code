@@ -52,7 +52,7 @@ note </html>
 
 - `escape_html with content`: `&` to `&amp;`, `<` to `&lt;`, `>` to
   `&gt;`, `"` to `&quot;` (in that order). Non-text input fails:
-  `Line 3: in the "html" package: escape_html needs text, but this is a number.`
+  `Line 0: in the "html" package: escape_html needs text, but this is a number.`
 - `attrs_text with attrs`: renders a table of attributes as
   ` key="escaped"` pairs in insertion order. `nothing` gives `""`.
   Values of kind text, number, or true/false render as text; `nothing`
@@ -60,7 +60,7 @@ note </html>
   A non-table, non-nothing `attrs` fails.
 - `element with tag and attrs and children`: `<tag attrs>children</tag>`.
   `tag` must match `[A-Za-z][A-Za-z0-9]*`, else:
-  `Line 3: in the "html" package: "9lives" is not a valid HTML tag name.`
+  `Line 0: in the "html" package: "9lives" is not a valid HTML tag name.`
   `children` is text (used raw, so `element` calls compose) or a list of
   text (joined). Anything else fails.
 - `void_element with tag and attrs`: `<tag attrs>` with no closing tag,
@@ -70,7 +70,7 @@ note </html>
   with "a < b"]` gives `<div>a &lt; b</div>`.
 - Convenience builders (every text argument escaped):
   - `heading with level and content`: `level` 1-6, else
-    `Line 3: in the "html" package: a heading level has to be 1 to 6.`
+    `Line 0: in the "html" package: a heading level has to be a whole number from 1 to 6.`
   - `paragraph with content`
   - `link_to with url and content`: `<a href="url">content</a>`
   - `image with src and alt`: `<img src="src" alt="alt">`
@@ -109,7 +109,10 @@ are HTML-escaped: templates are safe to render with untrusted data.
 ```jesun
 bring in "template"
 
-source is "<h1>{{title}}</h1><ul>{% for t in todos %}<li>{{t.task}}{% if t.done %} (done){% endif %}</li>{% endfor %}</ul>"
+note In a Jesun.Code string, "{{" renders "{" and "}}" renders "}", so an
+note inline template doubles every brace. Real templates live in files
+note (render_file) and are written with single braces.
+source is "<h1>{{{{title}}}}</h1><ul>{{% for t in todos %}}<li>{{{{t.task}}}}{{% if t.done %}} (done){{% endif %}}</li>{{% endfor %}}</ul>"
 data is {"title": "Todos <3", "todos": [{"task": "Buy milk", "done": true}, {"task": "Ship v1.3", "done": false}]}
 show render_template with source and data
 note <h1>Todos &lt;3</h1><ul><li>Buy milk (done)</li><li>Ship v1.3</li></ul>
@@ -123,10 +126,10 @@ note <h1>Todos &lt;3</h1><ul><li>Buy milk (done)</li><li>Ship v1.3</li></ul>
   path, renders as `""`. Values of kind text are HTML-escaped; numbers
   and true/false render as text; lists, tables, functions, agents, and
   anything else fail:
-  `Line 5: in the "template" package: I cannot put a table into "{{t}}". Use text, numbers, true/false, or nothing.`
+  `Line 0: in the "template" package: I cannot put a table into "{{t}}". Use text, numbers, true/false, or nothing.`
 - `{% for item in items %} ... {% endfor %}`: `items` resolves like a
   placeholder name and must be a list, else:
-  `Line 5: in the "template" package: "{% for %}" needs a list, but "todos" is text.`
+  `Line 0: in the "template" package: "{% for %}" needs a list, but "todos" is text.`
   The body renders once per element with `item` bound. Loops nest; the
   innermost binding wins. An empty list renders nothing.
 - `{% if name %} ... {% else %} ... {% endif %}`: `name` resolves like a
@@ -142,12 +145,13 @@ Template syntax errors are `fail with` at the `render_template` /
 `render_file` call line, carrying the character position in the
 template:
 
-- `Line 5: in the "template" package: "{{" at character 12 is never closed.`
-- `Line 5: in the "template" package: "{%" at character 30 is never closed.`
-- `Line 5: in the "template" package: I do not know the tag "{% while %}" (character 8).`
-- `Line 5: in the "template" package: "{% endfor %}" without "{% for %}" (character 40).`
-- `Line 5: in the "template" package: "{% endif %}" without "{% if %}" (character 40).`
-- `Line 5: in the "template" package: "{% for %}" needs "item in list" (character 8).`
+- `Line 0: in the "template" package: "{{" at character 12 is never closed.`
+- `Line 0: in the "template" package: "{%" at character 30 is never closed.`
+- `Line 0: in the "template" package: "{% for %}" is never closed (character 8).` (same shape for `{% if %}`)
+- `Line 0: in the "template" package: I do not know the tag "{% while %}" (character 8).`
+- `Line 0: in the "template" package: "{% endfor %}" without "{% for %}" (character 40).`
+- `Line 0: in the "template" package: "{% endif %}" without "{% if %}" (character 40).`
+- `Line 0: in the "template" package: "{% for %}" needs "item in list" (character 8).`
 - A literal `{{` cannot be written in a template in v1.3 (documented
   limit; compose it with the html DSL instead).
 
@@ -186,9 +190,11 @@ note </script>
 - `js_value with value`: a Jesun value as a JS literal. Text becomes
   `js_string`; numbers render as numbers; true/false become
   `true`/`false`; `nothing` becomes `null`; lists become `[...]` and
-  tables become `{"k": v}` (keys must be text), nested to a depth of 20
-  (deeper fails: `Line 4: in the "js" package: that value nests too deep
-  to turn into JavaScript.`). Functions, agents, and anything else fail
+  tables become `{"k": v}` (keys must be text), nested to a depth of 5
+  (deeper fails: `Line 0: in the "js" package: that value nests too deep
+  to turn into JavaScript.`). The cap of 5 sits below the self-hosted
+  walker's recursion budget, so both interpreters report this error
+  instead of their own depth guard. Functions, agents, and anything else fail
   with the kind named.
 - `script_tag with code`: `<script>\ncode\n</script>`. `code` is raw JS.
 - `dom_ready with code`:

@@ -1,0 +1,220 @@
+note jpm package "html": the native HTML DSL (spec v1.3 section 1).
+note Pure Jesun.Code: no imports, no bridge, no Python in the path.
+note Builders return text. Convenience builders escape their content;
+note `element` treats text children as raw so builders compose.
+note One language, all solutions.
+
+html_letters is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+html_alnum is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+note ---- kinds: article + description for plain-English errors ----
+
+to html_article with k
+    if k is "agent" then
+        give back "an agent"
+    if k is "true/false" then
+        give back "true/false"
+    if k is "python value" then
+        give back "a python value"
+    give back "a " + k
+
+to html_describe with v
+    k is kind of v
+    if k is "text" then
+        give back "\"" + v + "\""
+    if k is "number" or k is "true/false" then
+        give back text of v
+    a is html_article with k
+    give back a
+
+note ---- escaping: & first, then < > " ----
+
+to escape_html with content
+    if kind of content is not "text" then
+        a is html_article with (kind of content)
+        fail with "escape_html needs text, but this is " + a + "."
+    out is join of (split of content by "&") with "&amp;"
+    out is join of (split of out by "<") with "&lt;"
+    out is join of (split of out by ">") with "&gt;"
+    out is join of (split of out by "\"") with "&quot;"
+    give back out
+
+note ---- attributes: a table rendered in insertion order ----
+
+to html_attr_value with v
+    k is kind of v
+    if k is "text" then
+        give back v
+    if k is "number" then
+        give back text of v
+    if k is "true/false" then
+        give back text of v
+    if k is "nothing" then
+        give back ""
+    a is html_article with k
+    fail with "an attribute value has to be text, a number, true/false, or nothing, but this is " + a + "."
+
+to attrs_text with attrs
+    if attrs is nothing then
+        give back ""
+    if kind of attrs is not "table" then
+        a is html_article with (kind of attrs)
+        fail with "the attributes have to be a table, but this is " + a + "."
+    out is ""
+    for each k in keys of attrs
+        v is attrs[k]
+        shaped is html_attr_value with v
+        e is escape_html with shaped
+        out is out + " " + k + "=\"" + e + "\""
+    give back out
+
+note ---- tags: letters first, then letters and digits ----
+
+to html_valid_tag with tag
+    if kind of tag is not "text" then
+        give back false
+    if length of tag is 0 then
+        give back false
+    chars is characters of tag
+    if not (html_letters contains chars[0]) then
+        give back false
+    for each c in chars
+        if not (html_alnum contains c) then
+            give back false
+    give back true
+
+note ---- the composable core: element (raw children) and text_node ----
+
+to element with tag and attrs and children
+    if not (html_valid_tag with tag) then
+        d is html_describe with tag
+        fail with d + " is not a valid HTML tag name."
+    a is attrs_text with attrs
+    body is ""
+    kc is kind of children
+    if kc is "text" then
+        body is children
+    otherwise
+        if kc is "list" then
+            for each c in children
+                if kind of c is not "text" then
+                    ac is html_article with (kind of c)
+                    fail with "element children have to be text, but one is " + ac + "."
+                body is body + c
+        otherwise
+            ac is html_article with kc
+            fail with "element children have to be text or a list of text, but this is " + ac + "."
+    give back "<" + tag + a + ">" + body + "</" + tag + ">"
+
+to void_element with tag and attrs
+    if not (html_valid_tag with tag) then
+        d is html_describe with tag
+        fail with d + " is not a valid HTML tag name."
+    a is attrs_text with attrs
+    give back "<" + tag + a + ">"
+
+to text_node with content
+    e is escape_html with content
+    give back e
+
+note ---- convenience builders: every text argument escaped ----
+
+to heading with level and content
+    ok is kind of level is "number"
+    t is ""
+    if ok then
+        t is text of level
+        if t contains "." then
+            ok is false
+        if level is less than 1 then
+            ok is false
+        if level is greater than 6 then
+            ok is false
+    if not ok then
+        fail with "a heading level has to be a whole number from 1 to 6."
+    e is escape_html with content
+    give back "<h" + t + ">" + e + "</h" + t + ">"
+
+to paragraph with content
+    e is escape_html with content
+    give back "<p>" + e + "</p>"
+
+to link_to with url and content
+    u is escape_html with url
+    e is escape_html with content
+    give back "<a href=\"" + u + "\">" + e + "</a>"
+
+to image with src and alt
+    s is escape_html with src
+    a is escape_html with alt
+    give back "<img src=\"" + s + "\" alt=\"" + a + "\">"
+
+to unordered_list with items
+    body is html_list_items with items and "ul"
+    give back body
+
+to ordered_list with items
+    body is html_list_items with items and "ol"
+    give back body
+
+to html_list_items with items and tag
+    if kind of items is not "list" then
+        fail with tag + "_list needs a list of text."
+    body is ""
+    for each item in items
+        e is escape_html with item
+        body is body + "<li>" + e + "</li>"
+    give back "<" + tag + ">" + body + "</" + tag + ">"
+
+to button with label
+    e is escape_html with label
+    give back "<button>" + e + "</button>"
+
+to input_field with name and input_type
+    n is escape_html with name
+    t is escape_html with input_type
+    give back "<input type=\"" + t + "\" name=\"" + n + "\">"
+
+to form with action and method and content
+    a is escape_html with action
+    m is escape_html with method
+    if kind of content is not "text" then
+        ac is html_article with (kind of content)
+        fail with "form content has to be text, but this is " + ac + "."
+    give back "<form action=\"" + a + "\" method=\"" + m + "\">" + content + "</form>"
+
+to data_table with headers and rows
+    if kind of headers is not "list" then
+        fail with "data_table headers have to be a list of text."
+    if kind of rows is not "list" then
+        fail with "data_table rows have to be a list of lists."
+    head_cells is ""
+    for each h in headers
+        e is escape_html with h
+        head_cells is head_cells + "<th>" + e + "</th>"
+    body is "<thead><tr>" + head_cells + "</tr></thead><tbody>"
+    for each r in rows
+        if kind of r is not "list" then
+            fail with "each data_table row has to be a list."
+        cells is ""
+        for each c in r
+            shaped is html_attr_value with c
+            e is escape_html with shaped
+            cells is cells + "<td>" + e + "</td>"
+        body is body + "<tr>" + cells + "</tr>"
+    body is body + "</tbody>"
+    give back "<table>" + body + "</table>"
+
+to style_block with css
+    if kind of css is not "text" then
+        ac is html_article with (kind of css)
+        fail with "style_block needs text, but this is " + ac + "."
+    give back "<style>\n" + css + "\n</style>"
+
+to page with title and content
+    t is escape_html with title
+    if kind of content is not "text" then
+        ac is html_article with (kind of content)
+        fail with "page content has to be text, but this is " + ac + "."
+    doc is "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>" + t + "</title>\n</head>\n<body>\n" + content + "\n</body>\n</html>\n"
+    give back doc

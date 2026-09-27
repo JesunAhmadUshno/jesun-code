@@ -1,0 +1,336 @@
+note jpm package "template": native templates (spec v1.3 section 2).
+note Pure Jesun.Code: no imports, no bridge. Placeholders {{ }}, loops
+note {% for %}, conditionals {% if %}, all HTML-escaped. Errors name the
+note character position. One language, all solutions.
+note
+note Brace note: in Jesun.Code strings "{{" renders one "{" and "}}"
+note renders one "}", so the constants below double every brace.
+
+template_name_start is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+template_name_chars is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789"
+
+template_var_open is "{{{{"
+template_var_close is "}}"
+template_tag_open is "{{%"
+template_tag_close is "%}"
+template_quote is "\""
+
+note ---- kinds ----
+
+to template_article with k
+    if k is "agent" then
+        give back "an agent"
+    if k is "true/false" then
+        give back "true/false"
+    if k is "python value" then
+        give back "a python value"
+    give back "a " + k
+
+note ---- the escaper (duplicated from the html package on purpose: each
+note package stands alone with zero bridge and zero cross-imports) ----
+
+to template_escape with content
+    out is join of (split of content by "&") with "&amp;"
+    out is join of (split of out by "<") with "&lt;"
+    out is join of (split of out by ">") with "&gt;"
+    out is join of (split of out by "\"") with "&quot;"
+    give back out
+
+note ---- character-level helpers ----
+
+to template_slice with chars and start and end
+    out is ""
+    i is start
+    repeat while i is less than end
+        out is out + chars[i]
+        i is i + 1
+    give back out
+
+to template_find with chars and needle and start
+    nchars is characters of needle
+    nn is length of nchars
+    n is length of chars
+    i is start
+    limit is n - nn
+    repeat while i is at most limit
+        match is true
+        j is 0
+        repeat while j is less than nn
+            if chars[i + j] is not nchars[j] then
+                match is false
+            j is j + 1
+        if match then
+            give back i
+        i is i + 1
+    give back nothing
+
+to template_valid_name with name
+    if kind of name is not "text" then
+        give back false
+    if length of name is 0 then
+        give back false
+    chars is characters of name
+    if not (template_name_start contains chars[0]) then
+        give back false
+    for each c in chars
+        if not (template_name_chars contains c) then
+            give back false
+    give back true
+
+to template_valid_path with name
+    parts is split of name by "."
+    if length of parts is 0 then
+        give back false
+    for each p in parts
+        if not (template_valid_name with p) then
+            give back false
+    give back true
+
+to template_check_name with name and pos
+    if not (template_valid_path with name) then
+        q is template_quote
+        vo is template_var_open
+        vc is template_var_close
+        fail with q + vo + name + vc + q + " is not a name (character " + text of pos + ")."
+
+to template_words with tag
+    raw is split of tag by " "
+    out is []
+    for each w in raw
+        if w is not "" then
+            push w to out
+    give back out
+
+note ---- data lookup: dotted paths, loop env first, missing is nothing ----
+
+to template_lookup with name and data and env
+    parts is split of name by "."
+    head is parts[0]
+    if env contains head then
+        v is env[head]
+    otherwise
+        if data contains head then
+            v is data[head]
+        otherwise
+            give back nothing
+    i is 1
+    repeat while i is less than length of parts
+        if kind of v is not "table" then
+            give back nothing
+        p is parts[i]
+        if v contains p then
+            v is v[p]
+        otherwise
+            give back nothing
+        i is i + 1
+    give back v
+
+to template_shape with v and name
+    k is kind of v
+    if k is "nothing" then
+        give back ""
+    if k is "text" then
+        give back v
+    if k is "number" then
+        give back text of v
+    if k is "true/false" then
+        give back text of v
+    a is template_article with k
+    q is template_quote
+    vo is template_var_open
+    vc is template_var_close
+    fail with "I cannot put " + a + " into " + q + vo + name + vc + q + ". Use text, numbers, true/false, or nothing."
+
+to template_truthy with v
+    if v is nothing then
+        give back false
+    if v is false then
+        give back false
+    k is kind of v
+    if k is "text" then
+        if v is "" then
+            give back false
+    if k is "list" then
+        if length of v is 0 then
+            give back false
+    give back true
+
+to template_extend with env and name and value
+    out is a new table
+    for each k in keys of env
+        out[k] is env[k]
+    out[name] is value
+    give back out
+
+note ---- the nesting scanner: finds the matching end tag ----
+
+to template_find_end with chars and pos and opener and tagpos
+    depth is 1
+    n is length of chars
+    i is pos
+    topen is template_tag_open
+    tclose is template_tag_close
+    repeat while i is less than n
+        two is ""
+        if i + 1 is less than n then
+            two is chars[i] + chars[i + 1]
+        if two is topen then
+            cut is template_find with chars and tclose and (i + 2)
+            if cut is nothing then
+                q is template_quote
+                fail with q + topen + q + " at character " + text of i + " is never closed."
+            tag is trim of (template_slice with chars and (i + 2) and cut)
+            words is template_words with tag
+            w is words[0]
+            if w is "for" or w is "if" then
+                depth is depth + 1
+            otherwise
+                if w is "endfor" or w is "endif" then
+                    depth is depth - 1
+                    if depth is 0 then
+                        give back [w, i, cut + 2]
+                otherwise
+                    if w is "else" then
+                        if depth is 1 then
+                            if opener is "if" then
+                                give back ["else", i, cut + 2]
+            i is cut + 2
+        otherwise
+            i is i + 1
+    q is template_quote
+    fail with q + topen + " " + opener + " " + tclose + q + " that starts at character " + text of tagpos + " is never closed."
+
+note ---- stray-tag errors, built from the constants ----
+
+to template_stray with what and missing and pos
+    q is template_quote
+    topen is template_tag_open
+    tclose is template_tag_close
+    fail with q + topen + " " + what + " " + tclose + q + " has no " + q + topen + " " + missing + " " + tclose + q + " (character " + text of pos + ")."
+
+note ---- the renderer: one range [pos, end), pre-delimited by the caller ----
+
+to template_render_range with chars and data and env and pos and end
+    out is ""
+    i is pos
+    vopen is template_var_open
+    vclose is template_var_close
+    topen is template_tag_open
+    tclose is template_tag_close
+    repeat while i is less than end
+        two is ""
+        if i + 1 is less than end then
+            two is chars[i] + chars[i + 1]
+        if two is vopen then
+            cut is template_find with chars and vclose and (i + 2)
+            if cut is nothing then
+                template_unclosed with vopen and i
+            if cut is at least end then
+                template_unclosed with vopen and i
+            name is trim of (template_slice with chars and (i + 2) and cut)
+            template_check_name with name and i
+            v is template_lookup with name and data and env
+            shaped is template_shape with v and name
+            e is template_escape with shaped
+            out is out + e
+            i is cut + 2
+        otherwise
+            if two is topen then
+                cut is template_find with chars and tclose and (i + 2)
+                if cut is nothing then
+                    template_unclosed with topen and i
+                if cut is at least end then
+                    template_unclosed with topen and i
+                tag is trim of (template_slice with chars and (i + 2) and cut)
+                words is template_words with tag
+                w is words[0]
+                if w is "for" then
+                    if length of words is not 4 then
+                        template_bad_for with i
+                    if words[2] is not "in" then
+                        template_bad_for with i
+                    varname is words[1]
+                    listname is words[3]
+                    if not (template_valid_name with varname) then
+                        template_bad_for with i
+                    template_check_name with listname and i
+                    items is template_lookup with listname and data and env
+                    m is template_find_end with chars and (cut + 2) and "for" and i
+                    if kind of items is "nothing" then
+                        i is m[2]
+                    otherwise
+                        if kind of items is not "list" then
+                            a is template_article with (kind of items)
+                            q is template_quote
+                            fail with q + topen + " for " + tclose + q + " needs a list, but " + q + listname + q + " is " + a + "."
+                        for each item in items
+                            env2 is template_extend with env and varname and item
+                            r is template_render_range with chars and data and env2 and (cut + 2) and m[1]
+                            out is out + r
+                        i is m[2]
+                otherwise
+                    if w is "if" then
+                        if length of words is not 2 then
+                            q is template_quote
+                            fail with q + topen + " if " + tclose + q + " needs a name (character " + text of i + ")."
+                        condname is words[1]
+                        template_check_name with condname and i
+                        cond is template_lookup with condname and data and env
+                        m is template_find_end with chars and (cut + 2) and "if" and i
+                        if m[0] is "else" then
+                            m2 is template_find_end with chars and m[2] and "if" and i
+                            if m2[0] is not "endif" then
+                                template_stray with "else" and "if" and m2[1]
+                            if template_truthy with cond then
+                                r is template_render_range with chars and data and env and (cut + 2) and m[1]
+                                out is out + r
+                            otherwise
+                                r is template_render_range with chars and data and env and m[2] and m2[1]
+                                out is out + r
+                            i is m2[2]
+                        otherwise
+                            if template_truthy with cond then
+                                r is template_render_range with chars and data and env and (cut + 2) and m[1]
+                                out is out + r
+                            i is m[2]
+                    otherwise
+                        if w is "endfor" then
+                            template_stray with "endfor" and "for" and i
+                        if w is "endif" then
+                            template_stray with "endif" and "if" and i
+                        if w is "else" then
+                            template_stray with "else" and "if" and i
+                        q is template_quote
+                        fail with "I do not know the tag " + q + topen + " " + tag + " " + tclose + q + " (character " + text of i + ")."
+            otherwise
+                out is out + chars[i]
+                i is i + 1
+    give back out
+
+to template_unclosed with opener and pos
+    q is template_quote
+    fail with q + opener + q + " at character " + text of pos + " is never closed."
+
+to template_bad_for with pos
+    q is template_quote
+    topen is template_tag_open
+    tclose is template_tag_close
+    fail with q + topen + " for " + tclose + q + " needs \"item in list\" (character " + text of pos + ")."
+
+note ---- entry points ----
+
+to render_template with source and data
+    if kind of source is not "text" then
+        a is template_article with (kind of source)
+        fail with "render_template needs template text, but this is " + a + "."
+    if kind of data is not "table" then
+        a is template_article with (kind of data)
+        fail with "render_template needs a table of data, but this is " + a + "."
+    chars is characters of source
+    env is a new table
+    n is length of chars
+    give back template_render_range with chars and data and env and 0 and n
+
+to render_file with path and data
+    read file path giving source
+    give back render_template with source and data

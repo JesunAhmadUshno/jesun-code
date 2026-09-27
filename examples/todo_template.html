@@ -1,0 +1,5 @@
+<h1>{{title}}</h1>
+<p>{{count}} things to do.</p>
+<ul>
+{% for t in todos %}<li>{{t.task}}{% if t.done %} (done){% endif %}</li>
+{% endfor %}</ul>
