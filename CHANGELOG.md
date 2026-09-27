@@ -2,7 +2,38 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
-## Unreleased: v1.2 jweb (in progress, not shipped)
+## Unreleased: v1.3 frontend (in progress, not shipped)
+
+Spec `docs/spec-v1.3.md`. The Python bridge is bootstrap only; everything
+below is pure Jesun.Code, zero imports, zero bridge.
+
+- `html` package (`packages/html/html.jc`): `escape_html` (escapes `&`
+  first), `element` / `void_element` (validated tag names, escaped
+  attributes), `text_node`, `heading` (1-6), `paragraph`, `link_to`,
+  `image`, `unordered_list` / `ordered_list`, `button`, `input_field`,
+  `form`, `data_table` (shapes numbers, true/false, nothing), `style_block`,
+  `page` (complete document). Escaping by default; raw HTML only through
+  the documented low-level builders.
+- `template` package (`packages/template/template.jc`): `{{ name }}`
+  placeholders (dotted lookup, missing renders `""`), `{% for x in xs %}`
+  loops (missing list loops zero times), `{% if name %}` / `{% else %}` /
+  `{% endif %}`, nested loops and conditionals, deterministic HTML
+  escaping, `render_template` / `render_file`, syntax errors with template
+  character positions. Inline templates double every brace (`{{{{x}}}}`
+  renders `{{x}}`); files use single braces.
+- `js` package (`packages/js/js.jc`): `js_string` (escapes `"`, `\`,
+  newlines, and `<` as `\x3c` so values cannot break out of `<script>`),
+  `js_value` (text/number/true-false/nothing/list/table to JS literals,
+  depth cap 5, functions refused), `script_tag`, `dom_ready`, `on_event`,
+  `js_fetch` (JSON POST against jweb routes).
+- Example: `examples/todo_frontend.jc` + `examples/todo_template.html`
+  (the v1.3 flagship: template-rendered list, HTML-built form, JS-built
+  client wiring, verified on both interpreters).
+- New tests: `tests/test_frontend.py` (38 differential cases: every API,
+  every error shape, both interpreters byte-identical),
+  `tests/fuzz_frontend.py` (differential package fuzzer).
+
+## v1.2.0 - 2026-09-26: JWEB
 
 Spec `docs/spec-v1.2.md`. Everything the milestone promises, in order:
 

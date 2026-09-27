@@ -60,8 +60,10 @@ works only through the bridge, that domain is not done.
 - **v1.2: jweb.** Native web framework in Jesun.Code: HTTP server,
   routing, JSON, sessions, sqlite. Frontend and backend, full stack,
   no Python in the path.
-- **v1.3: frontend.** Native HTML DSL, templates, and JS interop, so
-  real sites and React-level apps are expressible in Jesun.Code.
+- **v1.3: frontend (in progress).** Native HTML DSL, templates, and JS
+  interop, so real sites and React-level apps are expressible in
+  Jesun.Code. Spec `docs/spec-v1.3.md`; `html`, `template`, `js` packages
+  pure Jesun.Code, zero bridge.
 - **v1.4: interop packages.** Native jpm packages for the stacks the
   world runs on: wordpress, react, PHP/laravel helpers. Calling them
   works today; this phase replaces the need to leave the language.

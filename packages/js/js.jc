@@ -1,0 +1,115 @@
+note jpm package "js": JS interop (spec v1.3 section 3).
+note Pure Jesun.Code: no imports, no bridge. Jesun.Code writes the JS as
+note text; the browser runs it. Brace note: in a string that contains
+note "{", "{{" renders "{" and "}}" renders "}". A lone "}" with no "{"
+note in the string is literal. Backslash note: "\\" renders "\".
+note One language, all solutions.
+
+to js_article with k
+    if k is "agent" then
+        give back "an agent"
+    if k is "true/false" then
+        give back "true/false"
+    if k is "python value" then
+        give back "a python value"
+    give back "a " + k
+
+note ---- js_string: a JS string literal; "<" becomes \x3c so a value
+note can never break out of its <script> tag ----
+
+to js_string with content
+    if kind of content is not "text" then
+        a is js_article with (kind of content)
+        fail with "js_string needs text, but this is " + a + "."
+    s1 is join of (split of content by "\\") with "\\\\"
+    s2 is join of (split of s1 by "\"") with "\\\""
+    s3 is join of (split of s2 by "\n") with "\\n"
+    s4 is join of (split of s3 by "\r") with "\\r"
+    s5 is join of (split of s4 by "\t") with "\\t"
+    s6 is join of (split of s5 by "<") with "\\x3c"
+    give back "\"" + s6 + "\""
+
+note ---- js_value: a Jesun value as a JS literal, 5 levels deep ----
+note The cap sits below the self-hosted walker's recursion budget, so
+note both interpreters report this error instead of their own depth guard.
+
+to js_value with value
+    give back js_value_depth with value and 0
+
+note A function is a Function in the bootstrap but a ["function", ...]
+note list in the self-hosted walker. Both shapes refuse the same way.
+
+to js_is_function with value
+    if kind of value is "function" then
+        give back true
+    if kind of value is "list" then
+        t is text of value
+        words is split of t by " "
+        if length of words is at least 1 then
+            if words[0] is "<function" then
+                give back true
+    give back false
+
+to js_value_depth with value and depth
+    if depth is greater than 5 then
+        fail with "that value nests too deep to turn into JavaScript."
+    if js_is_function with value then
+        fail with "I cannot turn a function into JavaScript."
+    k is kind of value
+    if k is "text" then
+        give back js_string with value
+    if k is "number" then
+        give back text of value
+    if k is "true/false" then
+        give back text of value
+    if k is "nothing" then
+        give back "null"
+    if k is "list" then
+        parts is []
+        for each item in value
+            push (js_value_depth with item and (depth + 1)) to parts
+        give back "[" + join of parts with ", " + "]"
+    if k is "table" then
+        parts is []
+        for each key in keys of value
+            ks is js_string with key
+            vs is js_value_depth with (value[key]) and (depth + 1)
+            push (ks + ": " + vs) to parts
+        give back "{{" + join of parts with ", " + "}"
+    a is js_article with k
+    fail with "I cannot turn " + a + " into JavaScript."
+
+note ---- script_tag: code is raw JS, already built ----
+
+to script_tag with code
+    if kind of code is not "text" then
+        a is js_article with (kind of code)
+        fail with "script_tag needs text, but this is " + a + "."
+    give back "<script>\n" + code + "\n</script>"
+
+note ---- dom_ready / on_event: wiring ----
+
+to dom_ready with code
+    if kind of code is not "text" then
+        a is js_article with (kind of code)
+        fail with "dom_ready needs text, but this is " + a + "."
+    give back "document.addEventListener(\"DOMContentLoaded\", function() {{\n" + code + "\n});"
+
+to on_event with event and element_id and code
+    e is js_string with event
+    i is js_string with element_id
+    if kind of code is not "text" then
+        a is js_article with (kind of code)
+        fail with "on_event code needs text, but this is " + a + "."
+    give back "document.getElementById(" + i + ").addEventListener(" + e + ", function() {{\n" + code + "\n});"
+
+note ---- js_fetch: a fetch() call against a jweb JSON route ----
+
+to js_fetch with url and method and body_expr
+    u is js_string with url
+    m is js_string with method
+    if kind of body_expr is not "text" then
+        a is js_article with (kind of body_expr)
+        fail with "js_fetch body needs a JS expression, but this is " + a + "."
+    h is "{{" + "\"Content-Type\": \"application/json\"" + "}"
+    give back "fetch(" + u + ", {{method: " + m + ", headers: " + h + ", body: " + body_expr + "})"

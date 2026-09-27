@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/JesunAhmadUshno/jesun-code)](https://github.com/JesunAhmadUshno/jesun-code/releases)
 [![CI](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml/badge.svg)](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-463%20passing-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
+[![Tests](https://img.shields.io/badge/tests-501%20passing-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 A programming language that reads like plain English. If a sentence makes
@@ -387,6 +387,32 @@ with real tools, and looks around through a tmux terminal. Run the suite:
 ```bash
 python3 -m unittest discover -s tests
 ```
+
+501 tests, all differential where it matters: the bootstrap interpreter
+and the self-hosted Jesun.Code walker must agree byte for byte.
+
+## Frontend in Jesun.Code (v1.3)
+
+No Python in the path. Three pure-Jesun.Code packages:
+
+```jesun
+bring in "html"
+bring in "template"
+bring in "js"
+
+show page with "Hi" and (paragraph with "Hello <world>.")
+note <p>Hello &lt;world&gt;.</p> inside a complete document
+
+show render_template with "Hi {{{{name}}}}!" and {"name": "<b>"}
+note Hi &lt;b&gt;!
+
+show js_string with "</script>"
+note "\x3c/script>" : breakout-proof by construction
+```
+
+`examples/todo_frontend.jc` is the flagship: a todo page whose list is
+template-rendered, whose form is HTML-built, and whose client wiring is
+JS-built, all in Jesun.Code. Full spec: `docs/spec-v1.3.md`.
 
 ## What v0.4 is, honestly
 
