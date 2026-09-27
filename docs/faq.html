@@ -75,7 +75,7 @@
 
   <details>
     <summary>What is the roadmap?</summary>
-    <p>v1.0.0 shipped self-hosting: the interpreter (jesun.jc) is written in Jesun.Code itself (the Python implementation is the bootstrap only). v1.1.0 shipped native builds: <code>jesun build</code> transpiles the core language to C and compiles real native binaries with no bundled runtime in the output. The honest framing: the <code>jesun</code> tool itself still ships as a single bundled binary (you never install Python); what changed is that <code>jesun build</code> now produces genuinely native programs. Neither is claimed otherwise.</p>
+    <p>v1.0.0 shipped self-hosting: the interpreter (jesun.jc) is written in Jesun.Code itself (the Python implementation is the bootstrap only). v1.1.0 shipped native builds: <code>jesun build</code> transpiles the core language to C and compiles real native binaries with no bundled runtime in the output. v1.2.0 shipped jweb and sqlite: a web framework and a database written in Jesun.Code itself, with routing, sessions, static files, parameterized queries, and plain-English errors. The honest framing: the <code>jesun</code> tool itself still ships as a single bundled binary (you never install Python); what changed is that <code>jesun build</code> now produces genuinely native programs. Neither is claimed otherwise.</p>
   </details>
 
   <details>
@@ -97,7 +97,7 @@
     {"@type": "Question", "name": "What is a fleet in Jesun.Code?", "acceptedAnswer": {"@type": "Answer", "text": "Since v0.6.0: a fleet block runs named agents in parallel and collects their answers into a list in ask order, with optional shared fleet memory."}},
     {"@type": "Question", "name": "How does the AI brain work?", "acceptedAnswer": {"@type": "Answer", "text": "ask ai sends a prompt to the connected mind via JESUNCODE_AI_COMMAND. Three providers ship with the installer: Pollinations (free forever, no key), Gemini (free with a Google account), and OpenAI (your own key). Named agents add persona, tools, streaming, and persistent memory."}},
     {"@type": "Question", "name": "Is there a VS Code extension?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, in editors/vscode/: syntax highlighting for English and Bangla keywords, snippets, and run-file on Ctrl+Alt+R. The grammar is generated from the interpreter itself, so it never drifts out of sync."}},
-    {"@type": "Question", "name": "What is the roadmap?", "acceptedAnswer": {"@type": "Answer", "text": "v1.0.0 shipped self-hosting: the interpreter is written in Jesun.Code itself. v1.1.0 shipped native builds: jesun build transpiles to C and compiles real native binaries with no bundled runtime in the output."}},
+    {"@type": "Question", "name": "What is the roadmap?", "acceptedAnswer": {"@type": "Answer", "text": "v1.0.0 shipped self-hosting: the interpreter is written in Jesun.Code itself. v1.1.0 shipped native builds: jesun build transpiles to C and compiles real native binaries with no bundled runtime in the output. v1.2.0 shipped jweb and sqlite: a web framework and a database written in Jesun.Code itself."}},
     {"@type": "Question", "name": "What license is it?", "acceptedAnswer": {"@type": "Answer", "text": "MIT. Do anything with it."}}
   ]
 }
