@@ -2,7 +2,7 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
-## Unreleased: v1.3 frontend (in progress, not shipped)
+## v1.3.0 - 2026-09-26: FRONTEND
 
 Spec `docs/spec-v1.3.md`. The Python bridge is bootstrap only; everything
 below is pure Jesun.Code, zero imports, zero bridge.
