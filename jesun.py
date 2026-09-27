@@ -20,6 +20,7 @@ tracebacks never reach the user.
 from __future__ import annotations
 
 import difflib
+import os
 import re
 import sys
 import threading
@@ -57,6 +58,70 @@ class JesunError(Exception):
         self.line = line
         self.message = message
         super().__init__(f"Line {line}: {message}")
+
+
+# v1.2: the interpreter currently executing (set by Interpreter.run).
+# The self-hosted walker (jesun.jc) reaches it through `import __main__`
+# to implement `attempt` (spec v1.2 section 7): the walker's evaluator is
+# Jesun.Code and cannot catch a Python exception itself, so it asks the
+# bootstrap to run the guarded call. The walker cannot hand its
+# environment to Python (bridge arguments must be plain data), so the
+# guarded call recovers the in-flight arguments from the call stack
+# below instead of taking them as arguments.
+_JC_ACTIVE_INTERP: Any = None
+
+_JC_CALL_STATE = threading.local()
+
+
+def _jc_call_stack() -> list:
+    """The in-flight _call_function frames for this thread.
+
+    Each entry is (target, arg_values) with the raw Python objects, so a
+    guarded call can recover values the bridge could never carry.
+    """
+    stack = getattr(_JC_CALL_STATE, "stack", None)
+    if stack is None:
+        stack = []
+        _JC_CALL_STATE.stack = stack
+    return stack
+
+
+def _jc_attempt(operand: Any, line: int) -> list:
+    """Guarded-call service for the walker's `attempt` (spec v1.2 s7).
+
+    Called as `__main__._jc_attempt(operand, ln)` from the walker's
+    `ev_attempt`. The operand is the walker's AST (plain data); the
+    walker's environment and depth are recovered from the top
+    _call_function frame, which is the running `ev_attempt` call itself.
+    Gives back ["ok", [value, signal]] or ["fail", text], and never
+    raises a plain-English failure itself. Only JesunError is caught:
+    control signals were already consumed inside _call_function, and
+    anything else is a bug, not a failure.
+    """
+    interp = _JC_ACTIVE_INTERP
+    if interp is None:
+        return ["fail", "Line %d: the guarded call found no interpreter." % line]
+    stack = _jc_call_stack()
+    if not stack:
+        return ["fail", "Line %d: `attempt` lost its calling context." % line]
+    _target, arg_values = stack[-1]
+    node = arg_values[0] if arg_values else None
+    if not (isinstance(node, list) and len(node) == 3 and node[0] == "attempt"):
+        return ["fail", "Line %d: this guarded call is only for the walker's `attempt`." % line]
+    _tag, operand_node, node_ln = node
+    env = arg_values[1]
+    depth = arg_values[2]
+    try:
+        ev_fn = interp.global_env.get("ev", line)
+    except JesunError:
+        ev_fn = None
+    if not isinstance(ev_fn, Function):
+        return ["fail", "Line %d: the walker is not loaded." % node_ln]
+    try:
+        return ["ok", interp._call_function(ev_fn, [operand_node, env, depth], line)]
+    except JesunError as err:
+        # str(err) is exactly what the user would have seen.
+        return ["fail", str(err)]
 
 
 class _BareError(JesunError):
@@ -109,6 +174,58 @@ class _Skip(Exception):
 #   true/false -> bool      | nothing -> None
 # Phase 2: foreign objects (Python bridge) and AI replies plug in here.
 
+def _json_escape(text: str) -> str:
+    """v1.2: quote text JSON-style: \\" \\\\ \\n \\t etc., \\uXXXX for
+    control chars and non-ASCII. Shared by table rendering and `json of`."""
+    out = ['"']
+    for ch in text:
+        o = ord(ch)
+        if ch == '"':
+            out.append('\\"')
+        elif ch == "\\":
+            out.append("\\\\")
+        elif ch == "\n":
+            out.append("\\n")
+        elif ch == "\r":
+            out.append("\\r")
+        elif ch == "\t":
+            out.append("\\t")
+        elif ch == "\b":
+            out.append("\\b")
+        elif ch == "\f":
+            out.append("\\f")
+        elif o < 0x20 or o == 0x7F:
+            out.append("\\u%04x" % o)
+        elif o > 0xFFFF:
+            o -= 0x10000
+            out.append("\\u%04x\\u%04x" % (0xD800 + (o >> 10), 0xDC00 + (o & 0x3FF)))
+        elif o > 0x7E:
+            out.append("\\u%04x" % o)
+        else:
+            out.append(ch)
+    out.append('"')
+    return "".join(out)
+
+
+def _table_text(table: "Table") -> str:
+    """v1.2: how a table looks to a human: {"name": "Jesun", "age": 29}."""
+    parts = []
+    for key, val in table.items():
+        parts.append(_json_escape(key) + ": " + _json_value_text(val))
+    return "{" + ", ".join(parts) + "}"
+
+
+def _json_value_text(value: Any) -> str:
+    """v1.2: a value rendered inside table display: text stays quoted."""
+    if isinstance(value, str):
+        return _json_escape(value)
+    if isinstance(value, Table):
+        return _table_text(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_json_value_text(v) for v in value) + "]"
+    return show_text(value)
+
+
 def show_text(value: Any) -> str:
     """How a value looks when shown to a human. Never a debug repr."""
     if value is None:
@@ -121,6 +238,8 @@ def show_text(value: Any) -> str:
         return str(int(value)) if value.is_integer() else str(value)
     if isinstance(value, str):
         return value
+    if isinstance(value, Table):  # v1.2: before list (Table is a dict, not a list)
+        return _table_text(value)
     if isinstance(value, list):
         return "[" + ", ".join(show_text(v) for v in value) + "]"
     if isinstance(value, Function):  # defined below; resolved at call time
@@ -141,7 +260,7 @@ def is_truthy(value: Any) -> bool:
         return value
     if isinstance(value, (int, float)):
         return value != 0
-    if isinstance(value, (str, list)):
+    if isinstance(value, (str, list, dict)):  # v1.2: dict covers Table
         return len(value) > 0
     if isinstance(value, Foreign):
         try:
@@ -160,6 +279,8 @@ def type_name(value: Any) -> str:
         return "number"
     if isinstance(value, str):
         return "text"
+    if isinstance(value, Table):  # v1.2: before list/Foreign checks
+        return "table"
     if isinstance(value, list):
         return "list"
     if isinstance(value, Foreign):
@@ -183,6 +304,10 @@ def values_equal(a: Any, b: Any) -> bool:
         return True
     if isinstance(a, list) and isinstance(b, list):
         return len(a) == len(b) and all(values_equal(x, y) for x, y in zip(a, b))
+    if isinstance(a, Table) and isinstance(b, Table):  # v1.2: deep table equality
+        return len(a) == len(b) and all(
+            k in b and values_equal(v, b[k]) for k, v in a.items()
+        )
     return False
 
 
@@ -239,9 +364,264 @@ def to_jesun(value: Any) -> Any:
         return value
     if isinstance(value, str):
         return value
+    if isinstance(value, Table):
+        # v1.2: native tables pass through untouched (never re-wrapped).
+        return value
+    if isinstance(value, Foreign):
+        # v1.2: already a Jesun.Code value; never double-wrap. The walker's
+        # `attempt` service (_jc_attempt) hands Foreign values back through
+        # to_jesun, and a second wrap broke foreign calls on them.
+        return value
     if isinstance(value, (list, tuple)):
         return [to_jesun(v) for v in value]
+    # v1.2: plain Python dicts stay Foreign (spec v1.2 section 1: bridge
+    # dicts keep working through the Foreign branch of `keys of`).
+    # Converting them to Table here broke the walker's own bridge
+    # namespaces (builtins.dict() became a Table, so ns["fn"] returned
+    # raw Python instead of Foreign). Tables are built explicitly by
+    # table literals, `new table`, and the JSON reader instead.
     return Foreign(value)
+
+
+class Table(dict):
+    """v1.2: the native Jesun.Code key-value type (spec v1.2 section 1).
+
+    A dict subclass so insertion order and deep equality come free.
+    Keys are always text; values are any Jesun.Code value.
+    """
+
+
+# ---------------------------------------------------------------------------
+# v1.2: JSON (spec v1.2 section 2). One recursive-descent reader and one
+# canonical writer. The self-hosted interpreter (jesun.jc) implements the
+# same algorithm in Jesun.Code; the differential suite keeps them identical.
+# ---------------------------------------------------------------------------
+
+def _with_article(name: str) -> str:
+    """"a table", "an agent": plain-English articles for type names."""
+    return ("an " if name[:1] in "aeiou" else "a ") + name
+
+
+class _JsonError(Exception):
+    """A JSON syntax problem; pos is the 0-based character index."""
+
+    def __init__(self, pos: int) -> None:
+        super().__init__(pos)
+        self.pos = pos
+
+
+_JSON_MAX_DEPTH = 200
+
+
+def _jc_json_parse(text: str) -> Any:
+    """Parse one JSON value. Objects become Tables, null becomes nothing.
+    Raises _JsonError(pos) on any syntax problem."""
+    n = len(text)
+
+    def err(i: int) -> Any:
+        raise _JsonError(i)
+
+    def skip(i: int) -> int:
+        while i < n and text[i] in " \t\n\r":
+            i += 1
+        return i
+
+    def parse_value(i: int, depth: int) -> tuple[Any, int]:
+        if depth > _JSON_MAX_DEPTH:
+            err(i)
+        i = skip(i)
+        if i >= n:
+            err(i)
+        ch = text[i]
+        if ch == "{":
+            return parse_object(i, depth)
+        if ch == "[":
+            return parse_array(i, depth)
+        if ch == '"':
+            return parse_string(i)
+        if ch == "t":
+            return (True, i + 4) if text.startswith("true", i) else err(i)
+        if ch == "f":
+            return (False, i + 5) if text.startswith("false", i) else err(i)
+        if ch == "n":
+            return (None, i + 4) if text.startswith("null", i) else err(i)
+        if ch == "-" or ch.isdecimal():
+            return parse_number(i)
+        return err(i)
+
+    def parse_object(i: int, depth: int) -> tuple[Table, int]:
+        table: Table = Table()
+        i = skip(i + 1)  # {
+        if i < n and text[i] == "}":
+            return table, i + 1
+        while True:
+            i = skip(i)
+            if i >= n or text[i] != '"':
+                err(i)
+            key, i = parse_string(i)
+            i = skip(i)
+            if i >= n or text[i] != ":":
+                err(i)
+            val, i = parse_value(i + 1, depth + 1)
+            table[key] = val
+            i = skip(i)
+            if i < n and text[i] == ",":
+                i += 1
+                continue
+            if i < n and text[i] == "}":
+                return table, i + 1
+            err(i)
+
+    def parse_array(i: int, depth: int) -> tuple[list, int]:
+        items: list = []
+        i = skip(i + 1)  # [
+        if i < n and text[i] == "]":
+            return items, i + 1
+        while True:
+            val, i = parse_value(i, depth + 1)
+            items.append(val)
+            i = skip(i)
+            if i < n and text[i] == ",":
+                i += 1
+                continue
+            if i < n and text[i] == "]":
+                return items, i + 1
+            err(i)
+
+    def parse_string(i: int) -> tuple[str, int]:
+        # i points at the opening quote.
+        out: list[str] = []
+        i += 1
+        while True:
+            if i >= n:
+                err(i)
+            ch = text[i]
+            if ch == '"':
+                return "".join(out), i + 1
+            if ch == "\\":
+                if i + 1 >= n:
+                    err(n)
+                esc = text[i + 1]
+                if esc == '"':
+                    out.append('"')
+                elif esc == "\\":
+                    out.append("\\")
+                elif esc == "/":
+                    out.append("/")
+                elif esc == "b":
+                    out.append("\b")
+                elif esc == "f":
+                    out.append("\f")
+                elif esc == "n":
+                    out.append("\n")
+                elif esc == "r":
+                    out.append("\r")
+                elif esc == "t":
+                    out.append("\t")
+                elif esc == "u":
+                    code, i = parse_hex4(i + 2)
+                    if 0xD800 <= code <= 0xDBFF and text.startswith("\\u", i):
+                        low_digits = text[i + 2:i + 6]
+                        if len(low_digits) == 4 and all(
+                                c in "0123456789abcdefABCDEF" for c in low_digits):
+                            low = int(low_digits, 16)
+                            if 0xDC00 <= low <= 0xDFFF:
+                                code = (0x10000 + ((code - 0xD800) << 10)
+                                        + (low - 0xDC00))
+                                i += 6
+                    # A high surrogate not followed by a low one stays lone,
+                    # exactly like Python's json module. A malformed \u
+                    # after it is re-read as an escape on the next pass.
+                    out.append(chr(code))
+                    continue
+                else:
+                    err(i)
+                i += 2
+                continue
+            if ord(ch) < 0x20:
+                err(i)
+            out.append(ch)
+            i += 1
+
+    def parse_hex4(i: int) -> tuple[int, int]:
+        digits = text[i:i + 4]
+        if len(digits) < 4 or any(c not in "0123456789abcdefABCDEF" for c in digits):
+            err(i - 2)  # point at the \u
+        return int(digits, 16), i + 4
+
+    def parse_number(i: int) -> tuple[Any, int]:
+        start = i
+        if text[i] == "-":
+            i += 1
+            if i >= n:
+                err(start)
+        if i < n and text[i] == "0":
+            i += 1
+        elif i < n and text[i].isdecimal():
+            while i < n and text[i].isdecimal():
+                i += 1
+        else:
+            err(start)
+        is_float = False
+        if i < n and text[i] == ".":
+            is_float = True
+            i += 1
+            if i >= n or not text[i].isdecimal():
+                err(start)
+            while i < n and text[i].isdecimal():
+                i += 1
+        if i < n and text[i] in "eE":
+            is_float = True
+            i += 1
+            if i < n and text[i] in "+-":
+                i += 1
+            if i >= n or not text[i].isdecimal():
+                err(start)
+            while i < n and text[i].isdecimal():
+                i += 1
+        raw = text[start:i]
+        try:
+            return (float(raw) if is_float else int(raw)), i
+        except ValueError:
+            err(start)
+
+    value, i = parse_value(0, 0)
+    i = skip(i)
+    if i != n:
+        err(i)
+    return value
+
+
+def _jc_json_encode(value: Any, _depth: int = 0) -> str:
+    """Canonical JSON: no spaces, keys in insertion order, non-ASCII as
+    \\uXXXX, integral floats keep their .0. Raises ValueError with a
+    plain-English message for values with no JSON shape."""
+    if _depth > _JSON_MAX_DEPTH:
+        raise ValueError("that value nests too deep to turn into JSON.")
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if value != value or value in (float("inf"), float("-inf")):
+            raise ValueError("I cannot turn that number into JSON.")
+        if value.is_integer() and abs(value) < 1e21:
+            return str(int(value)) + ".0"
+        return repr(value)
+    if isinstance(value, str):
+        return _json_escape(value)
+    if isinstance(value, Table):
+        parts = [_json_escape(k) + ":" + _jc_json_encode(v, _depth + 1)
+                 for k, v in value.items()]
+        return "{" + ",".join(parts) + "}"
+    if isinstance(value, list):
+        return "[" + ",".join(_jc_json_encode(v, _depth + 1) for v in value) + "]"
+    raise ValueError(
+        f"I cannot turn {_with_article(type_name(value))} into JSON.")
 
 
 def to_python(value: Any, line: int) -> Any:
@@ -250,6 +630,8 @@ def to_python(value: Any, line: int) -> Any:
         return value
     if isinstance(value, list):
         return [to_python(v, line) for v in value]
+    if isinstance(value, Table):  # v1.2: tables cross as plain dicts
+        return {k: to_python(v, line) for k, v in value.items()}
     if isinstance(value, Foreign):
         return value.obj
     fail(line, f"I cannot hand {type_name(value)} to Python.")
@@ -337,6 +719,10 @@ KEYWORDS: dict[str, str] = {
     "use": "USE", "bring": "BRING",
     # v0.6: fleets.
     "fleet": "FLEET",
+    # v1.2: tables and JSON.
+    "new": "NEW", "table": "TABLE", "json": "JSON", "parse": "PARSE",
+    # v1.2: attempt (failure as a value, spec v1.2 section 7).
+    "attempt": "ATTEMPT",
 }
 
 # v0.5: the Bangla flavor. Same token types as KEYWORDS, Bangla words.
@@ -364,6 +750,10 @@ BANGLA_KEYWORDS: dict[str, str] = {
     "লেখো": "WRITE", "যোগকরো": "APPEND", "ব্যবহার": "USE",
     "দল": "FLEET",
     "নিয়ে": "BRING",
+    # v1.2: tables and JSON.
+    "নতুন": "NEW", "সারণি": "TABLE", "জেসন": "JSON", "বিশ্লেষণ": "PARSE",
+    # v1.2: attempt (failure as a value, spec v1.2 section 7).
+    "চেষ্টা": "ATTEMPT",
 }
 
 # In Bangla mode, comments start with this word instead of `note`.
@@ -380,6 +770,8 @@ SIMPLE_TOKENS: dict[str, str] = {
     "+": "PLUS", "-": "MINUS", "*": "STAR", "/": "SLASH", "%": "PERCENT",
     "(": "LPAREN", ")": "RPAREN", "[": "LBRACKET", "]": "RBRACKET",
     ",": "COMMA", ".": "DOT", "=": "EQ",
+    # v1.2: table literals.
+    "{": "LBRACE", "}": "RBRACE", ":": "COLON",
 }
 
 
@@ -421,7 +813,7 @@ def _read_string(text: str, start: int, lineno: int) -> tuple[str, int]:
         ch = text[i]
         if ch == "\\" and i + 1 < n:
             nxt = text[i + 1]
-            out.append({"n": "\n", "t": "\t", '"': '"', "'": "'", "\\": "\\"}.get(nxt, nxt))
+            out.append({"n": "\n", "r": "\r", "t": "\t", '"': '"', "'": "'", "\\": "\\"}.get(nxt, nxt))
             i += 2
             continue
         if ch == quote:
@@ -445,13 +837,13 @@ def _tokenize_line(text: str, lineno: int,
             value, i = _read_string(text, i, lineno)
             tokens.append(Token("STRING", value, lineno))
             continue
-        if ch.isdigit():
+        if ch.isdecimal():
             j = i
-            while j < n and text[j].isdigit():
+            while j < n and text[j].isdecimal():
                 j += 1
-            if j < n and text[j] == "." and j + 1 < n and text[j + 1].isdigit():
+            if j < n and text[j] == "." and j + 1 < n and text[j + 1].isdecimal():
                 j += 1
-                while j < n and text[j].isdigit():
+                while j < n and text[j].isdecimal():
                     j += 1
                 tokens.append(Token("NUMBER", float(text[i:j]), lineno))
             else:
@@ -653,6 +1045,33 @@ class ListLit:
     line: int
 
 
+# v1.2: tables (spec v1.2 section 1).
+@dataclass
+class TableLit:
+    pairs: list[tuple["Expr", "Expr"]]  # (key_expr, value_expr); keys must be text
+    line: int
+
+
+@dataclass
+class NewTable:
+    line: int
+
+
+# v1.2: subscript assignment: `t["key"] is value`, `xs[0] is value`.
+@dataclass
+class SubAssign:
+    target: "Expr"  # Subscript (possibly chained: a["x"]["y"])
+    value: "Expr"
+    line: int
+
+
+# v1.2: `attempt <expr>` (spec v1.2 section 7): failure as a value.
+@dataclass
+class Attempt:
+    operand: "Expr"
+    line: int
+
+
 @dataclass
 class Call:
     name: str
@@ -662,7 +1081,7 @@ class Call:
 
 @dataclass
 class Builtin:
-    kind: str  # FIRST LAST LENGTH UPPERCASE LOWERCASE SPLIT JOIN TRIM KEYS CHARACTERS TEXT KIND
+    kind: str  # FIRST LAST LENGTH UPPERCASE LOWERCASE SPLIT JOIN TRIM KEYS CHARACTERS TEXT KIND JSON PARSE_JSON
     operand: "Expr"
     line: int
     sep: Optional["Expr"] = None  # SPLIT ... BY sep / JOIN ... WITH sep
@@ -928,6 +1347,8 @@ class Parser:
             return self.parse_term_close()
         if tok.type == "NAME" and self.peek2().type == "IS":
             return self.parse_assign()
+        if tok.type == "NAME" and self._peek_subscript_assign():
+            return self.parse_sub_assign()
         if tok.type == "PUSH":  # v1.0
             return self.parse_push()
         if tok.type == "FAIL":  # v1.0
@@ -948,6 +1369,45 @@ class Parser:
         expr = self.parse_or()
         self.expect("NEWLINE", "the end of the line")
         return Assign(name, expr, line)
+
+    def _peek_subscript_assign(self) -> bool:
+        # v1.2: is this statement `name[...]... is value`? Scan the token
+        # stream: NAME then one or more balanced [...] groups, then IS.
+        i = self.pos + 1
+        n = len(self.tokens)
+        if i >= n or self.tokens[i].type != "LBRACKET":
+            return False
+        while i < n and self.tokens[i].type == "LBRACKET":
+            depth = 0
+            while i < n:
+                t = self.tokens[i].type
+                if t in ("LBRACKET", "LBRACE", "LPAREN"):
+                    depth += 1
+                elif t in ("RBRACKET", "RBRACE", "RPAREN"):
+                    depth -= 1
+                    if depth == 0:
+                        i += 1
+                        break
+                i += 1
+            else:
+                return False
+            if depth != 0:
+                return False
+        return i < n and self.tokens[i].type == "IS"
+
+    def parse_sub_assign(self) -> SubAssign:
+        # v1.2: `t["key"] is value` / `xs[0] is value` (chains allowed).
+        name = self.advance()  # NAME
+        target: Expr = Var(name.value, name.line)
+        while self.peek().type == "LBRACKET":
+            tok = self.advance()
+            index = self.parse_or()
+            self.expect("RBRACKET", 'a closing "]"')
+            target = Subscript(target, index, tok.line)
+        line = self.advance().line  # IS
+        value = self.parse_or()
+        self.expect("NEWLINE", "the end of the line")
+        return SubAssign(target, value, line)
 
     def parse_push(self) -> Push:
         # v1.0: `push <expr> to <name>`. TO stops the expression parse the
@@ -1173,17 +1633,29 @@ class Parser:
 
     def parse_import(self) -> Import:
         tok = self.advance()
-        parts = [self.expect("NAME", "a module name").value]
+        # v1.2: the words new/table/json/parse became reserved, but they
+        # are still fine as Python module names (`import json`).
+        parts = [self._expect_module_name()]
         while self.peek().type == "DOT":
             self.advance()
-            parts.append(self.expect("NAME", "a module name").value)
+            parts.append(self._expect_module_name())
         module = ".".join(parts)
         alias: Optional[str] = None
         if self.peek().type == "AS":
             self.advance()
-            alias = self.expect("NAME", "a name for the module").value
+            alias = self._expect_module_name()
         self.expect("NEWLINE", "the end of the line")
         return Import(module, alias, tok.line)
+
+    _MODULE_NAME_TOKENS = ("NAME", "NEW", "TABLE", "JSON", "PARSE")
+
+    def _expect_module_name(self) -> str:
+        tok = self.peek()
+        if tok.type in self._MODULE_NAME_TOKENS:
+            self.advance()
+            return tok.value
+        fail(tok.line, "I expected a module name here.")
+        raise AssertionError("unreachable")
 
     def parse_term_open(self) -> TermOpen:
         tok = self.advance()
@@ -1508,9 +1980,53 @@ class Parser:
                     items.append(self.parse_or())
             self.expect("RBRACKET", 'a closing "]"')
             return ListLit(items, tok.line)
+        if tok.type == "LBRACE":
+            # v1.2: table literal: {"name": "Jesun", "age": 29}. {} is empty.
+            self.advance()
+            pairs: list[tuple[Expr, Expr]] = []
+            if self.peek().type != "RBRACE":
+                key = self.parse_or()
+                self.expect("COLON", '":" between the key and the value')
+                val = self.parse_or()
+                pairs.append((key, val))
+                while self.peek().type == "COMMA":
+                    self.advance()
+                    key = self.parse_or()
+                    self.expect("COLON", '":" between the key and the value')
+                    val = self.parse_or()
+                    pairs.append((key, val))
+            self.expect("RBRACE", 'a closing "}"')
+            return TableLit(pairs, tok.line)
+        if tok.type == "NEW" or (tok.type == "NAME" and tok.value in ("a", "an", "একটি")
+                               and self.peek2().type == "NEW"):
+            # v1.2: `a new table` (the article is optional English).
+            if tok.type == "NAME":
+                self.advance()
+                tok = self.advance()  # NEW
+            else:
+                self.advance()
+            self.expect("TABLE", '"table" after "new"')
+            return NewTable(tok.line)
+        if tok.type == "PARSE":
+            # v1.2: `parse json text`.
+            self.advance()
+            self.expect("JSON", '"json" after "parse"')
+            operand = self.parse_unary()
+            return Builtin("PARSE_JSON", operand, tok.line)
+        if tok.type == "ATTEMPT":
+            # v1.2: `attempt <expr>` (spec v1.2 section 7). The operand is
+            # a full expression, so `attempt 1 + 2` tries the whole sum.
+            self.advance()
+            operand = self.parse_or()
+            return Attempt(operand, tok.line)
         if tok.type in ("FIRST", "LAST", "LENGTH", "UPPERCASE", "LOWERCASE",
                         "SPLIT", "JOIN", "TRIM", "KEYS", "CHARACTERS",
-                        "TEXT", "KIND"):
+                        "TEXT", "KIND", "JSON"):
+            if self.peek2().type != "OF":
+                # v1.2: not a builtin use: the word is a plain name, e.g.
+                # the `json` module in `json.loads(...)`.
+                self.advance()
+                return self.parse_postfix(Var(tok.value, tok.line))
             self.advance()
             self.expect("OF", '"of"')
             if tok.type in ("SPLIT", "JOIN"):
@@ -1646,6 +2162,17 @@ class Agent:
         default_factory=lambda: threading.RLock(), repr=False)
 
 
+def _stdlib_packages_dir() -> "Path":
+    """v1.2: the bundled standard-library packages dir (`packages/`
+    next to the interpreter, or inside the frozen binary bundle)."""
+    from pathlib import Path
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    else:
+        base = Path(__file__).resolve().parent
+    return base / "packages"
+
+
 class Interpreter:
     def __init__(self, stdin: Any = None, stdout: Any = None) -> None:
         self.global_env = Environment()
@@ -1692,11 +2219,18 @@ class Interpreter:
             Push: self.exec_push,
             # v1.0: a program stopping with its own message.
             Fail: self.exec_fail,
+            # v1.2: tables.
+            SubAssign: self.exec_subassign,
         }
         self._EXPR_HANDLERS: dict[Any, Any] = {
             Literal: self.eval_literal,
             Var: self.eval_var,
             ListLit: self.eval_list,
+            # v1.2: tables.
+            TableLit: self.eval_tablelit,
+            NewTable: self.eval_newtable,
+            # v1.2: attempt (failure as a value).
+            Attempt: self.eval_attempt,
             BinOp: self.eval_binop,
             UnaryOp: self.eval_unary,
             Compare: self.eval_compare,
@@ -1712,6 +2246,9 @@ class Interpreter:
 
     # -- driver ----------------------------------------------------------
     def run(self, program: list[Stmt]) -> None:
+        global _JC_ACTIVE_INTERP
+        previous = _JC_ACTIVE_INTERP
+        _JC_ACTIVE_INTERP = self
         try:
             self.exec_block(program, self.global_env)
         except RecursionError:
@@ -1722,6 +2259,8 @@ class Interpreter:
             fail(s.line, '"stop" only makes sense inside a loop.')
         except _Skip as s:
             fail(s.line, '"skip" only makes sense inside a loop.')
+        finally:
+            _JC_ACTIVE_INTERP = previous
 
     def emit(self, text: str) -> None:
         self.stdout.write(text + "\n")
@@ -1871,8 +2410,53 @@ class Interpreter:
             return self.eval_call(Call(expr.name, [], expr.line), env)
         return target
 
+    def eval_attempt(self, expr: Attempt, env: Environment) -> Any:
+        # v1.2: `attempt <expr>` (spec v1.2 section 7). Only plain-English
+        # failures are caught; control signals were already consumed by
+        # _call_function, and anything else is a bug, not a failure. The
+        # error text is exactly what the program would have printed
+        # (str(err): "Line N: msg", or the bare message for `fail with`).
+        try:
+            value = self.eval_expr(expr.operand, env)
+        except JesunError as err:
+            return Table({"ok": False, "error": str(err)})
+        return Table({"ok": True, "value": value})
+
     def eval_list(self, expr: ListLit, env: Environment) -> Any:
         return [self.eval_expr(item, env) for item in expr.items]
+
+    # v1.2: tables (spec v1.2 section 1).
+    def eval_tablelit(self, expr: TableLit, env: Environment) -> Any:
+        table = Table()
+        for key_expr, val_expr in expr.pairs:
+            key = self.eval_expr(key_expr, env)
+            if not isinstance(key, str):
+                fail(key_expr.line, "a table key has to be text, "
+                                    f"but this one is {_with_article(type_name(key))}.")
+            table[key] = self.eval_expr(val_expr, env)
+        return table
+
+    def eval_newtable(self, expr: NewTable, env: Environment) -> Any:
+        return Table()
+
+    def exec_subassign(self, stmt: SubAssign, env: Environment) -> None:
+        # v1.2: `t["key"] is value`, `xs[0] is value` (target may chain).
+        target = stmt.target
+        if not isinstance(target, Subscript):
+            fail(stmt.line, "I can only set a value through brackets here.")
+        obj = self.eval_expr(target.obj, env)
+        index = self.eval_expr(target.index, env)
+        value = self.eval_expr(stmt.value, env)
+        if isinstance(obj, Table):
+            if not isinstance(index, str):
+                fail(stmt.line, "a table key has to be text, "
+                                f"but this one is {_with_article(type_name(index))}.")
+            obj[index] = value
+            return
+        if isinstance(obj, list):
+            obj[self._subscript_index(index, len(obj), stmt.line, "a list")] = value
+            return
+        fail(stmt.line, f"I cannot set an item on {type_name(obj)} like that.")
 
     def _need_number(self, value: Any, line: int, what: str) -> None:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -1926,9 +2510,11 @@ class Interpreter:
         if expr.op == "CONTAINS":
             if isinstance(left, str) and isinstance(right, str):
                 return right in left
+            if isinstance(left, Table):  # v1.2: key membership
+                return isinstance(right, str) and right in left
             if isinstance(left, list):
                 return any(values_equal(item, right) for item in left)
-            fail(expr.line, '"contains" needs text with text, or a list.')
+            fail(expr.line, '"contains" needs text with text, a table, or a list.')
         self._need_number(left, expr.line, "comparisons like this")
         self._need_number(right, expr.line, "comparisons like this")
         if expr.op == "GT":
@@ -1950,6 +2536,10 @@ class Interpreter:
         for param, value in zip(target.params, arg_values):
             call_env.set(param, value)
         self.depth += 1
+        # v1.2: the walker's `attempt` recovers the in-flight arguments
+        # of its own call from here (see _jc_attempt). Thread-local, so
+        # agents on other threads keep their own stack.
+        _jc_call_stack().append((target, arg_values))
         try:
             self.exec_block(target.body, call_env)
         except _Return as r:
@@ -1962,6 +2552,7 @@ class Interpreter:
                 raise JesunError(err.line, tag + err.message)
             raise
         finally:
+            _jc_call_stack().pop()
             self.depth -= 1
         return None
 
@@ -2024,9 +2615,26 @@ class Interpreter:
                 fail(expr.line, '"trim of" needs text.')
             return value.strip()
         if expr.kind == "KEYS":
+            if isinstance(value, Table):  # v1.2: native tables
+                return list(value.keys())
             if isinstance(value, Foreign) and isinstance(value.obj, dict):
                 return to_jesun(list(value.obj.keys()))
             fail(expr.line, '"keys of" needs a python dictionary.')
+        if expr.kind == "JSON":  # v1.2: `json of value`
+            try:
+                return _jc_json_encode(value)
+            except ValueError as err:
+                fail(expr.line, str(err))
+            raise AssertionError("unreachable")
+        if expr.kind == "PARSE_JSON":  # v1.2: `parse json text`
+            if not isinstance(value, str):
+                fail(expr.line, '"parse json" needs text.')
+            try:
+                return _jc_json_parse(value)
+            except _JsonError as err:
+                fail(expr.line, "that text is not valid JSON "
+                                f"(it breaks at character {err.pos}).")
+            raise AssertionError("unreachable")
         if expr.kind == "CHARACTERS":  # v1.0
             if not isinstance(value, str):
                 fail(expr.line, '"characters of" needs text.')
@@ -2125,6 +2733,11 @@ class Interpreter:
             return obj[self._subscript_index(index, len(obj), expr.line, "a list")]
         if isinstance(obj, str):
             return obj[self._subscript_index(index, len(obj), expr.line, "text")]
+        if isinstance(obj, Table):  # v1.2: table lookup; missing key is nothing
+            if not isinstance(index, str):
+                fail(expr.line, "I can only look up text keys in a table, "
+                                f"but this key is {_with_article(type_name(index))}.")
+            return obj.get(index)
         if isinstance(obj, Foreign):
             key = to_python(index, expr.index.line)
             try:
@@ -2830,7 +3443,6 @@ class Interpreter:
 
     def _jpm_packages_dir(self) -> "Path":
         return self._jpm_home() / "packages"
-
     def _jpm_parse_address(self, text: str, line: int) -> tuple:
         parts = text.split("/")
         ok = (len(parts) == 3 and all(
@@ -2892,7 +3504,17 @@ class Interpreter:
                        "check the address and your connection.")
 
     def _jpm_find(self, name: str) -> Optional["Path"]:
-        base = self._jpm_packages_dir()
+        found = self._jpm_search_dir(self._jpm_packages_dir(), name)
+        if found is not None:
+            return found
+        # v1.2: standard-library packages ship with the interpreter.
+        stdlib = _stdlib_packages_dir() / name
+        if stdlib.is_dir():
+            return stdlib
+        return None
+
+    @staticmethod
+    def _jpm_search_dir(base: "Path", name: str) -> Optional["Path"]:
         if not base.is_dir():
             return None
         for host_dir in sorted(base.iterdir()):
@@ -3116,6 +3738,9 @@ def repl() -> int:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    # v1.2: tell the self-hosted walker's jpm bridge where the bundled
+    # standard-library packages live (it cannot see __file__ itself).
+    os.environ.setdefault("JESUN_CODE_STDLIB", str(_stdlib_packages_dir()))
     debug = False
     if "--debug" in args:
         debug = True

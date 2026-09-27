@@ -21,6 +21,12 @@ import operator
 import difflib
 import pkgutil
 import unicodedata
+import __main__
+
+note v1.2: the bootstrap's real Table class. Walker tables are genuine
+note __main__.Table instances, so the bootstrap's kind of, text of,
+note truthiness, and deep equality all treat them as native tables.
+_JC_TABLE_MOD is __main__
 
 note ---- ask ai bridge source (spec 8.2): one CONSTANT Python template
 note defining the mind-protocol helpers (_jc_ai_run, _jc_ai_argv,
@@ -42,7 +48,7 @@ note ---- jpm bridge source (spec 8.5): one CONSTANT Python template
 note defining _jc_jpm_find, _jc_jpm_use, _jc_jpm_main, _jc_jpm_read.
 note Same contract as _AI_HELPERS_SRC: never contains program text,
 note never raises, every outcome is a ["code", ...] list.
-_JPM_HELPERS_SRC is join of ["# Jesun.Code \"bring in\" bridge helpers (spec 8.5). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is a [\"code\", ...] list, so the", "# walker keeps the target program's line numbers.", "def _jc_jpm_find(name):", "    import os", "    from pathlib import Path", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    pkgs = base / \"packages\"", "    try:", "        if not pkgs.is_dir():", "            return [\"missing\"]", "        hosts = sorted(p for p in pkgs.iterdir() if p.is_dir())", "    except OSError:", "        return [\"missing\"]", "    for host_dir in hosts:", "        try:", "            users = sorted(p for p in host_dir.iterdir() if p.is_dir())", "        except OSError:", "            continue", "        for user_dir in users:", "            candidate = user_dir / name", "            try:", "                if candidate.is_dir():", "                    return [\"ok\", str(candidate)]", "            except OSError:", "                continue", "    return [\"missing\"]", "def _jc_jpm_use(host, user, pkg):", "    import os", "    import shutil", "    import subprocess", "    from pathlib import Path", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    dest = base / \"packages\" / host / user / pkg", "    git = shutil.which(\"git\")", "    if dest.exists():", "        if git is None:", "            return [\"already\"]", "        try:", "            done = subprocess.run([git, \"-C\", str(dest), \"status\", \"--porcelain\"], timeout=30, capture_output=True, text=True)", "        except Exception:", "            return [\"already\"]", "        if done.returncode == 0 and done.stdout.strip():", "            return [\"dirty\"]", "        return [\"already\"]", "    if git is None:", "        return [\"no_git\"]", "    try:", "        dest.parent.mkdir(parents=True, exist_ok=True)", "        subprocess.run([git, \"clone\", \"--depth\", \"1\", \"https://\" + host + \"/\" + user + \"/\" + pkg, str(dest)], check=True, timeout=120, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)", "        return [\"cloned\"]", "    except Exception:", "        shutil.rmtree(dest, ignore_errors=True)", "        return [\"fetch_failed\"]", "def _jc_jpm_main(dest, name):", "    import json", "    from pathlib import Path", "    fname = name + \".jc\"", "    manifest = Path(dest) / \"jpm.json\"", "    if manifest.is_file():", "        try:", "            data = json.loads(manifest.read_text(encoding=\"utf-8\"))", "            picked = data.get(\"main\")", "            if isinstance(picked, str) and picked.strip():", "                fname = picked.strip()", "        except Exception:", "            return [\"manifest_bad\"]", "    target = Path(dest) / fname", "    try:", "        resolved = target.resolve()", "        resolved.relative_to(Path(dest).resolve())", "    except Exception:", "        return [\"escape\"]", "    if not resolved.is_file():", "        return [\"no_file\", fname]", "    return [\"ok\", fname, str(resolved)]", "def _jc_jpm_read(path):", "    from pathlib import Path", "    try:", "        return [\"ok\", Path(path).read_text(encoding=\"utf-8\", errors=\"replace\")]", "    except Exception:", "        return [\"failed\"]", ""] with "\n"
+_JPM_HELPERS_SRC is join of ["# Jesun.Code \"bring in\" bridge helpers (spec 8.5). CONSTANT source: no", "# program text ever reaches it; user data arrives only as arguments.", "# Nothing here raises: every outcome is a [\"code\", ...] list, so the", "# walker keeps the target program's line numbers.", "def _jc_jpm_find(name):", "    import os", "    from pathlib import Path", "    stdlib = os.environ.get(\"JESUN_CODE_STDLIB\", \"\").strip()", "    if stdlib:", "        cand = Path(stdlib) / name", "        try:", "            if cand.is_dir():", "                return [\"ok\", str(cand)]", "        except OSError:", "            pass", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    pkgs = base / \"packages\"", "    try:", "        if not pkgs.is_dir():", "            return [\"missing\"]", "        hosts = sorted(p for p in pkgs.iterdir() if p.is_dir())", "    except OSError:", "        return [\"missing\"]", "    for host_dir in hosts:", "        try:", "            users = sorted(p for p in host_dir.iterdir() if p.is_dir())", "        except OSError:", "            continue", "        for user_dir in users:", "            candidate = user_dir / name", "            try:", "                if candidate.is_dir():", "                    return [\"ok\", str(candidate)]", "            except OSError:", "                continue", "    return [\"missing\"]", "def _jc_jpm_use(host, user, pkg):", "    import os", "    import shutil", "    import subprocess", "    from pathlib import Path", "    override = os.environ.get(\"JESUN_CODE_HOME\", \"\").strip()", "    base = Path(override) if override else Path.home() / \".jesun-code\"", "    dest = base / \"packages\" / host / user / pkg", "    git = shutil.which(\"git\")", "    if dest.exists():", "        if git is None:", "            return [\"already\"]", "        try:", "            done = subprocess.run([git, \"-C\", str(dest), \"status\", \"--porcelain\"], timeout=30, capture_output=True, text=True)", "        except Exception:", "            return [\"already\"]", "        if done.returncode == 0 and done.stdout.strip():", "            return [\"dirty\"]", "        return [\"already\"]", "    if git is None:", "        return [\"no_git\"]", "    try:", "        dest.parent.mkdir(parents=True, exist_ok=True)", "        subprocess.run([git, \"clone\", \"--depth\", \"1\", \"https://\" + host + \"/\" + user + \"/\" + pkg, str(dest)], check=True, timeout=120, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)", "        return [\"cloned\"]", "    except Exception:", "        shutil.rmtree(dest, ignore_errors=True)", "        return [\"fetch_failed\"]", "def _jc_jpm_main(dest, name):", "    import json", "    from pathlib import Path", "    fname = name + \".jc\"", "    manifest = Path(dest) / \"jpm.json\"", "    if manifest.is_file():", "        try:", "            data = json.loads(manifest.read_text(encoding=\"utf-8\"))", "            picked = data.get(\"main\")", "            if isinstance(picked, str) and picked.strip():", "                fname = picked.strip()", "        except Exception:", "            return [\"manifest_bad\"]", "    target = Path(dest) / fname", "    try:", "        resolved = target.resolve()", "        resolved.relative_to(Path(dest).resolve())", "    except Exception:", "        return [\"escape\"]", "    if not resolved.is_file():", "        return [\"no_file\", fname]", "    return [\"ok\", fname, str(resolved)]", "def _jc_jpm_read(path):", "    from pathlib import Path", "    try:", "        return [\"ok\", Path(path).read_text(encoding=\"utf-8\", errors=\"replace\")]", "    except Exception:", "        return [\"failed\"]", ""] with "\n"
 
 note ---- fleet memory bridge source (spec 8.4): one CONSTANT Python template
 note defining the fleet memory load/save helpers (_jc_fleet_load,
@@ -124,23 +130,23 @@ note ==== END HELPERS ====
 
 note ==== SECTION: LEXER ====
 
-kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"], ["ask", "ask"], ["giving", "giving"], ["read", "read"], ["write", "write"], ["append", "append"], ["file", "file"], ["import", "import"], ["as", "as"], ["keys", "keys"], ["ai", "ai"], ["tools", "tools"], ["within", "within"], ["steps", "steps"], ["open", "open"], ["terminal", "terminal"], ["named", "named"], ["send", "send"], ["close", "close"], ["agent", "agent"], ["persona", "persona"], ["remember", "remember"], ["always", "always"], ["forget", "forget"], ["memory", "memory"], ["streaming", "streaming"], ["use", "use"], ["fleet", "fleet"], ["bring", "bring"]]
+kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"], ["ask", "ask"], ["giving", "giving"], ["read", "read"], ["write", "write"], ["append", "append"], ["file", "file"], ["import", "import"], ["as", "as"], ["keys", "keys"], ["ai", "ai"], ["tools", "tools"], ["within", "within"], ["steps", "steps"], ["open", "open"], ["terminal", "terminal"], ["named", "named"], ["send", "send"], ["close", "close"], ["agent", "agent"], ["persona", "persona"], ["remember", "remember"], ["always", "always"], ["forget", "forget"], ["memory", "memory"], ["streaming", "streaming"], ["use", "use"], ["fleet", "fleet"], ["bring", "bring"], ["new", "new"], ["table", "table"], ["json", "json"], ["parse", "parse"], ["attempt", "attempt"]]
 
 note Bangla keyword flavor (spec v0.5 s23): mirrors the bootstrap's
 note BANGLA_KEYWORDS one for one, mapping to the same walker kinds.
-bangla_kinds is [["অথবা", "or"], ["আছে", "contains"], ["আনো", "import"], ["আবার", "repeat"], ["এআই", "ai"], ["এজেন্ট", "agent"], ["এড়িয়ে", "skip"], ["এবং", "and"], ["এর", "of"], ["কমপক্ষে", "least"], ["খোলো", "open"], ["চাবি", "keys"], ["চেয়ে", "than"], ["ছাঁটো", "trim"], ["ছোট", "less"], ["ছোটহাতা", "lowercase"], ["জন্য", "for"], ["জন্যে", "to"], ["জিজ্ঞেস", "ask"], ["জোড়া", "join"], ["টার্মিনাল", "terminal"], ["তাহলে", "then"], ["থামো", "stop"], ["দল", "fleet"], ["দাও", "give"], ["দিয়ে", "by"], ["দেখাও", "show"], ["দৈর্ঘ্য", "length"], ["ধাপ", "steps"], ["নইলে", "otherwise"], ["নম্বরে", "at"], ["না", "not"], ["নামে", "named"], ["নিয়ে", "bring"], ["পড়ো", "read"], ["পাঠাও", "send"], ["পারসোনা", "persona"], ["প্রতিটি", "each"], ["প্রথম", "first"], ["ফাঁকা", "nothing"], ["ফাইল", "file"], ["ফেরত", "back"], ["বড়", "greater"], ["বড়হাতা", "uppercase"], ["বন্ধকরো", "close"], ["বার", "times"], ["ব্যবহার", "use"], ["ভাগ", "split"], ["ভুলেযাও", "forget"], ["ভেতরে", "in"], ["মধ্যে", "within"], ["মনেকরো", "remember"], ["মিথ্যা", "false"], ["যতক্ষণ", "while"], ["যদি", "if"], ["যোগকরো", "append"], ["রেখে", "giving"], ["লেখো", "write"], ["শেষ", "last"], ["সত্য", "true"], ["সবচেয়ে", "most"], ["সবসময়", "always"], ["সরাসরি", "streaming"], ["সহ", "with"], ["স্মৃতি", "memory"], ["হয়", "is"], ["হাতিয়ার", "tools"], ["হিসেবে", "as"]]
+bangla_kinds is [["অথবা", "or"], ["আছে", "contains"], ["আনো", "import"], ["আবার", "repeat"], ["এআই", "ai"], ["এজেন্ট", "agent"], ["এড়িয়ে", "skip"], ["এবং", "and"], ["এর", "of"], ["কমপক্ষে", "least"], ["খোলো", "open"], ["চাবি", "keys"], ["চেয়ে", "than"], ["ছাঁটো", "trim"], ["ছোট", "less"], ["ছোটহাতা", "lowercase"], ["জন্য", "for"], ["জন্যে", "to"], ["জিজ্ঞেস", "ask"], ["জোড়া", "join"], ["টার্মিনাল", "terminal"], ["তাহলে", "then"], ["থামো", "stop"], ["দল", "fleet"], ["দাও", "give"], ["দিয়ে", "by"], ["দেখাও", "show"], ["দৈর্ঘ্য", "length"], ["ধাপ", "steps"], ["নইলে", "otherwise"], ["নম্বরে", "at"], ["না", "not"], ["নামে", "named"], ["নিয়ে", "bring"], ["পড়ো", "read"], ["পাঠাও", "send"], ["পারসোনা", "persona"], ["প্রতিটি", "each"], ["প্রথম", "first"], ["ফাঁকা", "nothing"], ["ফাইল", "file"], ["ফেরত", "back"], ["বড়", "greater"], ["বড়হাতা", "uppercase"], ["বন্ধকরো", "close"], ["বার", "times"], ["ব্যবহার", "use"], ["ভাগ", "split"], ["ভুলেযাও", "forget"], ["ভেতরে", "in"], ["মধ্যে", "within"], ["মনেকরো", "remember"], ["মিথ্যা", "false"], ["যতক্ষণ", "while"], ["যদি", "if"], ["যোগকরো", "append"], ["রেখে", "giving"], ["লেখো", "write"], ["শেষ", "last"], ["সত্য", "true"], ["সবচেয়ে", "most"], ["সবসময়", "always"], ["সরাসরি", "streaming"], ["সহ", "with"], ["স্মৃতি", "memory"], ["হয়", "is"], ["হাতিয়ার", "tools"], ["হিসেবে", "as"], ["নতুন", "new"], ["সারণি", "table"], ["জেসন", "json"], ["বিশ্লেষণ", "parse"], ["চেষ্টা", "attempt"]]
 
 to keyword_kind with word and bangla
-    table is kinds
+    ktable is kinds
     if bangla then
-        table is bangla_kinds
-    for each pair in table
+        ktable is bangla_kinds
+    for each pair in ktable
         if pair[0] is word then
             give back pair[1]
     give back "name"
 
 to simple_kind with ch
-    pairs is [["+", "+"], ["-", "-"], ["*", "*"], ["/", "/"], ["%", "%"], ["(", "("], [")", ")"], ["[", "["], ["]", "]"], [",", ","], [".", "."], ["=", "="]]
+    pairs is [["+", "+"], ["-", "-"], ["*", "*"], ["/", "/"], ["%", "%"], ["(", "("], [")", ")"], ["[", "["], ["]", "]"], [",", ","], [".", "."], ["=", "="], ["{{", "{{"], ["}", "}"], [":", ":"]]
     for each pair in pairs
         if pair[0] is ch then
             give back pair[1]
@@ -228,6 +234,8 @@ to read_string with cs and i and n and lineno
             nxt is cs[i + 1]
             if nxt is "n" then
                 out is out + "\n"
+            otherwise if nxt is "r" then
+                out is out + bridge_char_from_code with 13
             otherwise if nxt is "t" then
                 out is out + "\t"
             otherwise if nxt is "\"" then
@@ -408,6 +416,47 @@ to parse_assign with toks and i
     pair is parse_or with toks and i + 2
     i is expect with toks and pair[1] and "newline" and "the end of the line"
     give back [["is", name, pair[0], ln], i]
+
+to parse_sub_assign with toks and i
+    note v1.2: `t["key"] is value` / `xs[0] is value`, chains allowed.
+    ln is peek_line with toks and i
+    name is peek_value with toks and i
+    node is ["var", name, ln]
+    i is i + 1
+    repeat while peek_is with toks and i and "["
+        bln is peek_line with toks and i
+        pair is parse_or with toks and i + 1
+        i is expect with toks and pair[1] and "]" and "a closing \"]\""
+        node is ["subscript", node, pair[0], bln]
+    i is expect with toks and i and "is" and "\"is\""
+    pair is parse_or with toks and i
+    i is expect with toks and pair[1] and "newline" and "the end of the line"
+    give back [["subassign", node, pair[0], ln], i]
+
+to is_subscript_assign with toks and i
+    note v1.2: is this `name[...]... is value`? Scan balanced [...]
+    note groups; anything else (eof, newline) means it is not.
+    j is i + 1
+    if not peek_is with toks and j and "[" then
+        give back false
+    repeat while peek_is with toks and j and "["
+        depth is 1
+        j is j + 1
+        done is false
+        repeat while not done
+            if j is at least length of toks then
+                give back false
+            k is peek_kind with toks and j
+            if k is "eof" or k is "newline" then
+                give back false
+            if k is "[" then
+                depth is depth + 1
+            if k is "]" then
+                depth is depth - 1
+                if depth is 0 then
+                    done is true
+            j is j + 1
+    give back peek_is with toks and j and "is"
 
 to parse_push with toks and i
     ln is peek_line with toks and i
@@ -758,16 +807,21 @@ to parse_writefile with toks and i
     i is expect with toks and pair2[1] and "newline" and "the end of the line"
     give back [["writefile", pair[0], pair2[0], appending, ln], i]
 
+to is_module_name_kind with k
+    note v1.2: new/table/json/parse read as words so `import` keeps
+    note working for module names (mirrors the bootstrap).
+    give back k is "name" or k is "new" or k is "table" or k is "json" or k is "parse"
+
 to parse_import with toks and i
     ln is peek_line with toks and i
     i is i + 1
     name is peek_value with toks and i
-    i is expect with toks and i and "name" and "a module name"
+    i is expect_module_name with toks and i
     parts is [name]
     repeat while peek_is with toks and i and "."
         i is i + 1
         name is peek_value with toks and i
-        i is expect with toks and i and "name" and "a module name"
+        i is expect_module_name with toks and i
         push name to parts
     modname is join of parts with "."
     alias is ""
@@ -777,6 +831,13 @@ to parse_import with toks and i
         i is expect with toks and i and "name" and "a name for the module"
     i is expect with toks and i and "newline" and "the end of the line"
     give back [["import", modname, alias, ln], i]
+
+to expect_module_name with toks and i
+    k is peek_kind with toks and i
+    if is_module_name_kind with k then
+        give back i + 1
+    ln is peek_line with toks and i
+    parse_error with ln and "I expected a module name here."
 
 to parse_if with toks and i
     ln is peek_line with toks and i
@@ -898,6 +959,8 @@ to parse_statement with toks and i
     if k is "name" then
         if peek_is with toks and i + 1 and "is" then
             give back parse_assign with toks and i
+        if is_subscript_assign with toks and i then
+            give back parse_sub_assign with toks and i
     if k is "agent" then
         give back parse_agentdef with toks and i
     if k is "forget" then
@@ -1188,7 +1251,53 @@ to parse_primary with toks and i
                 i is pair[1]
         i is expect with toks and i and "]" and "a closing \"]\""
         give back [["list", items, ln], i]
-    if k is "first" or k is "last" or k is "length" or k is "uppercase" or k is "lowercase" or k is "trim" or k is "characters" or k is "text" or k is "kind" or k is "split" or k is "join" or k is "keys" then
+    if k is "{{" then
+        note v1.2: table literal {{"key": value, ...}}.
+        i is i + 1
+        pairs is []
+        if not peek_is with toks and i and "}" then
+            pair is parse_or with toks and i
+            keynode is pair[0]
+            i is pair[1]
+            i is expect with toks and i and ":" and "a \":\" after the key"
+            pair is parse_or with toks and i
+            push [keynode, pair[0]] to pairs
+            i is pair[1]
+            repeat while peek_is with toks and i and ","
+                pair is parse_or with toks and i + 1
+                keynode is pair[0]
+                i is pair[1]
+                i is expect with toks and i and ":" and "a \":\" after the key"
+                pair is parse_or with toks and i
+                push [keynode, pair[0]] to pairs
+                i is pair[1]
+        i is expect with toks and i and "}" and "a closing \"}\""
+        give back [["table", pairs, ln], i]
+    if k is "new" or (k is "name" and (v is "a" or v is "an" or v is "একটি") and peek_is with toks and i + 1 and "new") then
+        note v1.2: `a new table` (the article is optional English).
+        if k is "name" then
+            i is i + 1
+        i is i + 1
+        i is expect with toks and i and "table" and "\"table\" after \"new\""
+        give back [["newtable", ln], i]
+    if k is "parse" then
+        note v1.2: `parse json text`.
+        i is i + 1
+        i is expect with toks and i and "json" and "\"json\" after \"parse\""
+        pair is parse_unary with toks and i
+        give back [["builtin", "parse_json", pair[0], ln], pair[1]]
+    if k is "attempt" then
+        note v1.2: `attempt <expr>` (spec v1.2 section 7). The operand is
+        note a full expression, like `not`.
+        i is i + 1
+        pair is parse_or with toks and i
+        give back [["attempt", pair[0], ln], pair[1]]
+    if k is "first" or k is "last" or k is "length" or k is "uppercase" or k is "lowercase" or k is "trim" or k is "characters" or k is "text" or k is "kind" or k is "split" or k is "join" or k is "keys" or k is "json" then
+        if (peek_kind with toks and i + 1) is not "of" then
+            note v1.2: not a builtin use: the word is a plain name, e.g.
+            note the `json` module in `json.loads(...)`.
+            i is i + 1
+            give back parse_postfix with toks and i and ["var", v, ln]
         i is i + 1
         i is expect with toks and i and "of" and "\"of\""
         if k is "split" or k is "join" then
@@ -1341,6 +1450,19 @@ to values_equal with a and b
                 give back false
             i is i + 1
         give back true
+    if ka is "table" and kb is "table" then
+        note v1.2: deep table equality; the bootstrap's own equality is
+        note the reference, but this keeps the walker self-sufficient.
+        ka_keys is keys of a
+        kb_keys is keys of b
+        if length of ka_keys is not length of kb_keys then
+            give back false
+        for each k in ka_keys
+            if not b contains k then
+                give back false
+            if not values_equal with a[k] and b[k] then
+                give back false
+        give back true
     give back false
 
 to subscript_index with index and len and ln and what
@@ -1435,12 +1557,17 @@ to ev_compare with node and env and depth
             if left contains right then
                 give back [true, ""]
             give back [false, ""]
+        if kind of left is "table" then
+            note v1.2: table key membership.
+            if kind of right is "text" and left contains right then
+                give back [true, ""]
+            give back [false, ""]
         if is_real_list with left then
             for each item in left
                 if values_equal with item and right then
                     give back [true, ""]
             give back [false, ""]
-        rt_error with ln and "\"contains\" needs text with text, or a list."
+        rt_error with ln and "\"contains\" needs text with text, a table, or a list."
     if kind of left is not "number" or kind of right is not "number" then
         rt_error with ln and "I can only use comparisons like this with numbers."
     if op is "gt" then
@@ -1528,6 +1655,62 @@ to ev_list_lit with node and env and depth
         push p[0] to out
     give back [out, ""]
 
+to new_jc_table
+    note v1.2: a genuine bootstrap Table, so the bootstrap's own kind
+    note of, text of, truthiness, and deep equality treat walker tables
+    note as native tables. Runs through the bridge; the table itself is
+    note built by __main__.Table, not by Python code here.
+    ns is builtins.dict([["__jc_mod", _JC_TABLE_MOD]])
+    give back builtins.eval("__jc_mod.Table()", ns)
+
+to article_of with name
+    note v1.2: "a table", "an agent"; mirrors the bootstrap's article.
+    if name is "" then
+        give back "a "
+    head is name[0]
+    if head is "a" or head is "e" or head is "i" or head is "o" or head is "u" then
+        give back "an " + name
+    give back "a " + name
+
+to ev_table_lit with node and env and depth
+    note v1.2: {{"key": value, ...}}; keys must be text.
+    ln is node[2]
+    out is new_jc_table
+    for each pr in node[1]
+        p is ev with pr[0] and env and depth
+        if p[1] is not "" then
+            give back p
+        key is p[0]
+        if kind of key is not "text" then
+            rt_error with ln and "a table key has to be text, but this one is " + article_of with kind of key + "."
+        q is ev with pr[1] and env and depth
+        if q[1] is not "" then
+            give back q
+        out[key] is q[0]
+    give back [out, ""]
+
+to ev_attempt with node and env and depth
+    note v1.2: `attempt <expr>` (spec v1.2 section 7). The walker is
+    note Jesun.Code and cannot catch a Python exception itself, so it
+    note hands the operand to the guarded call service in the bootstrap,
+    note which runs the walker's own `ev` on it and turns a plain-English
+    note failure into data. The operand is plain AST data; the walker's
+    note environment and depth are recovered by the service from the
+    note in-flight call, because the bridge cannot carry them. Only
+    note plain-English failures come back as data; `give back` / `stop` /
+    note `skip` were already consumed inside the guarded call.
+    operand is node[1]
+    ln is node[2]
+    outcome is __main__._jc_attempt(operand, ln)
+    t is new_jc_table
+    if outcome[0] is "ok" then
+        t["ok"] is true
+        t["value"] is outcome[1][0]
+        give back [t, ""]
+    t["ok"] is false
+    t["error"] is outcome[1]
+    give back [t, ""]
+
 to ev_interp with node and env and depth
     out is ""
     for each part in node[1]
@@ -1588,7 +1771,427 @@ to ev_builtin with node and env and depth
         if ks is nothing then
             rt_error with ln and "\"keys of\" needs a python dictionary."
         give back [ks, ""]
+    if bkind is "json" then
+        note v1.2: `json of value`.
+        give back [json_encode with v and 0 and ln, ""]
+    if bkind is "parse_json" then
+        note v1.2: `parse json text`.
+        if kind of v is not "text" then
+            rt_error with ln and "\"parse json\" needs text."
+        give back [json_parse with v and ln, ""]
     rt_error with ln and "I do not know that built-in."
+
+note ==== v1.2: JSON in Jesun.Code (spec v1.2 section 2) ====
+note The parser and serializer below are written in Jesun.Code itself.
+note The bridge touches only single characters nobody can confuse:
+note digit checks, code points, and float parsing.
+
+to json_fail with pos
+    give back ["fail", pos]
+
+to json_is_fail with r
+    give back r[0] is "fail"
+
+to bridge_code_point with ch
+    note v1.2: Unicode code point of one character, via the bridge.
+    ns is builtins.dict([["__jc_c", ch]])
+    give back builtins.eval("__import__('builtins').ord(__jc_c)", ns)
+
+to bridge_char_from_code with n
+    note v1.2: one character from a code point, via the bridge.
+    ns is builtins.dict([["__jc_n", n]])
+    give back builtins.eval("__import__('builtins').chr(__jc_n)", ns)
+
+to bridge_is_digit with ch
+    note v1.2: single-character digit check, via the bridge.
+    ns is builtins.dict([["__jc_c", ch]])
+    give back builtins.eval("__jc_c.isdecimal()", ns)
+
+to bridge_number_text with digits
+    ns is builtins.dict([["__jc_t", digits]])
+    give back builtins.eval("(__import__('builtins').int(__jc_t) if __jc_t.isdecimal() else (__import__('builtins').float(__jc_t) if __jc_t.replace('.', '', 1).isdecimal() else 'NAN'))", ns)
+
+to bridge_digit_value with ch
+    note v1.2: int value of one digit character, via the bridge.
+    ns is builtins.dict([["__jc_c", ch]])
+    give back builtins.eval("__import__('builtins').int(__jc_c)", ns)
+
+to bridge_float_text with raw
+    note v1.2: float value of validated JSON number text, via the bridge.
+    ns is builtins.dict([["__jc_t", raw]])
+    give back builtins.eval("__import__('builtins').float(__jc_t)", ns)
+
+to bridge_is_float with v
+    ns is builtins.dict([["__jc_v", v]])
+    give back builtins.eval("isinstance(__jc_v, float)", ns)
+
+to bridge_int with v
+    ns is builtins.dict([["__jc_v", v]])
+    give back builtins.eval("__import__('builtins').int(__jc_v)", ns)
+
+to bridge_float_repr with v
+    ns is builtins.dict([["__jc_v", v]])
+    give back builtins.eval("__import__('builtins').repr(__jc_v)", ns)
+
+to json_ws with raw and i
+    n is length of raw
+    repeat while i is less than n
+        ch is raw[i]
+        if ch is " " or ch is "\t" or ch is "\n" or ch is "\r" then
+            i is i + 1
+        otherwise
+            give back i
+    give back i
+
+to json_hex_value with ch
+    if bridge_is_digit with ch then
+        give back bridge_digit_value with ch
+    if ch is "a" or ch is "A" then
+        give back 10
+    if ch is "b" or ch is "B" then
+        give back 11
+    if ch is "c" or ch is "C" then
+        give back 12
+    if ch is "d" or ch is "D" then
+        give back 13
+    if ch is "e" or ch is "E" then
+        give back 14
+    if ch is "f" or ch is "F" then
+        give back 15
+    give back -1
+
+to json_parse_string with raw and i and depth
+    note Gives back ["ok", value, next] or ["fail", pos]. i points at
+    note the opening quote. Surrogate pairs are combined; a lone
+    note surrogate is an error, like the bootstrap.
+    n is length of raw
+    i is i + 1
+    buf is ""
+    repeat while i is less than n
+        ch is raw[i]
+        if ch is "\"" then
+            give back ["ok", buf, i + 1]
+        if ch is "\\" then
+            if i + 1 is at least n then
+                give back json_fail with n
+            e is raw[i + 1]
+            if e is "\"" then
+                buf is buf + "\""
+                i is i + 2
+            otherwise if e is "\\" then
+                buf is buf + "\\"
+                i is i + 2
+            otherwise if e is "/" then
+                buf is buf + "/"
+                i is i + 2
+            otherwise if e is "b" then
+                buf is buf + bridge_char_from_code with 8
+                i is i + 2
+            otherwise if e is "f" then
+                buf is buf + bridge_char_from_code with 12
+                i is i + 2
+            otherwise if e is "n" then
+                buf is buf + "\n"
+                i is i + 2
+            otherwise if e is "r" then
+                buf is buf + "\r"
+                i is i + 2
+            otherwise if e is "t" then
+                buf is buf + "\t"
+                i is i + 2
+            otherwise if e is "u" then
+                if i + 5 is at least n then
+                    give back json_fail with n
+                cp is 0
+                k is 0
+                bad is false
+                repeat while k is less than 4
+                    hv is json_hex_value with raw[i + 2 + k]
+                    if hv is -1 then
+                        bad is true
+                    cp is cp * 16 + hv
+                    k is k + 1
+                if bad then
+                    give back json_fail with i
+                i is i + 6
+                if cp is at least 55296 and cp is less than 56320 then
+                    note High surrogate: needs \uDC00-\uDFFF after it.
+                    if i + 5 is at least n or raw[i] is not "\\" or raw[i + 1] is not "u" then
+                        give back json_fail with i
+                    lo is 0
+                    k is 0
+                    repeat while k is less than 4
+                        hv is json_hex_value with raw[i + 2 + k]
+                        if hv is -1 then
+                            bad is true
+                        lo is lo * 16 + hv
+                        k is k + 1
+                    if bad or lo is less than 56320 or lo is at least 57344 then
+                        give back json_fail with i
+                    i is i + 6
+                    cp is 65536 + (cp - 55296) * 1024 + (lo - 56320)
+                otherwise if cp is at least 56320 and cp is less than 57344 then
+                    give back json_fail with i
+                buf is buf + bridge_char_from_code with cp
+            otherwise
+                give back json_fail with i
+            skip
+        cp2 is bridge_code_point with ch
+        if cp2 is less than 32 then
+            give back json_fail with i
+        otherwise
+            buf is buf + ch
+            i is i + 1
+    give back json_fail with n
+
+to json_parse_number with raw and i and depth
+    note Gives back ["ok", value, next] or ["fail", pos].
+    n is length of raw
+    start is i
+    if raw[i] is "-" then
+        i is i + 1
+    if i is at least n then
+        give back json_fail with start
+    is_float is false
+    if raw[i] is "0" then
+        i is i + 1
+        if i is less than n and bridge_is_digit with raw[i] then
+            give back json_fail with i
+    otherwise if bridge_is_digit with raw[i] then
+        repeat while i is less than n and bridge_is_digit with raw[i]
+            i is i + 1
+    otherwise
+        give back json_fail with start
+    if i is less than n and raw[i] is "." then
+        is_float is true
+        i is i + 1
+        if i is at least n or not bridge_is_digit with raw[i] then
+            give back json_fail with i
+        repeat while i is less than n and bridge_is_digit with raw[i]
+            i is i + 1
+    if i is less than n and (raw[i] is "e" or raw[i] is "E") then
+        is_float is true
+        i is i + 1
+        if i is less than n and (raw[i] is "+" or raw[i] is "-") then
+            i is i + 1
+        if i is at least n or not bridge_is_digit with raw[i] then
+            give back json_fail with i
+        repeat while i is less than n and bridge_is_digit with raw[i]
+            i is i + 1
+    numtext is ""
+    k is start
+    repeat while k is less than i
+        numtext is numtext + raw[k]
+        k is k + 1
+    if is_float then
+        give back ["ok", bridge_float_text with numtext, i]
+    give back ["ok", json_int_value with numtext, i]
+
+to json_int_value with numtext
+    note The number text only; it always starts at 0.
+    neg is false
+    i is 0
+    if numtext[i] is "-" then
+        neg is true
+        i is i + 1
+    v is 0
+    repeat while i is less than length of numtext
+        v is v * 10 + bridge_digit_value with numtext[i]
+        i is i + 1
+    if neg then
+        v is 0 - v
+    give back v
+
+to json_parse_value with raw and i and depth and ln
+    if depth is at least 200 then
+        give back json_fail with i
+    i is json_ws with raw and i
+    n is length of raw
+    if i is at least n then
+        give back json_fail with i
+    ch is raw[i]
+    if ch is "{{" then
+        give back json_parse_object with raw and i and depth + 1 and ln
+    if ch is "[" then
+        give back json_parse_array with raw and i and depth + 1 and ln
+    if ch is "\"" then
+        give back json_parse_string with raw and i and depth + 1
+    if ch is "t" then
+        if i + 4 is greater than n then
+            give back json_fail with i
+        if raw[i + 1] is "r" and raw[i + 2] is "u" and raw[i + 3] is "e" then
+            give back ["ok", true, i + 4]
+        give back json_fail with i
+    if ch is "f" then
+        if i + 5 is greater than n then
+            give back json_fail with i
+        if raw[i + 1] is "a" and raw[i + 2] is "l" and raw[i + 3] is "s" and raw[i + 4] is "e" then
+            give back ["ok", false, i + 5]
+        give back json_fail with i
+    if ch is "n" then
+        if i + 4 is greater than n then
+            give back json_fail with i
+        if raw[i + 1] is "u" and raw[i + 2] is "l" and raw[i + 3] is "l" then
+            give back ["ok", nothing, i + 4]
+        give back json_fail with i
+    if ch is "-" or bridge_is_digit with ch then
+        give back json_parse_number with raw and i and depth + 1
+    give back json_fail with i
+
+to json_parse_array with raw and i and depth and ln
+    note i points at "[". Gives back ["ok", list, next] or fail.
+    n is length of raw
+    i is i + 1
+    out is []
+    i is json_ws with raw and i
+    if i is less than n and raw[i] is "]" then
+        give back ["ok", out, i + 1]
+    repeat while true
+        r is json_parse_value with raw and i and depth and ln
+        if json_is_fail with r then
+            give back r
+        push r[1] to out
+        i is json_ws with raw and r[2]
+        if i is at least n then
+            give back json_fail with i
+        if raw[i] is "," then
+            i is json_ws with raw and i + 1
+            if i is at least n then
+                give back json_fail with i
+        otherwise if raw[i] is "]" then
+            give back ["ok", out, i + 1]
+        otherwise
+            give back json_fail with i
+
+to json_parse_object with raw and i and depth and ln
+    note i points at "{{". Gives back ["ok", table, next] or fail.
+    n is length of raw
+    i is i + 1
+    out is new_jc_table
+    i is json_ws with raw and i
+    if i is less than n and raw[i] is "}" then
+        give back ["ok", out, i + 1]
+    repeat while true
+        i is json_ws with raw and i
+        if i is at least n or raw[i] is not "\"" then
+            give back json_fail with i
+        r is json_parse_string with raw and i and depth
+        if json_is_fail with r then
+            give back r
+        key is r[1]
+        i is json_ws with raw and r[2]
+        if i is at least n or raw[i] is not ":" then
+            give back json_fail with i
+        r is json_parse_value with raw and i + 1 and depth and ln
+        if json_is_fail with r then
+            give back r
+        out[key] is r[1]
+        i is json_ws with raw and r[2]
+        if i is at least n then
+            give back json_fail with i
+        if raw[i] is "," then
+            i is json_ws with raw and i + 1
+            if i is at least n then
+                give back json_fail with i
+        otherwise if raw[i] is "}" then
+            give back ["ok", out, i + 1]
+        otherwise
+            give back json_fail with i
+
+to json_parse with raw and ln
+    note v1.2: `parse json text`. Tables come out as native tables.
+    r is json_parse_value with raw and 0 and 0 and ln
+    if json_is_fail with r then
+        rt_error with ln and "that text is not valid JSON (it breaks at character " + text of r[1] + ")."
+    i is json_ws with raw and r[2]
+    if i is less than length of raw then
+        rt_error with ln and "that text is not valid JSON (it breaks at character " + text of i + ")."
+    give back r[1]
+
+to json_hex4 with cp
+    note v1.2: four lowercase hex digits, pure Jesun.Code.
+    hex is "0123456789abcdef"
+    out is ""
+    for each shift in [4096, 256, 16, 1]
+        d is 0
+        repeat while cp is at least shift
+            cp is cp - shift
+            d is d + 1
+        out is out + hex[d]
+    give back out
+
+to json_escape with txt
+    note v1.2: JSON string escaping, written in Jesun.Code.
+    buf is "\""
+    for each ch in characters of txt
+        cp is bridge_code_point with ch
+        if ch is "\"" then
+            buf is buf + "\\\""
+        otherwise if ch is "\\" then
+            buf is buf + "\\\\"
+        otherwise if cp is 8 then
+            buf is buf + "\\b"
+        otherwise if cp is 12 then
+            buf is buf + "\\f"
+        otherwise if cp is 10 then
+            buf is buf + "\\n"
+        otherwise if cp is 13 then
+            buf is buf + "\\r"
+        otherwise if cp is 9 then
+            buf is buf + "\\t"
+        otherwise if cp is less than 32 or cp is 127 then
+            buf is buf + "\\u" + json_hex4 with cp
+        otherwise if cp is greater than 65535 then
+            note Astral character: write the surrogate pair.
+            rest is cp - 65536
+            hi is 55296 + bridge_int with rest / 1024
+            lo is 56320 + rest % 1024
+            buf is buf + "\\u" + json_hex4 with hi + "\\u" + json_hex4 with lo
+        otherwise if cp is greater than 126 then
+            buf is buf + "\\u" + json_hex4 with cp
+        otherwise
+            buf is buf + ch
+    give back buf + "\""
+
+to json_encode_number with v
+    if bridge_is_float with v then
+        if v % 1 is 0 and v is greater than 0 - 1000000000000000000000 and v is less than 1000000000000000000000 then
+            give back text of (bridge_int with v) + ".0"
+        give back bridge_float_repr with v
+    give back text of v
+
+to json_encode with v and depth and ln
+    note v1.2: `json of value`. Compact canonical output.
+    if depth is at least 200 then
+        rt_error with ln and "I cannot turn a table into JSON: it nests too deep."
+    if v is nothing then
+        give back "null"
+    if kind of v is "true/false" then
+        if v then
+            give back "true"
+        give back "false"
+    if kind of v is "number" then
+        give back json_encode_number with v
+    if kind of v is "text" then
+        give back json_escape with v
+    if is_function_value with v then
+        note Functions read as lists to kind of, so check before the list.
+        rt_error with ln and "I cannot turn a function into JSON."
+    if is_agent_value with v then
+        rt_error with ln and "I cannot turn a value into JSON."
+    if is_real_list with v then
+        parts is []
+        for each item in v
+            push json_encode with item and depth + 1 and ln to parts
+        give back "[" + join of parts with "," + "]"
+    if kind of v is "table" then
+        parts is []
+        for each k in keys of v
+            ek is json_escape with k
+            evx is json_encode with v[k] and depth + 1 and ln
+            push ek + ":" + evx to parts
+        give back "{{" + join of parts with "," + "}"
+    rt_error with ln and "I cannot turn " + article_of with kind of v + " into JSON."
 
 to ev_builtin2 with node and env and depth
     bkind is node[1]
@@ -1632,6 +2235,13 @@ to ev_subscript with node and env and depth
     if kind of obj is "text" then
         i is subscript_index with index and length of obj and ln and "text"
         give back [obj[i], ""]
+    if kind of obj is "table" then
+        note v1.2: table lookup; a missing key is nothing.
+        if kind of index is not "text" then
+            rt_error with ln and "I can only look up text keys in a table, but this key is " + article_of with kind of index + "."
+        if obj contains index then
+            give back [obj[index], ""]
+        give back [nothing, ""]
     if kind of obj is "python value" then
         miss is bridge_lookup_miss with obj and index
         if miss is not "" then
@@ -1649,6 +2259,12 @@ to ev with node and env and depth
         give back ev_call_expr with node and env and depth
     if tag is "list" then
         give back ev_list_lit with node and env and depth
+    if tag is "table" then
+        give back ev_table_lit with node and env and depth
+    if tag is "newtable" then
+        give back [new_jc_table, ""]
+    if tag is "attempt" then
+        give back ev_attempt with node and env and depth
     if tag is "interp" then
         give back ev_interp with node and env and depth
     if tag is "subscript" then
@@ -2726,6 +3342,34 @@ to exec_foreach with stmt and env and depth
             give back sig
     give back ["none"]
 
+to exec_subassign with stmt and env and depth
+    note v1.2: `t["key"] is value`, `xs[0] is value` (target may chain).
+    ln is stmt[3]
+    target is stmt[1]
+    if target[0] is not "subscript" then
+        rt_error with ln and "I can only set a value through brackets here."
+    p is ev with target[1] and env and depth
+    if p[1] is not "" then
+        give back p
+    q is ev with target[2] and env and depth
+    if q[1] is not "" then
+        give back q
+    r is ev with stmt[2] and env and depth
+    if r[1] is not "" then
+        give back r
+    obj is p[0]
+    index is q[0]
+    if kind of obj is "table" then
+        if kind of index is not "text" then
+            rt_error with ln and "a table key has to be text, but this one is " + article_of with kind of index + "."
+        obj[index] is r[0]
+        give back ["none"]
+    if is_real_list with obj then
+        i is subscript_index with index and length of obj and ln and "a list"
+        obj[i] is r[0]
+        give back ["none"]
+    rt_error with ln and "I cannot set an item on " + kind of obj + " like that."
+
 to exec_stmt with stmt and env and depth
     tag is stmt[0]
     if tag is "show" then
@@ -2740,6 +3384,8 @@ to exec_stmt with stmt and env and depth
             give back [p[1]]
         env_set with env and stmt[1] and p[0]
         give back ["none"]
+    if tag is "subassign" then
+        give back exec_subassign with stmt and env and depth
     if tag is "push" then
         p is ev with stmt[1] and env and depth
         if p[1] is not "" then

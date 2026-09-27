@@ -1,0 +1,424 @@
+note jpm package "jweb": a tiny native web framework (spec v1.2 section 3).
+note Only the socket syscalls cross the bridge; request parsing, routing,
+note sessions, and responses are all Jesun.Code. One language, all solutions.
+
+import socket as sockmod
+import builtins as bmod
+import uuid as uuidmod
+import sys as sysmod
+
+note ---- routing: a list of [method, segments, handler] ----
+
+note The bridge turns Python tuples into Jesun lists, and bind() insists
+note on a real tuple, so this one tiny lambda keeps the tuple on the
+note Python side. Everything else stays in Jesun.Code.
+note Raw primitive: socket.bind wants one (host, port) tuple, but the
+note bridge turns tuples into Jesun lists on return, so a tuple cannot
+note be built in Jesun and passed through. This fixed, constant adapter
+note only fixes the calling convention; it sees no user program text.
+jweb_bind is bmod.eval("lambda s, host, port: s.bind((host, port))")
+
+jweb_routes is []
+
+to add_route with route and handler
+    note route looks like "GET /users/:id"; a trailing "/*" captures
+    note the rest of the path as the "splat" param (used by serve_files).
+    words is split of route by " "
+    if length of words is not 2 then
+        fail with "add_route needs \"METHOD /path\", like \"GET /hello\"."
+    segs is split of words[1] by "/"
+    push [words[0], segs, handler] to jweb_routes
+
+to jweb_match_route with method and path
+    segs is split of path by "/"
+    for each r in jweb_routes
+        if r[0] is method then
+            params is jweb_match_segs with r[1] and segs
+            if params is not nothing then
+                give back [r[2], params]
+    give back nothing
+
+to jweb_match_segs with pattern and segs
+    params is a new table
+    i is 0
+    repeat while i is less than length of pattern
+        p is pattern[i]
+        if p is "*" then
+            params["splat"] is jweb_join_from with segs and i and (length of segs) and "/"
+            give back params
+        if i is at least length of segs then
+            give back nothing
+        s is segs[i]
+        if length of p is greater than 0 and jweb_starts_with with p and ":" then
+            name is last of (split of p by ":")
+            params[name] is s
+        otherwise
+            if p is not s then
+                give back nothing
+        i is i + 1
+    if length of segs is not i then
+        give back nothing
+    give back params
+
+to jweb_join_from with parts and start and end and glue
+    out is ""
+    i is start
+    repeat while i is less than end
+        if i is greater than start then
+            out is out + glue
+        out is out + parts[i]
+        i is i + 1
+    give back out
+
+note ---- text tools ----
+
+to jweb_split_first with hay and sep
+    note Splits on the FIRST separator only, giving back [before, after].
+    note Written by hand because the separator may sit inside the value
+    note (think "Host: example.com:8080").
+    chars is characters of hay
+    seps is characters of sep
+    n is length of chars
+    m is length of seps
+    i is 0
+    repeat while i is at most n - m
+        hit is true
+        j is 0
+        repeat while j is less than m
+            if chars[i + j] is not seps[j] then
+                hit is false
+                stop
+            j is j + 1
+        if hit then
+            give back [jweb_join_from with chars and 0 and i and "", jweb_join_from with chars and i + m and n and ""]
+        i is i + 1
+    give back [hay, ""]
+
+to jweb_starts_with with hay and prefix
+    if length of hay is less than length of prefix then
+        give back false
+    tc is characters of hay
+    pc is characters of prefix
+    i is 0
+    repeat while i is less than length of pc
+        if tc[i] is not pc[i] then
+            give back false
+        i is i + 1
+    give back true
+
+note ---- request parsing ----
+
+to jweb_parse_cookies with header
+    out is a new table
+    parts is split of header by ";"
+    for each part in parts
+        kv is jweb_split_first with part and "="
+        name is trim of kv[0]
+        if name is not "" then
+            out[name] is trim of kv[1]
+    give back out
+
+to jweb_url_decode with s
+    note Percent-decoding for query strings ("+" becomes a space, as in
+    note form data). Malformed escapes are kept as-is, never an error.
+    nums is []
+    chars is characters of s
+    i is 0
+    n is length of chars
+    repeat while i is less than n
+        ch is chars[i]
+        if ch is "+" then
+            ch is " "
+        if ch is "%" and i + 2 is less than n then
+            hex is chars[i + 1] + chars[i + 2]
+            code is attempt bmod.int(hex, 16)
+            if code["ok"] then
+                push code["value"] to nums
+                i is i + 3
+                skip
+        blist is bmod.list(bmod.bytes(ch, "utf-8"))
+        for each b in blist
+            push b to nums
+        i is i + 1
+    raw_bytes is bmod.bytes(nums)
+    give back raw_bytes.decode("utf-8", errors="replace")
+
+to jweb_parse_query with qs
+    out is a new table
+    if qs is "" then
+        give back out
+    pairs is split of qs by "&"
+    for each pr in pairs
+        kv is jweb_split_first with pr and "="
+        out[jweb_url_decode with kv[0]] is jweb_url_decode with kv[1]
+    give back out
+
+to jweb_parse_request with head_text
+    lines is split of head_text by "\r\n"
+    words is split of lines[0] by " "
+    if length of words is less than 2 then
+        fail with "that request line makes no sense."
+    method is words[0]
+    target is words[1]
+    path is target
+    query is a new table
+    if target contains "?" then
+        tq is jweb_split_first with target and "?"
+        path is tq[0]
+        query is jweb_parse_query with tq[1]
+    headers is a new table
+    i is 1
+    repeat while i is less than length of lines
+        if i is greater than 100 then
+            fail with "too many header lines."
+        line is lines[i]
+        if line is "" then
+            stop
+        kv is jweb_split_first with line and ":"
+        headers[trim of (lowercase of kv[0])] is trim of kv[1]
+        i is i + 1
+    cookies is a new table
+    if headers contains "cookie" then
+        cookies is jweb_parse_cookies with headers["cookie"]
+    give back {"method": method, "path": path, "query": query, "headers": headers, "cookies": cookies, "body": ""}
+
+to jweb_read_request with conn
+    note Reads the head, then the body per Content-Length. Bodies over
+    note 1 MB are refused with a too_big flag (the caller sends the 413).
+    raw is ""
+    repeat while true
+        chunk is conn.recv(4096)
+        if bmod.len(chunk) is 0 then
+            give back nothing
+        raw is raw + chunk.decode("utf-8", errors="replace")
+        if raw contains "\r\n\r\n" then
+            stop
+        if length of raw is greater than 65536 then
+            fail with "the request head is too big."
+    hb is jweb_split_first with raw and "\r\n\r\n"
+    req is jweb_parse_request with hb[0]
+    body_text is hb[1]
+    headers is req["headers"]
+    want is 0
+    if headers contains "content-length" then
+        cl is attempt bmod.int(trim of headers["content-length"])
+        if cl["ok"] then
+            want is cl["value"]
+    if want is greater than 1048576 then
+        req["too_big"] is true
+        give back req
+    have is bmod.len(bmod.bytes(body_text, "utf-8"))
+    repeat while have is less than want
+        chunk is conn.recv(4096)
+        if bmod.len(chunk) is 0 then
+            stop
+        body_text is body_text + chunk.decode("utf-8", errors="replace")
+        have is bmod.len(bmod.bytes(body_text, "utf-8"))
+        if have is greater than 1048576 then
+            req["too_big"] is true
+            give back req
+    req["body"] is body_text
+    give back req
+
+note ---- responses ----
+
+to ok with body
+    give back {"status": 200, "headers": {"content-type": "text/html; charset=utf-8"}, "body": body}
+
+to json_response with data
+    give back {"status": 200, "headers": {"content-type": "application/json"}, "body": json of data}
+
+to redirect_to with path
+    give back {"status": 302, "headers": {"location": path}, "body": ""}
+
+to jweb_status_text with status
+    if status is 200 then
+        give back "OK"
+    if status is 302 then
+        give back "Found"
+    if status is 403 then
+        give back "Forbidden"
+    if status is 404 then
+        give back "Not Found"
+    if status is 413 then
+        give back "Content Too Large"
+    if status is 500 then
+        give back "Internal Server Error"
+    give back "Unknown"
+
+to jweb_not_found with path
+    give back {"status": 404, "headers": {"content-type": "text/html; charset=utf-8"}, "body": "<h1>Nothing lives at " + path + "</h1>"}
+
+to jweb_forbidden
+    give back {"status": 403, "headers": {"content-type": "text/html; charset=utf-8"}, "body": "<h1>You cannot go there.</h1>"}
+
+to jweb_server_error
+    note The 500 page never leaks the error text.
+    give back {"status": 500, "headers": {"content-type": "text/html; charset=utf-8"}, "body": "<h1>Something broke on our end.</h1>"}
+
+to jweb_too_large
+    give back {"status": 413, "headers": {"content-type": "text/html; charset=utf-8"}, "body": "<h1>That body is too big.</h1>"}
+
+to jweb_send with conn and resp
+    status is resp["status"]
+    body_val is resp["body"]
+    if kind of body_val is "python value" then
+        body_bytes is body_val
+    otherwise
+        body_bytes is bmod.bytes(text of body_val, "utf-8")
+    head is "HTTP/1.1 " + text of status + " " + (jweb_status_text with status) + "\r\n"
+    head is head + "content-length: " + text of bmod.len(body_bytes) + "\r\n"
+    head is head + "connection: close\r\n"
+    headers is resp["headers"]
+    for each name in keys of headers
+        head is head + name + ": " + headers[name] + "\r\n"
+    head is head + "\r\n"
+    conn.sendall(bmod.bytes(head, "utf-8"))
+    conn.sendall(body_bytes)
+
+note ---- sessions (in-memory; the jesun_session cookie) ----
+
+jweb_sessions is a new table
+jweb_state is {"pending_cookie": ""}
+
+to session_of with request
+    cookies is request["cookies"]
+    sid is ""
+    if cookies contains "jesun_session" then
+        sid is cookies["jesun_session"]
+    if sid is not "" and jweb_sessions contains sid then
+        give back jweb_sessions[sid]
+    sid is uuidmod.uuid4().hex
+    sess is a new table
+    jweb_sessions[sid] is sess
+    jweb_state["pending_cookie"] is sid
+    give back sess
+
+note ---- static files ----
+
+jweb_static_mounts is []
+
+to serve_files with folder and prefix
+    push [prefix, folder] to jweb_static_mounts
+    add_route with "GET " + prefix + "/*" and jweb_static_handler
+
+to jweb_static_handler with request
+    path is request["path"]
+    for each m in jweb_static_mounts
+        prefix is m[0]
+        folder is m[1]
+        if jweb_starts_with with path and prefix + "/" then
+            rel is jweb_split_first with path and (prefix + "/")
+            rel is rel[1]
+            if rel contains ".." then
+                give back jweb_forbidden
+            full is folder + "/" + rel
+            outcome is attempt jweb_read_binary_file with full
+            if outcome["ok"] then
+                give back {"status": 200, "headers": {"content-type": jweb_mime with rel}, "body": outcome["value"]}
+            otherwise
+                give back jweb_not_found with path
+    give back jweb_not_found with path
+
+to jweb_read_binary_file with full
+    note Reads raw bytes so binary assets (PNG, fonts) survive intact.
+    note "open" and "read" are reserved words, so they go via the bridge.
+    opener is bmod.getattr(bmod, "open")
+    handle is opener(full, "rb")
+    reader is bmod.getattr(handle, "read")
+    data is reader()
+    closer is bmod.getattr(handle, "close")
+    closer()
+    give back data
+
+to jweb_mime with name
+    if name contains "." then
+        ext is lowercase of (last of (split of name by "."))
+        if ext is "html" then
+            give back "text/html; charset=utf-8"
+        if ext is "css" then
+            give back "text/css; charset=utf-8"
+        if ext is "js" then
+            give back "application/javascript; charset=utf-8"
+        if ext is "json" then
+            give back "application/json"
+        if ext is "png" then
+            give back "image/png"
+        if ext is "txt" then
+            give back "text/plain; charset=utf-8"
+    give back "application/octet-stream"
+
+note ---- the server ----
+
+to jweb_listen with port
+    s is sockmod.socket(sockmod.AF_INET, sockmod.SOCK_STREAM)
+    s.setsockopt(sockmod.SOL_SOCKET, sockmod.SO_REUSEADDR, 1)
+    jweb_bind(s, "127.0.0.1", port)
+    s.listen(16)
+    real is s.getsockname()
+    show "jweb: listening on " + real[0] + ":" + text of real[1]
+    give back s
+
+to serve with port
+    listener is jweb_listen with port
+    repeat while true
+        pair is listener.accept()
+        conn is pair[0]
+        conn.settimeout(10)
+        outcome is attempt jweb_handle_conn with conn
+        if not outcome["ok"] then
+            ignored is attempt jweb_send with conn and jweb_server_error
+        closer is bmod.getattr(conn, "close")
+        attempt closer()
+
+to jweb_handle_conn with conn
+    jweb_state["pending_cookie"] is ""
+    req is jweb_read_request with conn
+    if req is nothing then
+        give back nothing
+    if req contains "too_big" then
+        jweb_send with conn and jweb_too_large
+        give back nothing
+    match is jweb_match_route with req["method"] and req["path"]
+    if match is nothing then
+        jweb_send with conn and jweb_not_found with req["path"]
+        give back nothing
+    handler is match[0]
+    req["params"] is match[1]
+    outcome is attempt handler with req
+    if outcome["ok"] then
+        resp is jweb_normalize_response with outcome["value"]
+    otherwise
+        jweb_log_error with "jweb: handler for " + req["method"] + " " + req["path"] + " failed: " + outcome["error"]
+        resp is nothing
+    if resp is nothing then
+        resp is jweb_server_error
+    if jweb_state["pending_cookie"] is not "" then
+        resp["headers"]["set-cookie"] is "jesun_session=" + jweb_state["pending_cookie"] + "; Path=/; HttpOnly"
+        jweb_state["pending_cookie"] is ""
+    jweb_send with conn and resp
+
+to jweb_log_error with msg
+    errstream is bmod.getattr(sysmod, "stderr")
+    writer is bmod.getattr(errstream, "write")
+    writer(msg + "\n")
+
+to jweb_normalize_response with resp
+    note Text becomes a 200 page; tables get spec defaults (status 200,
+    note empty headers, empty body); anything else is a 500.
+    if kind of resp is "text" then
+        give back ok with resp
+    if kind of resp is not "table" then
+        give back nothing
+    out is {"status": 200, "headers": a new table, "body": ""}
+    if resp contains "status" then
+        out["status"] is resp["status"]
+    if resp contains "body" then
+        bval is resp["body"]
+        if kind of bval is "python value" then
+            out["body"] is bval
+        otherwise
+            out["body"] is text of bval
+    if resp contains "headers" then
+        out["headers"] is resp["headers"]
+    give back out

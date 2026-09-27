@@ -2,7 +2,40 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
-## Unreleased: v1.1.0 NATIVE (in progress, not shipped)
+## Unreleased: v1.2 jweb (in progress, not shipped)
+
+Spec `docs/spec-v1.2.md`. Everything the milestone promises, in order:
+
+- Tables: native `{key: value}` tables, `a new table`, subscripts, `keys of`,
+  `contains`, missing keys give back `nothing`.
+- JSON: `json of` serializes (with cycle protection), `parse json`
+  deserializes (with plain-English errors, depth cap, no floats-with-trailing-junk).
+- `attempt`: `r is attempt expr` gives back `{"ok", "value"}` or
+  `{"ok", "error"}`. Only plain-English failures are caught; `give back`,
+  `stop`, `skip` pass through untouched. Inner attempts catch first.
+  Bangla: `চেষ্টা`.
+- New reserved words: `new`, `table`, `json`, `parse`. Bangla:
+  `নতুন`, `সারণি`, `জেসন`, `বিশ্লেষণ`.
+- `jweb` package (`packages/jweb/jweb.jc`, written in Jesun.Code): routing
+  (`GET /users/:id`), query params, JSON bodies, `json_response`,
+  sessions (signed cookies, no bytes leave the machine), static files
+  (sandboxed, traversal refused), plain-English 404/400/500, `serve with port`.
+- `sqlite` package (`packages/sqlite/sqlite.jc`, written in Jesun.Code):
+  `open_database` (working-folder sandbox: absolute paths and `..`
+  refused), `db_run` / `db_query` with `?` parameters (one statement per
+  call, NULL becomes `nothing`, rows come back as tables),
+  `close_database`. All failures plain-English via `attempt`.
+  Params are always passed; a bare statement passes `nothing` (the
+  language has no optional parameters).
+- Examples: `examples/hello_web.jc`, `examples/todo.jc` (the v1.2
+  flagship: sqlite storage, session visitor counter, JSON API at
+  `/api/todos`, HTML at `/`), both verified live on the loopback.
+- New tests: `tests/test_v12.py` (tables, JSON, attempt),
+  `tests/test_jweb.py` (real loopback servers on both interpreters),
+  `tests/test_sqlite.py` (CRUD, NULL, params, sandbox, every error
+  shape, differential). The differential fuzzer grew `attempt` shapes.
+
+## v1.1.0 - 2026-09-26: NATIVE
 
 `jesun build`: the Jesun.Code transpiler (`jesun_build.py`) turns the v1.1
 core subset into C11 and compiles it with `cc` into a real native binary
@@ -30,8 +63,7 @@ fail at build time with plain-English line-numbered errors.
   Example programs: `examples/native_*.jc`, each verified through a
   real compiled binary.
 
-Until v1.1 ships green, releases remain honestly described as
-runtime-bundled.
+Release: https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v1.1.0
 
 ## v1.0.0 - 2026-09-26: SELF-HOSTING
 

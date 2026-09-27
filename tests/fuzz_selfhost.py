@@ -926,6 +926,125 @@ def suggest_program(rng: random.Random) -> str:
     return "\n".join(lines) + "\n"
 
 
+def v12_program(rng: random.Random) -> str:
+    """v1.2 table and JSON shapes: literals, new table, subscript
+    get/set, missing keys, json of, parse json (valid and malformed),
+    Bangla spellings, and error shapes. Both sides must agree byte
+    for byte."""
+    keys = ["name", "n", "x", "a b", "", "emoji"]
+    vals = ['"hi"', '"h\u00e9llo"', "42", "1.5", "true", "false", "nothing",
+            "[1, 2]", '{"k": 1}']
+    bangla = rng.random() < 0.2
+    lines = ["use bangla"] if bangla else []
+    is_w = "হয়" if bangla else "is"
+    show_w = "দেখাও" if bangla else "show"
+    new_w = "নতুন সারণি" if bangla else "new table"
+    parse_w = "বিশ্লেষণ জেসন" if bangla else "parse json"
+    json_w = "জেসন এর" if bangla else "json of"
+    for _ in range(rng.randint(1, 4)):
+        shape = rng.random()
+        k = rng.choice(keys)
+        v = rng.choice(vals)
+        jk = json_key(rng, k)
+        if shape < 0.25:
+            pairs = ", ".join(f'"{rng.choice(keys)}": {rng.choice(vals)}'
+                              for _ in range(rng.randint(0, 3)))
+            lines.append(f"t {is_w} {{{pairs}}}")
+            lines.append(f"{show_w} t")
+        elif shape < 0.4:
+            lines.append(f"t {is_w} {new_w}")
+            lines.append(f't["{k}"] {is_w} {v}')
+            lines.append(f'{show_w} t["{k}"]')
+            lines.append(f'{show_w} t["missing"]')
+        elif shape < 0.55:
+            lines.append(f"{show_w} {json_w} {{{jk}: {v}}}")
+            lines.append(f"{show_w} {json_w} {v}")
+        elif shape < 0.7:
+            doc = rng.choice([
+                '{"a": 1}', '[1, true, null]', '"s"', '42', '-1.5',
+                '{"a": {"b": [1, 2]}}', '"\\u00e9"', '{}', '[]',
+                '{bad}', '{"a": }', '[1,]', '"unterminated',
+                '{"a": 01}', 'tru', '{"a": true,}', '1 2', '""',
+            ])
+            lines.append(f"v {is_w} {parse_w} {json_quote(doc)}")
+            lines.append(f"{show_w} v")
+        elif shape < 0.85:
+            lines.append(f"t {is_w} {{{jk}: {v}}}")
+            lines.append(f'{show_w} t {json_contains_w(bangla)} "{k}"')
+            lines.append(f'{show_w} keys of t')
+        else:
+            lines.append(rng.choice([
+                f"t {is_w} {{{rng.randint(0, 9)}: 1}}",
+                f"{show_w} 5[0]",
+                f"t {is_w} [1, 2]",
+                f't[5] {is_w} 9',
+                f"{show_w} t",
+            ]))
+    return "\n".join(lines) + "\n"
+
+
+def attempt_program(rng: random.Random) -> str:
+    """v1.2 `attempt` shapes: ok/fail outcomes, undefined names, division
+    by zero, failing functions, nesting (inner catches first), and a
+    function whose give back becomes the attempt value. Bangla spelling
+    included. Both sides must agree byte for byte, including the exact
+    error text (fail-with errors are bare, name/type errors carry lines)."""
+    bangla = rng.random() < 0.2
+    lines = ["use bangla"] if bangla else []
+    att = "চেষ্টা" if bangla else "attempt"
+    is_w = "হয়" if bangla else "is"
+    show_w = "দেখাও" if bangla else "show"
+    if rng.random() < 0.5:
+        lines.append("to boom")
+        lines.append('    fail with "kaput"')
+        lines.append("to early")
+        lines.append("    give back 42")
+    for _ in range(rng.randint(1, 3)):
+        shape = rng.random()
+        if shape < 0.3:
+            expr = rng.choice(["1 + 2", '"ok"', "true", "[1, 2]", '{"a": 1}'])
+            lines.append(f"r {is_w} {att} {expr}")
+            lines.append(f'{show_w} r["ok"]')
+            lines.append(f'{show_w} r["value"]')
+        elif shape < 0.45:
+            lines.append(f"r {is_w} {att} nosuchname")
+            lines.append(f'{show_w} r["ok"]')
+            lines.append(f'{show_w} r["error"]')
+        elif shape < 0.6:
+            lines.append(f"r {is_w} {att} 1/0")
+            lines.append(f'{show_w} r["ok"]')
+            lines.append(f'{show_w} r["error"]')
+        elif shape < 0.75:
+            lines.append(f"r {is_w} {att} boom")
+            lines.append(f'{show_w} r["ok"]')
+            lines.append(f'{show_w} r["error"]')
+        elif shape < 0.9:
+            lines.append(f"r {is_w} {att} {att} boom")
+            lines.append(f'{show_w} r["ok"]')
+            lines.append(f'{show_w} r["value"]["ok"]')
+            lines.append(f'{show_w} r["value"]["error"]')
+        else:
+            lines.append(f"r {is_w} {att} early")
+            lines.append(f'{show_w} r["ok"]')
+            lines.append(f'{show_w} r["value"]')
+    return "\n".join(lines) + "\n"
+
+
+def json_contains_w(bangla: bool) -> str:
+    return "আছে" if bangla else "contains"
+
+
+def json_key(rng: random.Random, k: str) -> str:
+    return '"' + k.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def json_quote(doc: str) -> str:
+    # Double braces: a lone { starts {...} interpolation in Jesun strings.
+    out = doc.replace("{", "{{").replace("}", "}}")
+    out = out.replace("\\", "\\\\").replace('"', '\\"')
+    return '"' + out + '"'
+
+
 def main() -> int:
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 150
     rng = random.Random(20260925)
@@ -952,6 +1071,12 @@ def main() -> int:
             case_problems, case_skips = check_jpm_case(i, src, no_git, dirty)
         elif i % 19 == 18:
             src = suggest_program(rng)
+            case_problems, case_skips = check(i, src)
+        elif i % 23 == 22:
+            src = v12_program(rng)
+            case_problems, case_skips = check(i, src)
+        elif i % 29 == 28:
+            src = attempt_program(rng)
             case_problems, case_skips = check(i, src)
         else:
             src = token_soup(rng) if i % 2 == 0 else mutate(rng, rng.choice(SEEDS))

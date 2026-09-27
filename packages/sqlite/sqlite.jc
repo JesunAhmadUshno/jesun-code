@@ -1,0 +1,139 @@
+note packages/sqlite/sqlite.jc: native sqlite for Jesun.Code (spec v1.2 section 4).
+note The bridge imports only the sqlite3 driver and pathlib (raw
+note primitives); the sandbox rule, the one-statement rule, parameter
+note shaping, row shaping, and every error message are Jesun.Code.
+note One language, all solutions.
+
+import sqlite3 as sqlmod
+import builtins as bmod
+import pathlib as plmod
+
+note ---- paths: the same sandbox as file I/O (resolve, stay in cwd) ----
+
+to sqlite_safe_path with raw
+    if kind of raw is not "text" then
+        fail with "the database path has to be text."
+    candidate is plmod.Path(raw)
+    base is bmod.getattr(plmod.Path, "cwd")()
+    if bmod.getattr(candidate, "is_absolute")() then
+        target is candidate
+    otherwise
+        target is bmod.getattr(base, "joinpath")(candidate)
+    resolved is bmod.getattr(target, "resolve")()
+    base_resolved is bmod.getattr(base, "resolve")()
+    outcome is attempt bmod.getattr(resolved, "relative_to")(base_resolved)
+    if not outcome["ok"] then
+        fail with "I cannot open \"" + raw + "\": it leaves the current folder."
+    give back resolved
+
+note ---- handles: a table carrying the connection and its closed flag ----
+
+to open_database with path
+    safe is sqlite_safe_path with path
+    name is bmod.str(safe)
+    outcome is attempt sqlmod.connect(name)
+    if not outcome["ok"] then
+        fail with "I could not open the database \"" + path + "\"."
+    give back {"connection": outcome["value"], "path": name, "closed": false}
+
+to sqlite_conn with db
+    if kind of db is not "table" then
+        fail with "that is not a database. Open one with open_database."
+    if not (db contains "connection") then
+        fail with "that is not a database. Open one with open_database."
+    if db["closed"] then
+        fail with "that database is closed. Open it again with open_database."
+    give back db["connection"]
+
+note ---- parameters: plain data only, shaped for the driver ----
+
+to sqlite_article with k
+    if k is "agent" then
+        give back "an agent"
+    give back "a " + k
+
+to sqlite_py_value with v
+    k is kind of v
+    if k is "text" or k is "number" or k is "true/false" or k is "nothing" then
+        give back v
+    if k is "python value" then
+        give back v
+    fail with "I cannot put " + sqlite_article with k + " into a query. Use text, numbers, true/false, or nothing."
+
+to sqlite_params with params
+    if params is nothing then
+        give back []
+    if kind of params is not "list" then
+        fail with "the query params have to be a list."
+    out is []
+    for each p in params
+        push sqlite_py_value with p to out
+    give back out
+
+note ---- errors: the database's own words, never a traceback ----
+
+to sqlite_clean_error with err
+    note Attempt error text looks like:
+    note   Line 2502: the python call failed: no such table: todos
+    note Keep only the database's own words; the package's `fail with`
+    note below supplies the line and the package origin tag.
+    marker is "the python call failed: "
+    if not (err contains marker) then
+        give back err
+    parts is split of err by marker
+    give back last of parts
+
+to sqlite_execute with conn and sql and pyparams
+    note Gives back the cursor. One statement per call: the driver itself
+    note refuses a second statement, and that refusal becomes the
+    note plain-English one-statement rule.
+    if kind of sql is not "text" then
+        fail with "the SQL has to be text."
+    run is bmod.getattr(conn, "execute")
+    outcome is attempt run(sql, pyparams)
+    if outcome["ok"] then
+        give back outcome["value"]
+    err is sqlite_clean_error with outcome["error"]
+    if err contains "one statement" then
+        fail with "run one SQL statement per call; this text holds 2."
+    fail with "the database said: " + err
+
+note ---- the public surface (spec v1.2 section 4) ----
+
+to db_run with db and sql and params
+    note params is nothing for a bare statement: db_run with db and sql and nothing
+    conn is sqlite_conn with db
+    pyparams is sqlite_params with params
+    cur is sqlite_execute with conn and sql and pyparams
+    outcome is attempt bmod.getattr(conn, "commit")()
+    if not outcome["ok"] then
+        fail with "the database said: " + sqlite_clean_error with outcome["error"]
+    give back nothing
+
+to db_query with db and sql and params
+    note params is nothing for a bare statement: db_query with db and sql and nothing
+    conn is sqlite_conn with db
+    pyparams is sqlite_params with params
+    cur is sqlite_execute with conn and sql and pyparams
+    desc is bmod.getattr(cur, "description")
+    if desc is nothing then
+        give back []
+    names is []
+    for each d in desc
+        push d[0] to names
+    raw_rows is bmod.getattr(cur, "fetchall")()
+    rows is []
+    for each r in raw_rows
+        t is a new table
+        i is 0
+        repeat while i is less than length of names
+            t[names[i]] is r[i]
+            i is i + 1
+        push t to rows
+    give back rows
+
+to close_database with db
+    conn is sqlite_conn with db
+    ignored is attempt bmod.getattr(conn, "close")()
+    db["closed"] is true
+    give back nothing

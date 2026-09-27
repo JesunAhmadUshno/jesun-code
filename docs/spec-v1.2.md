@@ -85,10 +85,11 @@ Rules:
 ## 3. jweb: the framework (`bring in "jweb"`)
 
 jweb is a standard-library package: `packages/jweb/jweb.jc` in the repo,
-resolved by `bring in "jweb"` with no download. Its only bridge imports
-are `socket` (raw sockets) and `time` (for cookie dates); every bit of
-framework logic (request parsing, routing, sessions, responses) is
-Jesun.Code. A minimal app:
+resolved by `bring in "jweb"` with no download. Its bridge imports are
+raw primitives only: `socket` (raw sockets), `builtins` (bytes, int, len,
+getattr, chr, tuple), `uuid` (random 128-bit session ids), and `sys`
+(stderr for handler-failure logging). Every bit of framework logic
+(request parsing, routing, sessions, responses) is Jesun.Code. A minimal app:
 
 ```jesun
 bring in "jweb"
@@ -99,17 +100,17 @@ to hello with request
         name is "stranger"
     give back "<h1>Hello, " + name + "!</h1>"
 
-add_route("GET /hello", hello)
-serve(8080)
+add_route with "GET /hello" and hello
+serve with 8080
 ```
 
 Run it with `jesun app.jc`, open http://localhost:8080/hello?name=Jesun.
 
 ### 3.1 Routes
 
-- `add_route("METHOD /path", handler)` registers a handler. The handler
+- `add_route with "METHOD /path" and handler` registers a handler. The handler
   is a one-input function; the request table is its input.
-- Paths may carry `:name` segments: `add_route("GET /users/:id", show_user)`
+- Paths may carry `:name` segments: `add_route with "GET /users/:id" and show_user`
   then `request["params"]["id"]` is the segment text.
 - First registered route wins when two patterns match. No match gives a
   plain 404 page ("nothing lives at /here").
@@ -138,7 +139,7 @@ kept as-is, never an error.
 - Giving back a table answers with control:
   `{"status": 404, "body": "missing", "headers": {"content-type": "text/plain"}}`.
   Missing keys default: status 200, empty headers table, body `""`.
-- `redirect_to("/there")` gives back the 302 table for that path.
+- `redirect_to with "/there"` gives back the 302 table for that path.
 - Handler failures never kill the server: the client gets a plain-English
   500 page and the failure is logged to stderr with the route and line.
 - Bodies are capped at 1 MiB; a bigger body gets a plain `413` answer.
@@ -148,7 +149,7 @@ kept as-is, never an error.
 
 ```jesun
 to visit with request
-    s is session_of(request)
+    s is session_of with request
     n is s["visits"]
     if n is nothing then
         n is 0
@@ -156,7 +157,7 @@ to visit with request
     give back "visit number " + text of s["visits"]
 ```
 
-- `session_of(request)` gives a table backed by the `jesun_session`
+- `session_of with request` gives a table backed by the `jesun_session`
   cookie. The table auto-saves when the handler gives back.
 - Default store is in-memory (gone when the server stops). A sqlite-backed
   store is a documented extension (see section 4 example).
@@ -164,7 +165,7 @@ to visit with request
 
 ### 3.5 Static files
 
-`serve_files("public", "/static")` registers a route serving files under
+`serve_files with "public" and "/static"` registers a route serving files under
 the `public` folder at `/static/...`. `..` segments and absolute paths
 are rejected with `403`; unknown extensions get
 `application/octet-stream`. Directory listings are never served.
@@ -177,30 +178,33 @@ import is `sqlite3`; all API shaping is Jesun.Code.
 ```jesun
 bring in "sqlite"
 
-db is open_database("app.db")
-db_run(db, "CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY, task TEXT, done INTEGER)")
-db_run(db, "INSERT INTO todos (task, done) VALUES (?, ?)", ["Buy milk", 0])
-rows is db_query(db, "SELECT id, task, done FROM todos")
+db is open_database with "app.db"
+db_run with db and "CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY, task TEXT, done INTEGER)" and nothing
+db_run with db and "INSERT INTO todos (task, done) VALUES (?, ?)" and ["Buy milk", 0]
+rows is db_query with db and "SELECT id, task, done FROM todos" and nothing
 for each r in rows
     show r["task"]
-close_database(db)
+close_database with db
 ```
 
 Rules:
 
-- `open_database(path)` opens (creating) a sqlite file. The path must stay
+- `open_database with path` opens (creating) a sqlite file. The path must stay
   inside the working folder: absolute paths and `..` are refused in
   plain English (same sandbox rule as file I/O).
-- `db_run(db, sql)` / `db_run(db, sql, params)` run one statement.
-  `db_query(db, sql)` / `db_query(db, sql, params)` give back a list of
-  tables (column name to value; NULL becomes `nothing`).
+- `db_run with db and sql and params` / `db_query with db and sql and params`
+  run one statement / give back a list of tables (column name to value;
+  NULL becomes `nothing`). Jesun.Code has no optional or overloaded
+  parameters, so a bare statement passes `nothing` for params:
+  `db_run with db and sql and nothing` (amended 2026-09-26: the two-arg
+  form in the first draft of this spec cannot exist in the language).
 - Parameters are `?` placeholders with a list of values. Never build SQL
   by joining user text; the docs say so and the example shows the `?` way.
 - Exactly one statement per call; a second statement is refused
   (`Line 6: run one SQL statement per call; this text holds 2.`).
 - Every database error speaks plain English with the line number, never
   a traceback.
-- `close_database(db)` closes the handle. Using a closed handle is a
+- `close_database with db` closes the handle. Using a closed handle is a
   plain-English error.
 
 ## 5. Standard-library packages
@@ -220,8 +224,9 @@ GitHub) is unchanged and still only for third-party packages.
 - `tests/test_v12.py`: tables (literal, get/set, missing key, `keys of`,
   `contains`, nesting, deep equality, reference sharing, `show`
   rendering, errors), JSON (parse/stringify, canonical forms, round
-  trip, error positions, refusals), stdlib `bring in` (jweb and sqlite
-  resolve without download).
+  trip, error positions, refusals), `attempt` (ok/fail shapes, exact error
+  text, signal passthrough, nesting, Bangla), stdlib `bring in` (jweb and
+  sqlite resolve without download).
 - Self-host fixtures: `tests/fixtures/selfhost/table_*.jc`,
   `json_*.jc`; the differential harness runs each through bootstrap and
   `jesun.jc`.
@@ -235,7 +240,40 @@ GitHub) is unchanged and still only for third-party packages.
   for the JSON reader against Python's `json` on generated inputs.
 - Full suite green after every chunk: `python3 -m unittest discover -s tests`.
 
-## 7. Examples
+## 7. `attempt`: failure as a value (added 2026-09-26, required by section 3.3)
+
+`attempt <expr>` evaluates the expression and never fails itself. It gives
+back a table:
+
+```jesun
+outcome is attempt risky_call
+if outcome["ok"] then
+    show outcome["value"]
+otherwise
+    show "it broke: " + outcome["error"]
+```
+
+- Success: `{"ok": true, "value": <the value>}`.
+- Failure: `{"ok": false, "error": "Line 5: <the plain-English message>"}`.
+  The error text is exactly what the program would have printed.
+- Only plain-English failures (`fail`, unknown names, type errors, bridge
+  errors) are caught. Control signals (`give back`, `stop`, `skip`) pass
+  through untouched: `attempt` around a function that gives back still
+  gives back.
+- `attempt` nests: an inner `attempt` catches first.
+- Bangla: `চেষ্টা`.
+
+Why it exists: section 3.3 promises that a failing jweb handler gets a
+500 page instead of killing the server. Jesun.Code has no try/catch, so
+the framework needs this one primitive. It is a core language feature
+(implemented in the bootstrap and in `jesun.jc`), not a bridge cheat:
+the walker's evaluator hands its operand AST (plain data) to a
+guarded-call service in the bootstrap, which runs the walker's own
+evaluator on it with the in-flight environment recovered from the call
+stack, and turns a plain-English failure into data. No user program
+text ever reaches Python. Both interpreters agree byte for byte.
+
+## 8. Examples
 
 - `examples/hello_web.jc`: the minimal app from section 3 (verified live).
 - `examples/todo.jc`: a todo list app: sqlite storage, sessions for a
