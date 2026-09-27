@@ -29,6 +29,7 @@ def main() -> int:
         "--distpath", str(ROOT / "dist"),
         "--workpath", str(Path("/tmp") / "jc-build"),
         "--specpath", str(Path("/tmp") / "jc-build"),
+        "--add-data", str(ROOT / "packages") + ":packages",
     ]
     for module in sorted(sys.stdlib_module_names):
         cmd.append("--hidden-import=" + module)
