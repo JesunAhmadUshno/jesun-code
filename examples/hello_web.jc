@@ -1,0 +1,14 @@
+note hello_web.jc: the minimal jweb app from spec v1.2 section 3.
+note Run it with: python3 jesun.py examples/hello_web.jc
+note Then open http://localhost:8080/hello?name=Jesun
+
+bring in "jweb"
+
+to hello with request
+    name is request["query"]["name"]
+    if name is nothing then
+        name is "stranger"
+    give back "<h1>Hello, " + name + "!</h1>"
+
+add_route with "GET /hello" and hello
+serve with 8080

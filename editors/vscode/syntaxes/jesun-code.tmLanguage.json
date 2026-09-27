@@ -54,11 +54,11 @@
     },
     {
       "name": "keyword.control.bangla.jesun",
-      "match": "(?<![\\p{L}\\p{N}_\\p{M}])(?:টার্মিনাল|হাতিয়ার|জিজ্ঞেস|প্রতিটি|এড়িয়ে|দৈর্ঘ্য|বড়হাতা|ছোটহাতা|কমপক্ষে|সবচেয়ে|বন্ধকরো|পারসোনা|ভুলেযাও|ব্যবহার|মিথ্যা|যতক্ষণ|নম্বরে|হিসেবে|এজেন্ট|মনেকরো|সবসময়|স্মৃতি|সরাসরি|যোগকরো|দেখাও|ফাঁকা|তাহলে|ভেতরে|জন্যে|প্রথম|চেয়ে|জোড়া|ছাঁটো|দিয়ে|মধ্যে|পাঠাও|নিয়ে|সত্য|রেখে|নইলে|আবার|জন্য|অথবা|ফেরত|থামো|চাবি|খোলো|নামে|পড়ো|ফাইল|লেখো|হয়|যদি|বার|এবং|দাও|শেষ|বড়|ছোট|আছে|ভাগ|আনো|এআই|ধাপ|না|সহ|এর|দল)(?![\\p{L}\\p{N}_\\p{M}])"
+      "match": "(?<![\\p{L}\\p{N}_\\p{M}])(?:টার্মিনাল|হাতিয়ার|বিশ্লেষণ|জিজ্ঞেস|প্রতিটি|এড়িয়ে|দৈর্ঘ্য|বড়হাতা|ছোটহাতা|কমপক্ষে|সবচেয়ে|বন্ধকরো|পারসোনা|ভুলেযাও|ব্যবহার|মিথ্যা|যতক্ষণ|নম্বরে|হিসেবে|এজেন্ট|মনেকরো|সবসময়|স্মৃতি|সরাসরি|যোগকরো|চেষ্টা|দেখাও|ফাঁকা|তাহলে|ভেতরে|জন্যে|প্রথম|চেয়ে|জোড়া|ছাঁটো|দিয়ে|মধ্যে|পাঠাও|নিয়ে|সারণি|সত্য|রেখে|নইলে|আবার|জন্য|অথবা|ফেরত|থামো|চাবি|খোলো|নামে|পড়ো|ফাইল|লেখো|নতুন|জেসন|হয়|যদি|বার|এবং|দাও|শেষ|বড়|ছোট|আছে|ভাগ|আনো|এআই|ধাপ|না|সহ|এর|দল)(?![\\p{L}\\p{N}_\\p{M}])"
     },
     {
       "name": "keyword.control.jesun",
-      "match": "(?<![\\p{L}\\p{N}_\\p{M}])(?:characters|otherwise|uppercase|lowercase|streaming|contains|terminal|remember|nothing|greater|persona|giving|repeat|length|import|within|always|forget|memory|append|false|times|while|first|least|split|tools|steps|named|close|agent|write|bring|fleet|show|true|then|each|with|give|back|stop|skip|last|less|than|most|join|trim|keys|push|text|kind|fail|open|send|read|file|not|ask|for|and|use|is|if|in|to|or|of|at|by|as|ai)(?![\\p{L}\\p{N}_\\p{M}])"
+      "match": "(?<![\\p{L}\\p{N}_\\p{M}])(?:characters|otherwise|uppercase|lowercase|streaming|contains|terminal|remember|nothing|greater|persona|attempt|giving|repeat|length|import|within|always|forget|memory|append|false|times|while|first|least|split|tools|steps|named|close|agent|write|bring|fleet|table|parse|show|true|then|each|with|give|back|stop|skip|last|less|than|most|join|trim|keys|push|text|kind|fail|open|send|read|file|json|not|ask|for|and|use|new|is|if|in|to|or|of|at|by|as|ai)(?![\\p{L}\\p{N}_\\p{M}])"
     },
     {
       "name": "constant.numeric.jesun",
