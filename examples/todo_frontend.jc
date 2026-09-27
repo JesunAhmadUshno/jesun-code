@@ -14,5 +14,5 @@ add_code is on_event with "click" and "add" and js_fetch with "/api/todos" and "
 load_code is dom_ready with js_fetch with "/api/todos" and "GET" and "null"
 client is script_tag with (load_code + "\n" + add_code)
 
-body_html is list_html + (element with "div" and nothing and [(input_field with "task" and "text"), (button with "Add")]) + client
+body_html is list_html + (element with "div" and nothing and [(void_element with "input" and {"id": "task", "type": "text", "name": "task"}), (element with "button" and {"id": "add"} and "Add")]) + client
 show page with "Todo demo" and body_html
