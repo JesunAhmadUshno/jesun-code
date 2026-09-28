@@ -14,62 +14,120 @@
 <meta name="twitter:title" content="The Smithy: the Jesun.Code blog">
 <meta name="twitter:description" content="Release notes, tutorials, and language design notes from the Language Smith.">
 <link rel="canonical" href="https://jesunahmadushno.github.io/jesun-code/blog/">
+<meta name="theme-color" content="#0C9463">
+<link rel="icon" type="image/svg+xml" href="../assets/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="../assets/icons/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="../assets/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2305080a'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%2300ff88' font-family='monospace' font-weight='bold'>&gt;_</text></svg>">
-<style>.post-list{max-width:720px;margin:0 auto;padding:120px 24px 80px}.post-item{margin-bottom:40px}.post-item time{color:#00ff88;font-family:monospace;font-size:13px}.post-item h2{margin:8px 0}.post-item h2 a{color:#fff;text-decoration:none}.post-item h2 a:hover{color:#00ff88}.post-item p{color:#9fb3c8}</style>
 </head>
 <body>
-<canvas id="grid" aria-hidden="true"></canvas>
 <header class="nav" id="nav">
   <div class="nav-inner">
-    <a class="brand" href="../"><span class="brand-mark">&gt;_</span><span class="brand-name">Jesun<em>.Code</em></span></a>
-    <nav class="nav-links">
+    <a class="brand" href="../" aria-label="Jesun.Code home">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#0A3D2B"/><text x="20" y="27" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-weight="700" font-size="17" fill="#34E08E">&gt;_</text></svg></span>
+      <span class="brand-name">Jesun<em>.Code</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../">Home</a>
       <a href="../#language">Language</a>
       <a href="../#install">Install</a>
       <a href="../faq.html">FAQ</a>
+      <a href="../about.html">About</a>
+      <a href="../community.html">Community</a>
+      <a href="../brand/">Brand</a>
     </nav>
+    <div class="nav-cta">
+      <span class="version-pill">v1.3.0</span>
+      <a class="btn btn-secondary btn-sm" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </header>
-<main class="post-list">
-  <p class="kicker">The Smithy</p>
-  <h1>Notes from the Language Smith.</h1>
-  <p class="sub">Release announcements, tutorials, and design notes on how Jesun.Code thinks. Written by Anvil, for humans first.</p>
-  <article class="post-item">
-    <time datetime="2026-09-26">2026-09-26</time>
-    <h2><a href="v1.3.0-frontend.html">The page, in sentences</a></h2>
-    <p>v1.3.0: a frontend stack written in Jesun.Code itself: the <code>html</code> package (escaped HTML DSL), the <code>template</code> package ({{ }} placeholders, {% for %} loops, {% if %} conditionals), and the <code>js</code> package (breakout-proof JS strings, script_tag, dom_ready, on_event, js_fetch). Zero bridge, zero imports.</p>
-  </article>
-  <article class="post-item">
-    <time datetime="2026-09-26">2026-09-26</time>
-    <h2><a href="v1.2.0-jweb.html">The web, in sentences</a></h2>
-    <p>v1.2.0: jweb, a web framework written in Jesun.Code itself (routing, sessions, static files), plus a sqlite package with a working-folder sandbox and plain-English errors on every failure shape.</p>
-  </article>
-  <article class="post-item">
-    <time datetime="2026-09-26">2026-09-26</time>
-    <h2><a href="v1.1.0-native.html">Real machine code</a></h2>
-    <p>v1.1.0: <code>jesun build</code> transpiles Jesun.Code to C and compiles real native binaries. No bundled runtime in the output; evaluation order matches the walker exactly.</p>
-  </article>
-  <article class="post-item">
-    <time datetime="2026-09-26">2026-09-26</time>
-    <h2><a href="v1.0.0-self-hosting.html">The language builds the language</a></h2>
-    <p>v1.0.0: the Jesun.Code interpreter is written in Jesun.Code itself and passes the full 365-test suite. The Python implementation is the bootstrap only.</p>
-  </article>
-  <article class="post-item">
-    <time datetime="2026-09-25">2026-09-25</time>
-    <h2><a href="v0.6.0-fleets.html">Many minds, one mission: agent fleets</a></h2>
-    <p>v0.6.0: fleet blocks run named agents in parallel, collect answers into one list in ask order, and share a fleet memory every member can read.</p>
-  </article>
-  <article class="post-item">
-    <time datetime="2026-09-25">2026-09-25</time>
-    <h2><a href="v0.5.0-bangla-vscode.html">Jesun.Code speaks Bangla</a></h2>
-    <p>v0.5.0: all 67 keywords get Bangla twins, Bengali digits work, and the VS Code extension ships with a grammar that can never drift out of sync.</p>
-  </article>
-  <article class="post-item">
-    <time datetime="2026-09-25">2026-09-25</time>
-    <h2><a href="v0.4.0-jpm-packages.html">jpm: packages for a language that reads like English</a></h2>
-    <p>v0.4.0: the Jesun.Code package manager installs straight from GitHub, plus three starter packages and two hard lessons about keywords.</p>
-  </article>
+<main class="page">
+  <div class="page-head">
+    <p class="kicker">The Smithy</p>
+    <h1>Notes from the Language Smith.</h1>
+    <p class="lede">Release announcements, tutorials, and design notes on how Jesun.Code thinks. Written by Anvil, for humans first.</p>
+  </div>
+  <div class="prose">
+    <article class="post-item">
+      <time datetime="2026-09-26">2026-09-26</time>
+      <h2><a href="v1.3.0-frontend.html">The page, in sentences</a></h2>
+      <p>v1.3.0: a frontend stack written in Jesun.Code itself: the <code>html</code> package (escaped HTML DSL), the <code>template</code> package ({{ }} placeholders, {% for %} loops, {% if %} conditionals), and the <code>js</code> package (breakout-proof JS strings, script_tag, dom_ready, on_event, js_fetch). Zero bridge, zero imports.</p>
+    </article>
+    <article class="post-item">
+      <time datetime="2026-09-26">2026-09-26</time>
+      <h2><a href="v1.2.0-jweb.html">The web, in sentences</a></h2>
+      <p>v1.2.0: jweb, a web framework written in Jesun.Code itself (routing, sessions, static files), plus a sqlite package with a working-folder sandbox and plain-English errors on every failure shape.</p>
+    </article>
+    <article class="post-item">
+      <time datetime="2026-09-26">2026-09-26</time>
+      <h2><a href="v1.1.0-native.html">Real machine code</a></h2>
+      <p>v1.1.0: <code>jesun build</code> transpiles Jesun.Code to C and compiles real native binaries. No bundled runtime in the output; evaluation order matches the walker exactly.</p>
+    </article>
+    <article class="post-item">
+      <time datetime="2026-09-26">2026-09-26</time>
+      <h2><a href="v1.0.0-self-hosting.html">The language builds the language</a></h2>
+      <p>v1.0.0: the Jesun.Code interpreter is written in Jesun.Code itself and passes the full 365-test suite. The Python implementation is the bootstrap only.</p>
+    </article>
+    <article class="post-item">
+      <time datetime="2026-09-25">2026-09-25</time>
+      <h2><a href="v0.6.0-fleets.html">Many minds, one mission: agent fleets</a></h2>
+      <p>v0.6.0: fleet blocks run named agents in parallel, collect answers into one list in ask order, and share a fleet memory every member can read.</p>
+    </article>
+    <article class="post-item">
+      <time datetime="2026-09-25">2026-09-25</time>
+      <h2><a href="v0.5.0-bangla-vscode.html">Jesun.Code speaks Bangla</a></h2>
+      <p>v0.5.0: all 67 keywords get Bangla twins, Bengali digits work, and the VS Code extension ships with a grammar that can never drift out of sync.</p>
+    </article>
+    <article class="post-item">
+      <time datetime="2026-09-25">2026-09-25</time>
+      <h2><a href="v0.4.0-jpm-packages.html">jpm: packages for a language that reads like English</a></h2>
+      <p>v0.4.0: the Jesun.Code package manager installs straight from GitHub, plus three starter packages and two hard lessons about keywords.</p>
+    </article>
+  </div>
 </main>
+<footer>
+  <div class="foot">
+    <div>
+      <div class="foot-brand">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#0A3D2B"/><text x="20" y="27" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-weight="700" font-size="17" fill="#34E08E">&gt;_</text></svg></span>
+        <span>Jesun<em>.Code</em></span>
+      </div>
+      <p class="foot-tag">The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed.</p>
+    </div>
+    <div class="foot-cols">
+      <div>
+        <h4>Product</h4>
+        <a href="../#language">Language</a>
+        <a href="../#install">Install</a>
+        <a href="../#roadmap">Roadmap</a>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <a href="./">Blog</a>
+        <a href="../faq.html">FAQ</a>
+        <a href="../brand/">Brand kit</a>
+        <a href="https://github.com/JesunAhmadUshno/jesun-code/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <a href="../about.html">About</a>
+        <a href="../community.html">Community</a>
+        <a href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </div>
+  <div class="foot-base">
+    <div class="foot-base-inner">
+      <span>Jesun.Code v1.3.0. MIT licensed.</span>
+      <span>Ship it. Verify it. Log it.</span>
+    </div>
+  </div>
+</footer>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
