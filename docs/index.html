@@ -14,58 +14,59 @@
 <meta name="twitter:title" content="Jesun.Code: The programming language that reads like plain English">
 <meta name="twitter:description" content="If a sentence makes sense to a person, it should make sense to the machine. AI agents, the Python ecosystem, a Bangla flavor, one binary.">
 <link rel="canonical" href="https://jesunahmadushno.github.io/jesun-code/">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#0C9463">
+<link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2305080a'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%2300ff88' font-family='monospace' font-weight='bold'>&gt;_</text></svg>">
 </head>
 <body>
-<canvas id="grid" aria-hidden="true"></canvas>
 
 <header class="nav" id="nav">
   <div class="nav-inner">
-    <a class="brand" href="#top">
-      <span class="brand-mark">&gt;_</span>
+    <a class="brand" href="./" aria-label="Jesun.Code home">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#0A3D2B"/><text x="20" y="27" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-weight="700" font-size="17" fill="#34E08E">&gt;_</text></svg></span>
       <span class="brand-name">Jesun<em>.Code</em></span>
     </a>
-    <nav class="nav-links">
+    <nav class="nav-links" aria-label="Primary">
       <a href="#language">Language</a>
       <a href="#brains">AI Brains</a>
       <a href="blog/">Blog</a>
       <a href="faq.html">FAQ</a>
       <a href="about.html">About</a>
       <a href="community.html">Community</a>
+      <a href="brand/">Brand</a>
       <a href="#install">Install</a>
       <a href="#roadmap">Roadmap</a>
     </nav>
     <div class="nav-cta">
       <span class="version-pill">v1.3.0</span>
-      <a class="btn btn-ghost" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">
+      <a class="btn btn-secondary btn-sm" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
         GitHub
       </a>
     </div>
-    <button class="nav-toggle" id="navToggle" aria-label="Menu">
+    <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
   </div>
 </header>
 
-<main id="top">
+<main>
   <!-- HERO -->
   <section class="hero">
     <div class="hero-inner">
       <div class="hero-copy">
-        <p class="eyebrow"><span class="pulse"></span> v1.3.0 is live: frontend in Jesun.Code. <code>page with</code> is a sentence now.</p>
+        <p class="eyebrow"><span class="pulse" aria-hidden="true"></span> v1.3.0 is live: the frontend stack, in Jesun.Code itself</p>
         <h1>The programming language that reads like <span class="grad">plain English</span>.</h1>
         <p class="lede">If a sentence makes sense to a person, it should make sense to the machine. Jesun.Code pairs human language with the entire Python ecosystem and real AI agents, and ships as a single binary. No Python to install. No tracebacks. Ever.</p>
         <div class="hero-ctas">
           <a class="btn btn-primary" href="#install">Get Jesun.Code</a>
-          <a class="btn btn-ghost" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">Star on GitHub</a>
+          <a class="btn btn-secondary" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">Star on GitHub</a>
         </div>
         <div class="hero-meta">
-          <span>MIT licensed</span><i></i><span>Single binary</span><i></i><span>501 tests green</span>
+          <span>MIT licensed</span><i aria-hidden="true"></i><span>Single binary</span><i aria-hidden="true"></i><span>501 tests green</span>
         </div>
       </div>
       <div class="hero-terminal">
@@ -81,7 +82,7 @@
   </section>
 
   <!-- STATS -->
-  <section class="stats">
+  <section class="stats" aria-label="Project numbers">
     <div class="stats-inner">
       <div class="stat reveal"><strong data-count="501">0</strong><span>tests passing</span></div>
       <div class="stat reveal"><strong data-count="3">0</strong><span>platforms, one binary each</span></div>
@@ -104,7 +105,7 @@
 <span class="kw">for</span> i <span class="kw">in</span> range(<span class="nm">3</span>):
     print(<span class="st">f"Go, {name}!"</span>)</code></pre>
         </div>
-        <div class="code-card glow reveal">
+        <div class="code-card reveal">
           <div class="code-head"><span class="lang">Jesun.Code</span><span class="tag">reads like English</span></div>
 <pre class="code"><code><span class="kw">ask</span> <span class="st">"What is your name? "</span> <span class="kw">giving</span> name
 
@@ -125,51 +126,41 @@
   </section>
 
   <!-- FEATURES -->
-  <section class="section alt">
+  <section class="section alt" id="features">
     <div class="wrap">
-      <p class="kicker reveal">Why it feels different</p>
+      <p class="kicker reveal">What it does</p>
       <h2 class="reveal">Serious power.<br>Zero intimidation.</h2>
+      <p class="sub reveal">Six reasons teams reach for Jesun.Code, from first sentence to production deploy.</p>
       <div class="grid">
         <article class="card reveal">
-          <div class="icon">◈</div>
-          <h3>Plain-English errors</h3>
-          <p>Every failure is a line-numbered sentence a human wrote for a human. Tracebacks do not exist here.</p>
+          <div class="icon" aria-hidden="true">Aa</div>
+          <h3>Plain-English syntax</h3>
+          <p>Variables, loops, functions, and errors that read as sentences. Every failure is one line-numbered sentence a human wrote for a human. Tracebacks do not exist here.</p>
         </article>
         <article class="card reveal">
-          <div class="icon">⬢</div>
-          <h3>The whole Python ecosystem</h3>
-          <p><code>import</code> any stdlib or pip package. NumPy, pandas, requests: all of it, behind English syntax.</p>
+          <div class="icon" aria-hidden="true">&#9881;</div>
+          <h3>Native binaries</h3>
+          <p><code>jesun build</code> transpiles Jesun.Code to C and compiles real native binaries with <code>cc</code>. No bundled runtime in the output, evaluation order identical to the interpreter.</p>
         </article>
         <article class="card reveal">
-          <div class="icon">✦</div>
+          <div class="icon" aria-hidden="true">&lt;/&gt;</div>
+          <h3>jweb: the web backend</h3>
+          <p>A web framework and a sqlite package, both written in Jesun.Code itself: routing, sessions, static files, parameterized queries, plain-English errors on every failure shape.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon" aria-hidden="true">&#9635;</div>
+          <h3>Frontend in sentences</h3>
+          <p>The <code>html</code> DSL escapes by default, <code>template</code> renders {{ }} pages with loops and conditionals, and the <code>js</code> package writes breakout-proof client code. Zero bridge.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon" aria-hidden="true">&#10022;</div>
           <h3>AI agents with memory</h3>
-          <p>Named agents with persona, tools, streaming answers, and memory that persists between runs. Agents can call agents.</p>
+          <p>Named agents with persona, tools, streaming answers, and memory that persists between runs. One-line prompting: <code class="nw">ask ai "..." giving answer</code>. Agents can call agents; fleets run them in parallel.</p>
         </article>
         <article class="card reveal">
-          <div class="icon">❯</div>
-          <h3>One-line AI prompting</h3>
-          <p>That is the entire API:</p>
-          <pre class="mini"><code>ask ai "write a haiku about compilers" giving poem</code></pre>
-        </article>
-        <article class="card reveal">
-          <div class="icon">▣</div>
-          <h3>Drive real terminals</h3>
-          <p>Spin up tmux machines and command them in plain English. Your agents get hands, not just words.</p>
-        </article>
-        <article class="card reveal">
-          <div class="icon">⬣</div>
-          <h3>Files, safely</h3>
-          <p>Read, write and append with paths sandboxed to your project. Interpolation works everywhere: <code class="nw">"Hello, {name}!"</code></p>
-        </article>
-        <article class="card reveal">
-          <div class="icon">অ</div>
+          <div class="icon" aria-hidden="true">&#2437;</div>
           <h3>The Bangla flavor</h3>
-          <p>Start a file with <code>use bangla</code> and all 67 keywords become Bangla words. Same grammar, Bengali digits, <code>মন্তব্য</code> comments.</p>
-        </article>
-        <article class="card reveal">
-          <div class="icon">⌨</div>
-          <h3>VS Code extension</h3>
-          <p>Syntax highlighting generated from the interpreter itself, snippets, and run-file with <code>Ctrl+Alt+R</code>. It can never drift out of sync.</p>
+          <p>Start a file with <code>use bangla</code> and all 67 keywords become Bangla words. Same grammar, Bengali digits, <code>&#2478;&#2472;&#2509;&#2468;&#2476;&#2509;&#2479;</code> comments. Plus a VS Code extension with a self-syncing grammar.</p>
         </article>
       </div>
     </div>
@@ -213,15 +204,15 @@
       <h2 class="reveal">One line.<br>No Python needed.</h2>
       <p class="sub reveal">The binary carries everything inside. Copy, paste, done.</p>
       <div class="tabs reveal">
-        <div class="tab-bar" role="tablist">
-          <button class="tab active" data-tab="unix" role="tab">macOS / Linux</button>
-          <button class="tab" data-tab="win" role="tab">Windows</button>
+        <div class="tab-bar" role="tablist" aria-label="Install instructions">
+          <button class="tab active" data-tab="unix" role="tab" aria-selected="true">macOS / Linux</button>
+          <button class="tab" data-tab="win" role="tab" aria-selected="false">Windows</button>
         </div>
-        <div class="tab-panel active" id="panel-unix">
+        <div class="tab-panel active" id="panel-unix" role="tabpanel">
 <pre class="code"><code>curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh</code></pre>
           <button class="copy" data-copy="curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh">Copy</button>
         </div>
-        <div class="tab-panel" id="panel-win">
+        <div class="tab-panel" id="panel-win" role="tabpanel">
 <pre class="code"><code>irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex</code></pre>
           <button class="copy" data-copy="irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex">Copy</button>
         </div>
@@ -260,6 +251,7 @@ show diagnosis</code></pre>
     <div class="wrap">
       <p class="kicker reveal">Roadmap</p>
       <h2 class="reveal">Where this is going.</h2>
+      <p class="sub reveal">Every milestone below shipped as a verified release. The next one is already in motion.</p>
       <ol class="timeline">
         <li class="tl done reveal">
           <span class="tl-ver">v0.4.0</span>
@@ -289,6 +281,10 @@ show diagnosis</code></pre>
           <span class="tl-ver">v1.3.0</span>
           <div><h3>Frontend in Jesun.Code</h3><p>Native HTML DSL, templates, and JS interop, all written in Jesun.Code itself: escaped HTML builders, {{ }} templates with loops and conditionals, breakout-proof JS strings. Shipped.</p></div>
         </li>
+        <li class="tl next reveal">
+          <span class="tl-ver">v1.4.0</span>
+          <div><h3>Interop packages</h3><p>Native <code>jpm</code> packages for platform integration: WordPress, React, and PHP helpers, written in Jesun.Code itself. In progress.</p></div>
+        </li>
       </ol>
     </div>
   </section>
@@ -304,20 +300,42 @@ show diagnosis</code></pre>
 </main>
 
 <footer>
-  <div class="wrap foot">
-    <div class="foot-brand">
-      <span class="brand-mark">&gt;_</span>
-      <span>Jesun<em>.Code</em></span>
+  <div class="foot">
+    <div>
+      <div class="foot-brand">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#0A3D2B"/><rect width="40" height="40" rx="10" fill="none" stroke="rgba(255,255,255,0.14)"/><text x="20" y="27" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-weight="700" font-size="17" fill="#34E08E">&gt;_</text></svg></span>
+        <span>Jesun<em>.Code</em></span>
+      </div>
+      <p class="foot-tag">The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed. Amazing is the minimum.</p>
     </div>
-    <p>Designed and built by Jesun Ahmad Ushno. MIT licensed. Amazing is the minimum.</p>
-    <div class="foot-links">
-      <a href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/JesunAhmadUshno/jesun-code/releases" target="_blank" rel="noopener">Releases</a>
-      <a href="blog/">Blog</a>
-      <a href="faq.html">FAQ</a>
-      <a href="about.html">About</a>
-      <a href="community.html">Community</a>
-      <a href="https://github.com/JesunAhmadUshno/jesun-code/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
+    <div class="foot-cols">
+      <div>
+        <h4>Product</h4>
+        <a href="#language">Language</a>
+        <a href="#brains">AI Brains</a>
+        <a href="#install">Install</a>
+        <a href="#roadmap">Roadmap</a>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <a href="blog/">Blog</a>
+        <a href="faq.html">FAQ</a>
+        <a href="brand/">Brand kit</a>
+        <a href="https://github.com/JesunAhmadUshno/jesun-code/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <a href="about.html">About</a>
+        <a href="community.html">Community</a>
+        <a href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/JesunAhmadUshno/jesun-code/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap doc</a>
+      </div>
+    </div>
+  </div>
+  <div class="foot-base">
+    <div class="foot-base-inner">
+      <span>Jesun.Code v1.3.0. MIT licensed.</span>
+      <span>Ship it. Verify it. Log it.</span>
     </div>
   </div>
 </footer>
@@ -329,7 +347,7 @@ show diagnosis</code></pre>
   "name": "Jesun.Code",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": ["Windows", "macOS", "Linux"],
-  "softwareVersion": "1.1.0",
+  "softwareVersion": "1.3.0",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
   "license": "https://github.com/JesunAhmadUshno/jesun-code/blob/main/LICENSE",
   "url": "https://jesunahmadushno.github.io/jesun-code/",

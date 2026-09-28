@@ -14,40 +14,101 @@
 <meta name="twitter:title" content="Community wall - Jesun.Code">
 <meta name="twitter:description" content="Programs, packages, and challenge entries from people building in plain English.">
 <link rel="canonical" href="https://jesunahmadushno.github.io/jesun-code/community.html">
+<meta name="theme-color" content="#0C9463">
+<link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2305080a'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%2300ff88' font-family='monospace' font-weight='bold'>&gt;_</text></svg>">
-<style>.wall{max-width:720px;margin:0 auto;padding:120px 24px 80px}.wall p,.wall li{color:#c6d4e2;line-height:1.75}.wall .empty{border:1px dashed #2a3b4f;border-radius:8px;padding:32px 24px;text-align:center;color:#9fb3c8;margin:32px 0}.wall code{font-family:monospace;color:#00ff88}</style>
 </head>
 <body>
-<canvas id="grid" aria-hidden="true"></canvas>
 <header class="nav" id="nav">
   <div class="nav-inner">
-    <a class="brand" href="./"><span class="brand-mark">&gt;_</span><span class="brand-name">Jesun<em>.Code</em></span></a>
-    <nav class="nav-links"><a href="./">Home</a><a href="blog/">Blog</a><a href="faq.html">FAQ</a><a href="about.html">About</a></nav>
+    <a class="brand" href="./" aria-label="Jesun.Code home">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#0A3D2B"/><text x="20" y="27" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-weight="700" font-size="17" fill="#34E08E">&gt;_</text></svg></span>
+      <span class="brand-name">Jesun<em>.Code</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="./">Home</a>
+      <a href="./#language">Language</a>
+      <a href="./#install">Install</a>
+      <a href="blog/">Blog</a>
+      <a href="faq.html">FAQ</a>
+      <a href="about.html">About</a>
+      <a href="brand/">Brand</a>
+    </nav>
+    <div class="nav-cta">
+      <span class="version-pill">v1.3.0</span>
+      <a class="btn btn-secondary btn-sm" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </header>
-<main class="wall">
-  <p class="kicker">Community</p>
-  <h1>The wall.</h1>
-  <p>This is where the community lives: programs written in plain English, packages shared through <code>jpm</code>, and entries from the build challenges. Every entry links back to its author.</p>
-  <div class="empty">
-    <p><strong>The wall is fresh paint. Be the first on it.</strong></p>
-    <p>Ship something in Jesun.Code, a package, a demo, a tutorial, and open an issue on GitHub with the link. The best entries get featured here with your name on them.</p>
+<main class="page">
+  <div class="page-head">
+    <p class="kicker">Community</p>
+    <h1>The wall.</h1>
+    <p class="lede">This is where the community lives: programs written in plain English, packages shared through <code>jpm</code>, and entries from the build challenges. Every entry links back to its author.</p>
   </div>
-  <h2>How to join</h2>
-  <ul>
-    <li><a href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">Star and fork the repo</a>, then build.</li>
-    <li>Write your first program: <code>show "hello, world"</code> still counts. Write your tenth and it counts more.</li>
-    <li>Share a package with <code>use "github.com/you/pkg"</code> so others can <code>bring in</code> your work.</li>
-    <li>Prefer Bangla? <code>use bangla</code> switches all 67 keywords. The Bangladesh challenge entries land here.</li>
-  </ul>
-  <h2>House rules</h2>
-  <ul>
-    <li>Be kind. Review the code, never the person.</li>
-    <li>Plain English, everywhere: error messages, issues, and docs a newcomer can read.</li>
-    <li>No tracebacks, no leaked internals, no shortcuts. Ship it, verify it, log it.</li>
-  </ul>
+  <div class="prose">
+    <div class="callout">
+      <p><strong>The wall is fresh paint. Be the first on it.</strong> Ship something in Jesun.Code, a package, a demo, a tutorial, and open an issue on GitHub with the link. The best entries get featured here with your name on them.</p>
+    </div>
+    <h2>How to join</h2>
+    <ul>
+      <li><a href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">Star and fork the repo</a>, then build.</li>
+      <li>Write your first program: <code>show "hello, world"</code> still counts. Write your tenth and it counts more.</li>
+      <li>Share a package with <code>use "github.com/you/pkg"</code> so others can <code>bring in</code> your work.</li>
+      <li>Prefer Bangla? <code>use bangla</code> switches all 67 keywords. The Bangladesh challenge entries land here.</li>
+    </ul>
+    <h2>House rules</h2>
+    <ul>
+      <li>Be kind. Review the code, never the person.</li>
+      <li>Plain English, everywhere: error messages, issues, and docs a newcomer can read.</li>
+      <li>No tracebacks, no leaked internals, no shortcuts. Ship it, verify it, log it.</li>
+    </ul>
+  </div>
 </main>
+<footer>
+  <div class="foot">
+    <div>
+      <div class="foot-brand">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#0A3D2B"/><text x="20" y="27" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-weight="700" font-size="17" fill="#34E08E">&gt;_</text></svg></span>
+        <span>Jesun<em>.Code</em></span>
+      </div>
+      <p class="foot-tag">The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed.</p>
+    </div>
+    <div class="foot-cols">
+      <div>
+        <h4>Product</h4>
+        <a href="./#language">Language</a>
+        <a href="./#install">Install</a>
+        <a href="./#roadmap">Roadmap</a>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <a href="blog/">Blog</a>
+        <a href="faq.html">FAQ</a>
+        <a href="brand/">Brand kit</a>
+        <a href="https://github.com/JesunAhmadUshno/jesun-code/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <a href="about.html">About</a>
+        <a href="community.html">Community</a>
+        <a href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </div>
+  <div class="foot-base">
+    <div class="foot-base-inner">
+      <span>Jesun.Code v1.3.0. MIT licensed.</span>
+      <span>Ship it. Verify it. Log it.</span>
+    </div>
+  </div>
+</footer>
 <script src="assets/app.js"></script>
 </body>
 </html>
