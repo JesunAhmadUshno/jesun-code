@@ -64,9 +64,18 @@ works only through the bridge, that domain is not done.
   interop, so real sites and React-level apps are expressible in
   Jesun.Code. Spec `docs/spec-v1.3.md`; `html`, `template`, `js` packages
   pure Jesun.Code, zero bridge.
-- **v1.4: interop packages.** Native jpm packages for the stacks the
-  world runs on: wordpress, react, PHP/laravel helpers. Calling them
-  works today; this phase replaces the need to leave the language.
+- **v1.4: interop packages (shipped 2026-09-30, v1.4.0).** Native jpm packages for the stacks the
+  world runs on: `wordpress` (any WP REST API; raw urllib primitives in,
+  every rule and every error in Jesun.Code), `react` (JSX builders plus a
+  Vite scaffolder), `php` (Laravel routes, controllers, Blade pages, plus
+  a project scaffolder). Spec `docs/spec-v1.4.md`; 34 differential tests,
+  all green on both interpreters.
+- **v1.5: the site builds itself.** A static site generator written in
+  Jesun.Code itself that emits the whole `docs/` tree (pages, blog,
+  brand kit, sitemap.xml, robots.txt, JSON-LD, llms.txt, icons).
+  Acceptance: page-for-page diff against the hand-built rebrand, every
+  page returns 200, zero broken links, all SEO/AEO/GEO plumbing intact,
+  before it ever touches Pages. Spec-first in `docs/spec-v1.5.md`.
 - **v2.0: games on PC.** Native 2D graphics, input, audio, and game
   loop. A visual game written in Jesun.Code, running on PC, no
   bridge.

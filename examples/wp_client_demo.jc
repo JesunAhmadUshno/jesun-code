@@ -1,0 +1,20 @@
+note v1.4 interop demo: talk to any WordPress site over its REST API.
+note Usage: python3 jesun.py examples/wp_client_demo.jc [base-url]
+note Defaults to the public WordPress demo API (read-only calls).
+
+bring in "wordpress"
+
+base is "https://demo.wp-api.org/wp-json"
+if length of arguments is greater than 0 then
+    base is arguments[0]
+
+site is wp_site with base and nothing and nothing
+show "Talking to " + site["base"]
+
+posts is wp_posts with site and 3
+for each p in posts
+    show wp_rendered with p["title"]
+    show "  " + p["link"]
+
+found is wp_search with site and "hello"
+show "Search found " + (text of (length of found)) + " post(s) mentioning hello."

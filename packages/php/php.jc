@@ -1,0 +1,192 @@
+note jpm package "php": PHP and Laravel helpers (spec v1.4 section 3).
+note The builders are pure Jesun.Code with no imports; php_scaffold alone
+note imports one raw primitive (os.makedirs) to create the project folders.
+note Every emitted file is pure text built in Jesun.Code.
+note One language, all solutions.
+
+import os as osmod
+import builtins as bmod
+
+php_lower is "abcdefghijklmnopqrstuvwxyz"
+php_upper is "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+php_letters is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+php_alnum is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+note ---- kinds: article + description for plain-English errors ----
+
+to php_article with k
+    if k is "agent" then
+        give back "an agent"
+    if k is "true/false" then
+        give back "true/false"
+    if k is "python value" then
+        give back "a python value"
+    give back "a " + k
+
+to php_describe with v
+    k is kind of v
+    if k is "text" then
+        give back "\"" + v + "\""
+    if k is "number" or k is "true/false" then
+        give back text of v
+    a is php_article with k
+    give back a
+
+note ---- text helpers ----
+
+to php_lowercase with content
+    if kind of content is not "text" then
+        a is php_article with (kind of content)
+        fail with "php_lowercase needs text, but this is " + a + "."
+    chars is characters of content
+    lowers is characters of php_lower
+    uppers is characters of php_upper
+    out is []
+    for each c in chars
+        i is 0
+        done is false
+        repeat while i is less than 26
+            if uppers[i] is c then
+                push lowers[i] to out
+                done is true
+            i is i + 1
+        if not done then
+            push c to out
+    give back join of out with ""
+
+to php_escape with content
+    if kind of content is not "text" then
+        a is php_article with (kind of content)
+        fail with "php_escape needs text, but this is " + a + "."
+    out is join of (split of content by "&") with "&amp;"
+    out is join of (split of out by "<") with "&lt;"
+    out is join of (split of out by ">") with "&gt;"
+    out is join of (split of out by "\"") with "&quot;"
+    out is join of (split of out by "'") with "&#039;"
+    give back out
+
+to php_quote with content
+    if kind of content is not "text" then
+        a is php_article with (kind of content)
+        fail with "php_quote needs text, but this is " + a + "."
+    out is join of (split of content by "\\") with "\\\\"
+    out is join of (split of out by "'") with "\\'"
+    give back out
+
+to php_valid_identifier with name
+    if kind of name is not "text" then
+        give back false
+    if length of name is 0 then
+        give back false
+    chars is characters of name
+    lead is chars[0]
+    if not (php_letters contains lead) and lead is not "_" then
+        give back false
+    for each c in chars
+        if not (php_alnum contains c) and c is not "_" then
+            give back false
+    give back true
+
+to php_indent with body
+    lines is split of body by "\n"
+    out is []
+    for each l in lines
+        push ("    " + l) to out
+    give back join of out with "\n"
+
+note ---- routes ----
+
+to php_route with method and path and action
+    m is php_lowercase with method
+    if m is not "get" and m is not "post" and m is not "put" and m is not "patch" and m is not "delete" then
+        d is php_describe with method
+        fail with d + " is not a supported route method."
+    if kind of path is not "text" then
+        d is php_describe with path
+        fail with "the route path has to be text, but this is " + d + "."
+    if kind of action is not "text" then
+        d is php_describe with action
+        fail with "the route action has to be text, but this is " + d + "."
+    parts is split of action by "@"
+    if length of parts is not 2 then
+        fail with "\"" + action + "\" is not a controller action like \"PostController@index\"."
+    cls is parts[0]
+    fn is parts[1]
+    if not (php_valid_identifier with cls) then
+        fail with "\"" + cls + "\" is not a valid controller name."
+    if not (php_valid_identifier with fn) then
+        fail with "\"" + fn + "\" is not a valid action name."
+    give back "Route::" + m + "('" + (php_quote with path) + "', [" + cls + "::class, '" + (php_quote with fn) + "']);"
+
+note ---- controllers ----
+
+to controller with name and actions
+    if kind of name is not "text" then
+        d is php_describe with name
+        fail with d + " is not a valid controller name."
+    if not (php_valid_identifier with name) then
+        fail with "\"" + name + "\" is not a valid controller name."
+    chars is characters of name
+    if not (php_upper contains chars[0]) then
+        fail with "\"" + name + "\" is not a valid controller name."
+    if kind of actions is not "list" then
+        d is php_describe with actions
+        fail with "actions has to be a list of text, but this is " + d + "."
+    for each a in actions
+        if not (php_valid_identifier with a) then
+            d is php_describe with a
+            fail with d + " is not a valid action name."
+    methods is []
+    for each a in actions
+        push ("    public function " + a + "()\n    {{\n        // " + a + "\n    }") to methods
+    give back "<?php\n\nclass " + name + " extends Controller\n{{\n" + (join of methods with "\n\n") + "\n}\n"
+
+note ---- Blade pages ----
+
+to blade_page with title and body
+    t is php_escape with title
+    bc is kind of body
+    inner is ""
+    if bc is "text" then
+        inner is body
+    otherwise
+        if bc is "list" then
+            inner is join of body with "\n"
+        otherwise
+            d is php_describe with body
+            fail with "the page body has to be text or a list of text, but this is " + d + "."
+    give back "<x-layout>\n" + (php_indent with ("<x-slot name=\"title\">" + t + "</x-slot>\n" + inner)) + "\n</x-layout>"
+
+note ---- scaffolding: a small Laravel-style skeleton under ./<name>/ ----
+
+to php_valid_project with name
+    if kind of name is not "text" then
+        give back false
+    if length of name is 0 then
+        give back false
+    chars is characters of name
+    lowers is php_lower + "-0123456789"
+    if not (lowers contains chars[0]) then
+        give back false
+    for each c in chars
+        if not (lowers contains c) then
+            give back false
+    give back true
+
+to php_scaffold with name
+    if not (php_valid_project with name) then
+        d is php_describe with name
+        fail with d + " is not a valid project name. Use lowercase letters, numbers, and dashes."
+    makedirs is bmod.getattr(osmod, "makedirs")
+    makedirs("./" + name + "/app", exist_ok=true)
+    makedirs("./" + name + "/views", exist_ok=true)
+    routes is "<?php\n\nuse App\\Http\\Controllers\\PostController;\n\n" + (php_route with "get" and "/posts" and "PostController@index") + "\n"
+    ctrl is controller with "PostController" and ["index"]
+    home is blade_page with name and ("<h1>" + (php_escape with name) + "</h1>")
+    p1 is "./" + name + "/routes.php"
+    p2 is "./" + name + "/app/PostController.php"
+    p3 is "./" + name + "/views/home.blade.php"
+    write routes to file p1
+    write ctrl to file p2
+    write home to file p3
+    give back [p1, p2, p3]

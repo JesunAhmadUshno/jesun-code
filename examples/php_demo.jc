@@ -1,0 +1,17 @@
+note v1.4 interop demo: emit a Laravel route, controller, and Blade page,
+note then scaffold a small project skeleton.
+note Usage: python3 jesun.py examples/php_demo.jc
+note Writes ./my-blog/ (routes.php, app/PostController.php, views/home.blade.php).
+
+bring in "php"
+
+show php_route with "get" and "/posts" and "PostController@index"
+show ""
+show controller with "PostController" and ["index", "show"]
+show ""
+show blade_page with "My Blog" and "<h1>Welcome</h1>"
+show ""
+paths is php_scaffold with "my-blog"
+show "Wrote:"
+for each p in paths
+    show "  " + p

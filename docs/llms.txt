@@ -7,7 +7,7 @@
 - About the builder: https://jesunahmadushno.github.io/jesun-code/about.html
 - Community wall: https://jesunahmadushno.github.io/jesun-code/community.html
 - Repo: https://github.com/JesunAhmadUshno/jesun-code
-- License: MIT. Current version: 1.3.0 (2026-09-26).
+- License: MIT. Current version: 1.4.0 (2026-09-30).
 
 ## The language
 
@@ -40,6 +40,7 @@
 
 ## Roadmap (honest)
 
+- v1.4.0 (shipped 2026-09-30): interop in Jesun.Code itself. `wordpress` package (any WordPress REST API: wp_site/wp_posts/wp_post/wp_search/wp_comments/wp_create_post; raw urllib primitives in, every rule and error in Jesun.Code). `react` package (jsx_escape/jsx_props/jsx_element/component/state_hook; scaffold_app writes a runnable Vite skeleton). `php` package (php_route/php_escape/controller/blade_page; php_scaffold writes routes.php, app/PostController.php, views/home.blade.php). Demos: examples/wp_client_demo.jc, examples/react_demo.jc, examples/php_demo.jc.
 - v1.3.0 (shipped 2026-09-26): frontend in Jesun.Code itself. `html` package (escaped HTML DSL), `template` package ({{ }} placeholders, {% for %} loops, {% if %} conditionals, render_template/render_file), `js` package (breakout-proof js_string, js_value, script_tag, dom_ready, on_event, js_fetch). Flagship demo: examples/todo_frontend.jc. Zero bridge.
 - v1.2.0: jweb and sqlite. A web framework and a database written in Jesun.Code itself: routing, JSON, sessions, static files, parameterized queries with a working-folder sandbox, plain-English errors. Flagship demo: examples/todo.jc.
 - v1.1.0: native builds. `jesun build` transpiles the core language to C and compiles real native binaries with cc; no bundled runtime in the output. The `jesun` tool itself still ships as a single bundled binary.

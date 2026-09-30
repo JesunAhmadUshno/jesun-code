@@ -1,0 +1,227 @@
+note jpm package "react": React/JSX builders and scaffolding (spec v1.4 section 2).
+note The builders are pure Jesun.Code: no imports, no bridge. scaffold_app
+note imports one raw primitive (os.makedirs) to create the app folders;
+note every emitted file is pure text built in Jesun.Code.
+note One language, all solutions.
+
+import os as osmod
+import builtins as bmod
+
+react_letters is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+react_alnum is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+react_lower is "abcdefghijklmnopqrstuvwxyz"
+react_upper is "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+note ---- kinds: article + description for plain-English errors ----
+
+to react_article with k
+    if k is "agent" then
+        give back "an agent"
+    if k is "true/false" then
+        give back "true/false"
+    if k is "python value" then
+        give back "a python value"
+    give back "a " + k
+
+to react_describe with v
+    k is kind of v
+    if k is "text" then
+        give back "\"" + v + "\""
+    if k is "number" or k is "true/false" then
+        give back text of v
+    a is react_article with k
+    give back a
+
+note ---- names: tags, components, identifiers ----
+
+to react_valid_tag with tag
+    if kind of tag is not "text" then
+        give back false
+    if length of tag is 0 then
+        give back false
+    chars is characters of tag
+    if not (react_letters contains chars[0]) then
+        give back false
+    for each c in chars
+        if not (react_alnum contains c) then
+            give back false
+    give back true
+
+to react_valid_component with name
+    if not (react_valid_tag with name) then
+        give back false
+    chars is characters of name
+    lead is chars[0]
+    if not (react_upper contains lead) then
+        give back false
+    give back true
+
+to react_capitalize with name
+    chars is characters of name
+    lead is chars[0]
+    lowers is characters of react_lower
+    uppers is characters of react_upper
+    upper_first is lead
+    i is 0
+    repeat while i is less than 26
+        if lowers[i] is lead then
+            upper_first is uppers[i]
+        i is i + 1
+    rest is ""
+    j is 1
+    repeat while j is less than (length of chars)
+        rest is rest + chars[j]
+        j is j + 1
+    give back upper_first + rest
+
+note ---- escaping: & lead, then < > " ----
+
+to jsx_escape with content
+    if kind of content is not "text" then
+        a is react_article with (kind of content)
+        fail with "jsx_escape needs text, but this is " + a + "."
+    out is join of (split of content by "&") with "&amp;"
+    out is join of (split of out by "<") with "&lt;"
+    out is join of (split of out by ">") with "&gt;"
+    out is join of (split of out by "\"") with "&quot;"
+    give back out
+
+note ---- props: a table rendered in insertion order ----
+
+to jsx_prop_value with v
+    k is kind of v
+    if k is "text" then
+        give back v
+    if k is "number" then
+        give back text of v
+    if k is "true/false" then
+        give back text of v
+    if k is "nothing" then
+        give back ""
+    a is react_article with k
+    fail with "a prop value has to be text, a number, true/false, or nothing, but this is " + a + "."
+
+to jsx_props with props
+    if props is nothing then
+        give back ""
+    if kind of props is not "table" then
+        d is react_describe with props
+        fail with "props has to be a table or nothing, but this is " + d + "."
+    out is ""
+    for each k in keys of props
+        out is out + " " + k + "=\"" + (jsx_escape with (jsx_prop_value with props[k])) + "\""
+    give back out
+
+note ---- elements: text children stay raw so builders compose ----
+
+to jsx_children with children
+    kc is kind of children
+    if kc is "text" then
+        give back children
+    if kc is "list" then
+        for each c in children
+            if kind of c is not "text" then
+                d is react_describe with c
+                fail with "children have to be text, but one is " + d + "."
+        give back join of children with ""
+    d is react_describe with children
+    fail with "children have to be text or a list of text, but this is " + d + "."
+
+to jsx_element with tag and props and children
+    if not (react_valid_tag with tag) then
+        d is react_describe with tag
+        fail with d + " is not a valid JSX tag name."
+    a is jsx_props with props
+    if children is nothing then
+        give back "<" + tag + a + " />"
+    body is jsx_children with children
+    give back "<" + tag + a + ">" + body + "</" + tag + ">"
+
+to jsx_text with content
+    give back jsx_escape with content
+
+note ---- components and hooks ----
+
+to react_indent with body
+    lines is split of body by "\n"
+    out is []
+    for each l in lines
+        push ("    " + l) to out
+    give back join of out with "\n"
+
+to component with name and props and body
+    if not (react_valid_component with name) then
+        d is react_describe with name
+        fail with d + " is not a valid component name."
+    if kind of props is not "list" then
+        d is react_describe with props
+        fail with "props has to be a list of text, but this is " + d + "."
+    for each p in props
+        if kind of p is not "text" then
+            d is react_describe with p
+            fail with "props has to be a list of text, but one is " + d + "."
+    bc is kind of body
+    inner is ""
+    if bc is "text" then
+        inner is body
+    otherwise
+        if bc is "list" then
+            inner is join of body with "\n"
+        otherwise
+            d is react_describe with body
+            fail with "the component body has to be text or a list of text, but this is " + d + "."
+    give back "function " + name + "({{ " + (join of props with ", ") + " }}) {{\n  return (\n" + (react_indent with inner) + "\n  );\n}"
+
+to state_hook with name and initial
+    if kind of name is not "text" then
+        d is react_describe with name
+        fail with d + " is not a valid state name."
+    if length of name is 0 then
+        fail with "\"\" is not a valid state name."
+    chars is characters of name
+    first_ok is (react_letters contains chars[0]) or chars[0] is "_"
+    if not first_ok then
+        d is react_describe with name
+        fail with d + " is not a valid state name."
+    for each c in chars
+        if not (react_alnum contains c) and c is not "_" then
+            d is react_describe with name
+            fail with d + " is not a valid state name."
+    setter is "set" + (react_capitalize with name)
+    give back "const [" + name + ", " + setter + "] = useState(" + (json of initial) + ");"
+
+note ---- scaffolding: a runnable Vite skeleton, written into ./<name>/ ----
+
+to react_valid_app with name
+    if kind of name is not "text" then
+        give back false
+    if length of name is 0 then
+        give back false
+    chars is characters of name
+    lowers is react_lower + "-0123456789"
+    if not (lowers contains chars[0]) then
+        give back false
+    for each c in chars
+        if not (lowers contains c) then
+            give back false
+    give back true
+
+to scaffold_app with name
+    if not (react_valid_app with name) then
+        d is react_describe with name
+        fail with d + " is not a valid app name. Use lowercase letters, numbers, and dashes."
+    makedirs is bmod.getattr(osmod, "makedirs")
+    makedirs("./" + name + "/src", exist_ok=true)
+    pkg is "{{\n  \"name\": \"" + name + "\",\n  \"private\": true,\n  \"version\": \"0.1.0\",\n  \"type\": \"module\",\n  \"scripts\": {{\n    \"dev\": \"vite\",\n    \"build\": \"vite build\"\n  }},\n  \"dependencies\": {{\n    \"react\": \"^18.3.1\",\n    \"react-dom\": \"^18.3.1\"\n  }},\n  \"devDependencies\": {{\n    \"vite\": \"^5.4.0\",\n    \"@vitejs/plugin-react\": \"^4.3.0\"\n  }}\n}}\n"
+    index is "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <title>" + (jsx_escape with name) + "</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.jsx\"></script>\n  </body>\n</html>\n"
+    main is "import React from 'react'\nimport ReactDOM from 'react-dom/client'\nimport App from './App.jsx'\n\nReactDOM.createRoot(document.getElementById('root')).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n)\n"
+    app is "export default function App() {{\n  return (\n    <main>\n      <h1>" + (jsx_escape with name) + "</h1>\n      <p>Built with Jesun.Code.</p>\n    </main>\n  )\n}\n"
+    p1 is "./" + name + "/package.json"
+    p2 is "./" + name + "/index.html"
+    p3 is "./" + name + "/src/main.jsx"
+    p4 is "./" + name + "/src/App.jsx"
+    write pkg to file p1
+    write index to file p2
+    write main to file p3
+    write app to file p4
+    give back [p1, p2, p3, p4]
