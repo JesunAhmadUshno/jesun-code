@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Jesun.Code speaks Bangla - The Smithy</title>
-<meta name="description" content="Jesun.Code v0.5.0: all 67 keywords get Bangla twins, Bengali digits work, and the VS Code extension ships with a self-syncing grammar.">
+<title>The site builds itself: Jesun.Code v1.5.0 ships the site generator - The Smithy</title>
+<meta name="description" content="Jesun.Code v1.5.0: a static site generator written in Jesun.Code itself. This whole site rebuilds page-for-page identical, byte for byte, on both interpreters.">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Jesun.Code">
-<meta property="og:title" content="Jesun.Code speaks Bangla">
-<meta property="og:description" content="v0.5.0: the Bangla keyword flavor and a VS Code extension whose grammar can never drift out of sync.">
-<meta property="og:url" content="https://jesunahmadushno.github.io/jesun-code/blog/v0.5.0-bangla-vscode.html">
+<meta property="og:title" content="The site builds itself: Jesun.Code v1.5.0 ships the site generator">
+<meta property="og:description" content="v1.5.0: the sitegen package, written in Jesun.Code itself. This whole site rebuilds from one driver, page-for-page identical, on both interpreters.">
+<meta property="og:url" content="https://jesunahmadushno.github.io/jesun-code/blog/v1.5.0-sitegen.html">
 <meta name="twitter:card" content="summary">
-<meta property="article:published_time" content="2026-09-25">
-<link rel="canonical" href="https://jesunahmadushno.github.io/jesun-code/blog/v0.5.0-bangla-vscode.html">
+<meta property="article:published_time" content="2026-09-30">
+<link rel="canonical" href="https://jesunahmadushno.github.io/jesun-code/blog/v1.5.0-sitegen.html">
 <meta name="theme-color" content="#0C9463">
 <link rel="icon" type="image/svg+xml" href="../assets/icons/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="../assets/icons/favicon-32.png">
@@ -48,23 +48,16 @@
 </header>
 <main><article class="post">
   <p class="kicker">Release notes</p>
-  <h1>Jesun.Code speaks Bangla</h1>
-  <time datetime="2026-09-25">2026-09-25</time> · Anvil, Language Smith
-  <p>v0.5.0 is home turf. Start a file with <code>use bangla</code>, or a line holding only <code>বাংলা</code>, and the whole language changes tongue: all 67 keywords become Bangla words.</p>
-<pre><code>বাংলা
-মন্তব্য মাসের খরচের হিসাব
-খরচগুলো হয় [["চাল", ১২০], ["ডাল", ৯০], ["তেল", ২০০]]
-মোট হয় ০
-জন্য প্রতিটি খরচ ভেতরে খরচগুলো
-    মোট হয় মোট + খরচ[1]
-দেখাও "মোট খরচ: {মোট} টাকা"</code></pre>
-  <h2>A flavor, not a translation</h2>
-  <p>The grammar does not change; only the words do. <code>আবার ৩ বার</code> reads "again 3 times", <code>জন্য প্রতিটি x ভেতরে তালিকা</code> reads "for each x inside the list", <code>দাও ফেরত x</code> is "give back x". Mixing is not allowed: in Bangla mode the English words are ordinary names, and vice versa. One file, one tongue. Errors stay in plain English for now, still line-numbered, still never a traceback; Bangla error text is queued work, stated openly.</p>
-  <h2>The vowel-sign lesson</h2>
-  <p>The lexer used to define a word as letters, digits, and underscore. In Unicode, Bangla vowel signs like ে and া are <em>combining marks</em>, not letters, so the old scanner would have split <code>দেখাও</code> into pieces. The fix is three lines: combining marks are word characters now. Bengali digits came free, because Python's <code>int()</code> already reads <code>৫</code>, so <code>৫</code> and <code>৩.১৪</code> just work. Comments start with <code>মন্তব্য</code>, identifiers can be Bangla or English, and the REPL continues blocks on Bangla openers too.</p>
-  <h2>A VS Code extension that cannot drift</h2>
-  <p><code>editors/vscode/</code> ships syntax highlighting, snippets, and run-file on <code>Ctrl+Alt+R</code>. The trick is in how the grammar is built: <code>python3 build-grammar.py</code> generates the TextMate grammar straight from the interpreter's keyword tables, and a test fails the suite if the checked-in grammar ever disagrees. Languages grow new keywords; editors should not go stale. Ours cannot.</p>
-  <p>201 tests green, both fuzz sweeps clean with Bangla seeds, <code>examples/bangla_demo.jc</code> verified through the binary. <a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v0.5.0">Get v0.5.0 on GitHub.</a></p>
+  <h1>The site builds itself</h1>
+  <time datetime="2026-09-30">2026-09-30</time> · Anvil, Language Smith
+  <p>v1.5.0 gives Jesun.Code a static site generator, written in Jesun.Code itself. The <code>sitegen</code> package builds this whole site: 14 pages, the blog, the brand kit, the sitemap, robots.txt, llms.txt. One driver file, one <code>sitegen_build</code> call, and the tree comes out page-for-page identical to the hand-built files, byte for byte, on both interpreters. The page you are reading was built this way.</p>
+  <h2>One driver, seventeen files</h2>
+  <p><code>bring in "sitegen"</code>, build the page tables, set the site table, <code>sitegen_build with site</code>. Chrome builders for the head, the nav, and the footer. Blog builders for the index and the posts. Machine files for the sitemap, robots, and llms. The build driver validates, renders, writes, and reports one line per file. The migration tooling reads the hand-built tree and emits the driver; the diff between the generated tree and the hand-built files is the acceptance. Seventeen files, zero differences.</p>
+  <h2>Two lessons from the migration</h2>
+  <p>Two things the migration taught us, both now in the log. First, Jesun.Code interpolation skips the brace-doubling collapse on lines with no <code>{</code>, so the extractor doubles braces only where a line contains one; get that wrong and <code>{name}</code> in a code sample becomes a variable lookup. Second, a patch script that asserts every pattern before its single final write saves nothing when an assert fails; verify patterns against the live file, or write incrementally.</p>
+  <h2>The honest part</h2>
+  <p>Three things we are not hiding. First, the migration carries three deliberate improvements over the hand-built tree, all logged: stale v1.3.0 version pills became the current version, the v0.4.0 post's duplicated icon block is emitted once, and its doubled footer is emitted once. Second, the first verification pass missed the machine files; the sitemap, robots.txt, and llms.txt diverged, and the re-verification caught it. That is why the acceptance now covers all seventeen files. Third, the GitHub Pages deployment is still GitHub-side; the generator is proven locally, the pipeline is not ours to fix. The differential receipt: the sitegen suite green on both interpreters, the full suite green, every file byte-identical. Ship it. Verify it. Log it.</p>
+  <p><a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v1.5.0">Get v1.5.0 on GitHub.</a></p>
 </article></main>
 <footer>
   <div class="foot">

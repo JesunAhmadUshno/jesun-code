@@ -36,7 +36,7 @@
       <a href="brand/">Brand</a>
     </nav>
     <div class="nav-cta">
-      <span class="version-pill">v1.4.0</span>
+      <span class="version-pill">v1.5.0</span>
       <a class="btn btn-secondary btn-sm" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">GitHub</a>
     </div>
     <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
@@ -107,6 +107,11 @@
   </details>
 
   <details>
+    <summary>Can Jesun.Code build its own website?</summary>
+    <p>Yes, since v1.5.0, and it does. The <code>sitegen</code> package is a static site generator written in Jesun.Code itself: chrome builders for the head, the nav, and the footer, blog builders for the index and the posts, and machine files for the sitemap, robots.txt, and llms.txt. One driver file and one <code>sitegen_build</code> call rebuild this whole site page-for-page identical, byte for byte, on both interpreters. The page you are reading was built this way.</p>
+  </details>
+
+  <details>
     <summary>What is the roadmap?</summary>
     <p>v1.0.0 shipped self-hosting: the interpreter (jesun.jc) is written in Jesun.Code itself (the Python implementation is the bootstrap only). v1.1.0 shipped native builds: <code>jesun build</code> transpiles the core language to C and compiles real native binaries with no bundled runtime in the output. v1.2.0 shipped jweb and sqlite: a web framework and a database written in Jesun.Code itself, with routing, sessions, static files, parameterized queries, and plain-English errors. v1.3.0 shipped the frontend: the html package (escaped HTML DSL), the template package ({{ }} placeholders, for loops, if conditionals), and the js package (breakout-proof JS strings, script_tag, dom_ready, on_event, js_fetch), all written in Jesun.Code itself with zero bridge. v1.4.0 shipped interop: the wordpress package (any WP REST API, raw urllib primitives in, every rule and error in Jesun.Code), the react package (JSX builders plus a Vite scaffolder), and the php package (Laravel routes, controllers, Blade pages, plus a project scaffolder). The honest framing: the <code>jesun</code> tool itself still ships as a single bundled binary (you never install Python); what changed is that <code>jesun build</code> now produces genuinely native programs. Neither is claimed otherwise.</p>
   </details>
@@ -150,7 +155,7 @@
   </div>
   <div class="foot-base">
     <div class="foot-base-inner">
-      <span>Jesun.Code v1.4.0. MIT licensed.</span>
+      <span>Jesun.Code v1.5.0. MIT licensed.</span>
       <span>Ship it. Verify it. Log it.</span>
     </div>
   </div>
@@ -172,6 +177,7 @@
     {"@type": "Question", "name": "What is the roadmap?", "acceptedAnswer": {"@type": "Answer", "text": "v1.0.0 shipped self-hosting: the interpreter is written in Jesun.Code itself. v1.1.0 shipped native builds: jesun build transpiles to C and compiles real native binaries with no bundled runtime in the output. v1.2.0 shipped jweb and sqlite: a web framework and a database written in Jesun.Code itself."}},
     {"@type": "Question", "name": "What license is it?", "acceptedAnswer": {"@type": "Answer", "text": "MIT. Do anything with it."}},
     {"@type": "Question", "name": "Can Jesun.Code talk to WordPress, React, or PHP?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, since v1.4.0: the wordpress package talks to any WordPress REST API, the react package builds JSX and scaffolds Vite apps, and the php package emits Laravel routes, controllers, and Blade pages. All written in Jesun.Code itself."}},
+    {"@type": "Question", "name": "Can Jesun.Code build its own website?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, since v1.5.0: the sitegen package is a static site generator written in Jesun.Code itself. One driver file and one sitegen_build call rebuild this whole site page-for-page identical, byte for byte, on both interpreters."}},
     {"@type": "Question", "name": "Can Jesun.Code build websites?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, both sides. v1.2.0 shipped jweb and sqlite: routing, sessions, static files, and parameterized queries, all written in Jesun.Code itself. v1.3.0 adds the frontend: the html package (an escaped HTML DSL), the template package (placeholder, for-loop, and if-conditional templates), and the js package (breakout-proof JavaScript strings, script tags, event wiring). See examples/todo_frontend.jc. v1.4.0 adds interop: wordpress, react, and php packages, all written in Jesun.Code itself."}}
   ]
 }
