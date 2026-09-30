@@ -71,9 +71,9 @@ to js_value_depth with value and depth
         give back "[" + join of parts with ", " + "]"
     if k is "table" then
         parts is []
-        for each key in keys of value
-            ks is js_string with key
-            vs is js_value_depth with (value[key]) and (depth + 1)
+        for each tkey in keys of value
+            ks is js_string with tkey
+            vs is js_value_depth with (value[tkey]) and (depth + 1)
             push (ks + ": " + vs) to parts
         give back "{{" + join of parts with ", " + "}"
     a is js_article with k

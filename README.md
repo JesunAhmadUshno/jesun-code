@@ -461,23 +461,30 @@ writes byte-identical output on both interpreters. Demo:
 `examples/sitegen_demo.jc`. 34 differential tests in
 `tests/test_sitegen.py`, all green on both interpreters.
 
-Sprint 2 migrated the whole `docs/` tree onto the generator: a build-time
-extractor (`hidden_files/sitegen_extract.py` in the goal workspace) reads
-the hand-built pages and emits a self-contained driver
-(`hidden_files/sitegen_migrate.jc`, ~2,100 lines of Jesun.Code page data)
-that rebuilds all 14 pages through `sitegen`. Page-level chrome overrides
-(`nav_links`, per-page SEO fields, `og_type`, `article_date`,
+Sprint 2 made the claim real. The migration commit that shipped v1.5.0 was
+done by hand; the committed, reproducible pipeline landed in the commit
+after it. `site/build.jc` (pure Jesun.Code: the site table, 15 page tables,
+and 9 post tables, assembled through one `sitegen_build` call) reads authored
+content fragments from `site/content/` (29 fragments: 14 page bodies, 5
+JSON-LD blocks, 9 post summaries, the `llms.txt` body). Page-level chrome
+overrides (`nav_links`, per-page SEO fields, `og_type`, `article_date`,
 `no_twitter_meta`, footer column/tagline/stroke overrides, `github_svg`,
-plus three byte-fidelity wart flags) let the generator reproduce every
-hand-tuned variant. The migration hit byte-identical output on all 14
-pages through both interpreters, then applied three deliberate improvements
-(stale `v1.3.0` pills to the current version, one duplicated icon block removed,
-the v0.4.0 post's doubled footer emitted once). Re-verification caught three
-machine-file gaps the first pass missed (sitemap changefreq/priority entries,
-robots trailing newline, llms.txt carried verbatim); the package models them.
-`docs/` is now the generated tree (15 pages plus the 3 machine files, 0 broken
-internal links, no stale chrome, SEO plumbing intact). v1.5.0 shipped 2026-09-30:
-release post `docs/blog/v1.5.0-sitegen.html`.
+byte-fidelity gap flags, blog-index summary/link variants) reproduce every
+hand-tuned variant, and the machine files are generated too (sitemap
+changefreq/priority, robots trailing newline, `llms.txt` carried verbatim).
+The build is byte-identical on all 18 files (15 pages plus the 3 machine
+files) through the bootstrap interpreter and again through the self-hosted
+walker, guarded by `tests/test_site_build.py`. No post-processing, no
+hand edits: the build never touches `docs/assets/`, `docs/.nojekyll`, or
+`docs/*.md`. Reproduce it from the repo root:
+
+```sh
+python3 jesun.py site/build.jc
+```
+
+`docs/` is the generated tree. (Set `JESUN_CODE_SITE_BASE` to a relative
+folder to stage the build elsewhere.) v1.5.0 shipped 2026-09-30: release
+post `docs/blog/v1.5.0-sitegen.html`.
 
 ## v2.0 in progress: games on PC
 
@@ -507,8 +514,20 @@ three-note `jingle.wav` verified as valid 11025 Hz 8-bit mono RIFF.
 Differential tests in `tests/test_game.py` (frames, draws, input, loop,
 sound, `\u` escapes, failure shapes), the `tests/fuzz_game.py` game
 fuzzer, and `\u` seeds in `tests/fuzz.py`, all green on both
-interpreters. Full spec: `docs/spec-v2.0.md`. Live window and live
-keyboard stay sprint 2 scope; no release, milestone incomplete.
+interpreters. Full spec: `docs/spec-v2.0.md`.
+
+Sprint 2 ships the live surface driver: the terminal is the display.
+Three new bootstrap-only statements: `display` (no newline, flushed),
+`read key [within <ms>] giving <name>` (raw termios read; arrows to
+`up`/`down`/`left`/`right`, Ctrl-C to `quit`), and `raw mode` /
+`cooked mode` (lock-counted hold across reads). The `window` package
+(`packages/window/window.jc`) drives the live loop: alt screen,
+half-block 24-bit ANSI frames, non-blocking key drain, fixed-tick
+`window_run`. `examples/snake_live.jc` plays live snake; tmux
+verification proves real keypresses steer the game (keypress PPM
+differs from baseline). Tests in `tests/test_window.py` (17 tests,
+differential). No release yet; v2.0 milestone completes when the full
+suite is green and the binary is rebuilt.
 
 ## What v0.4 is, honestly
 

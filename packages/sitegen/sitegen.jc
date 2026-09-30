@@ -46,14 +46,14 @@ to sitegen_escape with content
 
 note ---- optional table key: missing is nothing ----
 
-to sitegen_opt with t and key
+to sitegen_opt with t and tkey
     for each k in keys of t
-        if k is key then
+        if k is tkey then
             give back t[k]
     give back nothing
 
-to sitegen_require_text with t and key and what
-    v is sitegen_opt with t and key
+to sitegen_require_text with t and tkey and what
+    v is sitegen_opt with t and tkey
     if v is nothing then
         fail with what + " is missing."
     if kind of v is not "text" then

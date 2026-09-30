@@ -205,15 +205,49 @@ short; the suite asserts logic on tiny frames (8x8 and below) and the
 differential slice stays tiny. Big frames are the user's adventure,
 not the suite's.
 
-## 9. Sprint 2 scope: the live surface driver (NOT this sprint)
+## 9. Sprint 2: the live surface driver (SHIPPED 2026-09-30, this section)
 
-A `window` companion that opens a real OS window and pumps real key
-events into the pad, so the same `update`/`draw` game runs live on a
-PC. Open design questions: which surface (terminal ANSI driver is
-verifiable here via tmux; a true GUI window needs an OS toolkit and
-honest framing about what carries it), and the byte writer that
-retires section 5's 128 rule. None of it is started in sprint 1; this
-section is the bookmark, not the build.
+Sprint 2 ships the `window` companion: the same `update`/`draw` game
+now runs LIVE in the player's terminal window, with real keypresses
+driving the pad. Two language additions carry it (`display` and
+`read key`, section 11); the driver itself is the pure-Jesun.Code
+jpm package `window` (section 12).
+
+Design decisions, dated 2026-09-30, answering the open questions from
+sprint 1:
+
+1. **Surface: the terminal ANSI driver.** The spec's own first
+   candidate. The terminal emulator is a window on a PC; the driver
+   opens the game inside it (alternate screen, hidden cursor) and
+   takes real keypresses in raw mode. It is verifiable here: the
+   acceptance run drives the demo inside tmux with real `send-keys`
+   keystrokes and reads the live frames back with `capture-pane`.
+   Frames render as ANSI 24-bit half-blocks (`▀`: foreground pixel on
+   top, background pixel below), two framebuffer rows per terminal
+   row, so a 64x48 game fits a standard 80x24 terminal.
+
+2. **The true GUI window stays out, honestly.** A real OS GUI window
+   needs a toolkit (SDL, Tk, or similar). The only path to one today
+   is the Python bridge, and the founder's law forbids counting the
+   bridge as the solution for any domain. The release notes say
+   exactly this. When Jesun.Code grows a native surface (the v2.1/v3.0
+   rungs), the same `update`/`draw` game plugs into it unchanged: the
+   driver boundary is the pad and the frame, not the pixels.
+
+3. **The byte writer stays future work.** It is orthogonal to the live
+   surface: it retires the 128 rule for file audio (section 5), and
+   the live driver does not need it. The 128 rule stands with its
+   honest framing; the byte writer moves to the v2.1 audio rung. No
+   live audio playback either: there is no audio device on the build
+   machine to verify against, and an unverifiable claim is not a
+   shipped feature. The WAV writer (section 5) already produces real
+   playable files; playing them is the player's media player, today.
+
+What the driver is NOT: it does not change the engine (`game`
+package, section 1-4, untouched). Scripted input and the live pad
+merge: `window_keys` drains real keypresses into the same pad the
+scripted demo uses, so a game is testable headless and playable live
+with zero code changes.
 
 ## 10. `\uXXXX` string escapes (v2.0 language addition)
 
@@ -235,3 +269,123 @@ inert `{` that never starts interpolation, and `\u007d` never closes
 one. To write a literal brace the old way, `{{` and `}}` still work.
 Rationale: an escape is data, not syntax; rescanning decoded text
 would let data fake code.
+
+## 11. `display` and `read key` (v2.0 language additions, sprint 2)
+
+Two small interpreter additions, because the live driver needs them
+and no package can provide them. Both are interpreter language work
+(the tmux-statement precedent), not the Python bridge: user programs
+never see the bridge.
+
+- `display <expr>` writes the value's text with NO trailing newline
+  and flushes stdout. `show` always ends the line; ANSI frame
+  rendering must not. Both interpreters implement it (the walker via
+  the bridge raw-write precedent, `agent_emit` in `jesun.jc`).
+  Bangla: `প্রদর্শনকরো`.
+- `read key [within <ms>] giving <name>` reads one keypress in raw
+  terminal mode and gives back its name, or `nothing` if the wait
+  runs out. `within 0` polls once without waiting. Bootstrap only:
+  the walker parses the shape and fails honestly, because raw mode is
+  a terminal property the self-hosted walker can never set
+  (`Line N: "read key" needs the Jesun.Code tool itself; the
+  self-hosted walker cannot put the terminal in raw mode.`).
+  Bangla: `পড়ো কী [মধ্যে <ms>] রেখে <name>`.
+
+Key names (exact): arrow escape sequences give `up`, `down`, `left`,
+`right`; space gives `space`; return gives `enter`; backspace gives
+`backspace`; Ctrl-C gives `quit`; a lone Escape gives `escape`;
+letters `a` to `z` and digits `0` to `9` give themselves, as typed.
+Anything else gives `nothing` (documented, not silent: the table
+above is the whole contract).
+
+Failures, all plain-English with line numbers:
+- `read key` when stdin is not a terminal: `Line N: I could not read
+  a key: this program is not talking to a terminal.`
+- `within` not a non-negative number of milliseconds: `Line N:
+  "within" needs milliseconds 0 or more, but this is ....`
+- The terminal settings are always restored, even when the read
+  fails; a failed read never leaves the user's terminal in raw mode.
+
+### `raw mode` and `cooked mode` (v2.0)
+
+The terminal must stay in raw mode for the whole game session, not
+just during each `read key` call: keys pressed while the tty is in
+canonical mode are consumed by the tty driver and lost. These two
+statements hold and release the raw mode:
+
+- `raw mode` puts the terminal in raw mode and holds it. Nested
+  holds are counted; the terminal stays raw until the matching
+  number of `cooked mode` statements run.
+- `cooked mode` releases one hold. With no hold active it is a safe
+  no-op (works on pipes, for tests).
+
+`window_open` runs `raw mode`; `window_close` runs `cooked mode`.
+A program that uses `raw mode` directly must pair it with
+`cooked mode`, or the user's terminal is left in raw mode.
+
+Bootstrap only, like `read key`: the walker parses the shape and
+fails honestly (`Line N: "raw mode" needs the Jesun.Code tool
+itself; the self-hosted walker cannot change the terminal mode.`).
+
+Failures, all plain-English with line numbers:
+- `raw mode` when stdin is not a terminal: `Line N: I could not
+  change the terminal mode: this program is not talking to a
+  terminal.`
+- `raw` without `mode`: `Line N: I expected "mode" after "raw",
+  but this is the end of the line.`
+
+## 12. The `window` package (sprint 2)
+
+`packages/window/window.jc`, used with `bring in "window"` (after
+`bring in "game"`). Pure Jesun.Code; the only bridge primitive it
+touches is `time_wait` from the `time` package for tick pacing (the
+v1.2 raw-primitive boundary: sleep carries no game logic). ANSI text
+is built with `\uXXXX` escapes (section 10); output goes through
+`display` (section 11); keys come from `read key` (section 11).
+
+- `window_open with w and h` gives back a window table: `w`, `h`, a
+  fresh `game` frame, an empty pad, and `quit` set to false. It
+  enters the live surface: alternate screen, hidden cursor, cleared.
+  `w`/`h` follow the `game_frame` rule (whole numbers 1 to 1024).
+- `window_frame with window` gives back the window's game frame, so
+  the game draws with the ordinary `game_*` calls.
+- `window_show with window` renders the frame to the terminal: cursor
+  home, then one text row per two framebuffer rows, each cell a
+  half-block `▀` with the top pixel as the 24-bit foreground and the
+  bottom pixel as the 24-bit background. An odd last row pairs with
+  black. Pure text; `display` writes it with no trailing newline.
+- `window_keys with window` drains every pending keypress into the
+  window's pad (non-blocking: `read key within 0`). Keys the game pad
+  knows (`up`/`down`/`left`/`right`/`space`/letters/digits) are
+  pressed; `quit` sets the window's quit flag; the rest are dropped.
+  Gives back the number of keys drained.
+- `window_quit with window` sets the quit flag (for games that quit
+  on their own terms, e.g. a menu choice).
+- `window_run with ticks and sim and update and draw and window`
+  runs the live loop: each tick drains keys, stops early when the
+  quit flag is set, bumps `sim["tick"]`, calls
+  `attempt update with sim` then `attempt draw with sim` (draw targets
+  the window's frame), shows the frame, and waits out the tick
+  (20 frames per second). Gives back `{ticks, frames}`. `ticks`
+  follows the `game_loop` rule (1 to 100000).
+- `window_close with window` leaves the alternate screen and shows
+  the cursor again. Call it when the game ends; the demo calls it on
+  every exit path, because a hidden cursor left behind is a bug the
+  player feels.
+
+Failure rows (plain-English `Line N:`, section 7 style):
+
+| Call | Bad input | Error |
+| --- | --- | --- |
+| `window_open` | w/h not whole 1..1024 | `window_open needs a whole width 1 to 1024, but this is ...` |
+| `window_show`/`window_frame`/`window_keys`/`window_close` | not a window | `... needs a window from window_open, but this is ...` |
+| `window_run` | ticks outside 1..100000 | `window_run needs 1 to 100000 ticks, but this is ...` |
+| `window_run` | update/draw not functions | `window_run needs functions for update and draw, but ... is ...` |
+| `read key` (drained inside `window_keys`/`window_run`) | stdin not a terminal | `Line N: I could not read a key: this program is not talking to a terminal.` |
+
+v2.0 milestone acceptance, item 4 (2026-09-30): the terminal live
+surface driver opens the game in the player's terminal window and
+takes real keypresses on a PC, verified via tmux (`send-keys` real
+keystrokes in, `capture-pane` live frames out). The GUI-window gap is
+carried honestly in the release notes (section 9, decision 2), not in
+the code.

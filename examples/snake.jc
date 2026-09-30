@@ -26,22 +26,22 @@ to snake_new with sim
             game_press with pad and "space"
     give back nothing
 
-to snake_turn with sim and key
+to snake_turn with sim and k
     d is sim["dir"]
-    if key is "up" and d[1] is not 1 then
+    if k is "up" and d[1] is not 1 then
         sim["dir"] is [0, 0 - 1]
-    otherwise if key is "down" and d[1] is not 0 - 1 then
+    otherwise if k is "down" and d[1] is not 0 - 1 then
         sim["dir"] is [0, 1]
-    otherwise if key is "left" and d[0] is not 1 then
+    otherwise if k is "left" and d[0] is not 1 then
         sim["dir"] is [0 - 1, 0]
-    otherwise if key is "right" and d[0] is not 0 - 1 then
+    otherwise if k is "right" and d[0] is not 0 - 1 then
         sim["dir"] is [1, 0]
     give back nothing
 
 to snake_update with sim
-    key is game_poll with sim["pad"]
-    if key is not nothing then
-        snake_turn with sim and key
+    k is game_poll with sim["pad"]
+    if k is not nothing then
+        snake_turn with sim and k
     body is sim["snake"]
     head is body[0]
     d is sim["dir"]

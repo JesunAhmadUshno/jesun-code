@@ -130,11 +130,11 @@ note ==== END HELPERS ====
 
 note ==== SECTION: LEXER ====
 
-kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"], ["ask", "ask"], ["giving", "giving"], ["read", "read"], ["write", "write"], ["append", "append"], ["file", "file"], ["import", "import"], ["as", "as"], ["keys", "keys"], ["ai", "ai"], ["tools", "tools"], ["within", "within"], ["steps", "steps"], ["open", "open"], ["terminal", "terminal"], ["named", "named"], ["send", "send"], ["close", "close"], ["agent", "agent"], ["persona", "persona"], ["remember", "remember"], ["always", "always"], ["forget", "forget"], ["memory", "memory"], ["streaming", "streaming"], ["use", "use"], ["fleet", "fleet"], ["bring", "bring"], ["new", "new"], ["table", "table"], ["json", "json"], ["parse", "parse"], ["attempt", "attempt"]]
+kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"], ["ask", "ask"], ["giving", "giving"], ["read", "read"], ["write", "write"], ["append", "append"], ["file", "file"], ["import", "import"], ["as", "as"], ["keys", "keys"], ["ai", "ai"], ["tools", "tools"], ["within", "within"], ["steps", "steps"], ["open", "open"], ["terminal", "terminal"], ["named", "named"], ["send", "send"], ["close", "close"], ["agent", "agent"], ["persona", "persona"], ["remember", "remember"], ["always", "always"], ["forget", "forget"], ["memory", "memory"], ["streaming", "streaming"], ["use", "use"], ["fleet", "fleet"], ["bring", "bring"], ["new", "new"], ["table", "table"], ["json", "json"], ["parse", "parse"], ["attempt", "attempt"], ["display", "display"], ["key", "key"], ["raw", "raw"], ["cooked", "cooked"], ["mode", "mode"]]
 
 note Bangla keyword flavor (spec v0.5 s23): mirrors the bootstrap's
 note BANGLA_KEYWORDS one for one, mapping to the same walker kinds.
-bangla_kinds is [["অথবা", "or"], ["আছে", "contains"], ["আনো", "import"], ["আবার", "repeat"], ["এআই", "ai"], ["এজেন্ট", "agent"], ["এড়িয়ে", "skip"], ["এবং", "and"], ["এর", "of"], ["কমপক্ষে", "least"], ["খোলো", "open"], ["চাবি", "keys"], ["চেয়ে", "than"], ["ছাঁটো", "trim"], ["ছোট", "less"], ["ছোটহাতা", "lowercase"], ["জন্য", "for"], ["জন্যে", "to"], ["জিজ্ঞেস", "ask"], ["জোড়া", "join"], ["টার্মিনাল", "terminal"], ["তাহলে", "then"], ["থামো", "stop"], ["দল", "fleet"], ["দাও", "give"], ["দিয়ে", "by"], ["দেখাও", "show"], ["দৈর্ঘ্য", "length"], ["ধাপ", "steps"], ["নইলে", "otherwise"], ["নম্বরে", "at"], ["না", "not"], ["নামে", "named"], ["নিয়ে", "bring"], ["পড়ো", "read"], ["পাঠাও", "send"], ["পারসোনা", "persona"], ["প্রতিটি", "each"], ["প্রথম", "first"], ["ফাঁকা", "nothing"], ["ফাইল", "file"], ["ফেরত", "back"], ["বড়", "greater"], ["বড়হাতা", "uppercase"], ["বন্ধকরো", "close"], ["বার", "times"], ["ব্যবহার", "use"], ["ভাগ", "split"], ["ভুলেযাও", "forget"], ["ভেতরে", "in"], ["মধ্যে", "within"], ["মনেকরো", "remember"], ["মিথ্যা", "false"], ["যতক্ষণ", "while"], ["যদি", "if"], ["যোগকরো", "append"], ["রেখে", "giving"], ["লেখো", "write"], ["শেষ", "last"], ["সত্য", "true"], ["সবচেয়ে", "most"], ["সবসময়", "always"], ["সরাসরি", "streaming"], ["সহ", "with"], ["স্মৃতি", "memory"], ["হয়", "is"], ["হাতিয়ার", "tools"], ["হিসেবে", "as"], ["নতুন", "new"], ["সারণি", "table"], ["জেসন", "json"], ["বিশ্লেষণ", "parse"], ["চেষ্টা", "attempt"]]
+bangla_kinds is [["অথবা", "or"], ["আছে", "contains"], ["আনো", "import"], ["আবার", "repeat"], ["এআই", "ai"], ["এজেন্ট", "agent"], ["এড়িয়ে", "skip"], ["এবং", "and"], ["এর", "of"], ["কমপক্ষে", "least"], ["খোলো", "open"], ["চাবি", "keys"], ["চেয়ে", "than"], ["ছাঁটো", "trim"], ["ছোট", "less"], ["ছোটহাতা", "lowercase"], ["জন্য", "for"], ["জন্যে", "to"], ["জিজ্ঞেস", "ask"], ["জোড়া", "join"], ["টার্মিনাল", "terminal"], ["তাহলে", "then"], ["থামো", "stop"], ["দল", "fleet"], ["দাও", "give"], ["দিয়ে", "by"], ["দেখাও", "show"], ["দৈর্ঘ্য", "length"], ["ধাপ", "steps"], ["নইলে", "otherwise"], ["নম্বরে", "at"], ["না", "not"], ["নামে", "named"], ["নিয়ে", "bring"], ["পড়ো", "read"], ["পাঠাও", "send"], ["পারসোনা", "persona"], ["প্রতিটি", "each"], ["প্রথম", "first"], ["ফাঁকা", "nothing"], ["ফাইল", "file"], ["ফেরত", "back"], ["বড়", "greater"], ["বড়হাতা", "uppercase"], ["বন্ধকরো", "close"], ["বার", "times"], ["ব্যবহার", "use"], ["ভাগ", "split"], ["ভুলেযাও", "forget"], ["ভেতরে", "in"], ["মধ্যে", "within"], ["মনেকরো", "remember"], ["মিথ্যা", "false"], ["যতক্ষণ", "while"], ["যদি", "if"], ["যোগকরো", "append"], ["রেখে", "giving"], ["লেখো", "write"], ["শেষ", "last"], ["সত্য", "true"], ["সবচেয়ে", "most"], ["সবসময়", "always"], ["সরাসরি", "streaming"], ["সহ", "with"], ["স্মৃতি", "memory"], ["হয়", "is"], ["হাতিয়ার", "tools"], ["হিসেবে", "as"], ["নতুন", "new"], ["সারণি", "table"], ["জেসন", "json"], ["বিশ্লেষণ", "parse"], ["চেষ্টা", "attempt"], ["প্রদর্শনকরো", "display"], ["কী", "key"]]
 
 to keyword_kind with word and bangla
     ktable is kinds
@@ -227,7 +227,7 @@ to count_leading_spaces with given_line
 to read_string with cs and i and n and lineno
     note v2.0: gives back the RAW text between the quotes; escapes stay
     note intact. decode_escapes runs later, after parse_string has found
-    note {...} interpolation on the raw text, so a \u007b escape never
+    note {...} interpolation on the s text, so a \u007b escape never
     note fakes an interpolation brace. Mirrors the bootstrap.
     quote is cs[i]
     i is i + 1
@@ -244,11 +244,11 @@ to read_string with cs and i and n and lineno
         i is i + 1
     parse_error with lineno and "this text never ends; close the quote."
 
-to decode_escapes with raw and lineno
-    note v2.0: decode \n \r \t \" \' \\ and \uXXXX in raw string text.
+to decode_escapes with s and lineno
+    note v2.0: decode \n \r \t \" \' \\ and \uXXXX in s string text.
     note Runs after interpolation is found, mirroring the bootstrap's
     note _decode_string_escapes.
-    cs is characters of raw
+    cs is characters of s
     n is length of cs
     out is ""
     i is 0
@@ -482,6 +482,47 @@ to parse_show with toks and i
     pair is parse_or with toks and i + 1
     i is expect with toks and pair[1] and "newline" and "the end of the line"
     give back [["show", pair[0], ln], i]
+
+note v2.0: display writes with no trailing newline (spec v2.0 s11).
+to parse_display with toks and i
+    ln is peek_line with toks and i
+    pair is parse_or with toks and i + 1
+    i is expect with toks and pair[1] and "newline" and "the end of the line"
+    give back [["display", pair[0], ln], i]
+
+note v2.0: read key [within <ms>] giving <name> (spec v2.0 s11).
+to parse_readkey with toks and i
+    ln is peek_line with toks and i
+    i is expect with toks and i + 1 and "key" and "\"key\""
+    ms is ""
+    if peek_is with toks and i and "within" then
+        pair is parse_or with toks and i + 1
+        ms is pair[0]
+        i is pair[1]
+    i is expect with toks and i and "giving" and "\"giving\" followed by a name"
+    target is peek_value with toks and i
+    i is expect with toks and i and "name" and "a name to store the key in"
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["readkey", ms, target, ln], i]
+
+note v2.0: raw mode / cooked mode (spec v2.0 s11).
+to parse_terminalmode with toks and i and is_raw
+    ln is peek_line with toks and i
+    note v2.0: match the bootstrap's message for a missing "mode".
+    if is_raw then
+        word is "raw"
+    otherwise
+        word is "cooked"
+    k is peek_kind with toks and i + 1
+    if k is not "mode" then
+        if k is "newline" then
+            what is "the end of the line"
+        otherwise
+            what is "\"" + (peek_value with toks and i + 1) + "\""
+        parse_error with ln and "I expected \"mode\" after \"" + word + "\", but this is " + what + "."
+    i is i + 2
+    i is expect with toks and i and "newline" and "the end of the line"
+    give back [["terminalmode", is_raw, ln], i]
 
 to parse_assign with toks and i
     name is peek_value with toks and i
@@ -997,6 +1038,12 @@ to parse_statement with toks and i
         parse_error with ln and "this line starts a block, but I did not expect one here."
     if k is "show" then
         give back parse_show with toks and i
+    if k is "display" then
+        give back parse_display with toks and i
+    if k is "raw" then
+        give back parse_terminalmode with toks and i and true
+    if k is "cooked" then
+        give back parse_terminalmode with toks and i and false
     if k is "if" then
         give back parse_if with toks and i
     if k is "repeat" then
@@ -1024,6 +1071,8 @@ to parse_statement with toks and i
     if k is "read" then
         if peek_is with toks and i + 1 and "file" then
             give back parse_readfile with toks and i
+        if peek_is with toks and i + 1 and "key" then
+            give back parse_readkey with toks and i
         give back parse_termread with toks and i
     if k is "write" or k is "append" then
         give back parse_writefile with toks and i
@@ -1240,7 +1289,7 @@ to parse_expr_fragment with inner and ln
 
 to parse_string with value and ln
     note v2.0: value is RAW (escapes intact). Interpolation braces are
-    note found on the raw text, so a \u007b escape never fakes one.
+    note found on the s text, so a \u007b escape never fakes one.
     note Each text part is escape-decoded after the structure is fixed.
     note Mirrors the bootstrap's _parse_string.
     if not value contains "{{" then
@@ -1757,13 +1806,13 @@ to ev_table_lit with node and env and depth
         p is ev with pr[0] and env and depth
         if p[1] is not "" then
             give back p
-        key is p[0]
-        if kind of key is not "text" then
-            rt_error with ln and "a table key has to be text, but this one is " + article_of with kind of key + "."
+        tkey is p[0]
+        if kind of tkey is not "text" then
+            rt_error with ln and "a table key has to be text, but this one is " + article_of with kind of tkey + "."
         q is ev with pr[1] and env and depth
         if q[1] is not "" then
             give back q
-        out[key] is q[0]
+        out[tkey] is q[0]
     give back [out, ""]
 
 to ev_attempt with node and env and depth
@@ -1901,9 +1950,9 @@ to bridge_digit_value with ch
     ns is builtins.dict([["__jc_c", ch]])
     give back builtins.eval("__import__('builtins').int(__jc_c)", ns)
 
-to bridge_float_text with raw
+to bridge_float_text with s
     note v1.2: float value of validated JSON number text, via the bridge.
-    ns is builtins.dict([["__jc_t", raw]])
+    ns is builtins.dict([["__jc_t", s]])
     give back builtins.eval("__import__('builtins').float(__jc_t)", ns)
 
 to bridge_is_float with v
@@ -1918,10 +1967,10 @@ to bridge_float_repr with v
     ns is builtins.dict([["__jc_v", v]])
     give back builtins.eval("__import__('builtins').repr(__jc_v)", ns)
 
-to json_ws with raw and i
-    n is length of raw
+to json_ws with s and i
+    n is length of s
     repeat while i is less than n
-        ch is raw[i]
+        ch is s[i]
         if ch is " " or ch is "\t" or ch is "\n" or ch is "\r" then
             i is i + 1
         otherwise
@@ -1945,21 +1994,21 @@ to json_hex_value with ch
         give back 15
     give back -1
 
-to json_parse_string with raw and i and depth
+to json_parse_string with s and i and depth
     note Gives back ["ok", value, next] or ["fail", pos]. i points at
     note the opening quote. Surrogate pairs are combined; a lone
     note surrogate is an error, like the bootstrap.
-    n is length of raw
+    n is length of s
     i is i + 1
     buf is ""
     repeat while i is less than n
-        ch is raw[i]
+        ch is s[i]
         if ch is "\"" then
             give back ["ok", buf, i + 1]
         if ch is "\\" then
             if i + 1 is at least n then
                 give back json_fail with n
-            e is raw[i + 1]
+            e is s[i + 1]
             if e is "\"" then
                 buf is buf + "\""
                 i is i + 2
@@ -1991,7 +2040,7 @@ to json_parse_string with raw and i and depth
                 k is 0
                 bad is false
                 repeat while k is less than 4
-                    hv is json_hex_value with raw[i + 2 + k]
+                    hv is json_hex_value with s[i + 2 + k]
                     if hv is -1 then
                         bad is true
                     cp is cp * 16 + hv
@@ -2001,12 +2050,12 @@ to json_parse_string with raw and i and depth
                 i is i + 6
                 if cp is at least 55296 and cp is less than 56320 then
                     note High surrogate: needs \uDC00-\uDFFF after it.
-                    if i + 5 is at least n or raw[i] is not "\\" or raw[i + 1] is not "u" then
+                    if i + 5 is at least n or s[i] is not "\\" or s[i + 1] is not "u" then
                         give back json_fail with i
                     lo is 0
                     k is 0
                     repeat while k is less than 4
-                        hv is json_hex_value with raw[i + 2 + k]
+                        hv is json_hex_value with s[i + 2 + k]
                         if hv is -1 then
                             bad is true
                         lo is lo * 16 + hv
@@ -2029,44 +2078,44 @@ to json_parse_string with raw and i and depth
             i is i + 1
     give back json_fail with n
 
-to json_parse_number with raw and i and depth
+to json_parse_number with s and i and depth
     note Gives back ["ok", value, next] or ["fail", pos].
-    n is length of raw
+    n is length of s
     start is i
-    if raw[i] is "-" then
+    if s[i] is "-" then
         i is i + 1
     if i is at least n then
         give back json_fail with start
     is_float is false
-    if raw[i] is "0" then
+    if s[i] is "0" then
         i is i + 1
-        if i is less than n and bridge_is_digit with raw[i] then
+        if i is less than n and bridge_is_digit with s[i] then
             give back json_fail with i
-    otherwise if bridge_is_digit with raw[i] then
-        repeat while i is less than n and bridge_is_digit with raw[i]
+    otherwise if bridge_is_digit with s[i] then
+        repeat while i is less than n and bridge_is_digit with s[i]
             i is i + 1
     otherwise
         give back json_fail with start
-    if i is less than n and raw[i] is "." then
+    if i is less than n and s[i] is "." then
         is_float is true
         i is i + 1
-        if i is at least n or not bridge_is_digit with raw[i] then
+        if i is at least n or not bridge_is_digit with s[i] then
             give back json_fail with i
-        repeat while i is less than n and bridge_is_digit with raw[i]
+        repeat while i is less than n and bridge_is_digit with s[i]
             i is i + 1
-    if i is less than n and (raw[i] is "e" or raw[i] is "E") then
+    if i is less than n and (s[i] is "e" or s[i] is "E") then
         is_float is true
         i is i + 1
-        if i is less than n and (raw[i] is "+" or raw[i] is "-") then
+        if i is less than n and (s[i] is "+" or s[i] is "-") then
             i is i + 1
-        if i is at least n or not bridge_is_digit with raw[i] then
+        if i is at least n or not bridge_is_digit with s[i] then
             give back json_fail with i
-        repeat while i is less than n and bridge_is_digit with raw[i]
+        repeat while i is less than n and bridge_is_digit with s[i]
             i is i + 1
     numtext is ""
     k is start
     repeat while k is less than i
-        numtext is numtext + raw[k]
+        numtext is numtext + s[k]
         k is k + 1
     if is_float then
         give back ["ok", bridge_float_text with numtext, i]
@@ -2087,109 +2136,109 @@ to json_int_value with numtext
         v is 0 - v
     give back v
 
-to json_parse_value with raw and i and depth and ln
+to json_parse_value with s and i and depth and ln
     if depth is at least 200 then
         give back json_fail with i
-    i is json_ws with raw and i
-    n is length of raw
+    i is json_ws with s and i
+    n is length of s
     if i is at least n then
         give back json_fail with i
-    ch is raw[i]
+    ch is s[i]
     if ch is "{{" then
-        give back json_parse_object with raw and i and depth + 1 and ln
+        give back json_parse_object with s and i and depth + 1 and ln
     if ch is "[" then
-        give back json_parse_array with raw and i and depth + 1 and ln
+        give back json_parse_array with s and i and depth + 1 and ln
     if ch is "\"" then
-        give back json_parse_string with raw and i and depth + 1
+        give back json_parse_string with s and i and depth + 1
     if ch is "t" then
         if i + 4 is greater than n then
             give back json_fail with i
-        if raw[i + 1] is "r" and raw[i + 2] is "u" and raw[i + 3] is "e" then
+        if s[i + 1] is "r" and s[i + 2] is "u" and s[i + 3] is "e" then
             give back ["ok", true, i + 4]
         give back json_fail with i
     if ch is "f" then
         if i + 5 is greater than n then
             give back json_fail with i
-        if raw[i + 1] is "a" and raw[i + 2] is "l" and raw[i + 3] is "s" and raw[i + 4] is "e" then
+        if s[i + 1] is "a" and s[i + 2] is "l" and s[i + 3] is "s" and s[i + 4] is "e" then
             give back ["ok", false, i + 5]
         give back json_fail with i
     if ch is "n" then
         if i + 4 is greater than n then
             give back json_fail with i
-        if raw[i + 1] is "u" and raw[i + 2] is "l" and raw[i + 3] is "l" then
+        if s[i + 1] is "u" and s[i + 2] is "l" and s[i + 3] is "l" then
             give back ["ok", nothing, i + 4]
         give back json_fail with i
     if ch is "-" or bridge_is_digit with ch then
-        give back json_parse_number with raw and i and depth + 1
+        give back json_parse_number with s and i and depth + 1
     give back json_fail with i
 
-to json_parse_array with raw and i and depth and ln
+to json_parse_array with s and i and depth and ln
     note i points at "[". Gives back ["ok", list, next] or fail.
-    n is length of raw
+    n is length of s
     i is i + 1
     out is []
-    i is json_ws with raw and i
-    if i is less than n and raw[i] is "]" then
+    i is json_ws with s and i
+    if i is less than n and s[i] is "]" then
         give back ["ok", out, i + 1]
     repeat while true
-        r is json_parse_value with raw and i and depth and ln
+        r is json_parse_value with s and i and depth and ln
         if json_is_fail with r then
             give back r
         push r[1] to out
-        i is json_ws with raw and r[2]
+        i is json_ws with s and r[2]
         if i is at least n then
             give back json_fail with i
-        if raw[i] is "," then
-            i is json_ws with raw and i + 1
+        if s[i] is "," then
+            i is json_ws with s and i + 1
             if i is at least n then
                 give back json_fail with i
-        otherwise if raw[i] is "]" then
+        otherwise if s[i] is "]" then
             give back ["ok", out, i + 1]
         otherwise
             give back json_fail with i
 
-to json_parse_object with raw and i and depth and ln
+to json_parse_object with s and i and depth and ln
     note i points at "{{". Gives back ["ok", table, next] or fail.
-    n is length of raw
+    n is length of s
     i is i + 1
     out is new_jc_table
-    i is json_ws with raw and i
-    if i is less than n and raw[i] is "}" then
+    i is json_ws with s and i
+    if i is less than n and s[i] is "}" then
         give back ["ok", out, i + 1]
     repeat while true
-        i is json_ws with raw and i
-        if i is at least n or raw[i] is not "\"" then
+        i is json_ws with s and i
+        if i is at least n or s[i] is not "\"" then
             give back json_fail with i
-        r is json_parse_string with raw and i and depth
+        r is json_parse_string with s and i and depth
         if json_is_fail with r then
             give back r
-        key is r[1]
-        i is json_ws with raw and r[2]
-        if i is at least n or raw[i] is not ":" then
+        tkey is r[1]
+        i is json_ws with s and r[2]
+        if i is at least n or s[i] is not ":" then
             give back json_fail with i
-        r is json_parse_value with raw and i + 1 and depth and ln
+        r is json_parse_value with s and i + 1 and depth and ln
         if json_is_fail with r then
             give back r
-        out[key] is r[1]
-        i is json_ws with raw and r[2]
+        out[tkey] is r[1]
+        i is json_ws with s and r[2]
         if i is at least n then
             give back json_fail with i
-        if raw[i] is "," then
-            i is json_ws with raw and i + 1
+        if s[i] is "," then
+            i is json_ws with s and i + 1
             if i is at least n then
                 give back json_fail with i
-        otherwise if raw[i] is "}" then
+        otherwise if s[i] is "}" then
             give back ["ok", out, i + 1]
         otherwise
             give back json_fail with i
 
-to json_parse with raw and ln
+to json_parse with s and ln
     note v1.2: `parse json text`. Tables come out as native tables.
-    r is json_parse_value with raw and 0 and 0 and ln
+    r is json_parse_value with s and 0 and 0 and ln
     if json_is_fail with r then
         rt_error with ln and "that text is not valid JSON (it breaks at character " + text of r[1] + ")."
-    i is json_ws with raw and r[2]
-    if i is less than length of raw then
+    i is json_ws with s and r[2]
+    if i is less than length of s then
         rt_error with ln and "that text is not valid JSON (it breaks at character " + text of i + ")."
     give back r[1]
 
@@ -2417,11 +2466,11 @@ to bridge_ask with prompt and ln
         rt_error with ln and "I asked a question, but the input ended."
     give back strip_final_newline with line
 
-to safe_path with raw and ln and verb
-    if kind of raw is "text" then
-        shown is raw
+to safe_path with s and ln and verb
+    if kind of s is "text" then
+        shown is s
     otherwise
-        shown is text of raw
+        shown is text of s
     target is pathlib.Path(shown)
     if not target.is_absolute() then
         target is pathlib.Path.cwd().joinpath(shown)
@@ -2448,12 +2497,12 @@ to exec_readfile with stmt and env and depth
     p is ev with stmt[1] and env and depth
     if p[1] is not "" then
         give back [p[1]]
-    raw is p[0]
-    if kind of raw is "text" then
-        shown is raw
+    s is p[0]
+    if kind of s is "text" then
+        shown is s
     otherwise
-        shown is text of raw
-    path is safe_path with raw and ln and "read"
+        shown is text of s
+    path is safe_path with s and ln and "read"
     if path.is_dir() then
         rt_error with ln and "\"" + shown + "\" is a folder, not a file."
     if not path.exists() then
@@ -2469,12 +2518,12 @@ to exec_writefile with stmt and env and depth
     pp is ev with stmt[2] and env and depth
     if pp[1] is not "" then
         give back [pp[1]]
-    raw is pp[0]
-    if kind of raw is "text" then
-        shown is raw
+    s is pp[0]
+    if kind of s is "text" then
+        shown is s
     otherwise
-        shown is text of raw
-    path is safe_path with raw and ln and "write to"
+        shown is text of s
+    path is safe_path with s and ln and "write to"
     if path.is_dir() then
         rt_error with ln and "\"" + shown + "\" is a folder, not a file."
     if not path.parent.exists() then
@@ -2586,8 +2635,8 @@ to bridge_call with f and args and kwpairs
     ns is builtins.dict([["__jc_f", f], ["__jc_a", args], ["__jc_k", kh]])
     give back builtins.eval("__jc_f(*__jc_a, **__jc_k)", ns)
 
-to bridge_lookup_miss with obj and key
-    ns is builtins.dict([["__jc_o", obj], ["__jc_k", key]])
+to bridge_lookup_miss with obj and tkey
+    ns is builtins.dict([["__jc_o", obj], ["__jc_k", tkey]])
     give back builtins.eval("((__import__('re').sub('0x[0-9a-fA-F]+', '?', repr(__jc_k))[:200] or 'something went wrong') if __jc_k not in __jc_o else '') if hasattr(__jc_o, '__contains__') else ''", ns)
 
 to ev_callf with node and env and depth
@@ -2762,12 +2811,12 @@ to ai_tool_loop with ns and prompt and toolnames and max_steps and dostream and 
         reply is ai_finish with r and ln
         calls is []
         answer_lines is []
-        for each raw in split of reply by "\n"
-            m is match_fn(raw)
+        for each s in split of reply by "\n"
+            m is match_fn(s)
             if length of m is 2 then
                 push m to calls
             otherwise
-                push raw to answer_lines
+                push s to answer_lines
         if length of calls is 0 then
             give back trim of join of answer_lines with "\n"
         results is []
@@ -3099,11 +3148,11 @@ to exec_usepkg with stmt and env and depth
     p is ev with stmt[1] and env and depth
     if p[1] is not "" then
         give back [p[1]]
-    raw is p[0]
-    if kind of raw is "text" then
-        addr is raw
+    s is p[0]
+    if kind of s is "text" then
+        addr is s
     otherwise
-        addr is text of raw
+        addr is text of s
     parts is split of addr by "/"
     ok is length of parts is 3
     if ok then
@@ -3131,11 +3180,11 @@ to exec_bringin with stmt and env and depth
     p is ev with stmt[1] and env and depth
     if p[1] is not "" then
         give back [p[1]]
-    raw is p[0]
-    if kind of raw is "text" then
-        pname is raw
+    s is p[0]
+    if kind of s is "text" then
+        pname is s
     otherwise
-        pname is text of raw
+        pname is text of s
     if pname is "" or pname is "." or pname is ".." or not jpm_segment_ok with pname then
         rt_error with ln and "\"" + pname + "\" is not a package name; bring in a name like \"time\"."
     ns is jpm_bridge_ns
@@ -3478,6 +3527,35 @@ to exec_stmt with stmt and env and depth
             give back [p[1]]
         show render with p[0]
         give back ["none"]
+    note v2.0: display writes with no trailing newline (spec v2.0 s11).
+    if tag is "display" then
+        p is ev with stmt[1] and env and depth
+        if p[1] is not "" then
+            give back [p[1]]
+        emit is builtins.getattr(sys.stdout, "write")
+        emit(render with p[0])
+        sys.stdout.flush()
+        give back ["none"]
+    note v2.0: read key is bootstrap-only; the walker parses it and says
+    note so honestly (spec v2.0 s11). The ms check runs first so the
+    note plain error matches the bootstrap word for word.
+    if tag is "readkey" then
+        ln is stmt[3]
+        if stmt[1] is not "" then
+            p is ev with stmt[1] and env and depth
+            if p[1] is not "" then
+                give back [p[1]]
+            ms is p[0]
+            if kind of ms is not "number" then
+                rt_error with ln and "\"within\" needs milliseconds 0 or more, but this is " + (render with ms) + "."
+            if ms is less than 0 then
+                rt_error with ln and "\"within\" needs milliseconds 0 or more, but this is " + (render with ms) + "."
+        rt_error with ln and "\"read key\" needs the Jesun.Code tool itself; the self-hosted walker cannot put the terminal in raw mode."
+    note v2.0: raw mode / cooked mode is bootstrap-only; the walker parses
+    note it and says so honestly (spec v2.0 s11).
+    if tag is "terminalmode" then
+        ln is stmt[2]
+        rt_error with ln and "\"raw mode\" needs the Jesun.Code tool itself; the self-hosted walker cannot change the terminal mode."
     if tag is "is" then
         p is ev with stmt[2] and env and depth
         if p[1] is not "" then
