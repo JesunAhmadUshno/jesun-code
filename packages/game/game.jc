@@ -1,0 +1,663 @@
+note jpm package "game": the native 2D game engine, written in pure Jesun.Code (spec v2.0).
+note Frames render to P3 PPM text, audio synthesizes to 8-bit WAV text.
+note No bridge, no new syntax. Every failure is plain English with a line number.
+
+note ---- error helpers: kinds and articles, the sitegen precedent ----
+
+to game_article with k
+    if k is "text" then
+        give back "text"
+    if k is "number" then
+        give back "a number"
+    if k is "list" then
+        give back "a list"
+    if k is "table" then
+        give back "a table"
+    if k is "true/false" then
+        give back "true/false"
+    if k is "nothing" then
+        give back "nothing"
+    if k is "function" then
+        give back "a function"
+    give back "a " + k
+
+to game_describe with v
+    k is kind of v
+    if k is "text" then
+        give back "\"" + v + "\""
+    if k is "number" then
+        give back text of v
+    if k is "true/false" then
+        give back text of v
+    if k is "nothing" then
+        give back "nothing"
+    give back game_article with k
+
+to game_idiv with a and b
+    note whole-number division for non-negative values.
+    give back (a - (a % b)) / b
+
+to game_whole with v and lo and hi
+    note true when v is a whole number from lo to hi.
+    if kind of v is not "number" then
+        give back false
+    if v % 1 is not 0 then
+        give back false
+    if v is less than lo then
+        give back false
+    if v is greater than hi then
+        give back false
+    give back true
+
+note ---- lookup tables, built once at import ----
+
+game_hexchars is "0123456789ABCDEF"
+
+game_hexval is a new table
+game_hexval["0"] is 0
+game_hexval["1"] is 1
+game_hexval["2"] is 2
+game_hexval["3"] is 3
+game_hexval["4"] is 4
+game_hexval["5"] is 5
+game_hexval["6"] is 6
+game_hexval["7"] is 7
+game_hexval["8"] is 8
+game_hexval["9"] is 9
+game_hexval["a"] is 10
+game_hexval["b"] is 11
+game_hexval["c"] is 12
+game_hexval["d"] is 13
+game_hexval["e"] is 14
+game_hexval["f"] is 15
+game_hexval["A"] is 10
+game_hexval["B"] is 11
+game_hexval["C"] is 12
+game_hexval["D"] is 13
+game_hexval["E"] is 14
+game_hexval["F"] is 15
+
+game_keyok is a new table
+game_keys is "abcdefghijklmnopqrstuvwxyz0123456789"
+game__i is 0
+repeat 36 times
+    game_keyok[game_keys[game__i]] is 1
+    game__i is game__i + 1
+
+game_wordok is a new table
+game_wordok["up"] is 1
+game_wordok["down"] is 1
+game_wordok["left"] is 1
+game_wordok["right"] is 1
+game_wordok["space"] is 1
+
+note ---- color: hex text at the API boundary, numbers inside ----
+
+to game_rgb with r and g and b
+    ok is game_whole with r and 0 and 255
+    if ok is false then
+        fail with "game_rgb needs channels 0 to 255, but the red channel is " + (game_describe with r) + "."
+    ok is game_whole with g and 0 and 255
+    if ok is false then
+        fail with "game_rgb needs channels 0 to 255, but the green channel is " + (game_describe with g) + "."
+    ok is game_whole with b and 0 and 255
+    if ok is false then
+        fail with "game_rgb needs channels 0 to 255, but the blue channel is " + (game_describe with b) + "."
+    give back game_hexchars[game_idiv with r and 16] + game_hexchars[r % 16] + game_hexchars[game_idiv with g and 16] + game_hexchars[g % 16] + game_hexchars[game_idiv with b and 16] + game_hexchars[b % 16]
+
+to game_color_num with c
+    if kind of c is not "text" then
+        fail with "game needs a color like \"FF0000\", but this is " + (game_describe with c) + "."
+    if length of c is not 6 then
+        fail with "game needs a color like \"FF0000\", but this is " + (game_describe with c) + "."
+    v is 0
+    i is 0
+    repeat 6 times
+        d is game_hexval[c[i]]
+        if d is nothing then
+            fail with "game needs a color like \"FF0000\", but this is " + (game_describe with c) + "."
+        v is v * 16 + d
+        i is i + 1
+    give back v
+
+note ---- framebuffer ----
+
+to game_frame_ok with frame
+    if kind of frame is not "table" then
+        fail with "game needs a game frame, but this is " + (game_describe with frame) + "."
+    if kind of frame["pixels"] is not "list" then
+        fail with "game needs a game frame, but this is " + (game_describe with frame) + "."
+
+to game_frame with w and h
+    ok is game_whole with w and 1 and 1024
+    if ok is false then
+        fail with "game_frame needs a whole width 1 to 1024, but this is " + (game_describe with w) + "."
+    ok is game_whole with h and 1 and 1024
+    if ok is false then
+        fail with "game_frame needs a whole height 1 to 1024, but this is " + (game_describe with h) + "."
+    frame is a new table
+    frame["w"] is w
+    frame["h"] is h
+    px is []
+    n is w * h
+    repeat n times
+        push 0 to px
+    frame["pixels"] is px
+    give back frame
+
+to game_clear with frame and color
+    game_frame_ok with frame
+    num is game_color_num with color
+    px is frame["pixels"]
+    i is 0
+    n is length of px
+    repeat while i is less than n
+        px[i] is num
+        i is i + 1
+
+to game_pixel with frame and x and y and color
+    game_frame_ok with frame
+    num is game_color_num with color
+    game_pixeln with frame and x and y and num
+
+to game_pixeln with frame and x and y and num
+    w is frame["w"]
+    h is frame["h"]
+    ok is game_whole with x and 0 and w - 1
+    if ok is false then
+        give back nothing
+    ok is game_whole with y and 0 and h - 1
+    if ok is false then
+        give back nothing
+    frame["pixels"][y * w + x] is num
+    give back nothing
+
+to game_rectn with frame and x and y and w and h and num
+    note filled rectangle, clipped. Coordinates may be off-frame; that is fine.
+    fw is frame["w"]
+    fh is frame["h"]
+    x0 is x
+    if x0 is less than 0 then
+        x0 is 0
+    y0 is y
+    if y0 is less than 0 then
+        y0 is 0
+    x1 is x + w
+    if x1 is greater than fw then
+        x1 is fw
+    y1 is y + h
+    if y1 is greater than fh then
+        y1 is fh
+    px is frame["pixels"]
+    yy is y0
+    repeat while yy is less than y1
+        xx is x0
+        base is yy * fw
+        repeat while xx is less than x1
+            px[base + xx] is num
+            xx is xx + 1
+        yy is yy + 1
+    give back nothing
+
+to game_rect with frame and x and y and w and h and color
+    game_frame_ok with frame
+    num is game_color_num with color
+    ok is game_whole with w and 1 and 1024
+    if ok is false then
+        fail with "game_rect needs a width of at least 1, but this is " + (game_describe with w) + "."
+    ok is game_whole with h and 1 and 1024
+    if ok is false then
+        fail with "game_rect needs a height of at least 1, but this is " + (game_describe with h) + "."
+    game_rectn with frame and x and y and w and h and num
+
+to game_linen with frame and x1 and y1 and x2 and y2 and num
+    note Bresenham, all octants, bounded by adx + ady + 1 nsteps.
+    adx is x2 - x1
+    if adx is less than 0 then
+        adx is 0 - adx
+    ady is y2 - y1
+    if ady is less than 0 then
+        ady is 0 - ady
+    sx is 1
+    if x1 is greater than x2 then
+        sx is 0 - 1
+    sy is 1
+    if y1 is greater than y2 then
+        sy is 0 - 1
+    e is adx - ady
+    x is x1
+    y is y1
+    nsteps is adx + ady + 1
+    repeat nsteps times
+        game_pixeln with frame and x and y and num
+        if x is x2 then
+            if y is y2 then
+                stop
+        e2 is e + e
+        if e2 is greater than 0 - ady then
+            e is e - ady
+            x is x + sx
+        if e2 is less than adx then
+            e is e + adx
+            y is y + sy
+    give back nothing
+
+to game_line with frame and x1 and y1 and x2 and y2 and color
+    game_frame_ok with frame
+    num is game_color_num with color
+    game_linen with frame and x1 and y1 and x2 and y2 and num
+
+to game_circlen with frame and cx and cy and r and num
+    note filled disc: each row spans the widest adx with adx*adx + ady*ady <= r*r.
+    rr is r * r
+    ady is 0 - r
+    repeat while ady is less than r + 1
+        adx is r
+        repeat while adx * adx + ady * ady is greater than rr
+            adx is adx - 1
+        game_rectn with frame and cx - adx and cy + ady and adx + adx + 1 and 1 and num
+        ady is ady + 1
+    give back nothing
+
+to game_circle with frame and cx and cy and r and color
+    game_frame_ok with frame
+    num is game_color_num with color
+    ok is game_whole with r and 1 and 1024
+    if ok is false then
+        fail with "game_circle needs a radius of at least 1, but this is " + (game_describe with r) + "."
+    game_circlen with frame and cx and cy and r and num
+
+note ---- 7-segment digits for scores ----
+
+game_seg is a new table
+game_seg["0"] is [1, 1, 1, 1, 1, 1, 0]
+game_seg["1"] is [0, 1, 1, 0, 0, 0, 0]
+game_seg["2"] is [1, 1, 0, 1, 1, 0, 1]
+game_seg["3"] is [1, 1, 1, 1, 0, 0, 1]
+game_seg["4"] is [0, 1, 1, 0, 0, 1, 1]
+game_seg["5"] is [1, 0, 1, 1, 0, 1, 1]
+game_seg["6"] is [1, 0, 1, 1, 1, 1, 1]
+game_seg["7"] is [1, 1, 1, 0, 0, 0, 0]
+game_seg["8"] is [1, 1, 1, 1, 1, 1, 1]
+game_seg["9"] is [1, 1, 1, 1, 0, 1, 1]
+
+to game_digitn with frame and x and y and d and scale and num
+    note segments: 0=a top, 1=b upper right, 2=c lower right, 3=d bottom,
+    note 4=e lower left, 5=f upper left, 6=g middle.
+    t is scale
+    l is 2 * scale
+    segs is game_seg[text of d]
+    if segs[0] is 1 then
+        game_rectn with frame and x + t and y and l and t and num
+    if segs[6] is 1 then
+        game_rectn with frame and x + t and y + t + l and l and t and num
+    if segs[3] is 1 then
+        game_rectn with frame and x + t and y + t + l + t + l and l and t and num
+    if segs[5] is 1 then
+        game_rectn with frame and x and y + t and t and l and num
+    if segs[1] is 1 then
+        game_rectn with frame and x + t + l and y + t and t and l and num
+    if segs[4] is 1 then
+        game_rectn with frame and x and y + t + l + t and t and l and num
+    if segs[2] is 1 then
+        game_rectn with frame and x + t + l and y + t + l + t and t and l and num
+    give back nothing
+
+to game_digit with frame and x and y and d and scale and color
+    game_frame_ok with frame
+    num is game_color_num with color
+    ok is game_whole with d and 0 and 9
+    if ok is false then
+        fail with "game_digit needs a digit 0 to 9, but this is " + (game_describe with d) + "."
+    ok is game_whole with scale and 1 and 8
+    if ok is false then
+        fail with "game_digit needs a scale 1 to 8, but this is " + (game_describe with scale) + "."
+    game_digitn with frame and x and y and d and scale and num
+
+to game_number with frame and x and y and n and scale and color
+    game_frame_ok with frame
+    num is game_color_num with color
+    if kind of n is not "number" then
+        fail with "game_number needs a whole number, but this is " + (game_describe with n) + "."
+    if n % 1 is not 0 then
+        fail with "game_number needs a whole number, but this is " + (game_describe with n) + "."
+    ok is game_whole with scale and 1 and 8
+    if ok is false then
+        fail with "game_number needs a scale 1 to 8, but this is " + (game_describe with scale) + "."
+    m is n
+    if m is less than 0 then
+        note minus sign: the middle bar.
+        t is scale
+        game_rectn with frame and x + t and y + t + 2 * scale and 2 * scale and t and num
+        x is x + 5 * scale
+        m is 0 - m
+    digits is []
+    if m is 0 then
+        push 0 to digits
+    repeat while m is greater than 0
+        push m % 10 to digits
+        m is game_idiv with m and 10
+    i is length of digits
+    repeat while i is greater than 0
+        i is i - 1
+        game_digitn with frame and x and y and digits[i] and scale and num
+        x is x + 5 * scale
+    give back nothing
+
+note ---- PPM export: P3 ASCII, byte-exact through write to file ----
+
+to game_ppm with frame
+    game_frame_ok with frame
+    w is frame["w"]
+    h is frame["h"]
+    px is frame["pixels"]
+    out is "P3\n" + (text of w) + " " + (text of h) + "\n255\n"
+    i is 0
+    n is w * h
+    repeat while i is less than n
+        v is px[i]
+        r is game_idiv with v and 65536
+        rem is v % 65536
+        g is game_idiv with rem and 256
+        b is rem % 256
+        out is out + (text of r) + " " + (text of g) + " " + (text of b) + "\n"
+        i is i + 1
+    give back out
+
+to game_save with frame and path
+    ppm is game_ppm with frame
+    write ppm to file path
+    give back path
+
+note ---- input: the scripted event queue ----
+
+to game_pad_new
+    pad is a new table
+    pad["events"] is []
+    pad["pos"] is 0
+    give back pad
+
+to game_press with pad and key
+    if kind of pad is not "table" then
+        fail with "game_press needs an input queue, but this is " + (game_describe with pad) + "."
+    if kind of pad["events"] is not "list" then
+        fail with "game_press needs an input queue, but this is " + (game_describe with pad) + "."
+    if kind of key is not "text" then
+        fail with "game_press does not know the key " + (game_describe with key) + ", expected up/down/left/right/space/a-z/0-9."
+    ok is game_wordok[key]
+    if ok is nothing then
+        if length of key is not 1 then
+            fail with "game_press does not know the key " + (game_describe with key) + ", expected up/down/left/right/space/a-z/0-9."
+        if game_keyok[key] is nothing then
+            fail with "game_press does not know the key " + (game_describe with key) + ", expected up/down/left/right/space/a-z/0-9."
+    ev is pad["events"]
+    push key to ev
+    give back nothing
+
+to game_poll with pad
+    if kind of pad is not "table" then
+        fail with "game_poll needs an input queue, but this is " + (game_describe with pad) + "."
+    if kind of pad["events"] is not "list" then
+        fail with "game_poll needs an input queue, but this is " + (game_describe with pad) + "."
+    pos is pad["pos"]
+    if pos is greater than (length of pad["events"]) - 1 then
+        give back nothing
+    pad["pos"] is pos + 1
+    give back pad["events"][pos]
+
+note ---- the loop: fixed ticks, update then draw, deterministic ----
+
+to game_sim with w and h
+    sim is a new table
+    sim["tick"] is 0
+    sim["frame"] is game_frame with w and h
+    sim["pad"] is game_pad_new
+    give back sim
+
+to game_sim_ok with sim
+    if kind of sim is not "table" then
+        fail with "game_loop needs a game sim, but this is " + (game_describe with sim) + "."
+    game_frame_ok with sim["frame"]
+    if kind of sim["pad"] is not "table" then
+        fail with "game_loop needs a game sim, but this is " + (game_describe with sim) + "."
+
+to game_loop with ticks and sim and update and draw
+    ok is game_whole with ticks and 1 and 100000
+    if ok is false then
+        fail with "game_loop needs 1 to 100000 ticks, but this is " + (game_describe with ticks) + "."
+    game_sim_ok with sim
+    if kind of update is not "function" then
+        fail with "game_loop needs functions for update and draw, but update is " + (game_describe with update) + "."
+    if kind of draw is not "function" then
+        fail with "game_loop needs functions for update and draw, but draw is " + (game_describe with draw) + "."
+    n is 0
+    repeat ticks times
+        n is n + 1
+        sim["tick"] is n
+        upshot is attempt update with sim
+        if upshot["error"] is not nothing then
+            fail with "game_loop: the update step failed: " + upshot["error"]
+        drawshot is attempt draw with sim
+        if drawshot["error"] is not nothing then
+            fail with "game_loop: the draw step failed: " + drawshot["error"]
+    report is a new table
+    report["ticks"] is n
+    report["frames"] is n
+    give back report
+
+note ---- audio: synthesized samples, real WAV files ----
+
+note 11025 Hz, 8-bit unsigned mono. Every emitted byte stays below 128
+note (spec v2.0 section 5) so UTF-8 text writes are byte-identical.
+note The byte table below is filled in at build time: 128 \u escapes.
+
+snd_b is "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008\u0009\u000a\u000b\u000c\u000d\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u0020\u0021\u0022\u0023\u0024\u0025\u0026\u0027\u0028\u0029\u002a\u002b\u002c\u002d\u002e\u002f\u0030\u0031\u0032\u0033\u0034\u0035\u0036\u0037\u0038\u0039\u003a\u003b\u003c\u003d\u003e\u003f\u0040\u0041\u0042\u0043\u0044\u0045\u0046\u0047\u0048\u0049\u004a\u004b\u004c\u004d\u004e\u004f\u0050\u0051\u0052\u0053\u0054\u0055\u0056\u0057\u0058\u0059\u005a\u005b\u005c\u005d\u005e\u005f\u0060\u0061\u0062\u0063\u0064\u0065\u0066\u0067\u0068\u0069\u006a\u006b\u006c\u006d\u006e\u006f\u0070\u0071\u0072\u0073\u0074\u0075\u0076\u0077\u0078\u0079\u007a\u007b\u007c\u007d\u007e\u007f"
+
+snd_rate is 11025
+
+game_waveok is a new table
+game_waveok["square"] is 1
+game_waveok["saw"] is 1
+game_waveok["triangle"] is 1
+game_waveok["noise"] is 1
+
+to snd_byte with n
+    ok is game_whole with n and 0 and 127
+    if ok is false then
+        fail with "snd_byte needs 0 to 127, but this is " + (game_describe with n) + "."
+    give back snd_b[n]
+
+to snd_le16 with n
+    give back (snd_byte with (n % 256)) + (snd_byte with (game_idiv with n and 256))
+
+to snd_le32 with n
+    give back (snd_byte with (n % 256)) + (snd_byte with ((game_idiv with n and 256) % 256)) + (snd_byte with ((game_idiv with n and 65536) % 256)) + (snd_byte with (game_idiv with n and 16777216))
+
+to snd_size_ok with n
+    note every little-endian byte of n must stay below 128.
+    if (n % 256) is greater than 127 then
+        give back false
+    q1 is game_idiv with n and 256
+    if (q1 % 256) is greater than 127 then
+        give back false
+    q2 is game_idiv with n and 65536
+    if q2 is greater than 127 then
+        give back false
+    give back true
+
+to snd_round with x
+    note round to the nearest whole number, half away from zero,
+    note then snap float dust (2.9999999999999996) to the whole value.
+    t is x + 0.5
+    if x is less than 0 then
+        t is x - 0.5
+    q is t - (t % 1)
+    r is q % 1
+    if r is not 0 then
+        if r is greater than 0.5 then
+            q is q + (1 - r)
+        otherwise
+            q is q - r
+    give back q
+
+to snd_samples_ok with samples
+    if kind of samples is not "list" then
+        fail with "snd_wav needs a list of samples, but this is " + (game_describe with samples) + "."
+    i is 0
+    n is length of samples
+    repeat while i is less than n
+        v is samples[i]
+        if kind of v is not "number" then
+            fail with "snd_wav needs samples from -1 to 1, but sample " + (text of i) + " is " + (game_describe with v) + "."
+        if v is less than 0 - 1 then
+            fail with "snd_wav needs samples from -1 to 1, but sample " + (text of i) + " is " + (game_describe with v) + "."
+        if v is greater than 1 then
+            fail with "snd_wav needs samples from -1 to 1, but sample " + (text of i) + " is " + (game_describe with v) + "."
+        i is i + 1
+    give back nothing
+
+to snd_tone with freq and ms and wave
+    if kind of freq is not "number" then
+        fail with "snd_tone needs 20 to 4000 Hz, but this is " + (game_describe with freq) + "."
+    if freq is less than 20 then
+        fail with "snd_tone needs 20 to 4000 Hz, but this is " + (game_describe with freq) + "."
+    if freq is greater than 4000 then
+        fail with "snd_tone needs 20 to 4000 Hz, but this is " + (game_describe with freq) + "."
+    ok is game_whole with ms and 1 and 10000
+    if ok is false then
+        fail with "snd_tone needs 1 to 10000 ms, but this is " + (game_describe with ms) + "."
+    if game_waveok[wave] is nothing then
+        fail with "snd_tone does not know the wave " + (game_describe with wave) + ", expected square/saw/triangle/noise."
+    total is game_idiv with (ms * snd_rate) and 1000
+    attack is 55
+    if total is less than 220 then
+        attack is game_idiv with total and 4
+    release is 110
+    if total is less than 440 then
+        release is game_idiv with total and 4
+    out is []
+    seed is 12345
+    i is 0
+    repeat while i is less than total
+        p is ((i * freq) % snd_rate) / snd_rate
+        s is 0
+        if wave is "square" then
+            s is 1
+            if p is greater than 0.5 then
+                s is 0 - 1
+        if wave is "saw" then
+            s is 2 * p - 1
+        if wave is "triangle" then
+            s is 4 * p - 1
+            if p is greater than 0.5 then
+                s is 3 - 4 * p
+        if wave is "noise" then
+            seed is (seed * 48271) % 2147483647
+            s is (seed / 2147483647) * 2 - 1
+        if i is less than attack then
+            s is s * i / attack
+        if i is greater than total - release - 1 then
+            s is s * (total - 1 - i) / release
+        push s to out
+        i is i + 1
+    give back out
+
+to snd_silence with ms
+    ok is game_whole with ms and 1 and 10000
+    if ok is false then
+        fail with "snd_silence needs 1 to 10000 ms, but this is " + (game_describe with ms) + "."
+    total is game_idiv with (ms * snd_rate) and 1000
+    out is []
+    repeat total times
+        push 0 to out
+    give back out
+
+to snd_seq with notes and wave
+    if kind of notes is not "list" then
+        fail with "snd_seq needs a list of [freq, ms] notes, but this is " + (game_describe with notes) + "."
+    if game_waveok[wave] is nothing then
+        fail with "snd_seq does not know the wave " + (game_describe with wave) + ", expected square/saw/triangle/noise."
+    out is []
+    for each nt in notes
+        if kind of nt is not "list" then
+            fail with "snd_seq needs a list of [freq, ms] notes, but one note is " + (game_describe with nt) + "."
+        if length of nt is not 2 then
+            fail with "snd_seq needs a list of [freq, ms] notes, but one note is " + (game_describe with nt) + "."
+        freq is nt[0]
+        ms is nt[1]
+        if kind of freq is not "number" then
+            fail with "snd_seq needs note frequencies 0 to 4000, but one is " + (game_describe with freq) + "."
+        if freq is less than 0 then
+            fail with "snd_seq needs note frequencies 0 to 4000, but one is " + (game_describe with freq) + "."
+        if freq is greater than 4000 then
+            fail with "snd_seq needs note frequencies 0 to 4000, but one is " + (game_describe with freq) + "."
+        part is snd_silence with ms
+        if freq is not 0 then
+            part is snd_tone with freq and ms and wave
+        for each s in part
+            push s to out
+    give back out
+
+to snd_mix with a and b
+    if kind of a is not "list" then
+        fail with "snd_mix needs two sample lists, but the first is " + (game_describe with a) + "."
+    if kind of b is not "list" then
+        fail with "snd_mix needs two sample lists, but the second is " + (game_describe with b) + "."
+    la is length of a
+    lb is length of b
+    n is la
+    if lb is greater than la then
+        n is lb
+    out is []
+    i is 0
+    repeat while i is less than n
+        va is 0
+        if i is less than la then
+            va is a[i]
+        vb is 0
+        if i is less than lb then
+            vb is b[i]
+        s is va + vb
+        if s is greater than 1 then
+            s is 1
+        if s is less than 0 - 1 then
+            s is 0 - 1
+        push s to out
+        i is i + 1
+    give back out
+
+to snd_wav2 with samples
+    note internal: gives back [wav text, padded sample count].
+    snd_samples_ok with samples
+    work is []
+    for each v in samples
+        push v to work
+    data is length of work
+    p is 0
+    good is false
+    repeat while good is false
+        s1 is snd_size_ok with (data + p)
+        if s1 is true then
+            s2 is snd_size_ok with (36 + data + p)
+            if s2 is true then
+                good is true
+        if good is false then
+            p is p + 1
+            if p is greater than 131071 then
+                fail with "snd_wav cannot size this song as text (over ~12 s of padding); it needs the byte writer."
+    repeat p times
+        push 0 to work
+    final is data + p
+    out is "RIFF" + (snd_le32 with (36 + final)) + "WAVE" + "fmt " + (snd_le32 with 16) + (snd_le16 with 1) + (snd_le16 with 1) + (snd_le32 with snd_rate) + (snd_le32 with snd_rate) + (snd_le16 with 1) + (snd_le16 with 8) + "data" + (snd_le32 with final)
+    for each v in work
+        out is out + (snd_byte with (64 + (snd_round with (v * 63))))
+    give back [out, final]
+
+to snd_wav with samples
+    pair is snd_wav2 with samples
+    give back pair[0]
+
+to snd_save with samples and path
+    pair is snd_wav2 with samples
+    write pair[0] to file path
+    give back pair[1]

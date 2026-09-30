@@ -261,6 +261,16 @@ otherwise
   through untouched: `attempt` around a function that gives back still
   gives back.
 - `attempt` nests: an inner `attempt` catches first.
+- Package tags (added 2026-09-30, v2.0): the walker bakes the live
+  package-tag stack into an error when it is raised; the bootstrap tags
+  only as the failure leaves each package frame. So an `attempt` sees
+  the error with only the tags of frames exited between the raise and
+  the catch. The captured error is stripped of exactly the tag prefix
+  in force at the attempt, so both legs agree byte for byte. A raise
+  unwinds past the walker's tag-pop, leaving dead tags behind; the
+  guarded-call service truncates the tag stack back to its pre-call
+  length when the call fails, so the next attempt stashes the live
+  prefix, not a dead one.
 - Bangla: `চেষ্টা`.
 
 Why it exists: section 3.3 promises that a failing jweb handler gets a

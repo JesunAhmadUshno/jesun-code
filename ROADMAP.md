@@ -78,9 +78,10 @@ works only through the bridge, that domain is not done.
   identical, byte for byte, on both interpreters. Spec-first in
   `docs/spec-v1.5.md`; 34 differential tests, all green on both
   interpreters.
-- **v2.0: games on PC (active).** Native 2D graphics, input, audio,
+- **v2.0: games on PC (active, sprint 1 in progress).** Native 2D graphics, input, audio,
   and game loop. A visual game written in Jesun.Code, running on PC,
-  no bridge.
+  no bridge. Sprint 1: the `game` package, the snake demo, `\uXXXX`
+  string escapes; live window and live keyboard stay sprint 2.
 - **v2.1: 3D and physics.** Native 3D rendering and physics on PC.
 - **v3.0: mobile.** Native mobile pipeline: touch input, mobile
   rendering, APK/IPA packaging. The hardest phase, saved for last.

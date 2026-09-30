@@ -107,6 +107,16 @@ SEEDS = [
     'fleet crew with scout\n    memory file is "a.json"\n    memory file is "b.json"\n',
     'fleet crew with scout\n    dance\n',
     'use bangla\n\u09a6\u09b2 crew \u09b8\u09b9 scout\n    \u099c\u09bf\u099c\u09cd\u099e\u09c7\u09b8 scout "hi" \u09b0\u09c7\u0996\u09c7 r\n',
+    # v2.0 string escapes: valid \\uXXXX, inert braces, malformed shapes.
+    'show "A\\u0041B"\n',
+    'show "\\u007b\\u007d"\n',
+    'n is 42\nshow "n is {n}\\u0041"\n',
+    'show "x{{y}}z"\n',
+    'show "\\u00zz"\n',
+    'show "abc\\u12"\n',
+    'show "ends with u \\u"\n',
+    'show "\\uD83D\\uDE00"\n',
+
 ]
 
 

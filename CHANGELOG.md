@@ -2,6 +2,25 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## Unreleased: v2.0 sprint 1 (2026-09-30)
+
+Spec `docs/spec-v2.0.md`. The `game` package (`packages/game/game.jc`,
+pure Jesun.Code): a framebuffer with pixel/rect/line (Bresenham)/circle
+and 7-seg digits plus P3 PPM export, a scripted input queue
+(`game_press`/`game_poll`), a fixed-tick `game_loop` with plain-English
+update/draw error reporting, and an 8-bit mono WAV writer
+(`snd_tone`/`snd_silence`/`snd_seq`/`snd_mix`/`snd_wav`/`snd_save`)
+that obeys the 128 rule end to end. The one new interpreter feature in
+v2.0: `\uXXXX` string escapes in both lexers, needed to assemble WAV
+header bytes as text; raw-string lexing keeps `\u007b` inert so decoded
+braces can never fake an interpolation. `examples/snake.jc`:
+scripted-input snake on 64x48, eats two pellets, score as 7-seg digits,
+one PPM per 10th tick, `jingle.wav` verified as valid 11025 Hz 8-bit
+mono RIFF. Differential tests in `tests/test_game.py`, the
+`tests/fuzz_game.py` game fuzzer, and `\u` seeds in `tests/fuzz.py`,
+all green on both interpreters. Live window and live keyboard stay
+sprint 2 scope; no release, milestone incomplete.
+
 ## v1.5.0 - 2026-09-30: THE SITE BUILDS ITSELF
 
 Spec `docs/spec-v1.5.md`. Milestone complete: the whole `docs/` tree
