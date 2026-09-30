@@ -130,7 +130,7 @@ note ==== END HELPERS ====
 
 note ==== SECTION: LEXER ====
 
-kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"], ["ask", "ask"], ["giving", "giving"], ["read", "read"], ["write", "write"], ["append", "append"], ["file", "file"], ["import", "import"], ["as", "as"], ["keys", "keys"], ["ai", "ai"], ["tools", "tools"], ["within", "within"], ["steps", "steps"], ["open", "open"], ["terminal", "terminal"], ["named", "named"], ["send", "send"], ["close", "close"], ["agent", "agent"], ["persona", "persona"], ["remember", "remember"], ["always", "always"], ["forget", "forget"], ["memory", "memory"], ["streaming", "streaming"], ["use", "use"], ["fleet", "fleet"], ["bring", "bring"], ["new", "new"], ["table", "table"], ["json", "json"], ["parse", "parse"], ["attempt", "attempt"], ["display", "display"], ["key", "key"], ["raw", "raw"], ["cooked", "cooked"], ["mode", "mode"]]
+kinds is [["show", "show"], ["is", "is"], ["not", "not"], ["true", "true"], ["false", "false"], ["nothing", "nothing"], ["if", "if"], ["then", "then"], ["otherwise", "otherwise"], ["repeat", "repeat"], ["times", "times"], ["while", "while"], ["for", "for"], ["each", "each"], ["in", "in"], ["to", "to"], ["with", "with"], ["and", "and"], ["or", "or"], ["give", "give"], ["back", "back"], ["stop", "stop"], ["skip", "skip"], ["of", "of"], ["first", "first"], ["last", "last"], ["length", "length"], ["uppercase", "uppercase"], ["lowercase", "lowercase"], ["greater", "greater"], ["less", "less"], ["than", "than"], ["least", "least"], ["most", "most"], ["at", "at"], ["contains", "contains"], ["split", "split"], ["join", "join"], ["trim", "trim"], ["by", "by"], ["push", "push"], ["characters", "characters"], ["text", "text"], ["kind", "kind"], ["fail", "fail"], ["ask", "ask"], ["giving", "giving"], ["read", "read"], ["write", "write"], ["append", "append"], ["file", "file"], ["import", "import"], ["as", "as"], ["keys", "keys"], ["ai", "ai"], ["tools", "tools"], ["within", "within"], ["steps", "steps"], ["open", "open"], ["terminal", "terminal"], ["named", "named"], ["send", "send"], ["close", "close"], ["agent", "agent"], ["persona", "persona"], ["remember", "remember"], ["always", "always"], ["forget", "forget"], ["memory", "memory"], ["streaming", "streaming"], ["use", "use"], ["fleet", "fleet"], ["bring", "bring"], ["new", "new"], ["table", "table"], ["json", "json"], ["parse", "parse"], ["attempt", "attempt"], ["display", "display"], ["key", "key"], ["mode", "mode"]]
 
 note Bangla keyword flavor (spec v0.5 s23): mirrors the bootstrap's
 note BANGLA_KEYWORDS one for one, mapping to the same walker kinds.
@@ -1040,10 +1040,8 @@ to parse_statement with toks and i
         give back parse_show with toks and i
     if k is "display" then
         give back parse_display with toks and i
-    if k is "raw" then
-        give back parse_terminalmode with toks and i and true
-    if k is "cooked" then
-        give back parse_terminalmode with toks and i and false
+    note v3.0: raw/cooked are contextual now (spec v2.0 s11 still holds
+    note for the `raw mode` statement); see the name block below.
     if k is "if" then
         give back parse_if with toks and i
     if k is "repeat" then
@@ -1083,6 +1081,16 @@ to parse_statement with toks and i
             give back parse_assign with toks and i
         if is_subscript_assign with toks and i then
             give back parse_sub_assign with toks and i
+    note v3.0: `raw mode` / `cooked mode` are contextual (spec v2.0 s11).
+    note After the assignment checks, so `raw is ...` stays a normal
+    note assignment and `raw` stays a plain name everywhere else.
+    if k is "name" then
+        w is peek_value with toks and i
+        if w is "raw" or w is "cooked" then
+            if w is "raw" then
+                give back parse_terminalmode with toks and i and true
+            otherwise
+                give back parse_terminalmode with toks and i and false
     if k is "agent" then
         give back parse_agentdef with toks and i
     if k is "forget" then
