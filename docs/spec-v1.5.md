@@ -52,6 +52,31 @@ A page is a table with these keys:
   Optional. The generator injects it verbatim; it does not build JSON
   (the `template` and `html` packages escape; JSON stays authored so
   `softwareVersion` strings are exact).
+- Chrome overrides (all optional; added during the docs/ migration so
+  the generator reproduces the hand-built tree byte for byte):
+  - `nav_links`: list of `{label, href}` link tables replacing the
+    nav variant's link set (the rebrand ships five hand-tuned sets).
+  - `version`: page-level version pill, defaults to the site version
+    (the migration used it to carry stale `v1.3.0` pills byte-faithfully
+    before the deliberate bump to `v1.4.0`).
+  - `github_svg`: `true` gives the nav GitHub CTA the inline Octocat
+    svg the homepage ships; default is the plain text button.
+  - `og_title`, `og_description`, `twitter_title`,
+    `twitter_description`, `twitter_card`: per-page SEO overrides,
+    defaulting to title/description/`"summary"`.
+  - `og_type`: Open Graph type, defaults to `"website"` (`"article"`
+    on blog posts, `"profile"` on the about page).
+  - `article_date`: emits `<meta property="article:published_time">`
+    when present.
+  - `no_twitter_meta`: `true` omits the twitter:title/description tags
+    (blog posts and the FAQ ship only the card).
+  - `tagline`: footer tagline override; `foot_stroke`: `true` gives the
+    footer brand mark the white-stroke svg variant; `foot_product`,
+    `foot_resources`, `foot_project`: link-table lists replacing the
+    footer columns (per-page relative hrefs).
+  - `dup_head_icons`, `gap_after_body_tag`, `gap_before_jsonld`: `true`
+    reproduces hand-built whitespace/duplication warts byte-faithfully
+    (kept honest: each is one flag in page data, deletable in one line).
 
 A site is a table with these keys:
 
@@ -96,8 +121,9 @@ fidelity, so the generator must never re-escape authored markup).
   same links the rebrand ships, and the copyright line.
 - `sitegen_page with page and site`: the full document:
   `<!DOCTYPE html>\n<html lang="en">\n` + head + nav + body + footer +
-  the nav-toggle `<script>` (verbatim authored JS, one string constant)
-  + `</body>\n</html>`.
+  the JSON-LD script block when the page has one +
+  `<script src="{root_prefix}assets/app.js"></script>` (the nav toggle
+  lives in `assets/app.js`) + `</body>\n</html>\n`.
 
 ## 4. Blog index builder
 
@@ -194,3 +220,39 @@ version bumps to v1.5.0, the Linux binary rebuilds, and the release
 cuts with the Linux binary. Until then, v1.5 is one shipped sprint
 (this one: spec + core package + differential suite + demo) and the
 page-migration sprint stays next.
+
+## 11. Amendments
+
+### 2026-09-30: machine-file fidelity (found in re-verification)
+
+Re-running the migration driver through both interpreters on
+2026-09-30 reproduced all 14 pages byte-identically, but the three
+machine files diverged from the hand-built tree: the generator's
+`sitemap.xml` used a derived `<lastmod>` format while the hand-built
+file carries authored `<changefreq>`/`<priority>` entries; `robots.txt`
+missed its trailing newline; `llms.txt` was a stub because the
+extractor never fed the hand-built document in. The package now models
+what the hand-built tree actually says:
+
+- `sitegen_sitemap with pages and site`: when the site carries
+  `sitemap_urls` (a list of tables with `url`, `changefreq`,
+  `priority`), it renders one single-line `<url>` per entry, in order,
+  escaping `&` as `&amp;`. Without `sitemap_urls` it falls back to the
+  derived format (loc + `<lastmod>` from the page `date`). The file
+  ends with a newline.
+- `sitegen_robots with site`: unchanged shape, now ends with a newline.
+- `sitegen_llms with site`: when the site carries `llms_body`
+  (authored text, carried verbatim like `jsonld`), it is returned as
+  is. Without it, the structured path (`llms_name`, `summary`,
+  `llms_sections`) still builds a fresh document.
+- The site data model (section 2) uses the flat keys `llms_name`,
+  `summary`, `llms_sections`, plus `llms_body` and `sitemap_urls`;
+  there is no `llms` table.
+- Deliberate improvement 3 (logged, same as 1 and 2): the v0.4.0 post
+  shipped a doubled footer (one copy carried in the body with a stale
+  v1.3.0 span, one from the chrome). The extractor now ends the body
+  at the first `<footer>` and parses the chrome footer from the last
+  one, so the page emits a single footer with the current version.
+
+Milestone acceptance item 1 now covers all 17 generated files (14
+pages plus sitemap.xml, robots.txt, llms.txt).
