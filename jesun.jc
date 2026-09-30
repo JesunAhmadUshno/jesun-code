@@ -225,27 +225,17 @@ to count_leading_spaces with given_line
     give back n
 
 to read_string with cs and i and n and lineno
+    note v2.0: gives back the RAW text between the quotes; escapes stay
+    note intact. decode_escapes runs later, after parse_string has found
+    note {...} interpolation on the raw text, so a \u007b escape never
+    note fakes an interpolation brace. Mirrors the bootstrap.
     quote is cs[i]
     i is i + 1
     out is ""
     repeat while i is less than n
         ch is cs[i]
         if ch is "\\" and i + 1 is less than n then
-            nxt is cs[i + 1]
-            if nxt is "n" then
-                out is out + "\n"
-            otherwise if nxt is "r" then
-                out is out + bridge_char_from_code with 13
-            otherwise if nxt is "t" then
-                out is out + "\t"
-            otherwise if nxt is "\"" then
-                out is out + "\""
-            otherwise if nxt is "'" then
-                out is out + "'"
-            otherwise if nxt is "\\" then
-                out is out + "\\"
-            otherwise
-                out is out + nxt
+            out is out + ch + cs[i + 1]
             i is i + 2
             skip
         if ch is quote then
@@ -253,6 +243,89 @@ to read_string with cs and i and n and lineno
         out is out + ch
         i is i + 1
     parse_error with lineno and "this text never ends; close the quote."
+
+to decode_escapes with raw and lineno
+    note v2.0: decode \n \r \t \" \' \\ and \uXXXX in raw string text.
+    note Runs after interpolation is found, mirroring the bootstrap's
+    note _decode_string_escapes.
+    cs is characters of raw
+    n is length of cs
+    out is ""
+    i is 0
+    repeat while i is less than n
+        ch is cs[i]
+        if ch is "\\" and i + 1 is less than n then
+            nxt is cs[i + 1]
+            if nxt is "n" then
+                out is out + "\n"
+                i is i + 2
+                skip
+            otherwise if nxt is "r" then
+                out is out + bridge_char_from_code with 13
+                i is i + 2
+                skip
+            otherwise if nxt is "t" then
+                out is out + "\t"
+                i is i + 2
+                skip
+            otherwise if nxt is "\"" then
+                out is out + "\""
+                i is i + 2
+                skip
+            otherwise if nxt is "'" then
+                out is out + "'"
+                i is i + 2
+                skip
+            otherwise if nxt is "\\" then
+                out is out + "\\"
+                i is i + 2
+                skip
+            otherwise if nxt is "u" then
+                hexres is read_hex4 with cs and i and n and lineno
+                code is hexres[0]
+                i is hexres[1]
+                if code is at least 55296 then
+                    if code is less than 56320 then
+                        if i + 5 is less than n then
+                            if cs[i] is "\\" then
+                                if cs[i + 1] is "u" then
+                                    lo is read_hex4_value with cs and i and n
+                                    if lo is not nothing then
+                                        if lo is at least 56320 then
+                                            if lo is less than 57344 then
+                                                code is 65536 + (code - 55296) * 1024 + (lo - 56320)
+                                                i is i + 6
+                out is out + bridge_char_from_code with code
+                skip
+            otherwise
+                out is out + nxt
+                i is i + 2
+                skip
+        out is out + ch
+        i is i + 1
+    give back out
+
+to read_hex4_value with cs and i and n
+    note v2.0: the code point of the \uXXXX escape whose backslash is at
+    note cs[i]. Gives back nothing when the escape is malformed.
+    if i + 5 is greater than n - 1 then
+        give back nothing
+    code is 0
+    k is 0
+    repeat 4 times
+        hv is json_hex_value with cs[i + 2 + k]
+        if hv is -1 then
+            give back nothing
+        code is code * 16 + hv
+        k is k + 1
+    give back code
+
+to read_hex4 with cs and i and n and lineno
+    note v2.0: hard-failing \uXXXX reader for string literals.
+    code is read_hex4_value with cs and i and n
+    if code is nothing then
+        parse_error with lineno and "this \\u escape needs 4 hex digits, like \\u0041."
+    give back [code, i + 6]
 
 to read_number with cs and i and n and lineno
     note The digit run is text until the bridge converts it: the
@@ -1166,8 +1239,12 @@ to parse_expr_fragment with inner and ln
     give back pair[0]
 
 to parse_string with value and ln
+    note v2.0: value is RAW (escapes intact). Interpolation braces are
+    note found on the raw text, so a \u007b escape never fakes one.
+    note Each text part is escape-decoded after the structure is fixed.
+    note Mirrors the bootstrap's _parse_string.
     if not value contains "{{" then
-        give back ["lit", value, ln]
+        give back ["lit", decode_escapes with value and ln, ln]
     parts is []
     buf is ""
     found is false
@@ -1200,7 +1277,7 @@ to parse_string with value and ln
                 k is k + 1
             if trim of inner is "" then
                 parse_error with ln and "these braces are empty; put a value inside."
-            push ["text", buf] to parts
+            push ["text", decode_escapes with buf and ln] to parts
             buf is ""
             push ["expr", parse_expr_fragment with inner and ln] to parts
             found is true
@@ -1212,7 +1289,7 @@ to parse_string with value and ln
             skip
         buf is buf + ch
         i is i + 1
-    push ["text", buf] to parts
+    push ["text", decode_escapes with buf and ln] to parts
     if not found then
         collapsed is ""
         for each part in parts
@@ -1701,7 +1778,13 @@ to ev_attempt with node and env and depth
     note `skip` were already consumed inside the guarded call.
     operand is node[1]
     ln is node[2]
+    saved_prefix is jpm_attempt_box["prefix"]
+    saved_taglen is jpm_attempt_box["taglen"]
+    jpm_attempt_box["prefix"] is jpm_error_prefix
+    jpm_attempt_box["taglen"] is length of jpm_tag_stack
     outcome is __main__._jc_attempt(operand, ln)
+    jpm_attempt_box["prefix"] is saved_prefix
+    jpm_attempt_box["taglen"] is saved_taglen
     t is new_jc_table
     if outcome[0] is "ok" then
         t["ok"] is true
@@ -1765,6 +1848,8 @@ to ev_builtin with node and env and depth
     if bkind is "text" then
         give back [render with v, ""]
     if bkind is "kind" then
+        if is_function_value with v then
+            give back ["function", ""]
         give back [kind of v, ""]
     if bkind is "keys" then
         ks is bridge_dict_keys with v
@@ -2942,6 +3027,21 @@ note equal the tombstone (spaces are not in _JPM_SEGMENT), so a package
 note named anything legal is safe.
 jpm_tag_stack is []
 jpm_loading_stack is []
+
+note The package-tag prefix in force at the innermost `attempt`, stashed
+note here by ev_attempt before the guarded call. _jc_attempt reads it to
+note strip only that much from a captured error: the bootstrap tags a
+note failure as it leaves each package frame, so attempt sees the message
+note with only the tags of frames exited between the raise and the catch.
+note (The live tag stack cannot be used: a failing body unwinds past the
+note walker's jpm_tag_pop, so it still holds the dead frame's tag.)
+note "taglen" is the tag-stack length before the guarded call; _jc_attempt
+note truncates the stack back to it when the call fails, retiring the dead
+note tags the unwound raise left behind. Without that, the next attempt
+note would stash a dead prefix and strip a tag it should keep.
+jpm_attempt_box is a new table
+jpm_attempt_box["prefix"] is ""
+jpm_attempt_box["taglen"] is 0
 
 to jpm_tag_push with tag
     push tag to jpm_tag_stack

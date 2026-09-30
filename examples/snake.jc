@@ -1,0 +1,100 @@
+note Snake: the v2.0 demo game. Headless and deterministic: a scripted
+note input program (space = keep going, plus turns) drives the snake
+note around a 64x48 frame. It eats two pellets, grows, and the score
+note renders as 7-seg digits. One PPM per 10th tick, plus jingle.wav.
+note Runs on the bootstrap; see docs/spec-v2.0.md section 6 for why the
+note full demo is bootstrap-only.
+
+bring in "game"
+
+to snake_new with sim
+    sim["snake"] is [[4, 4], [3, 4], [2, 4]]
+    sim["dir"] is [1, 0]
+    sim["pellets"] is [[10, 4], [11, 10]]
+    sim["score"] is 0
+    pad is sim["pad"]
+    t is 0
+    repeat 26 times
+        t is t + 1
+        if t is 8 then
+            game_press with pad and "down"
+        otherwise if t is 14 then
+            game_press with pad and "left"
+        otherwise if t is 20 then
+            game_press with pad and "up"
+        otherwise
+            game_press with pad and "space"
+    give back nothing
+
+to snake_turn with sim and key
+    d is sim["dir"]
+    if key is "up" and d[1] is not 1 then
+        sim["dir"] is [0, 0 - 1]
+    otherwise if key is "down" and d[1] is not 0 - 1 then
+        sim["dir"] is [0, 1]
+    otherwise if key is "left" and d[0] is not 1 then
+        sim["dir"] is [0 - 1, 0]
+    otherwise if key is "right" and d[0] is not 0 - 1 then
+        sim["dir"] is [1, 0]
+    give back nothing
+
+to snake_update with sim
+    key is game_poll with sim["pad"]
+    if key is not nothing then
+        snake_turn with sim and key
+    body is sim["snake"]
+    head is body[0]
+    d is sim["dir"]
+    nx is head[0] + d[0]
+    ny is head[1] + d[1]
+    if nx is less than 0 then
+        nx is 0
+    if nx is greater than 63 then
+        nx is 63
+    if ny is less than 0 then
+        ny is 0
+    if ny is greater than 47 then
+        ny is 47
+    newhead is [nx, ny]
+    pellets is sim["pellets"]
+    ate is false
+    kept is []
+    for each p in pellets
+        if p[0] is nx and p[1] is ny then
+            ate is true
+        otherwise
+            push p to kept
+    sim["pellets"] is kept
+    newbody is [newhead]
+    i is 0
+    keepn is length of body
+    if ate is false then
+        keepn is keepn - 1
+    repeat while i is less than keepn
+        push body[i] to newbody
+        i is i + 1
+    sim["snake"] is newbody
+    if ate then
+        sim["score"] is sim["score"] + 1
+    give back nothing
+
+to snake_draw with sim
+    frame is sim["frame"]
+    game_clear with frame and "000000"
+    for each p in sim["pellets"]
+        game_rect with frame and p[0] * 2 and p[1] * 2 and 2 and 2 and "FF0000"
+    for each seg in sim["snake"]
+        game_rect with frame and seg[0] * 2 and seg[1] * 2 and 2 and 2 and "00FF00"
+    game_number with frame and 2 and 2 and sim["score"] and 1 and "FFFFFF"
+    if sim["tick"] % 10 is 0 then
+        game_save with frame and "snake_" + (text of sim["tick"]) + ".ppm"
+    give back nothing
+
+sim is game_sim with 64 and 48
+snake_new with sim
+game_loop with 26 and sim and snake_update and snake_draw
+show "score: " + (text of sim["score"])
+show "pellets left: " + (text of length of sim["pellets"])
+jingle is snd_seq with [[523, 150], [659, 150], [784, 300]] and "square"
+n is snd_save with jingle and "jingle.wav"
+show "jingle samples: " + (text of n)

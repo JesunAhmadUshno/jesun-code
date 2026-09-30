@@ -120,8 +120,42 @@ def _jc_attempt(operand: Any, line: int) -> list:
     try:
         return ["ok", interp._call_function(ev_fn, [operand_node, env, depth], line)]
     except JesunError as err:
-        # str(err) is exactly what the user would have seen.
-        return ["fail", str(err)]
+        # v2.0: the walker bakes the full package-tag stack into the error
+        # text when it is raised, but the bootstrap tags a failure only as
+        # it leaves each package frame. An `attempt` therefore sees the
+        # message with only the tags of frames exited between the raise
+        # and the catch. The walker's ev_attempt stashed the prefix in
+        # force at the attempt (jpm_attempt_box) before the guarded call;
+        # strip only that much so both legs agree byte for byte (spec v1.2
+        # section 7). A `fail with` bakes "Line 0: "; the bootstrap's bare
+        # error carries no line prefix, so that goes too. Anything
+        # unexpected keeps the original text.
+        text = str(err)
+        try:
+            box = interp.global_env.get("jpm_attempt_box", line)
+            aprefix = box.get("prefix", "") if isinstance(box, dict) else ""
+            if aprefix:
+                m = re.match(r"^Line (\d+): ", text)
+                if m and text[m.end():].startswith(aprefix):
+                    rest = text[m.end() + len(aprefix):]
+                    text = rest if m.group(1) == "0" else "Line %s: %s" % (m.group(1), rest)
+            # v2.0: a raise unwinds past the walker's jpm_tag_pop, leaving
+            # the dead frame's tag on jpm_tag_stack. Truncate the stack
+            # back to its pre-call length (stashed by ev_attempt) so the
+            # next attempt stashes the live prefix, not a dead one.
+            # Balanced push/tombstone pairs are untouched: this only runs
+            # on the failure path.
+            taglen = box.get("taglen", 0) if isinstance(box, dict) else 0
+            if isinstance(taglen, int) and taglen >= 0:
+                try:
+                    tstack = interp.global_env.get("jpm_tag_stack", line)
+                except JesunError:
+                    tstack = None
+                if isinstance(tstack, list) and len(tstack) > taglen:
+                    del tstack[taglen:]
+        except JesunError:
+            pass
+        return ["fail", text]
 
 
 class _BareError(JesunError):
@@ -806,14 +840,21 @@ def _cut_comment(line: str, comment_word: str = "note") -> str:
 
 
 def _read_string(text: str, start: int, lineno: int) -> tuple[str, int]:
+    """v2.0: returns the RAW text between the quotes; escapes stay intact.
+
+    Escape decoding (including \\uXXXX) happens later, in
+    _decode_string_escapes, after the parser has recognized {...}
+    interpolation on the raw text. This keeps a \\u007b escape from
+    faking an interpolation brace.
+    """
     quote = text[start]
     i, n = start + 1, len(text)
     out: list[str] = []
     while i < n:
         ch = text[i]
         if ch == "\\" and i + 1 < n:
-            nxt = text[i + 1]
-            out.append({"n": "\n", "r": "\r", "t": "\t", '"': '"', "'": "'", "\\": "\\"}.get(nxt, nxt))
+            out.append(ch)
+            out.append(text[i + 1])
             i += 2
             continue
         if ch == quote:
@@ -822,6 +863,44 @@ def _read_string(text: str, start: int, lineno: int) -> tuple[str, int]:
         i += 1
     fail(lineno, "this text never ends; close the quote.")
     raise AssertionError("unreachable")
+
+
+def _read_hex4(text: str, i: int, lineno: int) -> tuple[int, int]:
+    """Four hex digits after the backslash-u at i; mirrors parse_string."""
+    digits = text[i + 2:i + 6]
+    if len(digits) < 4 or any(c not in "0123456789abcdefABCDEF" for c in digits):
+        fail(lineno, "this \\u escape needs 4 hex digits, like \\u0041.")
+    return int(digits, 16), i + 6
+
+
+def _decode_string_escapes(raw: str, lineno: int) -> str:
+    """Decode \\\\n \\\\r \\\\t \\\\" \\\\' \\\\\\\\ and \\\\uXXXX in raw string text."""
+    out: list[str] = []
+    i, n = 0, len(raw)
+    while i < n:
+        ch = raw[i]
+        if ch == "\\" and i + 1 < n:
+            nxt = raw[i + 1]
+            if nxt == "u":
+                # v2.0: \uXXXX escapes, mirroring the JSON parser's
+                # surrogate handling. A high surrogate not followed by a
+                # low one stays lone, exactly like Python's json module.
+                code, i = _read_hex4(raw, i, lineno)
+                if 0xD800 <= code <= 0xDBFF and raw.startswith("\\u", i):
+                    low_digits = raw[i + 2:i + 6]
+                    if len(low_digits) == 4 and all(c in "0123456789abcdefABCDEF" for c in low_digits):
+                        low = int(low_digits, 16)
+                        if 0xDC00 <= low <= 0xDFFF:
+                            code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+                            i += 6
+                out.append(chr(code))
+                continue
+            out.append({"n": "\n", "r": "\r", "t": "\t", '"': '"', "'": "'", "\\": "\\"}.get(nxt, nxt))
+            i += 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def _tokenize_line(text: str, lineno: int,
@@ -1884,46 +1963,50 @@ class Parser:
     # v0.4: string interpolation. "{expr}" inside a string evaluates the
     # expression; "{{" and "}}" are literal braces.
     def _parse_string(self, tok: Token) -> Expr:
-        value: str = tok.value
-        if "{" not in value:
-            return Literal(value, tok.line)
+        # v2.0: tok.value is the RAW text between the quotes. Interpolation
+        # braces are recognized here, on the raw text, so a \u007b escape
+        # decodes to an inert "{" that never starts interpolation. Each
+        # text part is escape-decoded after the structure is fixed.
+        raw: str = tok.value
+        if "{" not in raw:
+            return Literal(_decode_string_escapes(raw, tok.line), tok.line)
         parts: list = []
         buf: list[str] = []
         found = False
-        i, n = 0, len(value)
+        i, n = 0, len(raw)
         while i < n:
-            ch = value[i]
+            ch = raw[i]
             if ch == "{":
-                if i + 1 < n and value[i + 1] == "{":
+                if i + 1 < n and raw[i + 1] == "{":
                     buf.append("{")
                     i += 2
                     continue
                 depth = 1
                 j = i + 1
                 while j < n and depth > 0:
-                    if value[j] == "{":
+                    if raw[j] == "{":
                         depth += 1
-                    elif value[j] == "}":
+                    elif raw[j] == "}":
                         depth -= 1
                     j += 1
                 if depth != 0:
                     fail(tok.line, 'this "{" never closes; add a "}" to finish it.')
-                inner = value[i + 1:j - 1]
+                inner = raw[i + 1:j - 1]
                 if not inner.strip():
                     fail(tok.line, "these braces are empty; put a value inside.")
-                parts.append(("text", "".join(buf)))
+                parts.append(("text", _decode_string_escapes("".join(buf), tok.line)))
                 buf = []
                 parts.append(("expr", self._parse_expr_fragment(inner, tok.line)))
                 found = True
                 i = j
                 continue
-            if ch == "}" and i + 1 < n and value[i + 1] == "}":
+            if ch == "}" and i + 1 < n and raw[i + 1] == "}":
                 buf.append("}")
                 i += 2
                 continue
             buf.append(ch)
             i += 1
-        parts.append(("text", "".join(buf)))
+        parts.append(("text", _decode_string_escapes("".join(buf), tok.line)))
         if not found:
             collapsed = "".join(text for kind, text in parts if kind == "text")
             return Literal(collapsed, tok.line)

@@ -444,7 +444,7 @@ scaffolders import one raw primitive (`os.makedirs`) to create folders.
 Demos: `examples/wp_client_demo.jc`, `examples/react_demo.jc`,
 `examples/php_demo.jc`. Full spec: `docs/spec-v1.4.md`.
 
-## v1.5 in progress: the site builds itself
+## v1.5: the site builds itself (shipped v1.5.0)
 
 The `sitegen` package (`packages/sitegen/sitegen.jc`) is a static site
 generator written in Jesun.Code itself (spec: `docs/spec-v1.5.md`). Page
@@ -478,6 +478,37 @@ robots trailing newline, llms.txt carried verbatim); the package models them.
 `docs/` is now the generated tree (15 pages plus the 3 machine files, 0 broken
 internal links, no stale chrome, SEO plumbing intact). v1.5.0 shipped 2026-09-30:
 release post `docs/blog/v1.5.0-sitegen.html`.
+
+## v2.0 in progress: games on PC
+
+One language, all solutions, now with pixels and sound. The `game`
+package (`packages/game/game.jc`) is pure Jesun.Code: a 2D framebuffer
+(P3 PPM export), a scripted input queue, a fixed-tick game loop, and an
+8-bit mono WAV synth that obeys the 128 rule end to end. Every byte of
+every file the language writes stays below 128, so WAV headers are
+assembled from `\uXXXX` string escapes, the one new interpreter feature
+in v2.0 (both lexers; raw-string lexing keeps `\u007b` inert so decoded
+braces can never fake an interpolation).
+
+```jesun
+bring in "game"
+
+f is game_frame with 64 and 48
+game_rect with f and 10 and 10 and 8 and 8 and "00FF00"
+game_save with f and "frame.ppm"
+
+jingle is snd_seq with [[523, 150], [659, 150], [784, 300]] and "square"
+snd_save with jingle and "jingle.wav"
+```
+
+`examples/snake.jc` is the flagship: scripted-input snake on 64x48, eats
+two pellets, score as 7-seg digits, one PPM per 10th tick, plus a
+three-note `jingle.wav` verified as valid 11025 Hz 8-bit mono RIFF.
+Differential tests in `tests/test_game.py` (frames, draws, input, loop,
+sound, `\u` escapes, failure shapes), the `tests/fuzz_game.py` game
+fuzzer, and `\u` seeds in `tests/fuzz.py`, all green on both
+interpreters. Full spec: `docs/spec-v2.0.md`. Live window and live
+keyboard stay sprint 2 scope; no release, milestone incomplete.
 
 ## What v0.4 is, honestly
 
