@@ -70,15 +70,18 @@ works only through the bridge, that domain is not done.
   Vite scaffolder), `php` (Laravel routes, controllers, Blade pages, plus
   a project scaffolder). Spec `docs/spec-v1.4.md`; 34 differential tests,
   all green on both interpreters.
-- **v1.5: the site builds itself (shipped 2026-09-30, v1.5.0).** A
-  static site generator written in Jesun.Code itself: the `sitegen`
-  package (chrome builders, blog builders, machine files) plus one
-  driver file and one `sitegen_build` call. The whole `docs/` tree (15
-  pages, sitemap.xml, robots.txt, llms.txt) rebuilds page-for-page
-  identical, byte for byte, on both interpreters. Spec-first in
-  `docs/spec-v1.5.md`; 34 differential tests, all green on both
-  interpreters.
-- **v2.0: games on PC (active, sprint 1 in progress).** Native 2D graphics, input, audio,
+- **v1.5: the site builds itself (shipped 2026-09-30, v1.5.0; pipeline
+  made real 2026-09-30).** A static site generator written in Jesun.Code
+  itself: the `sitegen` package (chrome builders, blog builders, machine
+  files) plus one driver file and one `sitegen_build` call. The release
+  commit migrated the tree by hand; the committed pipeline
+  (`site/build.jc` plus authored fragments in `site/content/`) landed in
+  the commit after and rebuilds the whole `docs/` tree (15 pages,
+  sitemap.xml, robots.txt, llms.txt) page-for-page identical, byte for
+  byte, on both interpreters: `python3 jesun.py site/build.jc`. Spec-first
+  in `docs/spec-v1.5.md`; 34 differential tests plus
+  `tests/test_site_build.py`, all green on both interpreters.
+- **v2.0: games on PC (shipped v2.0.0, 2026-09-30).** Native 2D graphics, input, audio,
   and game loop. A visual game written in Jesun.Code, running on PC,
   no bridge. Sprint 1: the `game` package, the snake demo, `\uXXXX`
   string escapes; live window and live keyboard stay sprint 2.

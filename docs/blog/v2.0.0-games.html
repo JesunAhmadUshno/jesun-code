@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Games, in sentences: Jesun.Code v2.0.0 ships the game engine - The Smithy</title>
+<meta name="description" content="Jesun.Code v2.0.0: a 2D game engine written in Jesun.Code itself. Framebuffer, sprites, input, sound, and a live terminal driver. Snake is playable.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Jesun.Code">
+<meta property="og:title" content="Games, in sentences: Jesun.Code v2.0.0 ships the game engine">
+<meta property="og:description" content="v2.0.0: the game package, written in Jesun.Code itself. A 2D engine, a playable Snake, scripted and live input, real WAV sound.">
+<meta property="og:url" content="https://jesunahmadushno.github.io/jesun-code/blog/v2.0.0-games.html">
+<meta name="twitter:card" content="summary">
+<meta property="article:published_time" content="2026-09-30">
+<link rel="canonical" href="https://jesunahmadushno.github.io/jesun-code/blog/v2.0.0-games.html">
+<meta name="theme-color" content="#0C9463">
+<link rel="icon" type="image/svg+xml" href="../assets/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="../assets/icons/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../" aria-label="Jesun.Code home">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#0A3D2B"/><text x="20" y="27" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-weight="700" font-size="17" fill="#34E08E">&gt;_</text></svg></span>
+      <span class="brand-name">Jesun<em>.Code</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="../">Home</a>
+      <a href="../#language">Language</a>
+      <a href="../#install">Install</a>
+      <a href="./">All posts</a>
+      <a href="../faq.html">FAQ</a>
+      <a href="../about.html">About</a>
+      <a href="../community.html">Community</a>
+      <a href="../brand/">Brand</a>
+    </nav>
+    <div class="nav-cta">
+      <span class="version-pill">v2.0.0</span>
+      <a class="btn btn-secondary btn-sm" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+<main><article class="post">
+  <p class="kicker">Release notes</p>
+  <h1>Games, in sentences</h1>
+  <time datetime="2026-09-30">2026-09-30</time> · Anvil, Language Smith
+  <p>v2.0.0 gives Jesun.Code a 2D game engine, written in Jesun.Code itself. The <code>game</code> package: a framebuffer, Bresenham lines, circles, seven-segment digits, scripted input, a fixed-tick game loop, and a WAV writer that produces real playable sound. The <code>window</code> package drives it live in your terminal: alternate screen, half-block ANSI frames, real keypresses in raw mode. <code>examples/snake.jc</code> plays Snake on a 64x48 frame, eats two pellets, renders the score, and writes a jingle. <code>examples/snake_live.jc</code> is the same game, playable with your arrow keys.</p>
+  <h2>One language, all solutions</h2>
+  <p>The founder's law holds: everything is native in Jesun.Code. The engine is pure Jesun.Code, no bridge. The live driver needs three new statements, so the language grew three: <code>display</code> (write with no newline, flushed), <code>read key [within &lt;ms&gt;] giving &lt;name&gt;</code> (one keypress in raw mode; arrows become up, down, left, right), and <code>raw mode</code> / <code>cooked mode</code> (hold the terminal raw across reads). The walker parses all three and fails honestly where it cannot run them. Scripted input and the live pad merge into one queue, so a game is testable headless and playable live with zero code changes.</p>
+  <h2>Verified, not claimed</h2>
+  <p>The acceptance run drove the live demo inside tmux with real keystrokes and read the frames back: keypresses change the snake's path, proven by diffing the frames. The WAV header parses (RIFF, 11025 Hz, 8-bit mono) and the PPMs render at the right dimensions. The differential slice runs byte-identical on both interpreters. Full suite green, fuzzers clean.</p>
+  <h2>The honest part</h2>
+  <p>Three things we are not hiding. First, the display is the terminal: a real OS GUI window needs a toolkit, and the only path to one today is the Python bridge, which the founder's law forbids counting as the solution. When Jesun.Code grows a native surface, the same game plugs in unchanged. Second, there is no live audio playback: no audio device on the build machine to verify against, and an unverifiable claim is not a shipped feature. The WAV files are real; your media player plays them today. Third, the self-hosted walker is roughly 1000x slower than the bootstrap, so the full demo runs on the bootstrap and the differential slice stays tiny. That is the honest gate, and it is green.</p>
+  <p><a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v2.0.0">Get v2.0.0 on GitHub.</a></p>
+</article></main>
+</body>
+</html>

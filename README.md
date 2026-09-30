@@ -486,7 +486,7 @@ python3 jesun.py site/build.jc
 folder to stage the build elsewhere.) v1.5.0 shipped 2026-09-30: release
 post `docs/blog/v1.5.0-sitegen.html`.
 
-## v2.0 in progress: games on PC
+## v2.0: games on PC (shipped v2.0.0)
 
 One language, all solutions, now with pixels and sound. The `game`
 package (`packages/game/game.jc`) is pure Jesun.Code: a 2D framebuffer
@@ -526,8 +526,10 @@ half-block 24-bit ANSI frames, non-blocking key drain, fixed-tick
 `window_run`. `examples/snake_live.jc` plays live snake; tmux
 verification proves real keypresses steer the game (keypress PPM
 differs from baseline). Tests in `tests/test_window.py` (17 tests,
-differential). No release yet; v2.0 milestone completes when the full
-suite is green and the binary is rebuilt.
+differential). v2.0.0 shipped 2026-09-30: release post
+`docs/blog/v2.0.0-games.html`. Honest framing: the display is the
+terminal (no GUI window; founder's law forbids the bridge path), no live
+audio, byte writer future work.
 
 ## What v0.4 is, honestly
 
