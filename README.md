@@ -470,10 +470,14 @@ that rebuilds all 14 pages through `sitegen`. Page-level chrome overrides
 `no_twitter_meta`, footer column/tagline/stroke overrides, `github_svg`,
 plus three byte-fidelity wart flags) let the generator reproduce every
 hand-tuned variant. The migration hit byte-identical output on all 14
-pages through both interpreters, then applied two deliberate improvements
-(stale `v1.3.0` pills to `v1.4.0`, one duplicated icon block removed);
-`docs/` is now the generated tree (14 pages, 0 broken internal links,
-no stale chrome, SEO plumbing intact).
+pages through both interpreters, then applied three deliberate improvements
+(stale `v1.3.0` pills to the current version, one duplicated icon block removed,
+the v0.4.0 post's doubled footer emitted once). Re-verification caught three
+machine-file gaps the first pass missed (sitemap changefreq/priority entries,
+robots trailing newline, llms.txt carried verbatim); the package models them.
+`docs/` is now the generated tree (15 pages plus the 3 machine files, 0 broken
+internal links, no stale chrome, SEO plumbing intact). v1.5.0 shipped 2026-09-30:
+release post `docs/blog/v1.5.0-sitegen.html`.
 
 ## What v0.4 is, honestly
 

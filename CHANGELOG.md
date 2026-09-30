@@ -2,6 +2,24 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## v1.5.0 - 2026-09-30: THE SITE BUILDS ITSELF
+
+Spec `docs/spec-v1.5.md`. Milestone complete: the whole `docs/` tree
+(15 pages, `sitemap.xml`, `robots.txt`, `llms.txt`) now builds from
+the `sitegen` package through one driver file and one
+`sitegen_build` call. Acceptance met: page-for-page byte-identical
+diff of all 18 generated files, every page returns 200 from a local
+server, zero broken links (190 internal refs), no stale version
+strings, no em dashes, SEO/AEO/GEO plumbing intact. Release post:
+`docs/blog/v1.5.0-sitegen.html`, with the honest part: three
+deliberate improvements over the hand-built tree (stale version pills
+to current, duplicated icon block emitted once, doubled footer emitted
+once), the first verification pass missing the machine files
+(sitemap changefreq/priority, robots trailing newline, llms.txt
+verbatim; caught by re-verification, modeled in the package), and the
+GitHub Pages deployment stall, still GitHub-side. 34 differential
+tests, all green on both interpreters; full suite 569 tests green.
+
 ## Unreleased: v1.5 sprint 1 (2026-09-30)
 
 Spec `docs/spec-v1.5.md`. The site builds itself: the `sitegen` jpm

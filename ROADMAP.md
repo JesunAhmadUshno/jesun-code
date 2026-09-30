@@ -70,15 +70,17 @@ works only through the bridge, that domain is not done.
   Vite scaffolder), `php` (Laravel routes, controllers, Blade pages, plus
   a project scaffolder). Spec `docs/spec-v1.4.md`; 34 differential tests,
   all green on both interpreters.
-- **v1.5: the site builds itself.** A static site generator written in
-  Jesun.Code itself that emits the whole `docs/` tree (pages, blog,
-  brand kit, sitemap.xml, robots.txt, JSON-LD, llms.txt, icons).
-  Acceptance: page-for-page diff against the hand-built rebrand, every
-  page returns 200, zero broken links, all SEO/AEO/GEO plumbing intact,
-  before it ever touches Pages. Spec-first in `docs/spec-v1.5.md`.
-- **v2.0: games on PC.** Native 2D graphics, input, audio, and game
-  loop. A visual game written in Jesun.Code, running on PC, no
-  bridge.
+- **v1.5: the site builds itself (shipped 2026-09-30, v1.5.0).** A
+  static site generator written in Jesun.Code itself: the `sitegen`
+  package (chrome builders, blog builders, machine files) plus one
+  driver file and one `sitegen_build` call. The whole `docs/` tree (15
+  pages, sitemap.xml, robots.txt, llms.txt) rebuilds page-for-page
+  identical, byte for byte, on both interpreters. Spec-first in
+  `docs/spec-v1.5.md`; 34 differential tests, all green on both
+  interpreters.
+- **v2.0: games on PC (active).** Native 2D graphics, input, audio,
+  and game loop. A visual game written in Jesun.Code, running on PC,
+  no bridge.
 - **v2.1: 3D and physics.** Native 3D rendering and physics on PC.
 - **v3.0: mobile.** Native mobile pipeline: touch input, mobile
   rendering, APK/IPA packaging. The hardest phase, saved for last.
