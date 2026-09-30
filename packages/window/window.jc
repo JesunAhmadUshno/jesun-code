@@ -1,0 +1,157 @@
+note jpm package "window": the live terminal surface driver (spec v2.0 s12).
+note The terminal emulator is the window: window_open takes over the
+note alternate screen, window_show paints ANSI half-block frames, and
+note read key feeds real keypresses into the game's pad. Pure
+note Jesun.Code; the one bridge primitive is time_wait (sleep) from the
+note time package for tick pacing. game_* does the engine, window_*
+note does the surface; the driver boundary is the pad and the frame.
+
+bring in "game"
+bring in "time"
+
+note ---- the window table ----
+
+to window_check with window and what
+    if kind of window is not "table" then
+        fail with what + " needs a window from window_open, but this is " + (game_describe with window) + "."
+    if window["w"] is nothing then
+        fail with what + " needs a window from window_open, but this is " + (game_describe with window) + "."
+
+to window_whole with v and lo and hi
+    if kind of v is not "number" then
+        give back false
+    if v % 1 is not 0 then
+        give back false
+    if v is less than lo then
+        give back false
+    if v is greater than hi then
+        give back false
+    give back true
+
+to window_open with w and h
+    okw is window_whole with w and 1 and 1024
+    if okw is false then
+        fail with "window_open needs a whole width 1 to 1024, but this is " + (game_describe with w) + "."
+    okh is window_whole with h and 1 and 1024
+    if okh is false then
+        fail with "window_open needs a whole height 1 to 1024, but this is " + (game_describe with h) + "."
+    window is a new table
+    window["w"] is w
+    window["h"] is h
+    window["frame"] is game_frame with w and h
+    window["pad"] is game_pad_new
+    window["quit"] is false
+    raw mode
+    display "\u001b[?1049h\u001b[?25l\u001b[2J"
+    give back window
+
+to window_frame with window
+    window_check with window and "window_frame"
+    give back window["frame"]
+
+to window_quit with window
+    window_check with window and "window_quit"
+    window["quit"] is true
+    give back nothing
+
+to window_close with window
+    window_check with window and "window_close"
+    display "\u001b[?1049l\u001b[?25h"
+    cooked mode
+    give back nothing
+
+note ---- ANSI half-block rendering ----
+
+to window_show with window
+    window_check with window and "window_show"
+    frame is window["frame"]
+    w is window["w"]
+    h is window["h"]
+    px is frame["pixels"]
+    out is "\u001b[H"
+    y is 0
+    repeat while y is less than h
+        x is 0
+        repeat while x is less than w
+            v is px[y * w + x]
+            r is game_idiv with v and 65536
+            rem is v % 65536
+            g is game_idiv with rem and 256
+            b is rem % 256
+            if y + 1 is less than h then
+                v2 is px[(y + 1) * w + x]
+                r2 is game_idiv with v2 and 65536
+                rem2 is v2 % 65536
+                g2 is game_idiv with rem2 and 256
+                b2 is rem2 % 256
+            otherwise
+                r2 is 0
+                g2 is 0
+                b2 is 0
+            out is out + "\u001b[38;2;" + (text of r) + ";" + (text of g) + ";" + (text of b) + "m"
+            out is out + "\u001b[48;2;" + (text of r2) + ";" + (text of g2) + ";" + (text of b2) + "m\u2580"
+            x is x + 1
+        out is out + "\u001b[0m"
+        if y + 2 is less than h then
+            out is out + "\n"
+        y is y + 2
+    display out
+    give back nothing
+
+note ---- live keys: drain the terminal into the pad ----
+
+to window_keys with window
+    window_check with window and "window_keys"
+    pad is window["pad"]
+    n is 0
+    repeat while true
+        read key within 0 giving k
+        if k is nothing then
+            stop
+        n is n + 1
+        if k is "quit" then
+            window["quit"] is true
+        otherwise
+            f is attempt game_press with pad and k
+            note f["ok"] false means a dropped key (enter/escape/backspace);
+            note the pad only takes what the game knows.
+    give back n
+
+note ---- the live loop ----
+
+to window_run with ticks and sim and update and draw and window
+    window_check with window and "window_run"
+    okt is window_whole with ticks and 1 and 100000
+    if okt is false then
+        fail with "window_run needs 1 to 100000 ticks, but this is " + (game_describe with ticks) + "."
+    game_sim_ok with sim
+    if kind of update is not "function" then
+        fail with "window_run needs functions for update and draw, but update is " + (game_describe with update) + "."
+    if kind of draw is not "function" then
+        fail with "window_run needs functions for update and draw, but draw is " + (game_describe with draw) + "."
+    note v2.0: the window's pad is the sim's pad; keys drained by
+    note window_keys reach the game's update via game_poll.
+    sim["pad"] is window["pad"]
+    frame is window["frame"]
+    n is 0
+    shown is 0
+    repeat while n is less than ticks
+        drained is window_keys with window
+        if window["quit"] then
+            stop
+        n is n + 1
+        sim["tick"] is n
+        upshot is attempt update with sim
+        if upshot["error"] is not nothing then
+            fail with "window_run: the update step failed: " + upshot["error"]
+        sim["frame"] is frame
+        drawshot is attempt draw with sim
+        if drawshot["error"] is not nothing then
+            fail with "window_run: the draw step failed: " + drawshot["error"]
+        window_show with window
+        shown is shown + 1
+        time_wait with 0.05
+    report is a new table
+    report["ticks"] is n
+    report["frames"] is shown
+    give back report

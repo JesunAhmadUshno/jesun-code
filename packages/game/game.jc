@@ -377,21 +377,21 @@ to game_pad_new
     pad["pos"] is 0
     give back pad
 
-to game_press with pad and key
+to game_press with pad and k
     if kind of pad is not "table" then
         fail with "game_press needs an input queue, but this is " + (game_describe with pad) + "."
     if kind of pad["events"] is not "list" then
         fail with "game_press needs an input queue, but this is " + (game_describe with pad) + "."
-    if kind of key is not "text" then
-        fail with "game_press does not know the key " + (game_describe with key) + ", expected up/down/left/right/space/a-z/0-9."
-    ok is game_wordok[key]
+    if kind of k is not "text" then
+        fail with "game_press does not know the key " + (game_describe with k) + ", expected up/down/left/right/space/a-z/0-9."
+    ok is game_wordok[k]
     if ok is nothing then
-        if length of key is not 1 then
-            fail with "game_press does not know the key " + (game_describe with key) + ", expected up/down/left/right/space/a-z/0-9."
-        if game_keyok[key] is nothing then
-            fail with "game_press does not know the key " + (game_describe with key) + ", expected up/down/left/right/space/a-z/0-9."
+        if length of k is not 1 then
+            fail with "game_press does not know the key " + (game_describe with k) + ", expected up/down/left/right/space/a-z/0-9."
+        if game_keyok[k] is nothing then
+            fail with "game_press does not know the key " + (game_describe with k) + ", expected up/down/left/right/space/a-z/0-9."
     ev is pad["events"]
-    push key to ev
+    push k to ev
     give back nothing
 
 to game_poll with pad

@@ -185,17 +185,17 @@ to jweb_parse_request with head_text
 to jweb_read_request with conn
     note Reads the head, then the body per Content-Length. Bodies over
     note 1 MB are refused with a too_big flag (the caller sends the 413).
-    raw is ""
+    body is ""
     repeat while true
         chunk is conn.recv(4096)
         if bmod.len(chunk) is 0 then
             give back nothing
-        raw is raw + chunk.decode("utf-8", errors="replace")
-        if raw contains "\r\n\r\n" then
+        body is body + chunk.decode("utf-8", errors="replace")
+        if body contains "\r\n\r\n" then
             stop
-        if length of raw is greater than 65536 then
+        if length of body is greater than 65536 then
             fail with "the request head is too big."
-    hb is jweb_split_first with raw and "\r\n\r\n"
+    hb is jweb_split_first with body and "\r\n\r\n"
     req is jweb_parse_request with hb[0]
     body_text is hb[1]
     headers is req["headers"]

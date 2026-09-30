@@ -1,32 +1,19 @@
-note Snake: the v2.0 demo game. Headless and deterministic: a scripted
-note input program (space = keep going, plus turns) drives the snake
-note around a 64x48 frame. It eats two pellets, grows, and the score
-note renders as 7-seg digits. One PPM per 10th tick, plus jingle.wav.
-note Runs on the bootstrap; see docs/spec-v2.0.md section 6 for why the
-note full demo is bootstrap-only.
+note Snake, live: the v2.0 sprint 2 demo. The same update/draw shape as
+note examples/snake.jc, but driven by window_run: real keypresses steer
+note the snake in your terminal. Arrows turn, Ctrl-C quits. Runs on the
+note bootstrap (read key is bootstrap-only); the walker parses it and
+note says so honestly.
 
-bring in "game"
+bring in "window"
 
-to snake_new with sim
+to live_new with sim
     sim["snake"] is [[4, 4], [3, 4], [2, 4]]
     sim["dir"] is [1, 0]
     sim["pellets"] is [[10, 4], [11, 10]]
     sim["score"] is 0
-    pad is sim["pad"]
-    t is 0
-    repeat 26 times
-        t is t + 1
-        if t is 8 then
-            game_press with pad and "down"
-        otherwise if t is 14 then
-            game_press with pad and "left"
-        otherwise if t is 20 then
-            game_press with pad and "up"
-        otherwise
-            game_press with pad and "space"
     give back nothing
 
-to snake_turn with sim and k
+to live_turn with sim and k
     d is sim["dir"]
     if k is "up" and d[1] is not 1 then
         sim["dir"] is [0, 0 - 1]
@@ -38,10 +25,10 @@ to snake_turn with sim and k
         sim["dir"] is [1, 0]
     give back nothing
 
-to snake_update with sim
+to live_update with sim
     k is game_poll with sim["pad"]
     if k is not nothing then
-        snake_turn with sim and k
+        live_turn with sim and k
     body is sim["snake"]
     head is body[0]
     d is sim["dir"]
@@ -78,7 +65,7 @@ to snake_update with sim
         sim["score"] is sim["score"] + 1
     give back nothing
 
-to snake_draw with sim
+to live_draw with sim
     frame is sim["frame"]
     game_clear with frame and "000000"
     for each p in sim["pellets"]
@@ -86,15 +73,14 @@ to snake_draw with sim
     for each seg in sim["snake"]
         game_rect with frame and seg[0] * 2 and seg[1] * 2 and 2 and 2 and "00FF00"
     game_number with frame and 2 and 2 and sim["score"] and 1 and "FFFFFF"
-    if sim["tick"] % 10 is 0 then
-        game_save with frame and "snake_" + (text of sim["tick"]) + ".ppm"
     give back nothing
 
 sim is game_sim with 64 and 48
-snake_new with sim
-game_loop with 26 and sim and snake_update and snake_draw
+live_new with sim
+w is window_open with 64 and 48
+report is window_run with 200 and sim and live_update and live_draw and w
+window_close with w
+final is window_frame with w
+game_save with final and "snake_live_final.ppm"
+show "ticks: " + (text of report["ticks"]) + ", frames: " + (text of report["frames"])
 show "score: " + (text of sim["score"])
-show "pellets left: " + (text of length of sim["pellets"])
-jingle is snd_seq with [[523, 150], [659, 150], [784, 300]] and "square"
-n is snd_save with jingle and "jingle.wav"
-show "jingle samples: " + (text of n)

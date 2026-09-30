@@ -65,7 +65,9 @@ EXC_NAMES = re.compile(
 # (subprocesses, real minds), arguments (differs by construction:
 # ["prog"] under jesun.jc vs [] under the bootstrap), while (a soup
 # condition that never changes would spin the self-hosted guard; while
-# gets targeted seeds instead).
+# gets targeted seeds instead), key (read key is a pinned divergence:
+# the bootstrap reads the terminal, the walker fails honestly; only the
+# within-validation shape is differential, see SEEDS).
 WORDS = [
     "show", "is", "not", "true", "false", "nothing",
     "if", "then", "otherwise", "repeat", "times", "for", "each",
@@ -74,6 +76,8 @@ WORDS = [
     "greater", "less", "than", "least", "most", "at", "contains",
     "split", "join", "trim", "by", "note",
     "push", "characters", "text", "kind", "fail", "keys",
+    "display", "read", "key", "within", "giving",
+    "raw", "cooked", "mode",
     "x", "y", "z", "name", "total", "count", "item", "f",
     '"hello"', '"hi"', '""', '"a b c"', '"1,2,3"', '"  padded  "',
     '"unterminated', "'q'",
@@ -104,6 +108,13 @@ SEEDS = [
     'show 0.1 + 0.2\nshow 7 / 2\nshow -5 + 2\n',
     'show [1, [2, [3]]]\nshow "a" + "b"\n',
     't is "x,y,z"\nshow split of t by ","\nshow join of ["a", "b"] with "-"\n',
+    'display "ab"\ndisplay "cd"\n',
+    'display [1, 2]\n',
+    'read key within -1 giving k\n',
+    'raw mode\n',
+    'cooked mode\n',
+    'raw\n',
+    'cooked\n',
 ]
 
 
@@ -859,7 +870,7 @@ BN_WORDS = [
     "এর", "প্রথম", "শেষ", "দৈর্ঘ্য", "বড়হাতা", "ছোটহাতা", "বড়", "ছোট",
     "চেয়ে", "কমপক্ষে", "সবচেয়ে", "নম্বরে", "আছে", "ভাগ", "জোড়া", "ছাঁটো",
     "দিয়ে", "চাবি", "আনো", "হিসেবে", "পড়ো", "লেখো", "যোগকরো", "ফাইল",
-    "মন্তব্য",
+    "মন্তব্য", "প্রদর্শনকরো",
     "show", "is", "note",
     "ক", "খ", "গ",
     '"নমস্কার"', '"hello"',

@@ -757,6 +757,8 @@ KEYWORDS: dict[str, str] = {
     "new": "NEW", "table": "TABLE", "json": "JSON", "parse": "PARSE",
     # v1.2: attempt (failure as a value, spec v1.2 section 7).
     "attempt": "ATTEMPT",
+    # v2.0: live surface driver (spec v2.0 section 11).
+    "display": "DISPLAY", "key": "KEY", "raw": "RAW", "cooked": "COOKED",
 }
 
 # v0.5: the Bangla flavor. Same token types as KEYWORDS, Bangla words.
@@ -788,6 +790,8 @@ BANGLA_KEYWORDS: dict[str, str] = {
     "নতুন": "NEW", "সারণি": "TABLE", "জেসন": "JSON", "বিশ্লেষণ": "PARSE",
     # v1.2: attempt (failure as a value, spec v1.2 section 7).
     "চেষ্টা": "ATTEMPT",
+    # v2.0: live surface driver (spec v2.0 section 11).
+    "প্রদর্শনকরো": "DISPLAY", "কী": "KEY",
 }
 
 # In Bangla mode, comments start with this word instead of `note`.
@@ -1007,6 +1011,31 @@ def tokenize(source: str) -> list[Token]:
 @dataclass
 class Show:
     expr: "Expr"
+    line: int
+
+
+@dataclass
+class Display:
+    """v2.0: `display <expr>` writes the text with no trailing newline."""
+
+    expr: "Expr"
+    line: int
+
+
+@dataclass
+class ReadKey:
+    """v2.0: `read key [within <ms>] giving <name>` raw single keypress."""
+
+    ms: "Optional[Expr]"
+    name: str
+    line: int
+
+
+@dataclass
+class TerminalMode:
+    """v2.0: `terminal raw` / `terminal cooked` holds the tty in raw mode."""
+
+    raw: bool
     line: int
 
 
@@ -1373,6 +1402,13 @@ class Parser:
             fail(tok.line, "this line starts a block, but I did not expect one here.")
         if tok.type == "SHOW":
             return self.parse_show()
+        # v2.0: `display <expr>` writes with no trailing newline.
+        if tok.type == "DISPLAY":
+            return self.parse_display()
+        if tok.type == "RAW":
+            return self.parse_terminal_mode(True)
+        if tok.type == "COOKED":
+            return self.parse_terminal_mode(False)
         if tok.type == "ASK":
             return self.parse_ask()
         if tok.type == "IF":
@@ -1421,6 +1457,9 @@ class Parser:
             self.advance()
             if self.peek().type == "FILE":
                 return self.parse_read_file(tok)
+            # v2.0: `read key [within <ms>] giving <name>`.
+            if self.peek().type == "KEY":
+                return self.parse_read_key(tok)
             return self.parse_term_read(tok)
         if tok.type == "CLOSE":
             return self.parse_term_close()
@@ -1441,6 +1480,23 @@ class Parser:
         expr = self.parse_or()
         self.expect("NEWLINE", "the end of the line")
         return Show(expr, tok.line)
+
+    # v2.0: `display <expr>` writes with no trailing newline (spec v2.0 s11).
+    def parse_display(self) -> Display:
+        tok = self.advance()  # DISPLAY
+        expr = self.parse_or()
+        self.expect("NEWLINE", "the end of the line")
+        return Display(expr, tok.line)
+
+    def parse_terminal_mode(self, raw: bool) -> TerminalMode:
+        tok = self.advance()  # RAW or COOKED
+        nxt = self.peek()
+        if nxt.type != "NAME" or nxt.value != "mode":
+            what = f'"{nxt.value}"' if nxt.type != "NEWLINE" else "the end of the line"
+            fail(tok.line, f'I expected "mode" after "{tok.value}", but this is {what}.')
+        self.advance()
+        self.expect("NEWLINE", "the end of the line")
+        return TerminalMode(raw, tok.line)
 
     def parse_assign(self) -> Assign:
         name = self.advance().value
@@ -1761,6 +1817,18 @@ class Parser:
         name = self.expect("NAME", "a name to store the text in").value
         self.expect("NEWLINE", "the end of the line")
         return ReadFile(path, name, tok.line)
+
+    # v2.0: `read key [within <ms>] giving <name>` (spec v2.0 s11).
+    def parse_read_key(self, tok: Token) -> ReadKey:
+        self.expect("KEY", '"key"')
+        ms: Optional[Expr] = None
+        if self.peek().type == "WITHIN":
+            self.advance()
+            ms = self.parse_or()
+        self.expect("GIVING", '"giving" followed by a name')
+        name = self.expect("NAME", "a name to store the key in").value
+        self.expect("NEWLINE", "the end of the line")
+        return ReadKey(ms, name, tok.line)
 
     def parse_write_file(self, tok: Token, append: bool) -> WriteFile:
         self.advance()  # WRITE or APPEND
@@ -2266,6 +2334,8 @@ class Interpreter:
         self.current_line = 1
         self._jpm_loading: list[str] = []  # package names on the current bring-in chain
         self._tl = threading.local()  # v0.6: per-thread fleet flags
+        self._raw_depth = 0  # v2.0: raw mode hold count (terminal raw/cooked)
+        self._raw_old: Any = None  # v2.0: termios settings to restore
         self._STMT_HANDLERS: dict[Any, Any] = {
             Show: self.exec_show,
             Assign: self.exec_assign,
@@ -2298,6 +2368,10 @@ class Interpreter:
             # v0.4: jpm packages.
             UsePkg: self.exec_use_pkg,
             BringIn: self.exec_bring_in,
+            # v2.0: live surface driver.
+            Display: self.exec_display,
+            TerminalMode: self.exec_terminal_mode,
+            ReadKey: self.exec_read_key,
             # v1.0: list building for the self-hosted lexer.
             Push: self.exec_push,
             # v1.0: a program stopping with its own message.
@@ -2363,6 +2437,55 @@ class Interpreter:
 
     def exec_show(self, stmt: Show, env: Environment) -> None:
         self.emit(show_text(self.eval_expr(stmt.expr, env)))
+
+    # v2.0: `display <expr>` writes with no trailing newline (spec v2.0 s11).
+    def exec_display(self, stmt: Display, env: Environment) -> None:
+        self.stdout.write(show_text(self.eval_expr(stmt.expr, env)))
+        self.stdout.flush()
+
+    def exec_terminal_mode(self, stmt: TerminalMode, env: Environment) -> None:
+        if os.name == "nt":
+            fail(stmt.line, "I could not change the terminal mode on this system.")
+        import termios
+        import tty
+
+        try:
+            fd = self.stdin.fileno()
+        except (AttributeError, OSError, ValueError):
+            fd = -1
+        if stmt.raw:
+            if fd < 0 or not os.isatty(fd):
+                fail(
+                    stmt.line,
+                    "I could not change the terminal mode: "
+                    "this program is not talking to a terminal.",
+                )
+            if self._raw_depth == 0:
+                try:
+                    self._raw_old = termios.tcgetattr(fd)
+                    tty.setraw(fd)
+                except (OSError, termios.error):
+                    fail(
+                        stmt.line,
+                        "I could not put the terminal in raw mode.",
+                    )
+            self._raw_depth += 1
+        else:
+            # cooked mode with no active hold is a safe no-op (works on pipes)
+            if self._raw_depth > 0:
+                if fd < 0 or not os.isatty(fd):
+                    fail(
+                        stmt.line,
+                        "I could not change the terminal mode: "
+                        "this program is not talking to a terminal.",
+                    )
+                self._raw_depth -= 1
+                if self._raw_depth == 0 and self._raw_old is not None:
+                    try:
+                        termios.tcsetattr(fd, termios.TCSADRAIN, self._raw_old)
+                    except (OSError, termios.error):
+                        pass
+                    self._raw_old = None
 
     def exec_assign(self, stmt: Assign, env: Environment) -> None:
         env.set(stmt.name, self.eval_expr(stmt.expr, env))
@@ -3494,6 +3617,155 @@ class Interpreter:
         except (OSError, ValueError):
             fail(stmt.line, f'I could not read the file "{shown}".')
         env.set(stmt.name, text)
+
+    # v2.0: `read key [within <ms>] giving <name>` (spec v2.0 s11).
+    # One keypress in raw terminal mode; the key name table lives in
+    # the spec. The terminal settings are always restored, even on
+    # failure, so a failed read never leaves the terminal raw.
+    def exec_read_key(self, stmt: ReadKey, env: Environment) -> None:
+        timeout_ms: Optional[float] = None
+        if stmt.ms is not None:
+            ms = self.eval_expr(stmt.ms, env)
+            if (
+                isinstance(ms, bool)
+                or not isinstance(ms, (int, float))
+                or ms != ms
+                or ms < 0
+            ):
+                fail(
+                    stmt.line,
+                    '"within" needs milliseconds 0 or more, but this is '
+                    f"{show_text(ms)}.",
+                )
+            timeout_ms = float(ms)
+        key = self._read_single_key(stmt.line, timeout_ms)
+        env.set(stmt.name, key if key is not None else None)
+
+    def _read_single_key(
+        self, line: int, timeout_ms: Optional[float]
+    ) -> Optional[str]:
+        if os.name == "nt":
+            return self._read_key_windows(line, timeout_ms)
+        return self._read_key_posix(line, timeout_ms)
+
+    def _read_key_posix(
+        self, line: int, timeout_ms: Optional[float]
+    ) -> Optional[str]:
+        import select
+        import termios
+        import tty
+
+        try:
+            fd = self.stdin.fileno()
+        except (AttributeError, OSError, ValueError):
+            fd = -1
+        if fd < 0 or not os.isatty(fd):
+            fail(
+                line,
+                "I could not read a key: this program is not talking to a terminal.",
+            )
+        # v2.0: if raw mode is held (terminal raw), the tty is already raw;
+        # do not toggle, just read.
+        held = self._raw_depth > 0
+        old = None
+        if not held:
+            try:
+                old = termios.tcgetattr(fd)
+            except (OSError, termios.error):
+                fail(
+                    line,
+                    "I could not read a key: this program is not talking to a terminal.",
+                )
+        try:
+            if not held:
+                tty.setraw(fd)
+            data = self._read_key_bytes_posix(fd, timeout_ms)
+        except (OSError, termios.error):
+            fail(
+                line,
+                "I could not read a key: this program is not talking to a terminal.",
+            )
+        finally:
+            if not held and old is not None:
+                try:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old)
+                except (OSError, termios.error):
+                    pass
+        return self._decode_key(data)
+
+    def _read_key_bytes_posix(
+        self, fd: int, timeout_ms: Optional[float]
+    ) -> Optional[bytes]:
+        import select
+
+        wait = None if timeout_ms is None else timeout_ms / 1000.0
+        ready, _, _ = select.select([fd], [], [], wait)
+        if not ready:
+            return None
+        first = os.read(fd, 1)
+        if first != b"\x1b":
+            return first
+        # A lone Escape reads as one byte; an arrow key arrives as an
+        # escape sequence a moment later. Wait a beat, then decide.
+        ready, _, _ = select.select([fd], [], [], 0.05)
+        if not ready:
+            return first
+        return first + os.read(fd, 15)
+
+    def _read_key_windows(
+        self, line: int, timeout_ms: Optional[float]
+    ) -> Optional[str]:
+        import msvcrt
+        import time
+
+        deadline = None if timeout_ms is None else time.monotonic() + timeout_ms / 1000.0
+        try:
+            while True:
+                if msvcrt.kbhit():
+                    first = msvcrt.getch()
+                    if first in (b"\x00", b"\xe0"):
+                        second = msvcrt.getch()
+                        return {
+                            b"H": "up",
+                            b"P": "down",
+                            b"K": "left",
+                            b"M": "right",
+                        }.get(second)
+                    return self._decode_key(first)
+                if deadline is not None and time.monotonic() >= deadline:
+                    return None
+                time.sleep(0.005)
+        except OSError:
+            fail(
+                line,
+                "I could not read a key: this program is not talking to a terminal.",
+            )
+
+    @staticmethod
+    def _decode_key(data: Optional[bytes]) -> Optional[str]:
+        if data is None:
+            return None
+        table = {
+            b"\x1b[A": "up",
+            b"\x1b[B": "down",
+            b"\x1b[C": "right",
+            b"\x1b[D": "left",
+            b" ": "space",
+            b"\r": "enter",
+            b"\n": "enter",
+            b"\x7f": "backspace",
+            b"\x08": "backspace",
+            b"\x03": "quit",
+            b"\x1b": "escape",
+        }
+        if data in table:
+            return table[data]
+        if len(data) == 1:
+            ch = data.decode("latin-1")
+            if "a" <= ch <= "z" or "A" <= ch <= "Z" or "0" <= ch <= "9":
+                return ch
+        # Outside the key table (spec v2.0 s11): nothing, documented.
+        return None
 
     def exec_write_file(self, stmt: WriteFile, env: Environment) -> None:
         raw = self.eval_expr(stmt.path, env)
