@@ -2,6 +2,28 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## Unreleased: v3.0 serve framework, M2 in progress (2026-09-30)
+
+Spec `docs/spec-serve.md` (approved by the founder 2026-09-30, v3.0).
+The `serve` package (`packages/serve/serve.jc`) is a full-stack web
+framework in pure Jesun.Code, composite over jweb, sitegen, js, html,
+sqlite, and time: routes, pages, islands, and an English data layer
+with migrations and a derived admin back office. M2 scope (Route,
+Page, Island, Table + admin; spec 3.1-3.3, 3.5) is implemented and
+under test; M3 (Live view, Scene, jweb SSE) is not started. Not
+shipped, not claimed: no release until the spec's section-11
+acceptance is genuinely green.
+
+Also in this cycle: `raw`/`cooked` are contextual keywords, not
+global ones. The v2.0 worker had reserved them globally for
+`raw mode` statements, which broke `raw` as a parameter name in the
+shipped sqlite and wordpress packages (`bring in "sqlite"` failed to
+parse). Both interpreters now lex `raw`/`cooked` as plain names and
+route only a statement-leading `raw`/`cooked` to the terminal-mode
+statement, keeping the spec'd v2.0 errors word for word.
+`tests/test_sqlite.py` (12/12) and `tests/test_window.py` (17/17)
+are green again.
+
 ## Unreleased: site pipeline, the claim made real (2026-09-30)
 
 The v1.5.0 release said the site builds itself; the migration commit behind

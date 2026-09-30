@@ -517,12 +517,13 @@ convenience.
 - jweb: `add_route`, `serve` (via `serve_start`), `json_response`,
   `redirect_to`, `session_of`, `serve_files`, `ok`,
   `jweb_session_id` (new, section 5), `jweb_sse_stream` (new,
-  section 5).
+  section 5), `jweb_parse_query` (for `serve_form`, section 3.5).
 - sitegen: `sitegen_head`, `sitegen_nav`, `sitegen_footer`.
 - js: `script_tag`, `dom_ready`, `on_event`, `js_fetch`, `js_string`.
 - html: `escape_html`.
 - sqlite: `open_database`, `db_run`, `db_query`.
-- time: `time_wait` (SSE keep-alive only).
+- time: `time_wait` (SSE keep-alive only), `time_today`
+  (migration applied-date, section 7).
 
 ### 3.8 Grammar note
 
@@ -1057,3 +1058,10 @@ every workspace file.)
 - 2026-09-30: APPROVED by the founder ("Go ahead", v3.0). M1 met;
   M2 implementation authorized. No spec text changed by this
   amendment.
+- 2026-09-30: M2 composite-list correction (section 3.7). Two calls
+  the section text already required were missing from the 3.7 list:
+  jweb's `jweb_parse_query` (used by `serve_form`, sections 3.5 and
+  7: same decoding rules as jweb query parsing, `+` is a space,
+  malformed escapes kept as-is) and time's `time_today` (the
+  migration applied-date, section 7 step 3, `YYYY-MM-DD`). List now
+  reads accordingly; no behavior change, no new surface.

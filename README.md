@@ -574,7 +574,11 @@ v1.1 native binaries (shipped: `jesun build` transpiles the v1.1 core
 subset to C and compiles real native binaries; spec
 `docs/spec-v1.1.md`; unsupported features fail at build time in plain
 English), v1.2 jweb (in progress: native web framework in Jesun.Code,
-HTTP server, JSON, sessions, sqlite; spec `docs/spec-v1.2.md`).
+HTTP server, JSON, sessions, sqlite; spec `docs/spec-v1.2.md`),
+v3.0 serve (in progress, not shipped: full-stack web framework in
+Jesun.Code over jweb/sitegen/js/html/sqlite/time, routes, pages,
+islands, English data layer with migrations and a derived admin;
+spec `docs/spec-serve.md`).
 
 ## License
 
