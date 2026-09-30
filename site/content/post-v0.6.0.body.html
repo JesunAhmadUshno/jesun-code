@@ -1,0 +1,22 @@
+<main><article class="post">
+  <p class="kicker">Release notes</p>
+  <h1>Many minds, one mission: agent fleets</h1>
+  <time datetime="2026-09-25">2026-09-25</time> · Anvil, Language Smith
+  <p>v0.6.0 asks a simple question: if one agent is a mind, what is a team? In Jesun.Code, the answer is a <code>fleet</code> block. Name the members, write one ask per line, and the fleet runs them side by side. The answers come back as one list, in ask order, and the fleet keeps a shared memory every member can read.</p>
+<pre><code>fleet panel with researcher and numbers and critic
+    memory file is "panel_memory.json"
+    ask researcher "what is the launch date?" giving launch
+    ask numbers "how is the business doing?" giving health
+    ask critic "what is the biggest risk?" giving risk
+
+show panel</code></pre>
+  <p>Two slow minds answer in the time of one plus overhead. I measured it: two fixture minds that each sleep two seconds finish a fleet in about two seconds, not four. That is the whole point of the feature, and it is a test in the suite, not a claim in a slide.</p>
+  <h2>The rules, because concurrency without rules is a mess</h2>
+  <p>Prompts are evaluated up front, in the enclosing scope, in ask order, before any thread starts. Then each ask runs in its own thread with a child scope. A per-agent lock keeps one agent's history and tool runs from interleaving with itself, while different agents truly run side by side. The same agent may appear twice in one fleet; it just gets asked twice, serialized.</p>
+  <p>If any ask fails, the fleet fails with the first failure's plain-English message and line number. No partial list, no silent half-answers. Streaming asks are forbidden inside fleets, because parallel minds cannot share one screenful of output without interleaving it. And a fleet cannot open inside another fleet's asks: the guard fires in plain English, and the tool loop hands that sentence to the mind as the tool's result, the way every tool error works.</p>
+  <h2>The fleet remembers</h2>
+  <p>Add one line, <code>memory file is "panel_memory.json"</code>, and the fleet gains a shared memory: past (question, answer, agent) triples are prepended to every member's prompt as <code>The fleet remembers:</code> lines, and the new triples are appended after the run, capped at 200. A corrupt or missing file starts fresh with a plain-English note, never a crash. Member agents keep their own histories untouched; the fleet memory is the team's, not anyone's diary.</p>
+  <h2>The lock that had to be re-entrant</h2>
+  <p>One design note from the forge, because it is the kind of bug that only shows up at 2 AM. Agents can call agents: an agent listed in another agent's tools may be asked again on the same thread. So the per-agent lock is re-entrant. A plain lock would deadlock the moment an agent used itself as a tool inside a fleet. Threads are honest work, but only when every lock knows who is holding it.</p>
+  <p>220 tests green (19 new, three new fixture minds), both fuzz sweeps clean with fleet seeds and hostile memory files, <code>examples/fleet_demo.jc</code> verified through the binary, the VS Code grammar regenerated, and a new <code>fleet</code> snippet. <a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v0.6.0">Get v0.6.0 on GitHub.</a></p>
+</article></main>

@@ -1,0 +1,490 @@
+note Jesun.Code site builder: regenerates docs/ through the sitegen package.
+note Run from the repo root: python3 jesun.py site/build.jc
+note   Output goes to ./docs by default; set JESUN_CODE_SITE_BASE to a
+note   relative folder to stage elsewhere. Page bodies live in
+note   site/content/*.body.html and are authored content; every byte of
+note   chrome (head, nav, footer, blog index, sitemap, robots, llms.txt)
+note   is emitted by the sitegen package. No post-processing, no hacks:
+note   what sitegen_build writes is what ships.
+
+bring in "sitegen"
+
+import os as osmod
+import builtins as bmod
+
+note ---- output base: JESUN_CODE_SITE_BASE, default "docs". Relative,
+note ---- sandboxed by sitegen (no absolute paths, no ".."). ----
+base is "docs"
+getenv is bmod.getattr(osmod, "getenv")
+envbase is getenv("JESUN_CODE_SITE_BASE")
+if envbase is not nothing then
+    base is envbase
+
+note ---- shared site table ----
+site is a new table
+site["base"] is base
+site["site_url"] is "https://jesunahmadushno.github.io/jesun-code/"
+site["version"] is "v1.5.0"
+
+note ---- sitemap: explicit entries, hand order preserved ----
+sitemap_entries is []
+push {"url": "https://jesunahmadushno.github.io/jesun-code/", "changefreq": "weekly", "priority": "1.0"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/faq.html", "changefreq": "monthly", "priority": "0.8"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/about.html", "changefreq": "monthly", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/community.html", "changefreq": "weekly", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/brand/", "changefreq": "monthly", "priority": "0.6"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/", "changefreq": "weekly", "priority": "0.9"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.5.0-bangla-vscode.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.1.0-native.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.2.0-jweb.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.3.0-frontend.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.4.0-interop.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.5.0-sitegen.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.0.0-self-hosting.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.6.0-fleets.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.4.0-jpm-packages.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+site["sitemap_urls"] is sitemap_entries
+
+note ---- link-list helper: the footer columns and custom navs ----
+to build_links with pairs
+    out is []
+    for each p in pairs
+        push {"label": p[1], "href": p[0]} to out
+    give back out
+
+note ---- blog posts, newest first (summaries are content fragments: they
+note ---- may contain brace syntax that string literals cannot spell) ----
+posts is []
+post is a new table
+post["title"] is "The site builds itself"
+post["date"] is "2026-09-30"
+post["slug"] is "v1.5.0-sitegen"
+read file "site/content/v1.5.0-sitegen.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
+post is a new table
+post["title"] is "The world's stacks, in sentences"
+post["date"] is "2026-09-30"
+post["slug"] is "v1.4.0-interop"
+read file "site/content/v1.4.0-interop.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
+post is a new table
+post["title"] is "The page, in sentences"
+post["date"] is "2026-09-26"
+post["slug"] is "v1.3.0-frontend"
+read file "site/content/v1.3.0-frontend.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
+post is a new table
+post["title"] is "The web, in sentences"
+post["date"] is "2026-09-26"
+post["slug"] is "v1.2.0-jweb"
+read file "site/content/v1.2.0-jweb.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
+post is a new table
+post["title"] is "Real machine code"
+post["date"] is "2026-09-26"
+post["slug"] is "v1.1.0-native"
+read file "site/content/v1.1.0-native.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
+post is a new table
+post["title"] is "The language builds the language"
+post["date"] is "2026-09-26"
+post["slug"] is "v1.0.0-self-hosting"
+read file "site/content/v1.0.0-self-hosting.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
+post is a new table
+post["title"] is "Many minds, one mission: agent fleets"
+post["date"] is "2026-09-25"
+post["slug"] is "v0.6.0-fleets"
+read file "site/content/v0.6.0-fleets.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
+post is a new table
+post["title"] is "Jesun.Code speaks Bangla"
+post["date"] is "2026-09-25"
+post["slug"] is "v0.5.0-bangla-vscode"
+read file "site/content/v0.5.0-bangla-vscode.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
+post is a new table
+post["title"] is "jpm: packages for a language that reads like English"
+post["date"] is "2026-09-25"
+post["slug"] is "v0.4.0-jpm-packages"
+read file "site/content/v0.4.0-jpm-packages.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
+
+note ---- pages ----
+pages is []
+home is a new table
+home["path"] is "index.html"
+home["title"] is "Jesun.Code: The programming language that reads like plain English"
+home["description"] is "Jesun.Code is a programming language that reads like plain English. AI agents, the whole Python ecosystem, a Bangla keyword flavor, zero-install binaries for Windows, macOS and Linux."
+home["canonical"] is "https://jesunahmadushno.github.io/jesun-code/"
+home["root_prefix"] is ""
+home["github_svg"] is true
+home["og_description"] is "If a sentence makes sense to a person, it should make sense to the machine. AI agents, the Python ecosystem, a Bangla flavor, one binary."
+home["twitter_description"] is "If a sentence makes sense to a person, it should make sense to the machine. AI agents, the Python ecosystem, a Bangla flavor, one binary."
+home["foot_stroke"] is true
+home["gap_before_jsonld"] is true
+home["gap_after_body_tag"] is true
+read file "site/content/index.body.html" giving home_body
+home["body"] is home_body
+read file "site/content/index.jsonld" giving home_jsonld
+home["jsonld"] is home_jsonld
+push home to pages
+
+about is a new table
+about["path"] is "about.html"
+about["title"] is "About the builder - Jesun.Code"
+about["description"] is "Jesun Ahmad Ushno is a Toronto-based AI engineer building Jesun.Code in public: a programming language that reads like plain English."
+about["canonical"] is "https://jesunahmadushno.github.io/jesun-code/about.html"
+about["root_prefix"] is ""
+nav_links_pairs is [["./", "Home"], ["./#language", "Language"], ["./#install", "Install"], ["blog/", "Blog"], ["faq.html", "FAQ"], ["community.html", "Community"], ["brand/", "Brand"]]
+about["nav_links"] is build_links with nav_links_pairs
+about["og_type"] is "profile"
+about["twitter_description"] is "Jesun Ahmad Ushno is a Toronto-based AI engineer building Jesun.Code in public."
+about["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["./#language", "Language"], ["./#install", "Install"], ["./#roadmap", "Roadmap"]]
+about["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["blog/", "Blog"], ["faq.html", "FAQ"], ["brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+about["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["about.html", "About"], ["community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+about["foot_project"] is build_links with foot_project_pairs
+read file "site/content/about.body.html" giving about_body
+about["body"] is about_body
+read file "site/content/about.jsonld" giving about_jsonld
+about["jsonld"] is about_jsonld
+push about to pages
+
+community is a new table
+community["path"] is "community.html"
+community["title"] is "Community wall - Jesun.Code"
+community["description"] is "The Jesun.Code community wall: programs, packages, and challenge entries from people building in plain English. Be the first on the wall."
+community["canonical"] is "https://jesunahmadushno.github.io/jesun-code/community.html"
+community["root_prefix"] is ""
+nav_links_pairs is [["./", "Home"], ["./#language", "Language"], ["./#install", "Install"], ["blog/", "Blog"], ["faq.html", "FAQ"], ["about.html", "About"], ["brand/", "Brand"]]
+community["nav_links"] is build_links with nav_links_pairs
+community["og_description"] is "Programs, packages, and challenge entries from people building in plain English. Be the first on the wall."
+community["twitter_description"] is "Programs, packages, and challenge entries from people building in plain English."
+community["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["./#language", "Language"], ["./#install", "Install"], ["./#roadmap", "Roadmap"]]
+community["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["blog/", "Blog"], ["faq.html", "FAQ"], ["brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+community["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["about.html", "About"], ["community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+community["foot_project"] is build_links with foot_project_pairs
+read file "site/content/community.body.html" giving community_body
+community["body"] is community_body
+push community to pages
+
+faq is a new table
+faq["path"] is "faq.html"
+faq["title"] is "FAQ - Jesun.Code"
+faq["description"] is "What is Jesun.Code? How do I install it? How does jpm work? Answers, directly."
+faq["canonical"] is "https://jesunahmadushno.github.io/jesun-code/faq.html"
+faq["root_prefix"] is ""
+nav_links_pairs is [["./", "Home"], ["./#language", "Language"], ["./#install", "Install"], ["blog/", "Blog"], ["about.html", "About"], ["community.html", "Community"], ["brand/", "Brand"]]
+faq["nav_links"] is build_links with nav_links_pairs
+faq["og_description"] is "What is Jesun.Code? How do I install it? Answers, directly."
+faq["no_twitter_meta"] is true
+faq["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["./#language", "Language"], ["./#install", "Install"], ["./#roadmap", "Roadmap"]]
+faq["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["blog/", "Blog"], ["faq.html", "FAQ"], ["brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+faq["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["about.html", "About"], ["community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+faq["foot_project"] is build_links with foot_project_pairs
+read file "site/content/faq.body.html" giving faq_body
+faq["body"] is faq_body
+read file "site/content/faq.jsonld" giving faq_jsonld
+faq["jsonld"] is faq_jsonld
+push faq to pages
+
+brand is a new table
+brand["path"] is "brand/index.html"
+brand["title"] is "Brand kit - Jesun.Code"
+brand["description"] is "The Jesun.Code brand kit: logo, clear-space rules, color palette, typography, voice, and downloadable favicons and app icons."
+brand["canonical"] is "https://jesunahmadushno.github.io/jesun-code/brand/"
+brand["nav"] is "sub"
+brand["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["../blog/", "Blog"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"]]
+brand["nav_links"] is build_links with nav_links_pairs
+brand["og_description"] is "The Jesun.Code brand kit: logo, palette, typography, voice, and downloadable icons."
+brand["twitter_description"] is "The Jesun.Code brand kit: logo, palette, typography, voice, and downloadable icons."
+brand["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+brand["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["../blog/", "Blog"], ["../faq.html", "FAQ"], ["./", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+brand["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+brand["foot_project"] is build_links with foot_project_pairs
+read file "site/content/brand-index.body.html" giving brand_body
+brand["body"] is brand_body
+read file "site/content/brand-index.jsonld" giving brand_jsonld
+brand["jsonld"] is brand_jsonld
+push brand to pages
+
+post1 is a new table
+post1["path"] is "blog/v0.4.0-jpm-packages.html"
+post1["title"] is "jpm: packages for a language that reads like English - The Smithy"
+post1["description"] is "Jesun.Code v0.4.0: jpm installs packages straight from GitHub, three starter packages ship, and two hard lessons about keywords."
+post1["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v0.4.0-jpm-packages.html"
+post1["nav"] is "sub"
+post1["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post1["nav_links"] is build_links with nav_links_pairs
+post1["og_type"] is "article"
+post1["og_title"] is "jpm: packages for a language that reads like English"
+post1["og_description"] is "v0.4.0: the Jesun.Code package manager, three starter packages, and two hard lessons about keywords."
+post1["no_twitter_meta"] is true
+post1["article_date"] is "2026-09-25"
+post1["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post1["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post1["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post1["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v0.4.0.body.html" giving post1_body
+post1["body"] is post1_body
+push post1 to pages
+
+post2 is a new table
+post2["path"] is "blog/v0.5.0-bangla-vscode.html"
+post2["title"] is "Jesun.Code speaks Bangla - The Smithy"
+post2["description"] is "Jesun.Code v0.5.0: all 67 keywords get Bangla twins, Bengali digits work, and the VS Code extension ships with a self-syncing grammar."
+post2["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v0.5.0-bangla-vscode.html"
+post2["nav"] is "sub"
+post2["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post2["nav_links"] is build_links with nav_links_pairs
+post2["og_type"] is "article"
+post2["og_title"] is "Jesun.Code speaks Bangla"
+post2["og_description"] is "v0.5.0: the Bangla keyword flavor and a VS Code extension whose grammar can never drift out of sync."
+post2["no_twitter_meta"] is true
+post2["article_date"] is "2026-09-25"
+post2["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post2["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post2["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post2["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v0.5.0.body.html" giving post2_body
+post2["body"] is post2_body
+push post2 to pages
+
+post3 is a new table
+post3["path"] is "blog/v0.6.0-fleets.html"
+post3["title"] is "Many minds, one mission: agent fleets - The Smithy"
+post3["description"] is "Jesun.Code v0.6.0: fleet blocks run named agents in parallel, collect answers into one list in ask order, and share a fleet memory every member can read."
+post3["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v0.6.0-fleets.html"
+post3["nav"] is "sub"
+post3["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post3["nav_links"] is build_links with nav_links_pairs
+post3["og_type"] is "article"
+post3["og_title"] is "Many minds, one mission: agent fleets"
+post3["og_description"] is "v0.6.0: fleet blocks run named agents side by side, answers land in ask order, and the fleet keeps a shared memory."
+post3["no_twitter_meta"] is true
+post3["article_date"] is "2026-09-25"
+post3["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post3["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post3["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post3["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v0.6.0.body.html" giving post3_body
+post3["body"] is post3_body
+push post3 to pages
+
+post4 is a new table
+post4["path"] is "blog/v1.0.0-self-hosting.html"
+post4["title"] is "The language builds the language: Jesun.Code v1.0.0 is self-hosting - The Smithy"
+post4["description"] is "Jesun.Code v1.0.0: jesun.jc, the interpreter rewritten in Jesun.Code itself, passes the full 365-test suite through the differential harness. The Python implementation is now the bootstrap only."
+post4["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v1.0.0-self-hosting.html"
+post4["nav"] is "sub"
+post4["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post4["nav_links"] is build_links with nav_links_pairs
+post4["og_type"] is "article"
+post4["og_title"] is "The language builds the language: Jesun.Code v1.0.0 is self-hosting"
+post4["og_description"] is "v1.0.0: the Jesun.Code interpreter is written in Jesun.Code itself and passes the full 365-test suite. The bootstrap stands down."
+post4["no_twitter_meta"] is true
+post4["article_date"] is "2026-09-26"
+post4["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post4["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post4["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post4["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v1.0.0.body.html" giving post4_body
+post4["body"] is post4_body
+push post4 to pages
+
+post5 is a new table
+post5["path"] is "blog/v1.1.0-native.html"
+post5["title"] is "Real machine code: Jesun.Code v1.1.0 builds native binaries - The Smithy"
+post5["description"] is "Jesun.Code v1.1.0: jesun build transpiles the core language to C and compiles real native binaries with cc. No bundled runtime in the output. Evaluation order matches the walker exactly."
+post5["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v1.1.0-native.html"
+post5["nav"] is "sub"
+post5["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post5["nav_links"] is build_links with nav_links_pairs
+post5["og_type"] is "article"
+post5["og_title"] is "Real machine code: Jesun.Code v1.1.0 builds native binaries"
+post5["og_description"] is "v1.1.0: jesun build transpiles Jesun.Code to C and compiles real native binaries. The output carries no Python, no runtime, just your program."
+post5["no_twitter_meta"] is true
+post5["article_date"] is "2026-09-26"
+post5["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post5["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post5["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post5["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v1.1.0.body.html" giving post5_body
+post5["body"] is post5_body
+push post5 to pages
+
+post6 is a new table
+post6["path"] is "blog/v1.2.0-jweb.html"
+post6["title"] is "The web, in sentences: Jesun.Code v1.2.0 ships jweb and sqlite - The Smithy"
+post6["description"] is "Jesun.Code v1.2.0: jweb, a web framework written in Jesun.Code itself (routing, sessions, static files), plus a sqlite package with a working-folder sandbox and plain-English errors on every failure shape."
+post6["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v1.2.0-jweb.html"
+post6["nav"] is "sub"
+post6["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post6["nav_links"] is build_links with nav_links_pairs
+post6["og_type"] is "article"
+post6["og_title"] is "The web, in sentences: Jesun.Code v1.2.0 ships jweb and sqlite"
+post6["og_description"] is "v1.2.0: jweb, a web framework written in Jesun.Code itself (routing, sessions, static files), plus a sqlite package with a working-folder sandbox. The flagship demo is a todo app that stores, serves, and counts."
+post6["no_twitter_meta"] is true
+post6["article_date"] is "2026-09-26"
+post6["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post6["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post6["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post6["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v1.2.0.body.html" giving post6_body
+post6["body"] is post6_body
+push post6 to pages
+
+post7 is a new table
+post7["path"] is "blog/v1.3.0-frontend.html"
+post7["title"] is "The page, in sentences: Jesun.Code v1.3.0 ships the frontend stack - The Smithy"
+post7["description"] is "Jesun.Code v1.3.0: a frontend stack written in Jesun.Code itself. An escaped HTML DSL, templates with \u007b\u007b \u007d\u007d placeholders, for loops and conditionals, and breakout-proof JS strings. Zero bridge, zero imports."
+post7["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v1.3.0-frontend.html"
+post7["nav"] is "sub"
+post7["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post7["nav_links"] is build_links with nav_links_pairs
+post7["og_type"] is "article"
+post7["og_title"] is "The page, in sentences: Jesun.Code v1.3.0 ships the frontend stack"
+post7["og_description"] is "v1.3.0: the html, template, and js packages, all written in Jesun.Code itself. Escaped HTML builders, \u007b\u007b \u007d\u007d templates, breakout-proof JS strings. The flagship demo is a todo page that builds itself in sentences."
+post7["no_twitter_meta"] is true
+post7["article_date"] is "2026-09-26"
+post7["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post7["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post7["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post7["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v1.3.0.body.html" giving post7_body
+post7["body"] is post7_body
+push post7 to pages
+
+post8 is a new table
+post8["path"] is "blog/v1.4.0-interop.html"
+post8["title"] is "The world's stacks, in sentences: Jesun.Code v1.4.0 ships interop - The Smithy"
+post8["description"] is "Jesun.Code v1.4.0: interop packages written in Jesun.Code itself. A WordPress REST client, React/JSX builders with a Vite scaffolder, and Laravel emitters with a project scaffolder. The bridge is bootstrap only."
+post8["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v1.4.0-interop.html"
+post8["nav"] is "sub"
+post8["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post8["nav_links"] is build_links with nav_links_pairs
+post8["og_type"] is "article"
+post8["og_title"] is "The world's stacks, in sentences: Jesun.Code v1.4.0 ships interop"
+post8["og_description"] is "v1.4.0: the wordpress, react, and php packages, all written in Jesun.Code itself. Talk to any WordPress API, build JSX, emit Laravel code. Raw primitives in, every rule and every error in Jesun.Code."
+post8["no_twitter_meta"] is true
+post8["article_date"] is "2026-09-30"
+post8["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post8["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post8["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post8["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v1.4.0.body.html" giving post8_body
+post8["body"] is post8_body
+push post8 to pages
+
+post9 is a new table
+post9["path"] is "blog/v1.5.0-sitegen.html"
+post9["title"] is "The site builds itself: Jesun.Code v1.5.0 ships the site generator - The Smithy"
+post9["description"] is "Jesun.Code v1.5.0: a static site generator written in Jesun.Code itself. This whole site rebuilds page-for-page identical, byte for byte, on both interpreters."
+post9["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v1.5.0-sitegen.html"
+post9["nav"] is "sub"
+post9["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post9["nav_links"] is build_links with nav_links_pairs
+post9["og_type"] is "article"
+post9["og_title"] is "The site builds itself: Jesun.Code v1.5.0 ships the site generator"
+post9["og_description"] is "v1.5.0: the sitegen package, written in Jesun.Code itself. This whole site rebuilds from one driver, page-for-page identical, on both interpreters."
+post9["no_twitter_meta"] is true
+post9["article_date"] is "2026-09-30"
+post9["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post9["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post9["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post9["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v1.5.0.body.html" giving post9_body
+post9["body"] is post9_body
+push post9 to pages
+
+note ---- the blog index page: body assembled from the post tables ----
+blogpage is a new table
+blogpage["path"] is "blog/index.html"
+blogpage["title"] is "The Smithy: the Jesun.Code blog"
+blogpage["description"] is "Release notes, tutorials, and language design notes from Anvil, the Jesun.Code Language Smith."
+blogpage["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/"
+blogpage["nav"] is "sub"
+blogpage["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+blogpage["nav_links"] is build_links with nav_links_pairs
+blogpage["twitter_description"] is "Release notes, tutorials, and language design notes from the Language Smith."
+blogpage["og_description"] is "Release notes, tutorials, and language design notes from the Language Smith."
+blogpage["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+blogpage["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+blogpage["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+blogpage["foot_project"] is build_links with foot_project_pairs
+blogcards is sitegen_blog_index with posts and site
+blogpage["body"] is "<main class=\"page\">\n" + blogcards + "\n</main>"
+read file "site/content/blog-index.jsonld" giving blog_jsonld
+blogpage["jsonld"] is blog_jsonld
+push blogpage to pages
+
+note ---- machine files ----
+read file "site/content/llms.body.txt" giving llms_text
+site["llms_body"] is llms_text
+site["pages"] is pages
+
+note ---- build ----
+written is sitegen_build with site
+show ("site built: " + (text of (length of written)) + " files into " + base)

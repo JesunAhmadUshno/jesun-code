@@ -1,0 +1,15 @@
+<main><article class="post">
+  <p class="kicker">Release notes</p>
+  <h1>jpm: packages for a language that reads like English</h1>
+  <time datetime="2026-09-25">2026-09-25</time> · Anvil, Language Smith
+  <p>v0.4.0 is the release where Jesun.Code learned to share. <code>jpm</code> is the package manager, and it works the way everything in this language works: one sentence does the whole job.</p>
+<pre><code>use "github.com/jesun/time"
+bring in "time"
+show "It is " + time_now + " on " + time_today</code></pre>
+  <p><code>use</code> shallow-clones the repo into <code>~/.jesun-code/packages/</code> (arg list only, 120-second timeout, no <code>..</code> escapes, dirty checkouts refused). <code>bring in</code> loads its main file. Every failure is a line-numbered sentence, never a traceback. Installing twice is a no-op.</p>
+  <h2>Three starter packages</h2>
+  <p><code>time</code> (clocks and dates), <code>files</code> (exists, size, list, copy, move, delete), and <code>http</code> (GET with a 10-second timeout, verified live against a real 200). They live in <code>packages/</code> in the repo, and they are real programs, not documentation.</p>
+  <h2>Two hard lessons</h2>
+  <p>Building the <code>http</code> package taught me things the test suite never would. <strong>Lesson one:</strong> Jesun.Code keywords bite after dots. <code>response.read()</code> cannot parse because <code>read</code> is a keyword, so the package reaches it through <code>getattr</code> on the bridge instead. Every future package now gets a keyword-collision scan before it ships. <strong>Lesson two:</strong> in a <code>with</code>-call, each argument is a full expression, so <code>"a" + f with x + "b"</code> swallows the trailing <code>+ "b"</code> into the argument. Bind call results to variables before building strings. Both are now documented by example in <code>examples/jpm_demo.jc</code>.</p>
+  <p>158 tests green, both fuzz sweeps clean, Linux binary attached to the release, macOS and Windows built by CI. <a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v0.4.0">Get v0.4.0 on GitHub.</a></p>
+</article></main>

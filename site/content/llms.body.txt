@@ -1,0 +1,58 @@
+# Jesun.Code
+
+> Jesun.Code is a programming language that reads like plain English. If a
+> sentence makes sense to a person, it should make sense to the machine.
+
+- Site: https://jesunahmadushno.github.io/jesun-code/
+- About the builder: https://jesunahmadushno.github.io/jesun-code/about.html
+- Community wall: https://jesunahmadushno.github.io/jesun-code/community.html
+- Repo: https://github.com/JesunAhmadUshno/jesun-code
+- License: MIT. Current version: 1.5.0 (2026-09-30).
+
+## The language
+
+- `show "hello"` prints. `name is "Jesun"` assigns. `ask "name?" giving n`
+  reads input. `if age is at least 18 then` / `otherwise` branches.
+  `repeat 3 times` and `repeat while ...` loop. `for each item in list`
+  iterates. `to add with a and b` ... `give back a + b` defines functions.
+- Every error is one plain-English sentence with a line number. Tracebacks
+  do not exist.
+- File I/O: `read file "p" giving t`, `write t to file "p"`,
+  `append t to file "p"` (paths sandboxed to the project folder).
+- String interpolation: `"Hello, {name}!"`.
+- Python bridge: `import numpy` (any stdlib or pip package) works.
+- AI: `ask ai "prompt" giving answer` (via `JESUNCODE_AI_COMMAND`);
+  named agents with persona, tools, streaming, persistent memory;
+  tmux terminal control in plain English.
+- jpm package manager: `use "github.com/user/pkg"` installs from GitHub,
+  `bring in "pkg"` loads it. Starter packages: time, files, http.
+- Bangla flavor (v0.5.0): a file starting with `use bangla` (or a lone
+  `বাংলা`) runs in 67 Bangla keywords (`দেখাও`, `হয়`, `যদি...তাহলে`),
+  `মন্তব্য` comments, Bengali digits. Same grammar, errors stay English.
+- VS Code extension in `editors/vscode/` (grammar generated from the
+  interpreter; snippets; run-file).
+
+## Install
+
+- macOS/Linux: `curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh`
+- Windows (PowerShell): `irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex`
+- Run: `jesun program.jc`. REPL: `jesun`. Version: `jesun --version`.
+
+## Roadmap (honest)
+
+- v1.5.0 (shipped 2026-09-30): the site builds itself. The sitegen
+  package is a static site generator written in Jesun.Code itself:
+  chrome builders (head, nav, footer), blog builders (index, posts),
+  machine files (sitemap.xml, robots.txt, llms.txt), and one
+  sitegen_build call. This whole site rebuilds page-for-page
+  identical, byte for byte, on both interpreters.
+- v1.4.0 (shipped 2026-09-30): interop in Jesun.Code itself. `wordpress` package (any WordPress REST API: wp_site/wp_posts/wp_post/wp_search/wp_comments/wp_create_post; raw urllib primitives in, every rule and error in Jesun.Code). `react` package (jsx_escape/jsx_props/jsx_element/component/state_hook; scaffold_app writes a runnable Vite skeleton). `php` package (php_route/php_escape/controller/blade_page; php_scaffold writes routes.php, app/PostController.php, views/home.blade.php). Demos: examples/wp_client_demo.jc, examples/react_demo.jc, examples/php_demo.jc.
+- v1.3.0 (shipped 2026-09-26): frontend in Jesun.Code itself. `html` package (escaped HTML DSL), `template` package ({{ }} placeholders, {% for %} loops, {% if %} conditionals, render_template/render_file), `js` package (breakout-proof js_string, js_value, script_tag, dom_ready, on_event, js_fetch). Flagship demo: examples/todo_frontend.jc. Zero bridge.
+- v1.2.0: jweb and sqlite. A web framework and a database written in Jesun.Code itself: routing, JSON, sessions, static files, parameterized queries with a working-folder sandbox, plain-English errors. Flagship demo: examples/todo.jc.
+- v1.1.0: native builds. `jesun build` transpiles the core language to C and compiles real native binaries with cc; no bundled runtime in the output. The `jesun` tool itself still ships as a single bundled binary.
+- v1.0.0: self-hosting. The interpreter (jesun.jc: lexer, parser, tree-walker) is written in Jesun.Code itself and passes the full suite through the differential harness; the Python implementation is the bootstrap only.
+- v0.6.0: agent fleets. `fleet <name> with <a> [and <b> ...]` runs named agents in parallel; answers collected into a list in ask order; optional shared fleet memory via `memory file is "<path>"` (The fleet remembers:). Bangla: `দল` / `সহ` / `জিজ্ঞেস` / `রেখে`.
+- v1.0: self-hosting (the interpreter rewritten in Jesun.Code itself).
+- v1.1: native binaries (transpile to C, compile with cc).
+- Until v1.0 the interpreter core is Python bundled in the binary; until
+  v1.1 there is no native compiler. Neither is claimed otherwise.

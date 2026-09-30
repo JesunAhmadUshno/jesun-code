@@ -1,0 +1,13 @@
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Jesun.Code",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": ["Windows", "macOS", "Linux"],
+  "softwareVersion": "1.5.0",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "license": "https://github.com/JesunAhmadUshno/jesun-code/blob/main/LICENSE",
+  "url": "https://jesunahmadushno.github.io/jesun-code/",
+  "author": {"@type": "Person", "name": "Jesun Ahmad Ushno"},
+  "description": "Jesun.Code is a programming language that reads like plain English, with AI agents, the whole Python ecosystem, a Bangla keyword flavor, and zero-install binaries."
+}

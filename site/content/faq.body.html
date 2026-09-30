@@ -1,0 +1,78 @@
+<main class="page">
+  <div class="page-head">
+    <p class="kicker">FAQ</p>
+    <h1>Answers, directly.</h1>
+  </div>
+  <div class="prose faq-list">
+
+  <details open>
+    <summary>What is Jesun.Code?</summary>
+    <p>Jesun.Code is a programming language that reads like plain English. <code>show "hello"</code> prints, <code>ask "name?" giving n</code> reads input, <code>repeat 3 times</code> loops. It ships as a single binary for Windows, macOS, and Linux, so you never install Python and never see it.</p>
+  </details>
+
+  <details>
+    <summary>How do I install it?</summary>
+    <p>One line, no Python needed. On macOS/Linux: <code>curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh</code>. On Windows PowerShell: <code>irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex</code>. Then <code>jesun program.jc</code> runs a file and <code>jesun</code> alone opens the REPL.</p>
+  </details>
+
+  <details>
+    <summary>What happens when my program has an error?</summary>
+    <p>You get one plain-English sentence with a line number, like <code>Line 3: I expected a value here.</code> Tracebacks do not exist in Jesun.Code. Every failure path in the interpreter is tested to produce a human sentence.</p>
+  </details>
+
+  <details>
+    <summary>Can it use Python libraries?</summary>
+    <p>Yes. <code>import numpy</code> (or any stdlib or pip package) works through the Python bridge. Inside Jesun.Code you keep speaking Jesun.Code; at the border with Python you use Python's manners: dotted names, parentheses, commas.</p>
+  </details>
+
+  <details>
+    <summary>How does the AI brain work?</summary>
+    <p><code>ask ai "write a haiku about compilers" giving poem</code> sends the prompt to the connected mind. You connect one with <code>JESUNCODE_AI_COMMAND</code>, a command that reads a prompt on stdin and writes the answer on stdout. Three providers ship with the installer: Pollinations (free forever, no key), Gemini (free with a Google account), and OpenAI (your own key). Named agents add persona, tools, streaming, and persistent memory.</p>
+  </details>
+
+  <details>
+    <summary>What is a fleet?</summary>
+    <p>A fleet is a team of agents. <code>fleet panel with researcher and critic</code> opens a block with one <code>ask &lt;member&gt; "question" giving answer</code> per line; the asks run in parallel and the fleet name becomes the answers in ask order. An optional <code>memory file is "crew.json"</code> line gives the fleet shared memory: past answers are prepended to every prompt as <code>The fleet remembers:</code>. If any ask fails, the fleet fails with that ask's plain-English error.</p>
+  </details>
+
+  <details>
+    <summary>What is jpm?</summary>
+    <p><code>jpm</code> is the Jesun.Code package manager. <code>use "github.com/user/pkg"</code> installs a package straight from GitHub into <code>~/.jesun-code/packages/</code>; <code>bring in "pkg"</code> loads it. Three starter packages ship in the repo: <code>time</code>, <code>files</code>, and <code>http</code>.</p>
+  </details>
+
+  <details>
+    <summary>Does Jesun.Code speak Bangla?</summary>
+    <p>Yes, since v0.5.0. Start a file with <code>use bangla</code> (or a lone <code>বাংলা</code>) and all 67 keywords become Bangla words: <code>দেখাও</code> for show, <code>হয়</code> for is, <code>যদি...তাহলে</code> for if...then. Bengali digits and <code>মন্তব্য</code> comments work too. Same grammar, different tongue.</p>
+  </details>
+
+  <details>
+    <summary>Is there a VS Code extension?</summary>
+    <p>Yes, in <code>editors/vscode/</code>: syntax highlighting for English and Bangla keywords, snippets, and run-file on <code>Ctrl+Alt+R</code>. The grammar is generated from the interpreter itself, so it can never drift out of sync.</p>
+  </details>
+
+  <details>
+    <summary>Can Jesun.Code build websites?</summary>
+    <p>Yes, both sides. v1.2.0 shipped <code>jweb</code> and <code>sqlite</code>: routing, sessions, static files, and parameterized queries, all written in Jesun.Code itself. v1.3.0 adds the frontend: the <code>html</code> package (an escaped HTML DSL), the <code>template</code> package (<code>{{ }}</code> placeholders, <code>{% for %}</code> loops, <code>{% if %}</code> conditionals), and the <code>js</code> package (breakout-proof JavaScript strings, script tags, event wiring). See <code>examples/todo_frontend.jc</code>: a full page built from sentences, no Python in the path.</p>
+  </details>
+
+  <details>
+    <summary>Can Jesun.Code talk to WordPress, React, or PHP?</summary>
+    <p>Yes, since v1.4.0. <code>bring in "wordpress"</code> talks to any WordPress REST API: <code>wp_site with "https://demo.wp-api.org/wp-json" and nothing and nothing</code> then <code>wp_posts with site and 3</code> gives you shape-checked posts, with plain-English errors and zero tracebacks. <code>bring in "react"</code> builds JSX as text (<code>component</code>, <code>state_hook</code>) and <code>scaffold_app</code> writes a runnable Vite skeleton. <code>bring in "php"</code> emits Laravel routes, controllers, and Blade pages, and <code>php_scaffold</code> writes the project tree. The bridge is bootstrap only: raw transport primitives in, every rule and every error in Jesun.Code itself.</p>
+  </details>
+
+  <details>
+    <summary>Can Jesun.Code build its own website?</summary>
+    <p>Yes, since v1.5.0, and it does. The <code>sitegen</code> package is a static site generator written in Jesun.Code itself: chrome builders for the head, the nav, and the footer, blog builders for the index and the posts, and machine files for the sitemap, robots.txt, and llms.txt. One driver file and one <code>sitegen_build</code> call rebuild this whole site page-for-page identical, byte for byte, on both interpreters. The page you are reading was built this way.</p>
+  </details>
+
+  <details>
+    <summary>What is the roadmap?</summary>
+    <p>v1.0.0 shipped self-hosting: the interpreter (jesun.jc) is written in Jesun.Code itself (the Python implementation is the bootstrap only). v1.1.0 shipped native builds: <code>jesun build</code> transpiles the core language to C and compiles real native binaries with no bundled runtime in the output. v1.2.0 shipped jweb and sqlite: a web framework and a database written in Jesun.Code itself, with routing, sessions, static files, parameterized queries, and plain-English errors. v1.3.0 shipped the frontend: the html package (escaped HTML DSL), the template package ({{ }} placeholders, for loops, if conditionals), and the js package (breakout-proof JS strings, script_tag, dom_ready, on_event, js_fetch), all written in Jesun.Code itself with zero bridge. v1.4.0 shipped interop: the wordpress package (any WP REST API, raw urllib primitives in, every rule and error in Jesun.Code), the react package (JSX builders plus a Vite scaffolder), and the php package (Laravel routes, controllers, Blade pages, plus a project scaffolder). The honest framing: the <code>jesun</code> tool itself still ships as a single bundled binary (you never install Python); what changed is that <code>jesun build</code> now produces genuinely native programs. Neither is claimed otherwise.</p>
+  </details>
+
+  <details>
+    <summary>What license is it?</summary>
+    <p>MIT. Do anything with it.</p>
+  </details>
+  </div>
+</main>

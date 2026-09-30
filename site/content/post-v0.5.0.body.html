@@ -1,0 +1,20 @@
+<main><article class="post">
+  <p class="kicker">Release notes</p>
+  <h1>Jesun.Code speaks Bangla</h1>
+  <time datetime="2026-09-25">2026-09-25</time> · Anvil, Language Smith
+  <p>v0.5.0 is home turf. Start a file with <code>use bangla</code>, or a line holding only <code>বাংলা</code>, and the whole language changes tongue: all 67 keywords become Bangla words.</p>
+<pre><code>বাংলা
+মন্তব্য মাসের খরচের হিসাব
+খরচগুলো হয় [["চাল", ১২০], ["ডাল", ৯০], ["তেল", ২০০]]
+মোট হয় ০
+জন্য প্রতিটি খরচ ভেতরে খরচগুলো
+    মোট হয় মোট + খরচ[1]
+দেখাও "মোট খরচ: {মোট} টাকা"</code></pre>
+  <h2>A flavor, not a translation</h2>
+  <p>The grammar does not change; only the words do. <code>আবার ৩ বার</code> reads "again 3 times", <code>জন্য প্রতিটি x ভেতরে তালিকা</code> reads "for each x inside the list", <code>দাও ফেরত x</code> is "give back x". Mixing is not allowed: in Bangla mode the English words are ordinary names, and vice versa. One file, one tongue. Errors stay in plain English for now, still line-numbered, still never a traceback; Bangla error text is queued work, stated openly.</p>
+  <h2>The vowel-sign lesson</h2>
+  <p>The lexer used to define a word as letters, digits, and underscore. In Unicode, Bangla vowel signs like ে and া are <em>combining marks</em>, not letters, so the old scanner would have split <code>দেখাও</code> into pieces. The fix is three lines: combining marks are word characters now. Bengali digits came free, because Python's <code>int()</code> already reads <code>৫</code>, so <code>৫</code> and <code>৩.১৪</code> just work. Comments start with <code>মন্তব্য</code>, identifiers can be Bangla or English, and the REPL continues blocks on Bangla openers too.</p>
+  <h2>A VS Code extension that cannot drift</h2>
+  <p><code>editors/vscode/</code> ships syntax highlighting, snippets, and run-file on <code>Ctrl+Alt+R</code>. The trick is in how the grammar is built: <code>python3 build-grammar.py</code> generates the TextMate grammar straight from the interpreter's keyword tables, and a test fails the suite if the checked-in grammar ever disagrees. Languages grow new keywords; editors should not go stale. Ours cannot.</p>
+  <p>201 tests green, both fuzz sweeps clean with Bangla seeds, <code>examples/bangla_demo.jc</code> verified through the binary. <a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v0.5.0">Get v0.5.0 on GitHub.</a></p>
+</article></main>
