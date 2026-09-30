@@ -758,7 +758,11 @@ KEYWORDS: dict[str, str] = {
     # v1.2: attempt (failure as a value, spec v1.2 section 7).
     "attempt": "ATTEMPT",
     # v2.0: live surface driver (spec v2.0 section 11).
-    "display": "DISPLAY", "key": "KEY", "raw": "RAW", "cooked": "COOKED",
+    # v3.0: `raw`/`cooked` are NOT keywords: they stay plain names so
+    # `with raw` parameter names in shipped packages keep parsing.
+    # `raw mode` / `cooked mode` are recognized contextually in
+    # parse_statement (spec v2.0 s11).
+    "display": "DISPLAY", "key": "KEY",
 }
 
 # v0.5: the Bangla flavor. Same token types as KEYWORDS, Bangla words.
@@ -1405,10 +1409,6 @@ class Parser:
         # v2.0: `display <expr>` writes with no trailing newline.
         if tok.type == "DISPLAY":
             return self.parse_display()
-        if tok.type == "RAW":
-            return self.parse_terminal_mode(True)
-        if tok.type == "COOKED":
-            return self.parse_terminal_mode(False)
         if tok.type == "ASK":
             return self.parse_ask()
         if tok.type == "IF":
@@ -1467,6 +1467,12 @@ class Parser:
             return self.parse_assign()
         if tok.type == "NAME" and self._peek_subscript_assign():
             return self.parse_sub_assign()
+        # v3.0: `raw mode` / `cooked mode` are contextual statements
+        # (spec v2.0 s11). Placed after the assignment checks so
+        # `raw is ...` stays a normal assignment; `raw`/`cooked` stay
+        # plain names everywhere else.
+        if tok.type == "NAME" and tok.value in ("raw", "cooked"):
+            return self.parse_terminal_mode(tok.value == "raw")
         if tok.type == "PUSH":  # v1.0
             return self.parse_push()
         if tok.type == "FAIL":  # v1.0
@@ -1489,7 +1495,7 @@ class Parser:
         return Display(expr, tok.line)
 
     def parse_terminal_mode(self, raw: bool) -> TerminalMode:
-        tok = self.advance()  # RAW or COOKED
+        tok = self.advance()  # NAME "raw" or "cooked" (contextual, v3.0)
         nxt = self.peek()
         if nxt.type != "NAME" or nxt.value != "mode":
             what = f'"{nxt.value}"' if nxt.type != "NEWLINE" else "the end of the line"
