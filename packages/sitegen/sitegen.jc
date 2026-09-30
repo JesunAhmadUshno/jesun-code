@@ -1,0 +1,457 @@
+note jpm package "sitegen": the static site generator (spec v1.5).
+note Pure Jesun.Code text generation, one language all solutions.
+note The builders import NOTHING and touch no bridge. Only sitegen_build
+note imports one raw primitive (os.makedirs, through the builtins bridge,
+note the same boundary the react and php scaffolders drew in v1.4) to
+note create parent folders, because `write ... to file` needs the parent
+note folder to exist (spec v0.4). Every rule and every error is Jesun.Code.
+note The HTML escaper below is duplicated from the html package on
+note purpose: packages never import other packages, so each one carries
+note the tiny helpers it needs (the template package precedent, v1.3).
+
+import os as osmod
+import builtins as bmod
+
+note ---- kinds: article + description for plain-English errors ----
+
+to sitegen_article with k
+    if k is "agent" then
+        give back "an agent"
+    if k is "true/false" then
+        give back "true/false"
+    if k is "python value" then
+        give back "a python value"
+    give back "a " + k
+
+to sitegen_describe with v
+    k is kind of v
+    if k is "text" then
+        give back "\"" + v + "\""
+    if k is "number" or k is "true/false" then
+        give back text of v
+    a is sitegen_article with k
+    give back a
+
+note ---- the escaper: & first, then < > " ----
+
+to sitegen_escape with content
+    if kind of content is not "text" then
+        a is sitegen_article with (kind of content)
+        fail with "sitegen_escape needs text, but this is " + a + "."
+    out is join of (split of content by "&") with "&amp;"
+    out is join of (split of out by "<") with "&lt;"
+    out is join of (split of out by ">") with "&gt;"
+    out is join of (split of out by "\"") with "&quot;"
+    give back out
+
+note ---- optional table key: missing is nothing ----
+
+to sitegen_opt with t and key
+    for each k in keys of t
+        if k is key then
+            give back t[k]
+    give back nothing
+
+to sitegen_require_text with t and key and what
+    v is sitegen_opt with t and key
+    if v is nothing then
+        fail with what + " is missing."
+    if kind of v is not "text" then
+        d is sitegen_describe with v
+        fail with what + " has to be text, but this is " + d + "."
+    if length of v is 0 then
+        fail with what + " is empty."
+    give back v
+
+note ---- path sandbox: relative, no .., no absolute ----
+
+to sitegen_starts_with with s and needle
+    if length of s is less than length of needle then
+        give back false
+    i is 0
+    n is length of needle
+    chars is characters of s
+    nchars is characters of needle
+    repeat while i is less than n
+        if chars[i] is not nchars[i] then
+            give back false
+        i is i + 1
+    give back true
+
+to sitegen_safe_rel with p and what
+    if kind of p is not "text" then
+        d is sitegen_describe with p
+        fail with what + " has to be text, but this is " + d + "."
+    if length of p is 0 then
+        fail with what + " is empty."
+    if sitegen_starts_with with p and "/" then
+        fail with what + " has to be a relative path inside the site; absolute paths are not allowed."
+    if p contains ".." then
+        fail with what + " has to stay inside the site; \"..\" is not allowed."
+    give back p
+
+to sitegen_check_base with base
+    give back sitegen_safe_rel with base and "the site base folder"
+
+to sitegen_check_page_path with p
+    sitegen_safe_rel with p and "the page path"
+    if not (sitegen_ends_with with p and ".html") then
+        fail with "the page path has to end in .html."
+    give back p
+
+to sitegen_ends_with with s and needle
+    if length of s is less than length of needle then
+        give back false
+    i is (length of s) - (length of needle)
+    chars is characters of s
+    nchars is characters of needle
+    j is 0
+    repeat while j is less than length of needle
+        if chars[i + j] is not nchars[j] then
+            give back false
+        j is j + 1
+    give back true
+
+to sitegen_dirname with p
+    parts is split of p by "/"
+    if length of parts is 1 then
+        give back ""
+    out is ""
+    i is 0
+    n is (length of parts) - 1
+    repeat while i is less than n
+        out is out + parts[i] + "/"
+        i is i + 1
+    give back out
+
+note ---- page validation (failure shapes 4 to 7) ----
+
+to sitegen_check_page with page
+    if kind of page is not "table" then
+        d is sitegen_describe with page
+        fail with "a page has to be a table, but this is " + d + "."
+    sitegen_require_text with page and "title" and "the page title"
+    sitegen_require_text with page and "description" and "the page description"
+    sitegen_require_text with page and "canonical" and "the page canonical URL"
+    sitegen_require_text with page and "body" and "the page body"
+    p is sitegen_opt with page and "path"
+    sitegen_check_page_path with p
+    give back page
+
+note ---- nav data: one table, two link sets ----
+
+to sitegen_link with label and href
+    t is a new table
+    t["label"] is label
+    t["href"] is href
+    give back t
+
+to sitegen_root_links
+    out is []
+    push (sitegen_link with "Language" and "#language") to out
+    push (sitegen_link with "AI Brains" and "#brains") to out
+    push (sitegen_link with "Blog" and "blog/") to out
+    push (sitegen_link with "FAQ" and "faq.html") to out
+    push (sitegen_link with "About" and "about.html") to out
+    push (sitegen_link with "Community" and "community.html") to out
+    push (sitegen_link with "Brand" and "brand/") to out
+    push (sitegen_link with "Install" and "#install") to out
+    push (sitegen_link with "Roadmap" and "#roadmap") to out
+    give back out
+
+to sitegen_sub_links
+    out is []
+    push (sitegen_link with "Home" and "../") to out
+    push (sitegen_link with "Language" and "../#language") to out
+    push (sitegen_link with "Install" and "../#install") to out
+    push (sitegen_link with "FAQ" and "../faq.html") to out
+    push (sitegen_link with "About" and "../about.html") to out
+    push (sitegen_link with "Community" and "../community.html") to out
+    push (sitegen_link with "Brand" and "../brand/") to out
+    give back out
+
+sitegen_brand_svg is "<span class=\"brand-mark\" aria-hidden=\"true\"><svg viewBox=\"0 0 40 40\"><rect width=\"40\" height=\"40\" rx=\"10\" fill=\"#0A3D2B\"/><text x=\"20\" y=\"27\" text-anchor=\"middle\" font-family=\"ui-monospace,SFMono-Regular,Menlo,monospace\" font-weight=\"700\" font-size=\"17\" fill=\"#34E08E\">&gt;_</text></svg></span>"
+
+to sitegen_nav with page and site
+    nav is sitegen_opt with page and "nav"
+    if nav is nothing then
+        nav is "root"
+    if nav is "root" then
+        links is sitegen_root_links
+        home is "./"
+    otherwise
+        if nav is "sub" then
+            links is sitegen_sub_links
+            home is "../"
+        otherwise
+            fail with "the page nav has to be \"root\" or \"sub\"."
+    brand is sitegen_opt with site and "name"
+    if brand is nothing then
+        brand is "Jesun<em>.Code</em>"
+    version is sitegen_opt with site and "version"
+    if version is nothing then
+        version is "v1.4.0"
+    github is sitegen_opt with site and "github_url"
+    if github is nothing then
+        github is "https://github.com/JesunAhmadUshno/jesun-code"
+    out is "<header class=\"nav\" id=\"nav\">\n"
+    out is out + "  <div class=\"nav-inner\">\n"
+    out is out + "    <a class=\"brand\" href=\"" + home + "\" aria-label=\"Jesun.Code home\">\n"
+    out is out + "      " + sitegen_brand_svg + "\n"
+    out is out + "      <span class=\"brand-name\">" + brand + "</span>\n"
+    out is out + "    </a>\n"
+    out is out + "    <nav class=\"nav-links\" aria-label=\"Primary\">\n"
+    for each l in links
+        out is out + "      <a href=\"" + l["href"] + "\">" + (sitegen_escape with l["label"]) + "</a>\n"
+    out is out + "    </nav>\n"
+    out is out + "    <div class=\"nav-cta\">\n"
+    out is out + "      <span class=\"version-pill\">" + (sitegen_escape with version) + "</span>\n"
+    out is out + "      <a class=\"btn btn-secondary btn-sm\" href=\"" + github + "\" target=\"_blank\" rel=\"noopener\">GitHub</a>\n"
+    out is out + "    </div>\n"
+    out is out + "    <button class=\"nav-toggle\" id=\"navToggle\" aria-label=\"Menu\" aria-expanded=\"false\">\n"
+    out is out + "      <span></span><span></span><span></span>\n"
+    out is out + "    </button>\n"
+    out is out + "  </div>\n"
+    out is out + "</header>"
+    give back out
+
+note ---- head: the SEO/AEO/GEO plumbing ----
+
+to sitegen_head with page and site
+    title is sitegen_escape with page["title"]
+    desc is sitegen_escape with page["description"]
+    canon is page["canonical"]
+    ogurl is sitegen_opt with page and "og_url"
+    if ogurl is nothing then
+        ogurl is canon
+    prefix is sitegen_opt with page and "root_prefix"
+    if prefix is nothing then
+        prefix is "./"
+    lines is []
+    push "<meta charset=\"UTF-8\">" to lines
+    push "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" to lines
+    push ("<title>" + title + "</title>") to lines
+    push ("<meta name=\"description\" content=\"" + desc + "\">") to lines
+    push "<meta property=\"og:type\" content=\"website\">" to lines
+    push "<meta property=\"og:site_name\" content=\"Jesun.Code\">" to lines
+    push ("<meta property=\"og:title\" content=\"" + title + "\">") to lines
+    push ("<meta property=\"og:description\" content=\"" + desc + "\">") to lines
+    push ("<meta property=\"og:url\" content=\"" + ogurl + "\">") to lines
+    push "<meta name=\"twitter:card\" content=\"summary\">" to lines
+    push ("<meta name=\"twitter:title\" content=\"" + title + "\">") to lines
+    push ("<meta name=\"twitter:description\" content=\"" + desc + "\">") to lines
+    push ("<link rel=\"canonical\" href=\"" + canon + "\">") to lines
+    push "<meta name=\"theme-color\" content=\"#0C9463\">" to lines
+    push ("<link rel=\"icon\" type=\"image/svg+xml\" href=\"" + prefix + "assets/icons/favicon.svg\">") to lines
+    push ("<link rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"" + prefix + "assets/icons/favicon-32.png\">") to lines
+    push ("<link rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"" + prefix + "assets/icons/favicon-16.png\">") to lines
+    push ("<link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"" + prefix + "assets/icons/apple-touch-icon.png\">") to lines
+    push ("<link rel=\"stylesheet\" href=\"" + prefix + "assets/style.css\">") to lines
+    give back join of lines with "\n"
+
+note ---- footer ----
+
+to sitegen_footer with site
+    brand is sitegen_opt with site and "name"
+    if brand is nothing then
+        brand is "Jesun<em>.Code</em>"
+    version is sitegen_opt with site and "version"
+    if version is nothing then
+        version is "v1.4.0"
+    github is sitegen_opt with site and "github_url"
+    if github is nothing then
+        github is "https://github.com/JesunAhmadUshno/jesun-code"
+    out is "<footer>\n"
+    out is out + "  <div class=\"foot\">\n"
+    out is out + "    <div>\n"
+    out is out + "      <div class=\"foot-brand\">\n"
+    out is out + "        " + sitegen_brand_svg + "\n"
+    out is out + "        <span>" + brand + "</span>\n"
+    out is out + "      </div>\n"
+    out is out + "      <p class=\"foot-tag\">The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed. Amazing is the minimum.</p>\n"
+    out is out + "    </div>\n"
+    out is out + "    <div class=\"foot-cols\">\n"
+    out is out + "      <div>\n"
+    out is out + "        <h4>Product</h4>\n"
+    out is out + "        <a href=\"#language\">Language</a>\n"
+    out is out + "        <a href=\"#brains\">AI Brains</a>\n"
+    out is out + "        <a href=\"#install\">Install</a>\n"
+    out is out + "        <a href=\"#roadmap\">Roadmap</a>\n"
+    out is out + "      </div>\n"
+    out is out + "      <div>\n"
+    out is out + "        <h4>Resources</h4>\n"
+    out is out + "        <a href=\"blog/\">Blog</a>\n"
+    out is out + "        <a href=\"faq.html\">FAQ</a>\n"
+    out is out + "        <a href=\"brand/\">Brand kit</a>\n"
+    out is out + "        <a href=\"https://github.com/JesunAhmadUshno/jesun-code/releases\" target=\"_blank\" rel=\"noopener\">Releases</a>\n"
+    out is out + "      </div>\n"
+    out is out + "      <div>\n"
+    out is out + "        <h4>Project</h4>\n"
+    out is out + "        <a href=\"about.html\">About</a>\n"
+    out is out + "        <a href=\"community.html\">Community</a>\n"
+    out is out + "        <a href=\"" + github + "\" target=\"_blank\" rel=\"noopener\">GitHub</a>\n"
+    out is out + "        <a href=\"https://github.com/JesunAhmadUshno/jesun-code/blob/main/ROADMAP.md\" target=\"_blank\" rel=\"noopener\">Roadmap doc</a>\n"
+    out is out + "      </div>\n"
+    out is out + "    </div>\n"
+    out is out + "  </div>\n"
+    out is out + "  <div class=\"foot-base\">\n"
+    out is out + "    <div class=\"foot-base-inner\">\n"
+    out is out + "      <span>Jesun.Code " + (sitegen_escape with version) + ". MIT licensed.</span>\n"
+    out is out + "      <span>Ship it. Verify it. Log it.</span>\n"
+    out is out + "    </div>\n"
+    out is out + "  </div>\n"
+    out is out + "</footer>"
+    give back out
+
+note ---- the full document ----
+
+to sitegen_page with page and site
+    sitegen_check_page with page
+    head is sitegen_head with page and site
+    nav is sitegen_nav with page and site
+    foot is sitegen_footer with site
+    prefix is sitegen_opt with page and "root_prefix"
+    if prefix is nothing then
+        prefix is "./"
+    jsonld is sitegen_opt with page and "jsonld"
+    out is "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
+    out is out + head + "\n</head>\n<body>\n"
+    out is out + nav + "\n"
+    out is out + page["body"] + "\n"
+    out is out + foot + "\n"
+    if jsonld is not nothing then
+        out is out + "<script type=\"application/ld+json\">\n" + jsonld + "\n</script>\n"
+    out is out + "<script src=\"" + prefix + "assets/app.js\"></script>\n"
+    out is out + "</body>\n</html>"
+    give back out
+
+note ---- blog index: cards from post tables ----
+
+to sitegen_check_post with post
+    if kind of post is not "table" then
+        d is sitegen_describe with post
+        fail with "a blog post has to be a table, but this is " + d + "."
+    sitegen_require_text with post and "title" and "the post title"
+    sitegen_require_text with post and "date" and "the post date"
+    sitegen_require_text with post and "slug" and "the post slug"
+    give back post
+
+to sitegen_blog_index with posts and site
+    if kind of posts is not "list" then
+        d is sitegen_describe with posts
+        fail with "the blog posts have to be a list, but this is " + d + "."
+    out is "  <div class=\"page-head\">\n"
+    out is out + "    <p class=\"kicker\">The Smithy</p>\n"
+    out is out + "    <h1>Notes from the Language Smith.</h1>\n"
+    out is out + "    <p class=\"lede\">Release announcements, tutorials, and design notes on how Jesun.Code thinks. Written by Anvil, for humans first.</p>\n"
+    out is out + "  </div>\n"
+    out is out + "  <div class=\"prose\">\n"
+    for each post in posts
+        sitegen_check_post with post
+        t is sitegen_escape with post["title"]
+        d is sitegen_escape with post["date"]
+        out is out + "    <article class=\"post-item\">\n"
+        out is out + "      <time datetime=\"" + d + "\">" + d + "</time>\n"
+        out is out + "      <h2><a href=\"" + post["slug"] + ".html\">" + t + "</a></h2>\n"
+        summary is sitegen_opt with post and "summary"
+        if summary is not nothing then
+            out is out + "      <p>" + summary + "</p>\n"
+        out is out + "    </article>\n"
+    out is out + "  </div>"
+    give back out
+
+note ---- machine files: sitemap, robots, llms ----
+
+to sitegen_strip_slash with s
+    if sitegen_ends_with with s and "/" then
+        chars is characters of s
+        out is ""
+        i is 0
+        repeat while i is less than (length of chars) - 1
+            out is out + chars[i]
+            i is i + 1
+        give back out
+    give back s
+
+to sitegen_sitemap with pages and site
+    raw_url is sitegen_opt with site and "site_url"
+    if raw_url is nothing then
+        fail with "the site is missing its site_url."
+    base_url is sitegen_strip_slash with raw_url
+    out is "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+    out is out + "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n"
+    for each page in pages
+        sitegen_check_page with page
+        url is base_url + "/" + page["path"]
+        url is join of (split of url by "&") with "&amp;"
+        out is out + "  <url>\n    <loc>" + url + "</loc>\n"
+        d is sitegen_opt with page and "date"
+        if d is not nothing then
+            out is out + "    <lastmod>" + d + "</lastmod>\n"
+        out is out + "  </url>\n"
+    out is out + "</urlset>"
+    give back out
+
+to sitegen_robots with site
+    raw_url is sitegen_opt with site and "site_url"
+    if raw_url is nothing then
+        fail with "the site is missing its site_url."
+    base_url is sitegen_strip_slash with raw_url
+    out is "User-agent: *\nAllow: /\nSitemap: " + base_url + "/sitemap.xml"
+    give back out
+
+to sitegen_llms with site
+    name is sitegen_opt with site and "llms_name"
+    if name is nothing then
+        name is "Jesun.Code"
+    summary is sitegen_opt with site and "summary"
+    if summary is nothing then
+        summary is "A programming language that reads like plain English."
+    out is "# " + name + "\n\n> " + summary + "\n"
+    sections is sitegen_opt with site and "llms_sections"
+    if sections is not nothing then
+        for each s in sections
+            out is out + "\n## " + s["heading"] + "\n\n" + s["body"] + "\n"
+    give back out
+
+note ---- the build driver: validate, render, write, report ----
+
+to sitegen_build with site
+    if kind of site is not "table" then
+        d is sitegen_describe with site
+        fail with "the site has to be a table, but this is " + d + "."
+    base is sitegen_check_base with (sitegen_opt with site and "base")
+    pages is sitegen_opt with site and "pages"
+    if pages is nothing then
+        fail with "the site has no pages to build."
+    if kind of pages is not "list" then
+        d is sitegen_describe with pages
+        fail with "the site pages have to be a list, but this is " + d + "."
+    if length of pages is 0 then
+        fail with "the site has no pages to build."
+    makedirs is bmod.getattr(osmod, "makedirs")
+    makedirs(base, exist_ok=true)
+    written is []
+    for each page in pages
+        sitegen_check_page with page
+        html is sitegen_page with page and site
+        dir is sitegen_dirname with page["path"]
+        if length of dir is greater than 0 then
+            makedirs(base + "/" + dir, exist_ok=true)
+        target is base + "/" + page["path"]
+        write html to file target
+        show "wrote " + target
+        push target to written
+    sm is sitegen_sitemap with pages and site
+    write sm to file (base + "/sitemap.xml")
+    show "wrote " + base + "/sitemap.xml"
+    push (base + "/sitemap.xml") to written
+    rb is sitegen_robots with site
+    write rb to file (base + "/robots.txt")
+    show "wrote " + base + "/robots.txt"
+    push (base + "/robots.txt") to written
+    ll is sitegen_llms with site
+    write ll to file (base + "/llms.txt")
+    show "wrote " + base + "/llms.txt"
+    push (base + "/llms.txt") to written
+    give back written

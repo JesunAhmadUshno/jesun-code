@@ -444,6 +444,23 @@ scaffolders import one raw primitive (`os.makedirs`) to create folders.
 Demos: `examples/wp_client_demo.jc`, `examples/react_demo.jc`,
 `examples/php_demo.jc`. Full spec: `docs/spec-v1.4.md`.
 
+## v1.5 in progress: the site builds itself
+
+The `sitegen` package (`packages/sitegen/sitegen.jc`) is a static site
+generator written in Jesun.Code itself (spec: `docs/spec-v1.5.md`). Page
+bodies are authored HTML per `docs/DESIGN-SYSTEM.md`; the generator
+composes the chrome around them: `<head>` with the full SEO/AEO/GEO
+plumbing (title, meta description, Open Graph, Twitter cards,
+canonical, favicons, stylesheet), data-driven nav (root and sub
+variants), footer, verbatim JSON-LD, plus the machine files
+(`sitemap.xml`, `robots.txt`, `llms.txt`) and a blog index builder from
+post tables. `sitegen_build` validates the site table, sandboxes every
+path (relative only, no `..`, `.html` pages), creates folders through
+the one raw `os.makedirs` primitive (the v1.4 scaffolder boundary), and
+writes byte-identical output on both interpreters. Demo:
+`examples/sitegen_demo.jc`. 27 differential tests in
+`tests/test_sitegen.py`, all green on both interpreters.
+
 ## What v0.4 is, honestly
 
 v0.4 ships as a native binary. You never install Python and never see it,
