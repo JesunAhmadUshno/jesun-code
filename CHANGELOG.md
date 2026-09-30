@@ -19,51 +19,49 @@ bootstrap-vs-walker. Reproduce from the repo root:
 `JESUN_CODE_SITE_BASE` to stage elsewhere). No post-processing; the build
 never touches `docs/assets/`, `docs/.nojekyll`, or `docs/*.md`.
 
-## Unreleased: v2.0 sprint 2 (2026-09-30)
+## v2.0.0 (2026-09-30): games on PC
 
-Spec `docs/spec-v2.0.md` §9, §11, §12. The live surface driver:
-the terminal is the display, verified via tmux send-keys/capture-pane.
+Spec `docs/spec-v2.0.md`. Jesun.Code grows a 2D game engine, written in
+Jesun.Code itself. Founder's law holds: one language, all solutions.
 
-New interpreter statements (bootstrap only, walker parses and fails
-honestly):
-- `display <expr>` writes with no trailing newline and flushes.
-  Bangla: `প্রদর্শনকরো`.
-- `read key [within <ms>] giving <name>` reads one keypress in raw
-  mode; arrows give `up`/`down`/`left`/`right`, Ctrl-C gives `quit`.
-  Bangla: `পড়ো কী [মধ্যে <ms>] রেখে <name>`.
-- `raw mode` / `cooked mode` hold and release the terminal raw mode
-  across `read key` calls (the tty must stay raw for the whole
-  session; keys in canonical mode are lost). Lock-counted for nesting.
+The `game` package (`packages/game/game.jc`, pure Jesun.Code):
+framebuffer (`game_frame`), Bresenham lines (`game_linen`), circles
+(`game_circle`), 7-segment digits (`game_digit`), P3 PPM export
+(`game_ppm`), scripted input queue (`game_press`, `game_poll`), the
+fixed-tick game loop (`game_loop`), and an 8-bit mono WAV writer
+(`game_tone`, `game_wav`). `examples/snake.jc`: Snake on a 64x48 frame,
+scripted input (right, down, left, up), two pellets, score as 7-seg
+digits, one PPM per 10th tick, `jingle.wav` (three-note square wave).
 
-The `window` package (`packages/window/window.jc`): `window_open`
-(alt screen, hide cursor, raw mode), `window_frame`, `window_show`
-(half-block `▀` rows, 24-bit ANSI), `window_keys` (non-blocking drain),
-`window_quit`, `window_run` (fixed-tick live loop), `window_close`.
-`examples/snake_live.jc`: live snake, 200 ticks. Acceptance verified:
-keypresses via tmux change the snake's path (PPM differs from baseline).
+Language: `\uXXXX` string escapes (exactly 4 hex digits, both lexers,
+differentially pinned).
 
-Tests: `tests/test_window.py` (17 tests, differential bootstrap/walker),
-fuzzer seeds for the new statements. Note: `window_open` needs a real
-TTY; harness tests pin the honest failure, byte output verified via tmux.
+Sprint 2, the live surface driver (spec §9, §11, §12). New interpreter
+statements (bootstrap only; the walker parses and fails honestly):
+`display <expr>` (no newline, flushed; Bangla `প্রদর্শনকরো`),
+`read key [within <ms>] giving <name>` (raw-mode keypress; arrows to
+up/down/left/right, Ctrl-C to quit; Bangla `পড়ো কী [মধ্যে <ms>] রেখে <name>`),
+`raw mode` / `cooked mode` (lock-counted raw hold across reads).
+The `window` package (`packages/window/window.jc`): `window_open` (alt
+screen, hide cursor, raw mode), `window_frame`, `window_show` (half-block
+`▀` rows, 24-bit ANSI), `window_keys` (non-blocking drain), `window_quit`,
+`window_run` (fixed-tick live loop), `window_close`.
+`examples/snake_live.jc`: the same Snake, playable with arrow keys.
+Acceptance verified via tmux: real send-keys keypresses change the
+snake's path (keypress PPM differs from the no-key baseline).
 
-## Unreleased: v2.0 sprint 1 (2026-09-30)
+Honest framing (spec §9): the display is the terminal. A true OS GUI
+window needs a toolkit (SDL, Tk); the only path today is the Python
+bridge, and the founder's law forbids counting the bridge as the
+solution for any domain. No live audio playback: no audio device on the
+build machine to verify against, and an unverifiable claim is not a
+shipped feature. The WAV writer produces real playable files. The byte
+writer stays future work (v2.1 audio rung). When Jesun.Code grows a
+native surface, the same `update`/`draw` game plugs in unchanged.
 
-Spec `docs/spec-v2.0.md`. The `game` package (`packages/game/game.jc`,
-pure Jesun.Code): a framebuffer with pixel/rect/line (Bresenham)/circle
-and 7-seg digits plus P3 PPM export, a scripted input queue
-(`game_press`/`game_poll`), a fixed-tick `game_loop` with plain-English
-update/draw error reporting, and an 8-bit mono WAV writer
-(`snd_tone`/`snd_silence`/`snd_seq`/`snd_mix`/`snd_wav`/`snd_save`)
-that obeys the 128 rule end to end. The one new interpreter feature in
-v2.0: `\uXXXX` string escapes in both lexers, needed to assemble WAV
-header bytes as text; raw-string lexing keeps `\u007b` inert so decoded
-braces can never fake an interpolation. `examples/snake.jc`:
-scripted-input snake on 64x48, eats two pellets, score as 7-seg digits,
-one PPM per 10th tick, `jingle.wav` verified as valid 11025 Hz 8-bit
-mono RIFF. Differential tests in `tests/test_game.py`, the
-`tests/fuzz_game.py` game fuzzer, and `\u` seeds in `tests/fuzz.py`,
-all green on both interpreters. Live window and live keyboard stay
-sprint 2 scope; no release, milestone incomplete.
+Tests: 29 differential game tests, 17 differential window tests, new
+`tests/fuzz_game.py` (150/150 clean), `\u` seeds in `tests/fuzz.py`.
+Full suite green on both interpreters.
 
 ## v1.5.0 - 2026-09-30: THE SITE BUILDS ITSELF
 
