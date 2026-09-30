@@ -1,3 +1,5 @@
+{% raw %}
+<!-- Pages note: this spec documents {{ }}/{% %} template syntax, so the whole file is wrapped in raw tags. GitHub Pages renders every .md through Liquid (optional-front-matter default); an unclosed {{ fails the build. Keep the wrapper. -->
 # Jesun.Code spec v1.3: frontend (the native frontend stack)
 
 Status: approved by the founder 2026-09-26 22:36 EDT ("Start v1.3 frontend
@@ -263,3 +265,4 @@ README (frontend section), CHANGELOG (v1.3.0 entry), ROADMAP (v1.3
 marked shipped on release), the site (version pill, blog release post,
 FAQ frontend Q&A, sitemap, llms.txt). Minimum one blog post per
 release, in Anvil's voice.
+{% endraw %}
