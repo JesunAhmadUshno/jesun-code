@@ -1,0 +1,365 @@
+note jpm package "serve": the full-stack web framework (spec docs/spec-serve.md, v3.0 M2).
+note A COMPOSITE package (first of its kind, spec section 1): used with
+note jweb, sitegen, js, html, sqlite brought in alongside; serve calls only
+note the functions named in spec section 3.7. Every serve-defined name is
+note prefixed serve_ so bring-in order can never collide. serve defines no
+note `serve`; the entry point is serve_start (jweb owns `serve`).
+note M2 scope: Route, Page, Island, Table + admin (spec 3.1-3.3, 3.5).
+note Live view (3.4) and Scene (3.6) are M3.
+
+note ---- kinds: article + description for plain-English errors ----
+
+to serve_article with k
+    if k is "agent" then
+        give back "an agent"
+    if k is "true/false" then
+        give back "true/false"
+    if k is "python value" then
+        give back "a python value"
+    give back "a " + k
+
+to serve_describe with v
+    k is kind of v
+    if k is "text" then
+        give back "\"" + v + "\""
+    if k is "number" or k is "true/false" then
+        give back text of v
+    a is serve_article with k
+    give back a
+
+note ---- module state (tables, so handlers can mutate them) ----
+
+serve_state is {"site": nothing}
+serve_registry is a new table
+
+note ---- tiny helpers (serve's own; the composite list names no helpers) ----
+
+to serve_starts_with with s and needle
+    if length of s is less than length of needle then
+        give back false
+    i is 0
+    n is length of needle
+    chars is characters of s
+    nchars is characters of needle
+    repeat while i is less than n
+        if chars[i] is not nchars[i] then
+            give back false
+        i is i + 1
+    give back true
+
+to serve_need_site
+    if serve_state["site"] is nothing then
+        fail with "serve_site has to be called first, with a name, a url, and a version."
+
+note ---- serve_site: one site per app (spec 3.2) ----
+
+to serve_site with name and url and version
+    if kind of name is not "text" or kind of url is not "text" or kind of version is not "text" then
+        fail with "serve_site needs a name, a url, and a version, all text."
+    if serve_state["site"] is not nothing then
+        fail with "serve_site was already called; one site per app."
+    site is a new table
+    site["name"] is name
+    site["site_url"] is url
+    site["version"] is version
+    serve_state["site"] is site
+    give back site
+
+note ---- Route (spec 3.1): sentences over jweb's add_route ----
+
+to serve_route with route and handler
+    if kind of route is not "text" then
+        fail with "serve_route needs \"METHOD /path\", like \"GET /hello\"."
+    words is split of route by " "
+    if length of words is not 2 then
+        fail with "serve_route needs \"METHOD /path\", like \"GET /hello\"."
+    if not (serve_starts_with with words[1] and "/") then
+        fail with "serve_route needs \"METHOD /path\", like \"GET /hello\"."
+    if kind of handler is not "function" then
+        d is serve_describe with handler
+        fail with "the route handler has to be a function, but this is " + d + "."
+    add_route with route and handler
+    give back nothing
+
+to serve_start with port
+    if kind of port is not "number" then
+        d is serve_describe with port
+        fail with "serve_start needs a port number from 1 to 65535, but this is " + d + "."
+    if port is less than 1 or port is greater than 65535 then
+        d is serve_describe with port
+        fail with "serve_start needs a port number from 1 to 65535, but this is " + d + "."
+    if (text of port) contains "." then
+        d is serve_describe with port
+        fail with "serve_start needs a port number from 1 to 65535, but this is " + d + "."
+    site is serve_state["site"]
+    if site is nothing then
+        show "serve: listening without a site name; call serve_site to name it."
+    otherwise
+        show "Serving " + site["name"] + " on port " + (text of port)
+    serve with port
+
+note ---- Page (spec 3.2): server-rendered HTML, zero JavaScript ----
+note Composes sitegen_head + sitegen_nav + body + sitegen_footer directly,
+note NOT sitegen_page: sitegen_page hardcodes an assets/app.js script tag
+note that dynamic pages must not carry (spec section 3.2 judgment call).
+
+to serve_page_table with title and body and canonical
+    serve_need_site
+    if kind of title is not "text" or title is "" then
+        fail with "a page needs a title, but this one is missing."
+    if kind of body is not "text" then
+        d is serve_describe with body
+        fail with "a page body has to be text, but this is " + d + "."
+    site is serve_state["site"]
+    page is a new table
+    page["title"] is title
+    page["description"] is ""
+    page["canonical"] is canonical
+    page["body"] is body
+    page["root_prefix"] is "./"
+    page["nav"] is "root"
+    give back page
+
+to serve_render_page with page
+    site is serve_state["site"]
+    head is sitegen_head with page and site
+    nav is sitegen_nav with page and site
+    foot is sitegen_footer with page and site
+    doc is "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" + head + "\n</head>\n<body>\n"
+    doc is doc + nav + "\n" + page["body"] + "\n" + foot + "\n</body>\n</html>\n"
+    give back doc
+
+to serve_page with title and body
+    serve_need_site
+    site is serve_state["site"]
+    page is serve_page_table with title and body and site["site_url"]
+    doc is serve_render_page with page
+    give back ok with doc
+
+to serve_page_at with route and title and body
+    serve_need_site
+    site is serve_state["site"]
+    page is serve_page_table with title and body and (site["site_url"] + route)
+    doc is serve_render_page with page
+    give back ok with doc
+
+note ---- Island (spec 3.3): a fenced interactive widget ----
+note html plus its own script, hydrated only where placed. The script is
+note already-built JavaScript text (assembled with the js package); serve
+note wraps it in one script tag and nothing else.
+
+serve_letters is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+serve_alnum is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+to serve_valid_island_id with id
+    if kind of id is not "text" or id is "" then
+        give back false
+    chars is characters of id
+    if not (serve_letters contains chars[0]) then
+        give back false
+    i is 1
+    repeat while i is less than length of chars
+        c is chars[i]
+        if not (serve_alnum contains c) and c is not "-" and c is not "_" then
+            give back false
+        i is i + 1
+    give back true
+
+to serve_island with id and html and script
+    if not (serve_valid_island_id with id) then
+        shown is serve_describe with id
+        if kind of id is "text" then
+            shown is "\"" + id + "\""
+        fail with shown + " is not a valid island id. Use letters, numbers, dashes, and underscores, starting with a letter."
+    if kind of html is not "text" then
+        d is serve_describe with html
+        fail with "an island html has to be text, but this is " + d + "."
+    if kind of script is not "text" then
+        d is serve_describe with script
+        fail with "an island script has to be text, but this is " + d + "."
+    give back html + "\n" + (script_tag with script)
+
+note ---- Table: the English data layer (spec 3.5) ----
+note Names are validated, so DDL is built by joining validated
+note identifiers only; user text never reaches DDL except through
+note ? parameters. Injection-safe by construction (spec section 7).
+
+serve_field_types is {"text": "TEXT", "number": "REAL", "true/false": "INTEGER"}
+
+to serve_valid_name with name
+    if kind of name is not "text" or name is "" then
+        give back false
+    chars is characters of name
+    if not (serve_letters contains chars[0]) then
+        give back false
+    i is 1
+    repeat while i is less than length of chars
+        c is chars[i]
+        if not (serve_alnum contains c) and c is not "_" then
+            give back false
+        i is i + 1
+    give back true
+
+to serve_table with name and fields
+    if not (serve_valid_name with name) then
+        fail with (serve_describe with name) + " is not a valid table name. Use letters, numbers, and underscores, starting with a letter."
+    clean is []
+    seen is []
+    for each f in fields
+        if kind of f is not "list" or length of f is less than 2 then
+            fail with "each field has to be a [name, kind] pair, but this is " + (serve_describe with f) + "."
+        fname is f[0]
+        fkind is f[1]
+        if not (serve_valid_name with fname) then
+            fail with (serve_describe with fname) + " is not a valid field name. Use letters, numbers, and underscores, starting with a letter."
+        if kind of fkind is not "text" or not (serve_field_types contains fkind) then
+            fail with (serve_describe with fkind) + " is not a field kind. Use \"text\", \"number\", or \"true/false\"."
+        if seen contains fname then
+            fail with "the table \"" + name + "\" already has a field called \"" + fname + "\"."
+        push fname to seen
+        push [fname, fkind] to clean
+    cols is ["id INTEGER PRIMARY KEY"]
+    for each f in clean
+        push (f[0] + " " + serve_field_types[f[1]]) to cols
+    create is "CREATE TABLE " + name + " (" + (join of cols with ", ") + ")"
+    decl is {"name": name, "fields": clean, "history": [{"version": 1, "sql": create}], "version": 1}
+    give back decl
+
+to serve_add_field with declaration and name and field_kind
+    tname is declaration["name"]
+    if not (serve_valid_name with name) then
+        fail with (serve_describe with name) + " is not a valid field name. Use letters, numbers, and underscores, starting with a letter."
+    if kind of field_kind is not "text" or not (serve_field_types contains field_kind) then
+        fail with (serve_describe with field_kind) + " is not a field kind. Use \"text\", \"number\", or \"true/false\"."
+    for each f in declaration["fields"]
+        if f[0] is name then
+            fail with "the table \"" + tname + "\" already has a field called \"" + name + "\"."
+    v is declaration["version"] + 1
+    declaration["version"] is v
+    flds is declaration["fields"]
+    push [name, field_kind] to flds
+    declaration["fields"] is flds
+    sql is "ALTER TABLE " + tname + " ADD COLUMN " + name + " " + serve_field_types[field_kind]
+    hist is declaration["history"]
+    push {"version": v, "sql": sql} to hist
+    declaration["history"] is hist
+    give back declaration
+
+to serve_migrate with db and declaration
+    tname is declaration["name"]
+    db_run with db and "CREATE TABLE IF NOT EXISTS _serve_migrations (tname TEXT, version INTEGER, sql TEXT, applied TEXT)" and nothing
+    found is db_query with db and "SELECT version FROM _serve_migrations WHERE tname = ?" and [tname]
+    applied is []
+    for each r in found
+        push r["version"] to applied
+    done is []
+    today is time_today
+    for each m in declaration["history"]
+        v is m["version"]
+        if not (applied contains v) then
+            db_run with db and m["sql"] and nothing
+            db_run with db and "INSERT INTO _serve_migrations (tname, version, sql, applied) VALUES (?, ?, ?, ?)" and [tname, v, m["sql"], today]
+            push v to done
+    give back done
+
+to serve_migrations with db and name
+    rows is db_query with db and "SELECT tname, version, sql, applied FROM _serve_migrations WHERE tname = ? ORDER BY version" and [name]
+    give back rows
+
+to serve_all with db and declaration
+    tname is declaration["name"]
+    give back db_query with db and ("SELECT * FROM " + tname) and nothing
+
+note ---- forms, guards, and the derived admin ----
+
+to serve_form with request
+    body is ""
+    if request contains "body" then
+        body is request["body"]
+    if kind of body is not "text" or body is "" then
+        give back a new table
+    give back jweb_parse_query with body
+
+to serve_guard with request
+    sess is session_of with request
+    if sess contains "user" then
+        give back sess["user"]
+    give back nothing
+
+to serve_admin_tname with path
+    note "/admin/<tname>" or "/admin/<tname>/delete": the table name
+    note is always the third slash-segment.
+    parts is split of path by "/"
+    give back parts[2]
+
+to serve_admin_list with request
+    tname is serve_admin_tname with request["path"]
+    entry is serve_registry[tname]
+    db is entry["db"]
+    decl is entry["declaration"]
+    rows is serve_all with db and decl
+    head is ""
+    for each f in decl["fields"]
+        head is head + "<th>" + (escape_html with f[0]) + "</th>"
+    body_rows is ""
+    for each r in rows
+        cells is ""
+        for each f in decl["fields"]
+            v is r[f[0]]
+            if v is nothing then
+                v is ""
+            otherwise
+                v is text of v
+            cells is cells + "<td>" + (escape_html with v) + "</td>"
+        del is "<form method=\"post\" action=\"/admin/" + tname + "/delete\">" + "<input type=\"hidden\" name=\"id\" value=\"" + (escape_html with (text of r["id"])) + "\">" + "<button type=\"submit\">Delete</button></form>"
+        body_rows is body_rows + "<tr>" + cells + "<td>" + del + "</td></tr>"
+    inputs is ""
+    for each f in decl["fields"]
+        inputs is inputs + "<label>" + (escape_html with f[0]) + " <input name=\"" + (escape_html with f[0]) + "\"></label> "
+    form is "<form method=\"post\" action=\"/admin/" + tname + "\">" + inputs + "<button type=\"submit\">Add</button></form>"
+    page_body is "<main><h1>" + (escape_html with (tname + " admin")) + "</h1><table><tr>" + head + "<th></th></tr>" + body_rows + "</table>" + form + "</main>"
+    give back serve_page with (tname + " admin") and page_body
+
+to serve_admin_create with request
+    tname is serve_admin_tname with request["path"]
+    entry is serve_registry[tname]
+    db is entry["db"]
+    decl is entry["declaration"]
+    form is serve_form with request
+    cols is []
+    marks is []
+    vals is []
+    for each f in decl["fields"]
+        fname is f[0]
+        push fname to cols
+        push "?" to marks
+        v is nothing
+        if form contains fname then
+            v is form[fname]
+        push v to vals
+    sql is "INSERT INTO " + tname + " DEFAULT VALUES"
+    if length of cols is greater than 0 then
+        sql is "INSERT INTO " + tname + " (" + (join of cols with ", ") + ") VALUES (" + (join of marks with ", ") + ")"
+    db_run with db and sql and vals
+    give back redirect_to with ("/admin/" + tname)
+
+to serve_admin_delete with request
+    tname is serve_admin_tname with request["path"]
+    entry is serve_registry[tname]
+    db is entry["db"]
+    form is serve_form with request
+    id is nothing
+    if form contains "id" then
+        id is form["id"]
+    db_run with db and ("DELETE FROM " + tname + " WHERE id = ?") and [id]
+    give back redirect_to with ("/admin/" + tname)
+
+to serve_admin with db and declaration
+    tname is declaration["name"]
+    if serve_registry contains tname then
+        fail with "the admin for \"" + tname + "\" is already registered."
+    serve_registry[tname] is {"db": db, "declaration": declaration}
+    add_route with ("GET /admin/" + tname) and serve_admin_list
+    add_route with ("POST /admin/" + tname) and serve_admin_create
+    add_route with ("POST /admin/" + tname + "/delete") and serve_admin_delete
+    give back nothing

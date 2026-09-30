@@ -106,3 +106,11 @@ its milestone ships green.
    dogfood `ask ai` against a true model.
 2. A real LLM for `JESUNCODE_AI_COMMAND` (his call which provider) to
    dogfood `ask ai` against a true model.
+
+## Dated amendments (append-only; newest last)
+
+- 2026-09-30: v3.0 is the Serve web framework (spec
+  `docs/spec-serve.md`, founder-approved "Go ahead", v3.0). The
+  earlier "v3.0: mobile" placeholder above is superseded; mobile
+  moves to a later number to be set. M2 (Route, Page, Island,
+  Table + admin) is in progress; M3 (Live view, Scene) follows.
