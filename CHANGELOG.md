@@ -18,6 +18,28 @@ differential tests in `tests/test_sitegen.py` (builders, failure
 shapes, sandbox, build idempotency), all green on both interpreters;
 demo `examples/sitegen_demo.jc` verified through both interpreters.
 
+## Unreleased: v1.5 sprint 2 (2026-09-30)
+
+The docs/ tree migrated onto the generator. Build-time extractor
+`hidden_files/sitegen_extract.py` (goal workspace) emits the
+self-contained driver `hidden_files/sitegen_migrate.jc` (~2,100 lines of
+Jesun.Code page data) rebuilding all 14 pages through `sitegen`.
+Chrome overrides added: `nav_links`, page `version`, `github_svg`,
+`og_title`/`og_description`/`twitter_title`/`twitter_description`/
+`twitter_card`, `og_type`, `article_date`, `no_twitter_meta`, `tagline`,
+`foot_stroke`, `foot_product`/`foot_resources`/`foot_project`,
+`dup_head_icons`, `gap_after_body_tag`, `gap_before_jsonld`; nav and
+footer pills prefer the page version. Migration verified byte-identical
+on all 14 pages through the bootstrap AND the self-hosted interpreter,
+then three deliberate improvements (stale `v1.3.0` pills to `v1.4.0`,
+duplicated icon block removed, the v0.4.0 post's doubled footer emitted
+once). Re-verification caught three machine-file gaps the first pass
+missed (sitemap.xml changefreq/priority entries, robots.txt trailing
+newline, llms.txt carried verbatim); the package now models them and
+all 17 generated files are byte-identical on both interpreters.
+`docs/` is now the generated tree. 34 differential tests, all green on
+both interpreters.
+
 ## v1.4.0 - 2026-09-30: INTEROP
 
 Spec `docs/spec-v1.4.md`. Founder's law: one language, all solutions.

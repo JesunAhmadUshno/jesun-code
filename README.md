@@ -458,8 +458,22 @@ post tables. `sitegen_build` validates the site table, sandboxes every
 path (relative only, no `..`, `.html` pages), creates folders through
 the one raw `os.makedirs` primitive (the v1.4 scaffolder boundary), and
 writes byte-identical output on both interpreters. Demo:
-`examples/sitegen_demo.jc`. 27 differential tests in
+`examples/sitegen_demo.jc`. 34 differential tests in
 `tests/test_sitegen.py`, all green on both interpreters.
+
+Sprint 2 migrated the whole `docs/` tree onto the generator: a build-time
+extractor (`hidden_files/sitegen_extract.py` in the goal workspace) reads
+the hand-built pages and emits a self-contained driver
+(`hidden_files/sitegen_migrate.jc`, ~2,100 lines of Jesun.Code page data)
+that rebuilds all 14 pages through `sitegen`. Page-level chrome overrides
+(`nav_links`, per-page SEO fields, `og_type`, `article_date`,
+`no_twitter_meta`, footer column/tagline/stroke overrides, `github_svg`,
+plus three byte-fidelity wart flags) let the generator reproduce every
+hand-tuned variant. The migration hit byte-identical output on all 14
+pages through both interpreters, then applied two deliberate improvements
+(stale `v1.3.0` pills to `v1.4.0`, one duplicated icon block removed);
+`docs/` is now the generated tree (14 pages, 0 broken internal links,
+no stale chrome, SEO plumbing intact).
 
 ## What v0.4 is, honestly
 
