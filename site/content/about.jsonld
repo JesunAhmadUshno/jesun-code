@@ -1,0 +1,10 @@
+{
+  "@context": "https://schema.org",
+  "@type": "ProfilePage",
+  "mainEntity": {
+    "@type": "Person",
+    "name": "Jesun Ahmad Ushno",
+    "description": "Toronto-based AI engineer building Jesun.Code in public: a programming language that reads like plain English.",
+    "url": "https://jesunahmadushno.github.io/jesun-code/about.html"
+  }
+}

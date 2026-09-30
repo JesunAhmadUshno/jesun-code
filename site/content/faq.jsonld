@@ -1,0 +1,20 @@
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "What is Jesun.Code?", "acceptedAnswer": {"@type": "Answer", "text": "Jesun.Code is a programming language that reads like plain English. It ships as a single binary for Windows, macOS, and Linux."}},
+    {"@type": "Question", "name": "How do I install it?", "acceptedAnswer": {"@type": "Answer", "text": "One line via the install script; no Python needed. jesun program.jc runs a file."}},
+    {"@type": "Question", "name": "What happens when my program has an error?", "acceptedAnswer": {"@type": "Answer", "text": "One plain-English sentence with a line number. Tracebacks do not exist."}},
+    {"@type": "Question", "name": "Can it use Python libraries?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, import any stdlib or pip package through the Python bridge."}},
+    {"@type": "Question", "name": "What is jpm?", "acceptedAnswer": {"@type": "Answer", "text": "The Jesun.Code package manager: use github.com/user/pkg installs from GitHub, bring in pkg loads it."}},
+    {"@type": "Question", "name": "Does Jesun.Code speak Bangla?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, since v0.5.0: use bangla switches all 67 keywords to Bangla words."}},
+    {"@type": "Question", "name": "What is a fleet in Jesun.Code?", "acceptedAnswer": {"@type": "Answer", "text": "Since v0.6.0: a fleet block runs named agents in parallel and collects their answers into a list in ask order, with optional shared fleet memory."}},
+    {"@type": "Question", "name": "How does the AI brain work?", "acceptedAnswer": {"@type": "Answer", "text": "ask ai sends a prompt to the connected mind via JESUNCODE_AI_COMMAND. Three providers ship with the installer: Pollinations (free forever, no key), Gemini (free with a Google account), and OpenAI (your own key). Named agents add persona, tools, streaming, and persistent memory."}},
+    {"@type": "Question", "name": "Is there a VS Code extension?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, in editors/vscode/: syntax highlighting for English and Bangla keywords, snippets, and run-file on Ctrl+Alt+R. The grammar is generated from the interpreter itself, so it never drifts out of sync."}},
+    {"@type": "Question", "name": "What is the roadmap?", "acceptedAnswer": {"@type": "Answer", "text": "v1.0.0 shipped self-hosting: the interpreter is written in Jesun.Code itself. v1.1.0 shipped native builds: jesun build transpiles to C and compiles real native binaries with no bundled runtime in the output. v1.2.0 shipped jweb and sqlite: a web framework and a database written in Jesun.Code itself."}},
+    {"@type": "Question", "name": "What license is it?", "acceptedAnswer": {"@type": "Answer", "text": "MIT. Do anything with it."}},
+    {"@type": "Question", "name": "Can Jesun.Code talk to WordPress, React, or PHP?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, since v1.4.0: the wordpress package talks to any WordPress REST API, the react package builds JSX and scaffolds Vite apps, and the php package emits Laravel routes, controllers, and Blade pages. All written in Jesun.Code itself."}},
+    {"@type": "Question", "name": "Can Jesun.Code build its own website?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, since v1.5.0: the sitegen package is a static site generator written in Jesun.Code itself. One driver file and one sitegen_build call rebuild this whole site page-for-page identical, byte for byte, on both interpreters."}},
+    {"@type": "Question", "name": "Can Jesun.Code build websites?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, both sides. v1.2.0 shipped jweb and sqlite: routing, sessions, static files, and parameterized queries, all written in Jesun.Code itself. v1.3.0 adds the frontend: the html package (an escaped HTML DSL), the template package (placeholder, for-loop, and if-conditional templates), and the js package (breakout-proof JavaScript strings, script tags, event wiring). See examples/todo_frontend.jc. v1.4.0 adds interop: wordpress, react, and php packages, all written in Jesun.Code itself."}}
+  ]
+}

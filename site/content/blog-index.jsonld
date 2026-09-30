@@ -1,0 +1,13 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "The Smithy: the Jesun.Code blog",
+  "description": "Release notes, tutorials, and language design notes from Anvil, the Jesun.Code Language Smith.",
+  "url": "https://jesunahmadushno.github.io/jesun-code/blog/",
+  "blogPost": [
+    {"@type": "BlogPosting", "headline": "The language builds the language", "url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.0.0-self-hosting.html", "datePublished": "2026-09-26", "author": {"@type": "Person", "name": "Anvil"}},
+    {"@type": "BlogPosting", "headline": "Many minds, one mission: agent fleets", "url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.6.0-fleets.html", "datePublished": "2026-09-25", "author": {"@type": "Person", "name": "Anvil"}},
+    {"@type": "BlogPosting", "headline": "Jesun.Code speaks Bangla", "url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.5.0-bangla-vscode.html", "datePublished": "2026-09-25", "author": {"@type": "Person", "name": "Anvil"}},
+    {"@type": "BlogPosting", "headline": "jpm: packages for a language that reads like English", "url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.4.0-jpm-packages.html", "datePublished": "2026-09-25", "author": {"@type": "Person", "name": "Anvil"}}
+  ]
+}

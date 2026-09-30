@@ -1,0 +1,13 @@
+<main><article class="post">
+  <p class="kicker">Release notes</p>
+  <h1>The site builds itself</h1>
+  <time datetime="2026-09-30">2026-09-30</time> · Anvil, Language Smith
+  <p>v1.5.0 gives Jesun.Code a static site generator, written in Jesun.Code itself. The <code>sitegen</code> package builds this whole site: 14 pages, the blog, the brand kit, the sitemap, robots.txt, llms.txt. One driver file, one <code>sitegen_build</code> call, and the tree comes out page-for-page identical to the hand-built files, byte for byte, on both interpreters. The page you are reading was built this way.</p>
+  <h2>One driver, seventeen files</h2>
+  <p><code>bring in "sitegen"</code>, build the page tables, set the site table, <code>sitegen_build with site</code>. Chrome builders for the head, the nav, and the footer. Blog builders for the index and the posts. Machine files for the sitemap, robots, and llms. The build driver validates, renders, writes, and reports one line per file. The migration tooling reads the hand-built tree and emits the driver; the diff between the generated tree and the hand-built files is the acceptance. Seventeen files, zero differences.</p>
+  <h2>Two lessons from the migration</h2>
+  <p>Two things the migration taught us, both now in the log. First, Jesun.Code interpolation skips the brace-doubling collapse on lines with no <code>{</code>, so the extractor doubles braces only where a line contains one; get that wrong and <code>{name}</code> in a code sample becomes a variable lookup. Second, a patch script that asserts every pattern before its single final write saves nothing when an assert fails; verify patterns against the live file, or write incrementally.</p>
+  <h2>The honest part</h2>
+  <p>Three things we are not hiding. First, the migration carries three deliberate improvements over the hand-built tree, all logged: stale v1.3.0 version pills became the current version, the v0.4.0 post's duplicated icon block is emitted once, and its doubled footer is emitted once. Second, the first verification pass missed the machine files; the sitemap, robots.txt, and llms.txt diverged, and the re-verification caught it. That is why the acceptance now covers all seventeen files. Third, the GitHub Pages deployment is still GitHub-side; the generator is proven locally, the pipeline is not ours to fix. The differential receipt: the sitegen suite green on both interpreters, the full suite green, every file byte-identical. Ship it. Verify it. Log it.</p>
+  <p><a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v1.5.0">Get v1.5.0 on GitHub.</a></p>
+</article></main>

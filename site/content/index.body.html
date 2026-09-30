@@ -1,0 +1,254 @@
+
+<main>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pulse" aria-hidden="true"></span> v1.5.0 is live: the site builds itself</p>
+        <h1>The programming language that reads like <span class="grad">plain English</span>.</h1>
+        <p class="lede">If a sentence makes sense to a person, it should make sense to the machine. Jesun.Code pairs human language with the entire Python ecosystem and real AI agents, and ships as a single binary. No Python to install. No tracebacks. Ever.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary" href="#install">Get Jesun.Code</a>
+          <a class="btn btn-secondary" href="https://github.com/JesunAhmadUshno/jesun-code" target="_blank" rel="noopener">Star on GitHub</a>
+        </div>
+        <div class="hero-meta">
+          <span>MIT licensed</span><i aria-hidden="true"></i><span>Single binary</span><i aria-hidden="true"></i><span>501 tests green</span>
+        </div>
+      </div>
+      <div class="hero-terminal">
+        <div class="term" id="term">
+          <div class="term-bar">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="term-title">hello.jc</span>
+          </div>
+          <div class="term-body" id="termBody"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats" aria-label="Project numbers">
+    <div class="stats-inner">
+      <div class="stat reveal"><strong data-count="501">0</strong><span>tests passing</span></div>
+      <div class="stat reveal"><strong data-count="3">0</strong><span>platforms, one binary each</span></div>
+      <div class="stat reveal"><strong data-count="0">0</strong><span>tracebacks shown to users</span></div>
+      <div class="stat reveal"><strong>100%</strong><span>plain-English errors</span></div>
+    </div>
+  </section>
+
+  <!-- COMPARISON -->
+  <section class="section" id="language">
+    <div class="wrap">
+      <p class="kicker reveal">The language</p>
+      <h2 class="reveal">Stop writing code.<br>Start writing sentences.</h2>
+      <p class="sub reveal">The same program, twice. One of them your grandmother could read.</p>
+      <div class="compare">
+        <div class="code-card reveal">
+          <div class="code-head"><span class="lang">Python</span></div>
+<pre class="code"><code><span class="cm"># python</span>
+<span class="kw">name</span> = input(<span class="st">"What is your name? "</span>)
+<span class="kw">for</span> i <span class="kw">in</span> range(<span class="nm">3</span>):
+    print(<span class="st">f"Go, {name}!"</span>)</code></pre>
+        </div>
+        <div class="code-card reveal">
+          <div class="code-head"><span class="lang">Jesun.Code</span><span class="tag">reads like English</span></div>
+<pre class="code"><code><span class="kw">ask</span> <span class="st">"What is your name? "</span> <span class="kw">giving</span> name
+
+<span class="kw">repeat</span> <span class="nm">3</span> times
+    <span class="kw">show</span> <span class="st">"Go, {name}!"</span></code></pre>
+        </div>
+      </div>
+
+      <div class="cheatsheet reveal">
+        <div class="sheet-row"><code>name is "Jesun"</code><span>variables</span></div>
+        <div class="sheet-row"><code>if age is at least 18 then</code><span>decisions</span></div>
+        <div class="sheet-row"><code>for each friend in ["Mara", "Wren"]</code><span>loops</span></div>
+        <div class="sheet-row"><code>to cheer with name ... give back</code><span>functions</span></div>
+        <div class="sheet-row"><code>ask ai "summarize this" giving brief</code><span>AI prompting</span></div>
+        <div class="sheet-row"><code>import numpy</code><span>the Python ecosystem</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section alt" id="features">
+    <div class="wrap">
+      <p class="kicker reveal">What it does</p>
+      <h2 class="reveal">Serious power.<br>Zero intimidation.</h2>
+      <p class="sub reveal">Six reasons teams reach for Jesun.Code, from first sentence to production deploy.</p>
+      <div class="grid">
+        <article class="card reveal">
+          <div class="icon" aria-hidden="true">Aa</div>
+          <h3>Plain-English syntax</h3>
+          <p>Variables, loops, functions, and errors that read as sentences. Every failure is one line-numbered sentence a human wrote for a human. Tracebacks do not exist here.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon" aria-hidden="true">&#9881;</div>
+          <h3>Native binaries</h3>
+          <p><code>jesun build</code> transpiles Jesun.Code to C and compiles real native binaries with <code>cc</code>. No bundled runtime in the output, evaluation order identical to the interpreter.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon" aria-hidden="true">&lt;/&gt;</div>
+          <h3>jweb: the web backend</h3>
+          <p>A web framework and a sqlite package, both written in Jesun.Code itself: routing, sessions, static files, parameterized queries, plain-English errors on every failure shape.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon" aria-hidden="true">&#9635;</div>
+          <h3>Frontend in sentences</h3>
+          <p>The <code>html</code> DSL escapes by default, <code>template</code> renders {{ }} pages with loops and conditionals, and the <code>js</code> package writes breakout-proof client code. Zero bridge.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon" aria-hidden="true">&#10022;</div>
+          <h3>AI agents with memory</h3>
+          <p>Named agents with persona, tools, streaming answers, and memory that persists between runs. One-line prompting: <code class="nw">ask ai "..." giving answer</code>. Agents can call agents; fleets run them in parallel.</p>
+        </article>
+        <article class="card reveal">
+          <div class="icon" aria-hidden="true">&#2437;</div>
+          <h3>The Bangla flavor</h3>
+          <p>Start a file with <code>use bangla</code> and all 67 keywords become Bangla words. Same grammar, Bengali digits, <code>&#2478;&#2472;&#2509;&#2468;&#2476;&#2509;&#2479;</code> comments. Plus a VS Code extension with a self-syncing grammar.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- AI BRAINS -->
+  <section class="section" id="brains">
+    <div class="wrap">
+      <p class="kicker reveal">AI brains</p>
+      <h2 class="reveal">Give it a mind.<br>Pick your fuel.</h2>
+      <p class="sub reveal">Jesun.Code talks to any mind through one tiny protocol: prompt in on stdin, answer out on stdout. Three providers ship with the installer.</p>
+      <div class="brains">
+        <article class="brain featured reveal">
+          <p class="brain-flag">Free forever</p>
+          <h3>Pollinations</h3>
+          <p>No key. No account. No billing. The zero-friction way to wake your programs up.</p>
+<pre class="code sm"><code><span class="kw">export</span> JESUNCODE_AI_COMMAND=<span class="st">"$HOME/.jesun-code/providers/pollinations-provider"</span></code></pre>
+        </article>
+        <article class="brain reveal">
+          <p class="brain-flag">Free with Google</p>
+          <h3>Gemini</h3>
+          <p>Sign in with your Google account, grab a free API key from AI Studio, and point the provider at it.</p>
+<pre class="code sm"><code><span class="kw">export</span> JESUNCODE_AI_COMMAND=<span class="st">"$HOME/.jesun-code/providers/gemini-provider"</span>
+<span class="kw">export</span> GEMINI_API_KEY=<span class="st">"your-free-key"</span></code></pre>
+        </article>
+        <article class="brain reveal">
+          <p class="brain-flag">Your own key</p>
+          <h3>OpenAI</h3>
+          <p>Bring an OpenAI key for frontier models. The provider speaks the Responses API.</p>
+<pre class="code sm"><code><span class="kw">export</span> JESUNCODE_AI_COMMAND=<span class="st">"$HOME/.jesun-code/providers/openai-provider"</span>
+<span class="kw">export</span> OPENAI_API_KEY=<span class="st">"sk-..."</span></code></pre>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="section alt" id="install">
+    <div class="wrap">
+      <p class="kicker reveal">Install</p>
+      <h2 class="reveal">One line.<br>No Python needed.</h2>
+      <p class="sub reveal">The binary carries everything inside. Copy, paste, done.</p>
+      <div class="tabs reveal">
+        <div class="tab-bar" role="tablist" aria-label="Install instructions">
+          <button class="tab active" data-tab="unix" role="tab" aria-selected="true">macOS / Linux</button>
+          <button class="tab" data-tab="win" role="tab" aria-selected="false">Windows</button>
+        </div>
+        <div class="tab-panel active" id="panel-unix" role="tabpanel">
+<pre class="code"><code>curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh</code></pre>
+          <button class="copy" data-copy="curl -fsSL https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.sh | sh">Copy</button>
+        </div>
+        <div class="tab-panel" id="panel-win" role="tabpanel">
+<pre class="code"><code>irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex</code></pre>
+          <button class="copy" data-copy="irm https://raw.githubusercontent.com/JesunAhmadUshno/jesun-code/main/scripts/install.ps1 | iex">Copy</button>
+        </div>
+      </div>
+      <div class="run-hints reveal">
+        <div><code>jesun program.jc</code><span>run a file</span></div>
+        <div><code>jesun</code><span>open the REPL</span></div>
+        <div><code>jesun --version</code><span>check the version</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEMO -->
+  <section class="section">
+    <div class="wrap">
+      <p class="kicker reveal">In the wild</p>
+      <h2 class="reveal">It builds real tools.</h2>
+      <p class="sub reveal">The flagship demo is <code>doctor.jc</code>: a server doctor written entirely in Jesun.Code. It inspects the machine through the Python bridge, asks the AI to diagnose with tools, and acts through tmux terminals.</p>
+      <div class="code-card wide reveal">
+        <div class="code-head"><span class="lang">doctor.jc</span><span class="tag">flagship demo</span></div>
+<pre class="code"><code><span class="kw">import</span> psutil
+
+agent doctor
+    persona is <span class="st">"a senior systems engineer, calm and precise"</span>
+    tools are [check_disk, check_memory, restart_service]
+    remember is always
+
+ask doctor <span class="st">"the server feels slow, find out why"</span> giving diagnosis streaming
+show diagnosis</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section class="section alt" id="roadmap">
+    <div class="wrap">
+      <p class="kicker reveal">Roadmap</p>
+      <h2 class="reveal">Where this is going.</h2>
+      <p class="sub reveal">Every milestone below shipped as a verified release. The next one is already in motion.</p>
+      <ol class="timeline">
+        <li class="tl done reveal">
+          <span class="tl-ver">v0.4.0</span>
+          <div><h3>Files and packages</h3><p>File I/O, string interpolation, and <code>jpm</code>, the Jesun.Code package manager with three starter packages. Shipped.</p></div>
+        </li>
+        <li class="tl done reveal">
+          <span class="tl-ver">v0.5.0</span>
+          <div><h3>Speak your language</h3><p>The Bangla keyword flavor and a VS Code extension with a self-syncing grammar. Shipped.</p></div>
+        </li>
+        <li class="tl done reveal">
+          <span class="tl-ver">v0.6.0</span>
+          <div><h3>Agent fleets</h3><p>Parallel agent fleets with shared fleet memory. Many minds, one mission. Shipped.</p></div>
+        </li>
+        <li class="tl done reveal">
+          <span class="tl-ver">v1.0.0</span>
+          <div><h3>Self-hosting</h3><p>The interpreter, written in Jesun.Code itself. The language builds the language. Shipped.</p></div>
+        </li>
+        <li class="tl done reveal">
+          <span class="tl-ver">v1.1.0</span>
+          <div><h3>Native binaries</h3><p><code>jesun build</code> transpiles to C and compiles real native binaries. No bundled runtime in the output. Shipped.</p></div>
+        </li>
+        <li class="tl done reveal">
+          <span class="tl-ver">v1.2.0</span>
+          <div><h3>jweb and sqlite</h3><p>A web framework and a database, both written in Jesun.Code itself: routing, sessions, static files, parameterized queries, plain-English errors. Shipped.</p></div>
+        </li>
+        <li class="tl done reveal">
+          <span class="tl-ver">v1.3.0</span>
+          <div><h3>Frontend in Jesun.Code</h3><p>Native HTML DSL, templates, and JS interop, all written in Jesun.Code itself: escaped HTML builders, {{ }} templates with loops and conditionals, breakout-proof JS strings. Shipped.</p></div>
+        </li>
+        <li class="tl done reveal">
+          <span class="tl-ver">v1.4.0</span>
+          <div><h3>Interop packages</h3><p>The world's stacks, in Jesun.Code itself: a WordPress REST client, React/JSX builders with a Vite scaffolder, and Laravel emitters with a project scaffolder. Raw primitives in, every rule and every error in Jesun.Code. Shipped.</p></div>
+        </li>
+        <li class="tl now reveal">
+          <span class="tl-ver">v1.5.0</span>
+          <div><h3>Static site generator</h3><p>This whole site, rebuilt by a generator written in Jesun.Code itself: page-for-page identical output, zero broken links, SEO/AEO/GEO intact. Shipped.</p></div>
+        </li>
+        <li class="tl next reveal">
+          <span class="tl-ver">v2.0</span>
+          <div><h3>Games on PC</h3><p>Native 2D graphics, input, audio, and game loop. A visual game written in Jesun.Code, running on PC, no bridge. In progress.</p></div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="cta">
+    <div class="wrap reveal">
+      <h2>Write your first sentence.</h2>
+      <p>One install line. One program file. A language that meets you halfway.</p>
+      <a class="btn btn-primary" href="#install">Install Jesun.Code</a>
+    </div>
+  </section>
+</main>
