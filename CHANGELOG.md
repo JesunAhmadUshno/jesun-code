@@ -2,6 +2,22 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## Unreleased: v1.5 sprint 1 (2026-09-30)
+
+Spec `docs/spec-v1.5.md`. The site builds itself: the `sitegen` jpm
+package (`packages/sitegen/sitegen.jc`) is a static site generator
+written in Jesun.Code itself. Page bodies stay authored HTML per
+`docs/DESIGN-SYSTEM.md`; the generator composes the chrome (SEO head,
+data-driven nav, footer, verbatim JSON-LD), the blog index from post
+tables, and the machine files (`sitemap.xml`, `robots.txt`,
+`llms.txt`). `sitegen_build` validates the site table, sandboxes every
+path (relative only, no `..` traversal, `.html` pages), and creates
+folders through the single raw `os.makedirs` primitive (the v1.4
+scaffolder boundary); every other byte is pure Jesun.Code. 27
+differential tests in `tests/test_sitegen.py` (builders, failure
+shapes, sandbox, build idempotency), all green on both interpreters;
+demo `examples/sitegen_demo.jc` verified through both interpreters.
+
 ## v1.4.0 - 2026-09-30: INTEROP
 
 Spec `docs/spec-v1.4.md`. Founder's law: one language, all solutions.
