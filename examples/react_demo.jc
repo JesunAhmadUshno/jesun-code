@@ -1,0 +1,14 @@
+note v1.4 interop demo: build a React component and scaffold a Vite app.
+note Usage: python3 jesun.py examples/react_demo.jc
+note Writes ./demo-app/ (package.json, index.html, src/main.jsx, src/App.jsx).
+
+bring in "react"
+
+card is component with "Card" and ["title", "body"] and "<article className=\"card\"><h2>{{title}}</h2><p>{{body}}</p></article>"
+show card
+show ""
+
+paths is scaffold_app with "demo-app"
+show "Wrote:"
+for each p in paths
+    show "  " + p

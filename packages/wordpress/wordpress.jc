@@ -1,0 +1,198 @@
+note jpm package "wordpress": WordPress REST API client (spec v1.4 section 1).
+note The bridge imports are raw transport primitives only
+note (urllib.request, urllib.parse, base64, builtins); every rule, URL,
+note auth shape, parse, and error message is Jesun.Code.
+note One language, all solutions.
+
+import urllib.request as urlmod
+import urllib.parse as parsemod
+import base64 as b64mod
+import builtins as bmod
+
+note ---- kinds: article + description for plain-English errors ----
+
+to wp_article with k
+    if k is "agent" then
+        give back "an agent"
+    if k is "true/false" then
+        give back "true/false"
+    if k is "python value" then
+        give back "a python value"
+    give back "a " + k
+
+to wp_describe with v
+    k is kind of v
+    if k is "text" then
+        give back "\"" + v + "\""
+    if k is "number" or k is "true/false" then
+        give back text of v
+    a is wp_article with k
+    give back a
+
+note ---- site handles ----
+
+to wp_strip_slash with base
+    parts is split of base by "/"
+    if last of parts is "" then
+        keep is []
+        i is 0
+        limit is (length of parts) - 1
+        repeat while i is less than limit
+            push parts[i] to keep
+            i is i + 1
+        give back join of keep with "/"
+    give back base
+
+to wp_site with base and user and password
+    if kind of base is not "text" then
+        fail with "the site address has to be text."
+    clean is wp_strip_slash with base
+    auth is nothing
+    if user is not nothing and password is not nothing then
+        if kind of user is not "text" or kind of password is not "text" then
+            fail with "the user name and password have to be text."
+        raw is user + ":" + password
+        tobytes is bmod.getattr(bmod, "bytes")
+        rawbytes is tobytes(raw, "utf-8")
+        encoder is bmod.getattr(b64mod, "b64encode")
+        encbytes is encoder(rawbytes)
+        decoder is bmod.getattr(encbytes, "decode")
+        auth is "Basic " + decoder("ascii")
+    give back {"base": clean, "auth": auth}
+
+note ---- HTTP errors: read the status out of the bridge's own words ----
+
+to wp_http_code with err
+    note The bridge reports "the python call failed: HTTP Error 404: ...".
+    note Anything without an HTTP Error in it is the unreachable shape.
+    marker is "HTTP Error "
+    if not (err contains marker) then
+        give back nothing
+    parts is split of err by marker
+    rest is last of parts
+    bits is split of rest by ":"
+    give back first of bits
+
+to wp_raise with site and path and err
+    code is wp_http_code with err
+    if code is nothing then
+        fail with "I could not reach the WordPress site at \"" + site["base"] + "\"."
+    if code is "401" then
+        fail with "the site refused the login. Check the user name and application password."
+    if code is "404" then
+        fail with "the site has no \"" + path + "\" (nothing there)."
+    fail with "the site answered with an error (HTTP " + code + ")."
+
+note ---- requests: GET and POST, auth header, 10s timeout ----
+
+to wp_request with site and path and method and body
+    note method is "GET" or "POST"; body is text for POST, nothing for GET.
+    url is site["base"] + path
+    tobytes is bmod.getattr(bmod, "bytes")
+    if method is "POST" then
+        data is tobytes(body, "utf-8")
+        req is urlmod.Request(url, data)
+    otherwise
+        req is urlmod.Request(url)
+    add is bmod.getattr(req, "add_header")
+    ignored is add("User-Agent", "Jesun.Code-wordpress/1.4")
+    if site["auth"] is not nothing then
+        ignored is add("Authorization", site["auth"])
+    if method is "POST" then
+        ignored is add("Content-Type", "application/json")
+    outcome is attempt urlmod.urlopen(req, timeout=10)
+    if not outcome["ok"] then
+        wp_raise with site and path and outcome["error"]
+    response is outcome["value"]
+    reader is bmod.getattr(response, "read")
+    raw is reader()
+    decoder is bmod.getattr(raw, "decode")
+    give back decoder("utf-8", errors="replace")
+
+to wp_get_json with site and path
+    body is wp_request with site and path and "GET" and nothing
+    outcome is attempt parse json body
+    if not outcome["ok"] then
+        fail with "the site answered \"" + path + "\" with text I cannot read as JSON."
+    give back outcome["value"]
+
+to wp_post_json with site and path and payload
+    body is wp_request with site and path and "POST" and payload
+    outcome is attempt parse json body
+    if not outcome["ok"] then
+        fail with "the site answered \"" + path + "\" with text I cannot read as JSON."
+    give back outcome["value"]
+
+note ---- shaping: unwrap WordPress's {"rendered": ...} wrappers ----
+
+to wp_rendered with v
+    if kind of v is "table" then
+        if v contains "rendered" then
+            give back v["rendered"]
+    give back v
+
+to wp_post_shape with raw
+    give back {"id": raw["id"], "title": wp_rendered with raw["title"], "slug": raw["slug"], "status": raw["status"], "date": raw["date"], "link": raw["link"]}
+
+note ---- the public surface (spec v1.4 section 1.1) ----
+
+to wp_posts with site and count
+    n is 10
+    if count is not nothing then
+        ok is kind of count is "number"
+        t is ""
+        if ok then
+            t is text of count
+            if t contains "." then
+                ok is false
+            if count is less than 1 then
+                ok is false
+            if count is greater than 100 then
+                ok is false
+        if not ok then
+            fail with "the post count has to be a whole number from 1 to 100."
+        n is count
+    raw is wp_get_json with site and ("/wp/v2/posts?per_page=" + (text of n) + "&_fields=id,date,slug,status,link,title,content")
+    out is []
+    for each p in raw
+        push wp_post_shape with p to out
+    give back out
+
+to wp_post with site and id
+    if kind of id is not "number" then
+        fail with "the post id has to be a number."
+    raw is wp_get_json with site and ("/wp/v2/posts/" + (text of id) + "?_fields=id,date,slug,status,link,title,content")
+    give back wp_post_shape with raw
+
+to wp_search with site and query
+    if kind of query is not "text" then
+        a is wp_article with (kind of query)
+        fail with "the search text has to be text, but this is " + a + "."
+    q is parsemod.quote(query)
+    raw is wp_get_json with site and ("/wp/v2/search?search=" + q + "&per_page=10")
+    out is []
+    for each r in raw
+        push {"id": r["id"], "title": r["title"], "url": r["url"], "kind": r["subtype"]} to out
+    give back out
+
+to wp_comments with site and post
+    if kind of post is not "number" then
+        fail with "the post id has to be a number."
+    raw is wp_get_json with site and ("/wp/v2/comments?post=" + (text of post) + "&per_page=20&_fields=id,date,author_name,content")
+    out is []
+    for each c in raw
+        push {"id": c["id"], "author": c["author_name"], "date": c["date"], "content": wp_rendered with c["content"]} to out
+    give back out
+
+to wp_create_post with site and title and content
+    if site["auth"] is nothing then
+        fail with "creating a post needs a login. Connect with a user name and an application password."
+    if kind of title is not "text" then
+        a is wp_article with (kind of title)
+        fail with "the post title has to be text, but this is " + a + "."
+    if kind of content is not "text" then
+        a is wp_article with (kind of content)
+        fail with "the post content has to be text, but this is " + a + "."
+    payload is json of {"title": title, "content": content, "status": "draft"}
+    data is wp_post_json with site and "/wp/v2/posts" and payload
+    give back {"id": data["id"], "link": data["link"], "status": data["status"]}

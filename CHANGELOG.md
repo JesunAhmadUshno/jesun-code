@@ -2,6 +2,44 @@
 
 All notable changes to Jesun.Code are recorded here. Dates are America/Toronto.
 
+## v1.4.0 - 2026-09-30: INTEROP
+
+Spec `docs/spec-v1.4.md`. Founder's law: one language, all solutions.
+The Python bridge is bootstrap only and never counts as the solution:
+`wordpress` imports only raw transport primitives (`urllib.request`,
+`urllib.parse`, `base64`, `builtins`), the same boundary v1.2's `sqlite`
+drew (raw driver in, every rule and every error message in Jesun.Code).
+`react` and `php` are pure text generation; only their scaffolders import
+one raw primitive (`os.makedirs`) to create folders.
+
+- `wordpress` package (`packages/wordpress/wordpress.jc`): `wp_site`
+  (base URL normalization, Basic-auth header, public sites carry no
+  credentials), `wp_request` (GET/POST, 10s timeout, `attempt`-catchable
+  transport), `wp_get_json` / `wp_post_json` (shape-checked JSON),
+  `wp_rendered`, `wp_posts` / `wp_post` (shape-checked post records),
+  `wp_search`, `wp_comments`, `wp_create_post` (201 + auth failures as
+  plain-English errors). Zero tracebacks, zero Python internals, line
+  numbers on every failure.
+- `react` package (`packages/react/react.jc`): `jsx_escape` (escapes `&`
+  first), `jsx_props` (insertion-order attributes), `jsx_element` /
+  `jsx_text`, `component` (validated PascalCase names, indented bodies),
+  `state_hook` (`useState` with derived setter name), `scaffold_app`
+  (writes a runnable Vite skeleton: `package.json`, `index.html`,
+  `src/main.jsx`, `src/App.jsx`). JSX braces in string literals are
+  written doubled (`{{title}}` renders `{title}`).
+- `php` package (`packages/php/php.jc`): `php_escape` (plus `&#039;`),
+  `php_route` (case-insensitive method, `Controller@action` validated and
+  split, quotes escaped), `controller` (validated names, indented
+  methods), `blade_page` (escaped title, raw body), `php_scaffold`
+  (`routes.php`, `app/PostController.php`, `views/home.blade.php`).
+- Demos: `examples/wp_client_demo.jc` (optional base URL from
+  `arguments`), `examples/react_demo.jc`, `examples/php_demo.jc`,
+  each verified through the interpreter.
+- New tests: `tests/test_interop.py` (34 differential cases across the
+  three packages: every API, every pinned error shape, both interpreters
+  byte-identical; wordpress cases run against a fixture HTTP server, no
+  live network).
+
 ## v1.3.0 - 2026-09-26: FRONTEND
 
 Spec `docs/spec-v1.3.md`. The Python bridge is bootstrap only; everything

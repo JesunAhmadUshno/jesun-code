@@ -414,6 +414,36 @@ note "\x3c/script>" : breakout-proof by construction
 template-rendered, whose form is HTML-built, and whose client wiring is
 JS-built, all in Jesun.Code. Full spec: `docs/spec-v1.3.md`.
 
+## The world's stacks, in Jesun.Code (v1.4)
+
+One language, all solutions. Three interop packages, written in Jesun.Code
+and resolved by `bring in`:
+
+```jesun
+bring in "wordpress"
+bring in "react"
+bring in "php"
+
+site is wp_site with "https://demo.wp-api.org/wp-json" and nothing and nothing
+posts is wp_posts with site and 3
+note the three latest posts, titles and links, from any WP REST API
+
+show component with "Card" and ["title", "body"] and "<h2>{{title}}</h2>"
+note function Card({ title, body }) { ... } : real JSX as text
+
+show php_route with "get" and "/posts" and "PostController@index"
+note Route::get('/posts', [PostController::class, 'index']);
+```
+
+`wordpress` talks to any WordPress REST API (raw `urllib` primitives in,
+every rule and every error in Jesun.Code, same boundary as v1.2's
+`sqlite`). `react` builds JSX and scaffolds runnable Vite apps
+(`scaffold_app`). `php` emits Laravel routes, controllers, and Blade
+pages (`php_scaffold`). Builders are pure Jesun.Code; only the two
+scaffolders import one raw primitive (`os.makedirs`) to create folders.
+Demos: `examples/wp_client_demo.jc`, `examples/react_demo.jc`,
+`examples/php_demo.jc`. Full spec: `docs/spec-v1.4.md`.
+
 ## What v0.4 is, honestly
 
 v0.4 ships as a native binary. You never install Python and never see it,
