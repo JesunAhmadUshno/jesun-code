@@ -1,8 +1,8 @@
 # Jesun.Code spec: Serve (the full-stack web framework)
 
-Status: M1 spec, drafted 2026-09-30, awaiting founder approval. NOTHING
-below is built. No code lands until the founder approves this document;
-that is the spec-first gate, and it holds.
+Status: M1 spec, APPROVED by the founder 2026-09-30 (his explicit
+"Go ahead"). The spec-first gate is satisfied; M2 implementation may
+land. M1 acceptance criterion 1 is met.
 
 Founder's law: one language, all solutions. Serve is written in
 Jesun.Code itself: `packages/serve/serve.jc`, used with
@@ -1053,3 +1053,7 @@ sketch, not a promise.
 
 (Dated amendments go here, newest last. The spec is append-only like
 every workspace file.)
+
+- 2026-09-30: APPROVED by the founder ("Go ahead", v3.0). M1 met;
+  M2 implementation authorized. No spec text changed by this
+  amendment.
