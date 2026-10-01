@@ -132,6 +132,14 @@ def main() -> int:
             check("package.json name", pkg_data.get("name") == "jesun-code-tmlanguage")
         check("payload has README", (payload / "README.md").exists())
 
+    # 7. Upstream conventions: language_id must be omitted (CONTRIBUTING.md:
+    # "Omit the language_id field for now"); update-ids assigns it.
+    snippet = (ROOT / "languages.yml").read_text()
+    check(
+        "language_id omitted per upstream convention",
+        "language_id" not in snippet.split("Jesun.Code:")[1],
+    )
+
     print()
     if failures:
         print(f"{len(failures)} FAILING: {', '.join(failures)}")
