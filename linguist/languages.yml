@@ -1,0 +1,12 @@
+# Snippet to add to lib/linguist/languages.yml (alphabetical position:
+# between "JCL" and "JFlex" — verified 2026-10-01 against upstream main;
+# re-verify at PR time).
+# Omit language_id; Linguist assigns it via script/update-ids.
+Jesun.Code:
+  type: programming
+  color: "#0C9463"
+  extensions:
+    - ".jc"
+  tm_scope: source.jesun
+  ace_mode: text
+  language_id: 999999999 # placeholder, replaced by script/update-ids
