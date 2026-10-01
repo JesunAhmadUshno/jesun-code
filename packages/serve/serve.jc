@@ -363,3 +363,218 @@ to serve_admin with db and declaration
     add_route with ("POST /admin/" + tname) and serve_admin_create
     add_route with ("POST /admin/" + tname + "/delete") and serve_admin_delete
     give back nothing
+
+note ---- live views: server-sent events (spec v3.0 sections 3.4, 5) ----
+note One page, one stream, one session. GET <route>/events opens the SSE
+note stream; POST <route>/events feeds click events back in. The client
+note (serve_live_script) is an EventSource plus click delegation, built
+note with the js package per the spec's composite list (section 3.7).
+
+serve_streams is a new table
+serve_stream_ctx is a new table
+serve_live_routes is []
+
+to serve_live_entry with sid
+    if serve_streams contains sid then
+        give back serve_streams[sid]
+    give back nothing
+
+to serve_find_from with chars and needle and start
+    note First index of needle in chars at or after start, or -1.
+    n is length of chars
+    m is length of needle
+    i is start
+    repeat while i + m is at most n
+        match is true
+        j is 0
+        repeat while j is less than m
+            if chars[i + j] is not needle[j] then
+                match is false
+            j is j + 1
+        if match then
+            give back i
+        i is i + 1
+    give back -1
+
+to serve_parse_json_string with chars and i
+    note chars[i] is the opening quote. Gives back [text, next index],
+    note or nothing when the string never closes or an escape runs off.
+    i is i + 1
+    out is ""
+    n is length of chars
+    repeat while i is less than n
+        c is chars[i]
+        if c is "\"" then
+            give back [out, i + 1]
+        if c is "\\" then
+            i is i + 1
+            if i is at least n then
+                give back nothing
+            e is chars[i]
+            if e is "n" then
+                out is out + "\n"
+            otherwise
+                if e is "t" then
+                    out is out + "\u0009"
+                otherwise
+                    out is out + e
+        otherwise
+            out is out + c
+        i is i + 1
+    give back nothing
+
+to serve_parse_event with body
+    note The event name from a body shaped like {"event": "name"},
+    note or nothing for anything else (unknown JSON is a 400 upstream).
+    if kind of body is not "text" then
+        give back nothing
+    chars is characters of (trim of body)
+    n is length of chars
+    if n is less than 2 then
+        give back nothing
+    if chars[0] is not "{{" then
+        give back nothing
+    keypos is serve_find_from with chars and (characters of "\"event\"") and 1
+    if keypos is -1 then
+        give back nothing
+    i is keypos + 7
+    repeat while i is less than n and chars[i] is " "
+        i is i + 1
+    if i is at least n then
+        give back nothing
+    if chars[i] is not ":" then
+        give back nothing
+    i is i + 1
+    repeat while i is less than n and chars[i] is " "
+        i is i + 1
+    if i is at least n then
+        give back nothing
+    if chars[i] is not "\"" then
+        give back nothing
+    parsed is serve_parse_json_string with chars and i
+    if parsed is nothing then
+        give back nothing
+    give back parsed[0]
+
+to serve_live_script with route
+    note The client: an EventSource on <route>/events re-rendering the
+    note #serve-live div on every "render" frame, plus click delegation
+    note POSTing {"event": name} for [data-event] clicks. Built with the
+    note js package (spec 3.7); EventSource has no builder, so that one
+    note line is hand-written text.
+    url is js_string with (route + "/events")
+    render_code is "var es = new EventSource(" + url + ");\n"
+    render_code is render_code + "es.addEventListener(\"render\", function(e) {{\n"
+    render_code is render_code + "document.getElementById(\"serve-live\").innerHTML = e.data;\n"
+    render_code is render_code + "});"
+    post is js_fetch with (route + "/events") and "POST" and "JSON.stringify({{event: t.getAttribute(\"data-event\")}})"
+    click_code is "document.getElementById(\"serve-live\").addEventListener(\"click\", function(e) {{\n"
+    click_code is click_code + "var t = e.target.closest(\"[data-event]\");\n"
+    click_code is click_code + "if (!t) return;\n"
+    click_code is click_code + post + ";\n"
+    click_code is click_code + "});"
+    give back dom_ready with (render_code + "\n" + click_code)
+
+to serve_live with request and title and state and render and on_event
+    note A page that re-renders itself live over SSE (spec 3.4). `state`
+    note is this visitor's starting table (copied per session), `render`
+    note turns state into HTML, and `on_event` handles {"name": ...}
+    note events, giving back the next HTML frame.
+    serve_need_site
+    if kind of title is not "text" or title is "" then
+        fail with "a page needs a title, but this one is missing."
+    if kind of state is not "table" then
+        d is serve_describe with state
+        fail with "live view state has to be a table, but this is " + d + "."
+    if kind of render is not "function" then
+        d is serve_describe with render
+        fail with "a live view needs a render function, but this is " + d + "."
+    if kind of on_event is not "function" then
+        d is serve_describe with on_event
+        fail with "a live view needs an event function, but this is " + d + "."
+    route is request["path"]
+    sess is session_of with request
+    sid is jweb_session_id with request
+    mine is a new table
+    for each k in keys of state
+        mine[k] is state[k]
+    serve_stream_ctx[sid] is {"state": mine, "render": render, "on_event": on_event}
+    if not (serve_live_routes contains route) then
+        push route to serve_live_routes
+        add_route with ("GET " + route + "/events") and serve_live_stream
+        add_route with ("POST " + route + "/events") and serve_live_post
+    initial is render with mine
+    body is "<main>\n<div id=\"serve-live\">\n" + initial + "\n</div>\n</main>"
+    give back serve_page with title and (body + "\n" + (script_tag with (serve_live_script with route)))
+
+to serve_live_stream with request
+    sid is jweb_session_id with request
+    if not (serve_stream_ctx contains sid) then
+        give back {"status": 410, "headers": {"content-type": "application/json"}, "body": "{{\"error\": \"the live view is gone; reload the page.\"}}"}
+    give back {"sse": true, "setup": serve_live_setup}
+
+to serve_live_setup with pipe and request
+    note Runs on the main thread inside jweb_sse_stream. Registers the
+    note stream, sends the first render frame, and gives back: the byte
+    note pump keeps the socket open, so this never blocks the server.
+    sid is jweb_session_id with request
+    if not (serve_stream_ctx contains sid) then
+        fail with "the live view is gone; reload the page."
+    ctx is serve_stream_ctx[sid]
+    pair is pipe["pair"]
+    jweb_sse_use with pair
+    sender is pipe["send"]
+    rend is ctx["render"]
+    initial is rend with ctx["state"]
+    ok is sender with "render" and initial
+    if not ok then
+        give back nothing
+    stream is pipe["stream"]
+    stream["serve_sid"] is sid
+    stream["cleanup"] is serve_live_cleanup
+    serve_streams[sid] is {"pair": pair, "send": sender, "state": ctx["state"], "render": ctx["render"], "on_event": ctx["on_event"]}
+    give back nothing
+
+to serve_live_cleanup
+    note Runs on the main thread from jweb's reaper when a stream's
+    note socket dies. Drops the session's registry entries so the next
+    note POST gets a 410 instead of writing into a dead stream.
+    st is jweb_dead_stream
+    if st is nothing then
+        give back nothing
+    if st contains "serve_sid" then
+        sid is st["serve_sid"]
+        serve_streams[sid] is nothing
+        serve_stream_ctx[sid] is nothing
+    give back nothing
+
+to serve_live_post with request
+    sid is jweb_session_id with request
+    body is ""
+    if request contains "body" then
+        body is request["body"]
+    name is serve_parse_event with body
+    if name is nothing then
+        give back {"status": 400, "headers": {"content-type": "application/json"}, "body": "{{\"error\": \"that event was not JSON.\"}}"}
+    entry is serve_live_entry with sid
+    if entry is nothing then
+        give back {"status": 410, "headers": {"content-type": "application/json"}, "body": "{{\"error\": \"the live view is gone; reload the page.\"}}"}
+    if jweb_sse_dead with entry["pair"] then
+        serve_streams[sid] is nothing
+        serve_stream_ctx[sid] is nothing
+        give back {"status": 410, "headers": {"content-type": "application/json"}, "body": "{{\"error\": \"the live view is gone; reload the page.\"}}"}
+    jweb_sse_use with entry["pair"]
+    sender is entry["send"]
+    onev is entry["on_event"]
+    html is onev with entry["state"] and {"name": name}
+    ok is sender with "render" and html
+    give back {"status": 200, "headers": {"content-type": "application/json"}, "body": "{{\"ok\": true}}"}
+
+to serve_scene with title and scene
+    note A 3D scene page (spec v3.0 section 3.6): the scene is assembled
+    note with the threejs package and wrapped here in a full page.
+    serve_need_site
+    if kind of title is not "text" or title is "" then
+        fail with "a page needs a title, but this one is missing."
+    doc is three_page with title and scene
+    give back ok with doc

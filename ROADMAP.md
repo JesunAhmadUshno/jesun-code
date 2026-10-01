@@ -114,3 +114,10 @@ its milestone ships green.
   earlier "v3.0: mobile" placeholder above is superseded; mobile
   moves to a later number to be set. M2 (Route, Page, Island,
   Table + admin) is in progress; M3 (Live view, Scene) follows.
+- 2026-09-30: v3.0 M2 committed and pushed (7f20a8e); M3
+  implemented and under test (Live view over SSE, Scene via the
+  `threejs` package, jweb SSE primitives per spec sections 3.4,
+  3.6, 5). tests/test_serve.py 80/80 green, differential
+  bootstrap/walker; fuzz_serve.py clean. M4 (dogfood: the
+  playground API on a small host for 7 continuous days) is next
+  and needs the founder's hosting decision before it can start.

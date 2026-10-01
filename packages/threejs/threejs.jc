@@ -1,0 +1,173 @@
+note jpm package "threejs": 3D scenes described in English, emitted as three.js.
+note Pure Jesun.Code: no imports, no bridge, no Python. Follows the react
+note package pattern (spec v3.0 section 6): text builders, validated
+note inputs, plain-English failures. Jesun.Code never rasterizes; the
+note browser runs three.js from the import map. One language, all solutions.
+
+three_letters is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+three_alnum is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$"
+three_color_chars is "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#"
+
+to three_article with k
+    note "a"/"an" for a kind word.
+    ck is characters of k
+    head is ck[0]
+    if head is "a" or head is "e" or head is "i" or head is "o" or head is "u" then
+        give back "an " + k
+    give back "a " + k
+
+to three_describe with v
+    note Plain-English shape of a value, for failure messages.
+    k is kind of v
+    if k is "text" then
+        give back "\"" + v + "\""
+    if k is "number" or k is "true/false" then
+        give back text of v
+    a is three_article with k
+    give back a
+
+to three_starts_with with s and needle
+    n is length of needle
+    if length of s is less than n then
+        give back false
+    chars is characters of s
+    nchars is characters of needle
+    i is 0
+    repeat while i is less than n
+        if chars[i] is not nchars[i] then
+            give back false
+        i is i + 1
+    give back true
+
+to three_valid_name with name
+    note Letters, digits, _, $; starts with a letter or _.
+    if kind of name is not "text" or name is "" then
+        give back false
+    chars is characters of name
+    head is chars[0]
+    if not (three_letters contains head) and head is not "_" then
+        give back false
+    for each c in chars
+        if not (three_alnum contains c) then
+            give back false
+    give back true
+
+to three_safe_color with color
+    note Color names and #rrggbb only: the value lands inside a JS string.
+    if kind of color is not "text" or color is "" then
+        give back false
+    for each c in characters of color
+        if not (three_color_chars contains c) then
+            give back false
+    give back true
+
+to three_scene
+    note A blank scene: objects (mesh lines), camera [x, y, z] or nothing,
+    note lights, and the names of meshes that spin.
+    give back {"objects": [], "camera": nothing, "lights": [], "spins": []}
+
+to three_box with size
+    if kind of size is not "number" or not (size is greater than 0) then
+        fail with "three_box needs a number above 0, but this is " + (three_describe with size) + "."
+    s is text of size
+    give back "new THREE.BoxGeometry(" + s + ", " + s + ", " + s + ")"
+
+to three_sphere with radius
+    if kind of radius is not "number" or not (radius is greater than 0) then
+        fail with "three_sphere needs a number above 0, but this is " + (three_describe with radius) + "."
+    r is text of radius
+    give back "new THREE.SphereGeometry(" + r + ", 32, 32)"
+
+to three_material with color
+    if kind of color is not "text" then
+        fail with "three_material needs a color name, but this is " + (three_describe with color) + "."
+    if color is "" then
+        fail with "three_material needs a color name, but it is empty."
+    if not (three_safe_color with color) then
+        fail with "\"" + color + "\" is not a safe color. Use letters, digits, and \"#\"."
+    give back "new THREE.MeshStandardMaterial({{ color: \"{color}\" }})"
+
+to three_add_mesh with scene and name and geometry and material
+    if not (three_valid_name with name) then
+        fail with (three_describe with name) + " is not a valid object name. Use letters, numbers, and underscores, starting with a letter."
+    objs is scene["objects"]
+    push ("const " + name + " = new THREE.Mesh(" + geometry + ", " + material + ");") to objs
+    push ("scene.add(" + name + ");") to objs
+    scene["objects"] is objs
+    give back nothing
+
+to three_camera_at with scene and x and y and z
+    for each c in [x, y, z]
+        if kind of c is not "number" then
+            fail with "camera positions have to be numbers, but one is " + (kind of c) + "."
+    scene["camera"] is [x, y, z]
+    give back nothing
+
+to three_light with scene and light_kind
+    if light_kind is "sun" then
+        lights is scene["lights"]
+        push "const sun = new THREE.DirectionalLight(0xffffff, 1); sun.position.set(5, 10, 7); scene.add(sun);" to lights
+        scene["lights"] is lights
+        give back nothing
+    if light_kind is "soft" then
+        lights is scene["lights"]
+        push "scene.add(new THREE.AmbientLight(0xffffff, 0.6));" to lights
+        scene["lights"] is lights
+        give back nothing
+    fail with (three_describe with light_kind) + " is not a light kind. Use \"sun\" or \"soft\"."
+
+to three_has_mesh with scene and name
+    needle is "const " + name + " = new THREE.Mesh("
+    for each line in scene["objects"]
+        if three_starts_with with line and needle then
+            give back true
+    give back false
+
+to three_spin with scene and name
+    if not (three_valid_name with name) then
+        fail with (three_describe with name) + " is not a valid object name. Use letters, numbers, and underscores, starting with a letter."
+    if not (three_has_mesh with scene and name) then
+        fail with "there is no mesh called \"" + name + "\" in this scene."
+    spins is scene["spins"]
+    push name to spins
+    scene["spins"] is spins
+    give back nothing
+
+to three_escape_title with title
+    s1 is join of (split of title by "&") with "&amp;"
+    s2 is join of (split of s1 by "<") with "&lt;"
+    s3 is join of (split of s2 by ">") with "&gt;"
+    s4 is join of (split of s3 by "\"") with "&quot;"
+    give back s4
+
+three_importmap is "{{\"imports\": {{\"three\": \"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js\", \"three/addons/\": \"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/\"}}}}"
+
+to three_script with scene
+    note The module script for a scene. Fails in plain English when the
+    note camera is missing (spec section 6: the script is where the
+    note camera-missing failure surfaces).
+    if scene["camera"] is nothing then
+        fail with "a scene needs a camera before it can be rendered. Call three_camera_at first."
+    cam is scene["camera"]
+    lines is ["import * as THREE from 'three';", "const scene = new THREE.Scene();"]
+    push "const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);" to lines
+    push ("camera.position.set(" + (text of cam[0]) + ", " + (text of cam[1]) + ", " + (text of cam[2]) + ");") to lines
+    for each l in scene["lights"]
+        push l to lines
+    for each o in scene["objects"]
+        push o to lines
+    push "const renderer = new THREE.WebGLRenderer({{ antialias: true }});" to lines
+    push "renderer.setSize(window.innerWidth, window.innerHeight);" to lines
+    push "document.getElementById(\"scene\").appendChild(renderer.domElement);" to lines
+    loop is "function animate() {{ requestAnimationFrame(animate);"
+    for each s in scene["spins"]
+        loop is loop + " " + s + ".rotation.x += 0.01; " + s + ".rotation.y += 0.01;"
+    loop is loop + " renderer.render(scene, camera); } animate();"
+    push loop to lines
+    give back join of lines with "\n"
+
+to three_page with title and scene
+    note A full HTML page hosting the scene in a #scene div.
+    script is three_script with scene
+    t is three_escape_title with title
+    give back "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>" + t + "</title>\n<script type=\"importmap\">\n" + three_importmap + "\n</script>\n</head>\n<body>\n<div id=\"scene\" style=\"width: 100vw; height: 100vh; margin: 0;\"></div>\n<script type=\"module\">\n" + script + "\n</script>\n</body>\n</html>\n"
