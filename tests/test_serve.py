@@ -601,3 +601,433 @@ serve_start with {PORT}
 
     def test_live_admin_walker(self):
         self.live_admin(True)
+
+
+JWEB_HDR = 'bring in "jweb"\n'
+LIVE_HDR = 'bring in "jweb"\nbring in "sitegen"\nbring in "js"\nbring in "serve"\n'
+THREE_HDR = 'bring in "threejs"\n'
+SCENE_HDR = 'bring in "jweb"\nbring in "sitegen"\nbring in "js"\nbring in "serve"\nbring in "threejs"\n'
+LIVE_SITE = 'serve_site with "Acme" and "https://acme.example" and "v1.0.0"\n'
+RENDER_FNS = (
+    'to render_count with state\n'
+    '    give back "<p>" + (text of state["n"]) + "</p>"\n'
+    'to bump with state and event\n'
+    '    state["n"] is state["n"] + 1\n'
+    '    give back render_count with state\n'
+)
+
+
+class SseBridgeTest(ServeCase):
+    """jweb SSE bridge: helpers, sender validation (spec section 5.1,
+    error rows 13-14), and the 128-stream cap (row 31)."""
+
+    def test_helpers_load_and_pair_is_opaque(self):
+        self.check(
+            JWEB_HDR + 'helpers is jweb_sse_helpers\n'
+            'show (length of (keys of helpers)) is greater than 5\n'
+            'pair is jweb_sse_pair\n'
+            'show kind of pair\n'
+            'show jweb_sse_dead with pair\n',
+            "true\npython value\nfalse\n",
+        )
+
+    def test_sender_queues_frames(self):
+        self.check(
+            JWEB_HDR + 'jweb_sse_use with jweb_sse_pair\n'
+            'show jweb_sse_sender with "render" and "<p>hi</p>"\n'
+            'show jweb_sse_sender with "render" and "a\\nb"\n',
+            "true\ntrue\n",
+        )
+
+    def test_sender_newline_in_name_fails(self):
+        self.check_fails(
+            JWEB_HDR + 'jweb_sse_use with jweb_sse_pair\n'
+            'jweb_sse_sender with "a\\nb" and "x"\n',
+            "an event name cannot hold a new line.",
+        )
+
+    def test_sender_nontext_name_fails(self):
+        self.check_fails(
+            JWEB_HDR + 'jweb_sse_use with jweb_sse_pair\n'
+            'jweb_sse_sender with 42 and "x"\n',
+            "an event name has to be text, but this is 42.",
+        )
+
+    def test_sender_nontext_data_fails(self):
+        self.check_fails(
+            JWEB_HDR + 'jweb_sse_use with jweb_sse_pair\n'
+            'jweb_sse_sender with "render" and {"a": 1}\n',
+            "stream data has to be text, but this is a table.",
+        )
+
+    def test_stream_cap_is_503(self):
+        self.check(
+            JWEB_HDR + 'to fake_setup with pipe and request\n'
+            '    give back nothing\n'
+            'tmp is jweb_state["streams"]\n'
+            'repeat 128 times\n'
+            '    push "dummy" to tmp\n'
+            'jweb_state["streams"] is tmp\n'
+            'resp is jweb_sse_stream with {"path": "/x"} and fake_setup\n'
+            'show resp["status"]\n'
+            'show resp["body"]\n',
+            "503\nthe server is full; try again soon.\n",
+        )
+
+    def test_session_id_prefers_cookie(self):
+        self.check(
+            JWEB_HDR + 'show jweb_session_id with {"cookies": {"jesun_session": "abc"}}\n'
+            'show jweb_session_id with {"cookies": a new table}\n',
+            "abc\n\n",
+        )
+
+
+class LiveViewTest(ServeCase):
+    """serve_live validation (spec 3.4, error rows 10-12), the JSON event
+    parser, the client script, and the POST 400/410 paths (no sockets)."""
+
+    def test_state_must_be_table(self):
+        self.check_fails(
+            LIVE_HDR + LIVE_SITE + RENDER_FNS
+            + 'req is {"path": "/c", "cookies": a new table}\n'
+            + 'serve_live with req and "T" and 42 and render_count and bump\n',
+            "live view state has to be a table, but this is 42.",
+        )
+
+    def test_render_must_be_function(self):
+        self.check_fails(
+            LIVE_HDR + LIVE_SITE + RENDER_FNS
+            + 'req is {"path": "/c", "cookies": a new table}\n'
+            + 'serve_live with req and "T" and {"n": 0} and "oops" and bump\n',
+            'a live view needs a render function, but this is "oops".',
+        )
+
+    def test_on_event_must_be_function(self):
+        self.check_fails(
+            LIVE_HDR + LIVE_SITE + RENDER_FNS
+            + 'req is {"path": "/c", "cookies": a new table}\n'
+            + 'serve_live with req and "T" and {"n": 0} and render_count and "oops"\n',
+            'a live view needs an event function, but this is "oops".',
+        )
+
+    def test_page_registers_routes_and_renders(self):
+        self.check(
+            LIVE_HDR + LIVE_SITE + RENDER_FNS
+            + 'req is {"path": "/count", "cookies": a new table}\n'
+            + 'resp is serve_live with req and "Counter" and {"n": 0} and render_count and bump\n'
+            + 'show resp["status"]\n'
+            + 'body is resp["body"]\n'
+            'show body contains "serve-live"\n'
+            'show body contains "EventSource"\n'
+            'show body contains "/count/events"\n',
+            "200\ntrue\ntrue\ntrue\n",
+        )
+
+    def test_parse_event_shapes(self):
+        self.check(
+            LIVE_HDR
+            + 'show serve_parse_event with "{{\\"event\\": \\"bump\\"}}"\n'
+            + 'show serve_parse_event with "  {{ \\"event\\" : \\"x\\" }}  "\n'
+            + 'show serve_parse_event with "garbage"\n'
+            + 'show serve_parse_event with "{{\\"nope\\": 1}}"\n'
+            + 'show serve_parse_event with "{{\\"event\\": 42}}"\n'
+            + 'show serve_parse_event with 42\n',
+            "bump\nx\nnothing\nnothing\nnothing\nnothing\n",
+        )
+
+    def test_parse_event_escapes(self):
+        self.check(
+            LIVE_HDR
+            + 'show serve_parse_event with "{{\\"event\\": \\"a\\\\nb\\"}}"\n'
+            + 'show serve_parse_event with "{{\\"event\\": \\"say \\\\\\"hi\\\\\\"\\"}}"\n',
+            "a\nb\nsay \"hi\"\n",
+        )
+
+    def test_post_garbage_is_400(self):
+        self.check(
+            LIVE_HDR + LIVE_SITE
+            + 'req is {"path": "/c/events", "cookies": a new table, "body": "not json"}\n'
+            + 'resp is serve_live_post with req\n'
+            + 'show resp["status"]\n'
+            + 'show resp["body"]\n',
+            '400\n{"error": "that event was not JSON."}\n',
+        )
+
+    def test_post_without_stream_is_410(self):
+        self.check(
+            LIVE_HDR + LIVE_SITE
+            + 'req is {"path": "/c/events", "cookies": a new table, "body": "{{\\"event\\": \\"bump\\"}}"}\n'
+            + 'resp is serve_live_post with req\n'
+            + 'show resp["status"]\n'
+            + 'show resp["body"]\n',
+            '410\n{"error": "the live view is gone; reload the page."}\n',
+        )
+
+    def test_stream_without_ctx_is_410(self):
+        self.check(
+            LIVE_HDR + LIVE_SITE
+            + 'req is {"path": "/c/events", "cookies": a new table}\n'
+            + 'resp is serve_live_stream with req\n'
+            + 'show resp["status"]\n',
+            "410\n",
+        )
+
+
+class ThreeTest(ServeCase):
+    """threejs package: spec section 6 boundary table (rows 21-30) plus
+    a golden script and page."""
+
+    def test_box_needs_positive_number(self):
+        self.check_fails(
+            THREE_HDR + 'three_box with "big"\n',
+            'three_box needs a number above 0, but this is "big".',
+        )
+
+    def test_sphere_rejects_negative(self):
+        self.check_fails(
+            THREE_HDR + 'three_sphere with -1\n',
+            "three_sphere needs a number above 0, but this is -1.",
+        )
+
+    def test_material_rejects_empty(self):
+        self.check_fails(
+            THREE_HDR + 'three_material with ""\n',
+            "three_material needs a color name, but it is empty.",
+        )
+
+    def test_material_rejects_injection(self):
+        self.check_fails(
+            THREE_HDR + 'three_material with "red;alert(1)"\n',
+            '"red;alert(1)" is not a safe color. Use letters, digits, and "#".',
+        )
+
+    def test_material_rejects_nontext(self):
+        self.check_fails(
+            THREE_HDR + 'three_material with 42\n',
+            "three_material needs a color name, but this is 42.",
+        )
+
+    def test_bad_mesh_name(self):
+        self.check_fails(
+            THREE_HDR + 'scene is three_scene\n'
+            'three_add_mesh with scene and "9box" and "g" and "m"\n',
+            '"9box" is not a valid object name. Use letters, numbers, and underscores, starting with a letter.',
+        )
+
+    def test_bad_light_kind(self):
+        self.check_fails(
+            THREE_HDR + 'scene is three_scene\n'
+            'three_light with scene and "moon"\n',
+            '"moon" is not a light kind. Use "sun" or "soft".',
+        )
+
+    def test_spin_missing_mesh(self):
+        self.check_fails(
+            THREE_HDR + 'scene is three_scene\n'
+            'three_spin with scene and "box"\n',
+            'there is no mesh called "box" in this scene.',
+        )
+
+    def test_script_needs_camera(self):
+        self.check_fails(
+            THREE_HDR + 'scene is three_scene\n'
+            'three_script with scene\n',
+            "a scene needs a camera before it can be rendered. Call three_camera_at first.",
+        )
+
+    def test_camera_needs_numbers(self):
+        self.check_fails(
+            THREE_HDR + 'scene is three_scene\n'
+            'three_camera_at with scene and 0 and "high" and 6\n',
+            "camera positions have to be numbers, but one is text.",
+        )
+
+    def test_script_golden(self):
+        self.check(
+            THREE_HDR + 'scene is three_scene\n'
+            'three_camera_at with scene and 0 and 1 and 6\n'
+            'three_light with scene and "sun"\n'
+            'three_light with scene and "soft"\n'
+            'box is three_box with 2\n'
+            'mat is three_material with "red"\n'
+            'three_add_mesh with scene and "box" and box and mat\n'
+            'three_spin with scene and "box"\n'
+            'show three_script with scene\n',
+            "import * as THREE from 'three';\n"
+            "const scene = new THREE.Scene();\n"
+            "const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);\n"
+            "camera.position.set(0, 1, 6);\n"
+            "const sun = new THREE.DirectionalLight(0xffffff, 1); sun.position.set(5, 10, 7); scene.add(sun);\n"
+            "scene.add(new THREE.AmbientLight(0xffffff, 0.6));\n"
+            'const box = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: "red" }));\n'
+            "scene.add(box);\n"
+            "const renderer = new THREE.WebGLRenderer({ antialias: true });\n"
+            "renderer.setSize(window.innerWidth, window.innerHeight);\n"
+            'document.getElementById("scene").appendChild(renderer.domElement);\n'
+            "function animate() { requestAnimationFrame(animate); box.rotation.x += 0.01; box.rotation.y += 0.01; renderer.render(scene, camera); } animate();\n",
+        )
+
+    def test_page_golden(self):
+        self.check(
+            THREE_HDR + 'scene is three_scene\n'
+            'three_camera_at with scene and 0 and 1 and 6\n'
+            'show three_page with "Spin <b>" and scene\n',
+            "<!DOCTYPE html>\n"
+            '<html lang="en">\n'
+            "<head>\n"
+            '<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            "<title>Spin &lt;b&gt;</title>\n"
+            '<script type="importmap">\n'
+            '{"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}\n'
+            "</script>\n"
+            "</head>\n"
+            "<body>\n"
+            '<div id="scene" style="width: 100vw; height: 100vh; margin: 0;"></div>\n'
+            '<script type="module">\n'
+            "import * as THREE from 'three';\n"
+            "const scene = new THREE.Scene();\n"
+            "const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);\n"
+            "camera.position.set(0, 1, 6);\n"
+            "const renderer = new THREE.WebGLRenderer({ antialias: true });\n"
+            "renderer.setSize(window.innerWidth, window.innerHeight);\n"
+            'document.getElementById("scene").appendChild(renderer.domElement);\n'
+            "function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); } animate();\n"
+            "</script>\n"
+            "</body>\n"
+            "</html>\n\n",
+        )
+
+    def test_serve_scene_page(self):
+        self.check(
+            SCENE_HDR + LIVE_SITE
+            + 'scene is three_scene\n'
+            + 'three_camera_at with scene and 0 and 1 and 6\n'
+            + 'resp is serve_scene with "Spin" and scene\n'
+            + 'show resp["status"]\n'
+            + 'body is resp["body"]\n'
+            'show body contains "importmap"\n'
+            'show body contains "three.module.js"\n'
+            'show body contains "<title>Spin</title>"\n',
+            "200\ntrue\ntrue\ntrue\n",
+        )
+
+
+class LiveSseTest(LiveTest):
+    """End-to-end SSE: page, stream, bump, 400, 410, on both interpreters
+    (spec v3.0 section 10). The POST lands while the stream is open:
+    that is the section 5.2 contract."""
+
+    SSE_APP = """bring in "jweb"
+bring in "sitegen"
+bring in "js"
+bring in "serve"
+
+serve_site with "Counter" and "https://counter.example" and "v1.0.0"
+
+to render_count with state
+    give back "<p>count is " + (text of state["n"]) + "</p>"
+
+to bump with state and event
+    state["n"] is state["n"] + 1
+    give back render_count with state
+
+to counter_page with request
+    give back serve_live with request and "Counter" and {"n": 0} and render_count and bump
+
+serve_route with "GET /count" and counter_page
+serve_start with {PORT}
+"""
+
+    def raw_cookie(self, port, method, path, cookie, body=b""):
+        s = socket.create_connection(("127.0.0.1", port), timeout=15)
+        try:
+            head = (
+                f"{method} {path} HTTP/1.1\r\nHost: x\r\n"
+                f"Cookie: {cookie}\r\n"
+                f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n"
+            ).encode() + body
+            s.sendall(head)
+            resp = b""
+            while True:
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                resp += chunk
+            return resp
+        finally:
+            s.close()
+
+    def read_frame(self, f):
+        lines = []
+        while True:
+            line = f.readline().decode()
+            if line in ("", "\n", "\r\n"):
+                break
+            lines.append(line)
+        return "".join(lines)
+
+    def live_sse(self, walker):
+        port = self.free_port()
+        tmp, proc = self.start_server(
+            self.SSE_APP.replace("{PORT}", str(port)), walker
+        )
+        try:
+            self.wait_up(port, proc)
+            get = self.raw(port, "GET", "/count")
+            head, _, body = get.partition(b"\r\n\r\n")
+            header = head.decode()
+            self.assertIn("200", header.split("\r\n")[0])
+            self.assertIn("SameSite=Lax", header, "session cookie is Lax (spec 9)")
+            self.assertIn(b'id="serve-live"', body)
+            self.assertIn(b"EventSource", body)
+            m = re.search(r"jesun_session=([0-9a-f]+)", header)
+            self.assertTrue(m, "page sets the session cookie")
+            cookie = "jesun_session=" + m.group(1)
+
+            s = socket.create_connection(("127.0.0.1", port), timeout=15)
+            try:
+                s.sendall(
+                    f"GET /count/events HTTP/1.1\r\nHost: x\r\n"
+                    f"Cookie: {cookie}\r\nConnection: keep-alive\r\n\r\n".encode()
+                )
+                f = s.makefile("rb")
+                status = f.readline().decode()
+                self.assertIn("200", status)
+                headers = {}
+                while True:
+                    line = f.readline().decode().strip()
+                    if not line:
+                        break
+                    k, _, v = line.partition(":")
+                    headers[k.strip().lower()] = v.strip()
+                self.assertEqual(headers.get("content-type"), "text/event-stream")
+                frame1 = self.read_frame(f)
+                self.assertIn("event: render", frame1)
+                self.assertIn("<p>count is 0</p>", frame1)
+
+                post = self.raw_cookie(
+                    port, "POST", "/count/events", cookie, b'{"event": "bump"}'
+                )
+                self.assertIn(b'"ok": true', post.partition(b"\r\n\r\n")[2])
+                frame2 = self.read_frame(f)
+                self.assertIn("event: render", frame2)
+                self.assertIn("<p>count is 1</p>", frame2)
+
+                bad = self.raw_cookie(
+                    port, "POST", "/count/events", cookie, b"not json"
+                )
+                self.assertTrue(bad.startswith(b"HTTP/1.1 400"))
+            finally:
+                s.close()
+
+            gone = self.raw(port, "GET", "/count/events")
+            self.assertTrue(gone.startswith(b"HTTP/1.1 410"))
+        finally:
+            self.stop(tmp, proc)
+
+    def test_live_sse_bootstrap(self):
+        self.live_sse(False)
+
+    def test_live_sse_walker(self):
+        self.live_sse(True)

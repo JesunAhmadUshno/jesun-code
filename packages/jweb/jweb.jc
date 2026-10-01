@@ -279,7 +279,7 @@ to jweb_send with conn and resp
 note ---- sessions (in-memory; the jesun_session cookie) ----
 
 jweb_sessions is a new table
-jweb_state is {"pending_cookie": ""}
+jweb_state is {"pending_cookie": "", "conn": nothing, "streams": [], "dead_stream": nothing}
 
 to session_of with request
     cookies is request["cookies"]
@@ -293,6 +293,15 @@ to session_of with request
     jweb_sessions[sid] is sess
     jweb_state["pending_cookie"] is sid
     give back sess
+
+to jweb_session_id with req
+    note The session id for this request (spec v3.0 section 5.3): the
+    note jesun_session cookie when the browser sent one, otherwise the
+    note pending id the next response will set. Empty when sessions are off.
+    cookies is req["cookies"]
+    if cookies contains "jesun_session" then
+        give back cookies["jesun_session"]
+    give back jweb_state["pending_cookie"]
 
 note ---- static files ----
 
@@ -361,41 +370,67 @@ to jweb_listen with port
 
 to serve with port
     listener is jweb_listen with port
+    jweb_state["streams"] is []
     repeat while true
-        pair is listener.accept()
-        conn is pair[0]
-        conn.settimeout(10)
-        outcome is attempt jweb_handle_conn with conn
-        if not outcome["ok"] then
-            ignored is attempt jweb_send with conn and jweb_server_error
-        closer is bmod.getattr(conn, "close")
-        attempt closer()
+        conn is jweb_accept_wait with listener and 200
+        if conn is nothing then
+            jweb_reap_streams
+        otherwise
+            conn.settimeout(10)
+            outcome is attempt jweb_handle_conn with conn
+            if not outcome["ok"] then
+                ignored is attempt jweb_send with conn and jweb_server_error
+            if jweb_state["conn"] is nothing then
+                closer is bmod.getattr(conn, "close")
+                attempt closer()
 
 to jweb_handle_conn with conn
     jweb_state["pending_cookie"] is ""
+    jweb_state["conn"] is conn
     req is jweb_read_request with conn
     if req is nothing then
+        jweb_state["conn"] is nothing
         give back nothing
     if req contains "too_big" then
         jweb_send with conn and jweb_too_large
+        jweb_state["conn"] is nothing
         give back nothing
     match is jweb_match_route with req["method"] and req["path"]
     if match is nothing then
         jweb_send with conn and jweb_not_found with req["path"]
+        jweb_state["conn"] is nothing
         give back nothing
     handler is match[0]
     req["params"] is match[1]
     outcome is attempt handler with req
     if outcome["ok"] then
-        resp is jweb_normalize_response with outcome["value"]
+        value is outcome["value"]
+        if kind of value is "table" and value contains "sse" then
+            if value contains "setup" then
+                setup_fn is value["setup"]
+            otherwise
+                setup_fn is nothing
+            stream_outcome is attempt jweb_sse_stream with req and setup_fn
+            if stream_outcome["ok"] then
+                so is stream_outcome["value"]
+                if kind of so is "table" and so contains "status" then
+                    resp is jweb_normalize_response with so
+                otherwise
+                    give back nothing
+            otherwise
+                jweb_log_error with "jweb: stream setup for " + req["method"] + " " + req["path"] + " failed: " + stream_outcome["error"]
+                resp is nothing
+        otherwise
+            resp is jweb_normalize_response with outcome["value"]
     otherwise
         jweb_log_error with "jweb: handler for " + req["method"] + " " + req["path"] + " failed: " + outcome["error"]
         resp is nothing
     if resp is nothing then
         resp is jweb_server_error
     if jweb_state["pending_cookie"] is not "" then
-        resp["headers"]["set-cookie"] is "jesun_session=" + jweb_state["pending_cookie"] + "; Path=/; HttpOnly"
+        resp["headers"]["set-cookie"] is "jesun_session=" + jweb_state["pending_cookie"] + "; Path=/; HttpOnly; SameSite=Lax"
         jweb_state["pending_cookie"] is ""
+    jweb_state["conn"] is nothing
     jweb_send with conn and resp
 
 to jweb_log_error with msg
@@ -422,3 +457,149 @@ to jweb_normalize_response with resp
     if resp contains "headers" then
         out["headers"] is resp["headers"]
     give back out
+
+note ---- live streams: server-sent events (spec v3.0 section 5) ----
+note One language, all solutions: streams are pure Jesun.Code around a
+note tiny constant Python bootstrap (below). The pump threads it spawns
+note move bytes between a queue and a socket only; they never touch the
+note interpreter. Every Jesun.Code line here runs on the single main
+note accept-loop thread, which is why a stream table can safely hold
+note push["send"] as a stored function value.
+
+jweb_sse_cache is {"ns": nothing}
+jweb_sse_pair_slot is {"pair": nothing}
+
+to jweb_sse_helpers
+    note Runs the constant bridge source once, then caches the namespace.
+    note The source is constant: no program text ever reaches exec.
+    if jweb_sse_cache["ns"] is nothing then
+        ns is bmod.dict()
+        bmod.exec(_jweb_sse_src, ns)
+        jweb_sse_cache["ns"] is ns
+    give back jweb_sse_cache["ns"]
+
+to jweb_sse_pair
+    helpers is jweb_sse_helpers
+    fn is helpers["_jweb_sse_pair"]
+    give back fn()
+
+to jweb_sse_spawn with conn and pair
+    helpers is jweb_sse_helpers
+    fn is helpers["_jweb_sse_spawn"]
+    give back fn(conn, pair)
+
+to jweb_sse_send_raw with pair and frame
+    helpers is jweb_sse_helpers
+    fn is helpers["_jweb_sse_send"]
+    give back fn(pair, frame)
+
+to jweb_sse_dead with pair
+    helpers is jweb_sse_helpers
+    fn is helpers["_jweb_sse_dead"]
+    give back fn(pair)
+
+to jweb_sse_close with conn
+    helpers is jweb_sse_helpers
+    fn is helpers["_jweb_sse_close"]
+    give back fn(conn)
+
+to jweb_accept_wait with listener and ms
+    helpers is jweb_sse_helpers
+    fn is helpers["_jweb_accept_wait"]
+    give back fn(listener, ms)
+
+to jweb_sse_use with pair
+    note Remembers which pair the next jweb_sse_sender call writes to.
+    note The main thread is the only writer, so one slot is enough.
+    jweb_sse_pair_slot["pair"] is pair
+    give back nothing
+
+to jweb_describe with v
+    note Plain-English shape of a value, for failure messages.
+    k is kind of v
+    if k is "text" then
+        give back "\"" + v + "\""
+    if k is "number" or k is "true/false" then
+        give back text of v
+    if k is "python value" then
+        give back "a python value"
+    give back "a " + k
+
+to jweb_has_newline with s
+    for each c in characters of s
+        if c is "\n" then
+            give back true
+    give back false
+
+to jweb_sse_sender with name and data
+    note The `send` function handed to stream setups. Writes one SSE frame
+    note (an event line plus one data line per input line) to the pair
+    note remembered by jweb_sse_use. Gives back true while the reader is
+    note still there, false once its socket died.
+    if kind of name is not "text" then
+        fail with "an event name has to be text, but this is " + (jweb_describe with name) + "."
+    if jweb_has_newline with name then
+        fail with "an event name cannot hold a new line."
+    if kind of data is not "text" then
+        fail with "stream data has to be text, but this is " + (jweb_describe with data) + "."
+    pair is jweb_sse_pair_slot["pair"]
+    frame is "event: " + name + "\n"
+    for each line in split of data by "\n"
+        frame is frame + "data: " + line + "\n"
+    frame is frame + "\n"
+    ok is jweb_sse_send_raw with pair and frame
+    give back ok
+
+to jweb_sse_stream with req and setup
+    note Opens a server-sent event stream (spec v3.0 section 5.1).
+    note Non-blocking: setup runs first (it only queues frames), then the
+    note SSE head goes out and the byte pump starts. Gives back nothing
+    note once the pump owns the socket, or a 503 table when the 128-stream
+    note cap is hit (spec v3.0 section 8, row 31).
+    if kind of setup is not "function" then
+        fail with "an SSE stream needs a setup function, but this is " + (jweb_describe with setup) + "."
+    if length of jweb_state["streams"] is at least 128 then
+        give back {"status": 503, "headers": {"content-type": "text/plain"}, "body": "the server is full; try again soon."}
+    conn is jweb_state["conn"]
+    if conn is nothing then
+        fail with "streams are not running; start them with serve."
+    pair is jweb_sse_pair
+    jweb_sse_use with pair
+    pipe is {"send": jweb_sse_sender, "pair": pair, "stream": {"conn": conn, "pair": pair}}
+    outcome is attempt setup with pipe and req
+    if outcome["ok"] is false then
+        fail with outcome["error"]
+    head is "HTTP/1.1 200 ok\r\ncontent-type: text/event-stream\r\ncache-control: no-cache\r\nconnection: keep-alive\r\n\r\n"
+    conn.sendall(bmod.bytes(head, "utf-8"))
+    jweb_sse_spawn with conn and pair
+    alive is jweb_state["streams"]
+    push pipe["stream"] to alive
+    jweb_state["streams"] is alive
+    give back nothing
+
+to jweb_reap_streams
+    note Runs on the main thread between accepts. Drops streams whose
+    note reader went away, closes their sockets, and runs each stream's
+    note cleanup hook (when it has one) with the dead stream visible
+    note through jweb_dead_stream.
+    alive is []
+    for each st in jweb_state["streams"]
+        if jweb_sse_dead with st["pair"] then
+            jweb_sse_close with st["conn"]
+            if st contains "cleanup" then
+                cleanup is st["cleanup"]
+                if kind of cleanup is "function" then
+                    jweb_state["dead_stream"] is st
+                    ignored is attempt cleanup()
+                    jweb_state["dead_stream"] is nothing
+        otherwise
+            push st to alive
+    jweb_state["streams"] is alive
+
+to jweb_dead_stream
+    note The stream the reaper is cleaning up right now, or nothing.
+    give back jweb_state["dead_stream"]
+
+note ==== SSE BRIDGE SOURCE (generated: do not hand-edit; see hidden_files/jweb_sse_gen.py) ====
+_jweb_sse_src is join of ["# jweb SSE bridge helpers (spec v3.0 section 5). CONSTANT source: no", "# program text ever reaches exec; helpers take arguments only.", "# Threads spawned here NEVER touch the interpreter: they move bytes", "# between a queue and a socket only. All Jesun.Code logic runs on the", "# single main accept-loop thread, so both interpreters share this", "# exact code path. Every helper returns a plain value.", "class _JwebStream:", "    def __init__(self):", "        import queue", "        self.q = queue.Queue()", "        self.dead = False", "def _jweb_sse_pair():", "    return _JwebStream()", "def _jweb_sse_spawn(conn, st):", "    import threading", "    def pump():", "        try:", "            while True:", "                try:", "                    frame = st.q.get(timeout=25)", "                except Exception:", "                    frame = None", "                try:", "                    if frame is None:", "                        conn.sendall(b': ping\\n\\n')", "                    else:", "                        conn.sendall(frame.encode('utf-8'))", "                except Exception:", "                    break", "        finally:", "            st.dead = True", "    threading.Thread(target=pump, daemon=True).start()", "    return True", "def _jweb_sse_send(st, text):", "    if st.dead:", "        return False", "    st.q.put(text)", "    return True", "def _jweb_sse_dead(st):", "    return st.dead", "def _jweb_sse_close(conn):", "    try:", "        conn.close()", "    except Exception:", "        pass", "    return True", "def _jweb_accept_wait(listener, ms):", "    import select", "    r, _, _ = select.select([listener], [], [], ms / 1000.0)", "    if r:", "        return listener.accept()[0]", "    return None"] with "\n"
+note ==== END SSE BRIDGE SOURCE ====

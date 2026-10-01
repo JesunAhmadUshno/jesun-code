@@ -140,7 +140,106 @@ GENS = [gen_form, gen_table, gen_field, gen_island]
 BRING = (
     'bring in "jweb"\nbring in "js"\nbring in "sitegen"\n'
     'bring in "html"\nbring in "sqlite"\nbring in "time"\nbring in "serve"\n'
+    'bring in "threejs"\n'
+    'jweb_sse_use with jweb_sse_pair\n'
 )
+
+
+def jstr_braces(s):
+    # jstr plus {{ }} so { and } survive Jesun string interpolation.
+    return jstr(s.replace("{", "{{").replace("}", "}}"))
+
+
+# Hand-verified (body, expected) pairs for the minimal JSON event parser.
+# serve_parse_event must give back the name or nothing; it never fails.
+EVENT_KNOWN = [
+    ('{"event": "bump"}', "bump"),
+    ('{"event":"x"}', "x"),
+    ('  { "event" : "y" }  ', "y"),
+    ('{"event": "a\\nb"}', "a\nb"),
+    ('{"event": "say \\"hi\\""}', 'say "hi"'),
+    ('{"event": ""}', ""),
+    ("garbage", None),
+    ("", None),
+    ("{}", None),
+    ("[]", None),
+    ('{"nope": 1}', None),
+    ('{"event": 42}', None),
+    ('{"event": "unterminated}', None),
+    ('{"event": "tab\\there"}', "tab\there"),
+]
+
+
+def gen_event_known(rng, tag):
+    body, want = rng.choice(EVENT_KNOWN)
+    src = (
+        f"{tag}_r is serve_parse_event with {jstr_braces(body)}\n"
+        f'if {tag}_r is nothing then\n'
+        f'    show "nothing"\n'
+        "otherwise\n"
+        f'    show {tag}_r\n'
+    )
+    return src, ("nothing\n" if want is None else want + "\n")
+
+
+def gen_event_hostile(rng, tag):
+    # Hostile soup: the parser must survive it (nothing or a name),
+    # and both legs must agree. The oracle is survival itself.
+    body = "".join(rng.choice(BODY_BITS) for _ in range(rng.randint(1, 12)))
+    src = (
+        f"{tag}_r is serve_parse_event with {jstr_braces(body)}\n"
+        f'show "survived"\n'
+    )
+    return src, "survived\n"
+
+
+def valid_three_name(name):
+    return bool(re.match(r"^[A-Za-z_][A-Za-z0-9_$]*$", name))
+
+
+def gen_three_name(rng, tag):
+    name = rng.choice(HOSTILE_NAMES if rng.random() < 0.5 else TRICKY_VALID_TABLE)
+    src = f"show three_valid_name with {jstr(name)}\n"
+    return src, ("true\n" if valid_three_name(name) else "false\n")
+
+
+def valid_three_color(color):
+    return bool(color) and bool(re.match(r"^[A-Za-z0-9#]+$", color))
+
+
+def gen_three_color(rng, tag):
+    color = rng.choice(HOSTILE_NAMES + ["red", "#ff0000", "LightBlue", "#abc"])
+    src = f"show three_safe_color with {jstr(color)}\n"
+    return src, ("true\n" if valid_three_color(color) else "false\n")
+
+
+def gen_sender(rng, tag):
+    # Hostile sender args: validation must fail in plain English (never a
+    # traceback), valid ones queue. Oracle mirrors jweb_sse_sender's rules.
+    name = rng.choice(HOSTILE_NAMES + ["render", "tick", "a\nb", "x\"y"])
+    data = rng.choice(HOSTILE_NAMES + ["<p>hi</p>", "a\nb", ""])
+    if rng.random() < 0.25:
+        data_expr, data_ok = jstr(data), True
+    elif rng.random() < 0.5:
+        data_expr, data_ok = '{"k": 1}', False
+    else:
+        data_expr, data_ok = "42", False
+    name_ok = isinstance(name, str) and "\n" not in name
+    # HOSTILE_NAMES entries are all text; the \n one is caught above.
+    ok = name_ok and data_ok
+    src = (
+        f"{tag}_r is attempt jweb_sse_sender with {jstr(name)} and {data_expr}\n"
+        f'if {tag}_r["ok"] then\n'
+        '    show "ok"\n'
+        "otherwise\n"
+        '    show "failed"\n'
+    )
+    return src, ("ok\n" if ok else "failed\n")
+
+
+GENS = [gen_form, gen_table, gen_field, gen_island,
+        gen_event_known, gen_event_hostile,
+        gen_three_name, gen_three_color, gen_sender]
 
 
 def check_output(text):

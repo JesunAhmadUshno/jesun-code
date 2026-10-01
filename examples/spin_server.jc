@@ -1,0 +1,18 @@
+bring in "jweb"
+bring in "sitegen"
+bring in "js"
+bring in "serve"
+bring in "threejs"
+serve_site with "Spin Check" and "https://spin.example" and "v1.0.0"
+scene is three_scene
+geo is three_box with 1
+mat is three_material with "red"
+three_add_mesh with scene and "box" and geo and mat
+three_light with scene and "soft"
+three_spin with scene and "box"
+three_camera_at with scene and 0 and 1 and 6
+resp is serve_scene with "Spin" and scene
+to index_page with request
+    give back resp
+add_route with "GET /" and index_page
+serve with 8931
