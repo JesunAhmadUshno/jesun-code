@@ -1,0 +1,5 @@
+GitHub Linguist languages.yml collision check
+Date: 2026-10-01
+Source: https://raw.githubusercontent.com/github-linguist/linguist/main/lib/linguist/languages.yml
+Languages claiming .jc: NONE - .jc is unclaimed
+Method: parsed every language block with an extensions list; matched ^\.jc$ exactly.
