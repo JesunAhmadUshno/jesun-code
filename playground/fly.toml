@@ -1,0 +1,22 @@
+# Fly.io config for the Jesun.Code Serve playground (M4 dogfood).
+# The marketing site stays on GitHub Pages; this app is the live playground
+# on its own always-on host. Deploy from the repo root:
+#   fly deploy --config playground/fly.toml
+app = "jesun-code-playground"
+primary_region = "tor"
+
+[build]
+# Resolved relative to this file's directory (playground/); the build
+# context stays the repo root, so the Dockerfile's COPY paths are repo-root
+# relative (dist/jesun-linux-x64, playground/playground.jc).
+dockerfile = "Dockerfile"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = false
+auto_start_machines = true
+min_machines_running = 1
+
+[[vm]]
+size = "shared-cpu-1x"
