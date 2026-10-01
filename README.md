@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/JesunAhmadUshno/jesun-code)](https://github.com/JesunAhmadUshno/jesun-code/releases)
 [![CI](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml/badge.svg)](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-501%20passing-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
+[![Tests](https://img.shields.io/badge/tests-711%20passing-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 A programming language that reads like plain English. If a sentence makes
@@ -388,7 +388,7 @@ with real tools, and looks around through a tmux terminal. Run the suite:
 python3 -m unittest discover -s tests
 ```
 
-501 tests, all differential where it matters: the bootstrap interpreter
+711 tests, all differential where it matters: the bootstrap interpreter
 and the self-hosted Jesun.Code walker must agree byte for byte.
 
 ## Frontend in Jesun.Code (v1.3)
