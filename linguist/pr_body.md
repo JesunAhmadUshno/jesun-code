@@ -1,56 +1,80 @@
-# Draft PR body for github-linguist/linguist — "Add Jesun.Code language"
+# PR body for github-linguist/linguist — "Add Jesun.Code language"
 
-> Fill Linguist's PR template at submission time; this draft holds our answers.
+> Paste into the upstream PR, filling the two pending URLs after the
+> grammar repo is created. The usage-evidence section is honest about
+> where the numbers stand; do not inflate it.
 
 ## Description
 
-Add the Jesun.Code programming language.
+Add the Jesun.Code programming language: a plain-English language
+(`show "hello"`, `if the count is 0 then`, `give back` instead of
+return), self-hosted, compiling to native binaries, with packages for
+web (jweb: HTTP server, routing, sessions, SQLite), static site
+generation, and frontend interop.
 
-- **Language:** Jesun.Code
-- **Extensions:** `.jc`
-- **Type:** programming
-- **Color:** `#0C9463` (the language's brand emerald)
-- **tm_scope:** `source.jesun`
-- **Repository:** https://github.com/JesunAhmadUshno/jesun-code
-- **License:** MIT (repo and grammar)
+## Checklist
 
-Jesun.Code is a plain-English programming language: `show "hello"`,
-`if the count is 0 then`, `for each row in rows`, `give back` instead of
-return. It is self-hosted (the interpreter is written in Jesun.Code),
-compiles to native binaries, and ships packages for web (jweb: HTTP
-server, routing, sessions, SQLite), static site generation (sitegen),
-and frontend interop (WordPress, React, PHP).
+- [ ] **I am adding a new language.**
+  - [ ] The extension of the new language is used in hundreds of repositories on GitHub.com.
+    - Search results for each extension:
+      - https://github.com/search?type=code&q=NOT+is%3Afork+path%3A*.jc+%22give+back%22
+    - **Honest status (2026-10-01):** `extension:jc "give back"` (a keyword
+      distinctive to Jesun.Code) returns 48 code results across 2
+      repositories, both owned by the language author
+      (`JesunAhmadUshno/jesun-code`, `JesunAhmadUshno/Jesun_Dev`).
+      The "hundreds of repositories" bar is NOT met today. The broader
+      `extension:jc` search returns ~1,176 results, but those are
+      overwhelmingly another language (jacy, HouQiming) plus editor
+      config files, not Jesun.Code.
+  - [x] I have included a real-world usage sample for all extensions added in this PR:
+    - Sample source(s):
+      - `samples/todo.jc` — a todo-list web app on jweb: SQLite storage,
+        sessions, a JSON API and HTML from one file (56 lines).
+      - `samples/sitegen_demo.jc` — a static site generator run: builds
+        a multi-page site with sitemap, robots.txt and llms.txt, then
+        self-verifies (78 lines).
+      - `samples/time.jc` — a stdlib package source file (17 lines).
+    - Sample license(s): MIT (written for this submission).
+  - [ ] I have included a syntax highlighting grammar:
+        https://github.com/JesunAhmadUshno/jesun-code-tmlanguage
+        (PENDING: repo to be created from
+        `editors/vscode/syntaxes/jesun-code.tmLanguage.json`, MIT)
+  - [x] I have added a color
+    - Hex value: `#0C9463`
+    - Rationale: the language's brand emerald, used across the project
+      site and editor theme.
+  - [ ] I have updated the heuristics to distinguish my language from others using the same extension.
+    - Not required: no language currently in `languages.yml` claims
+      `.jc` (verified 2026-10-01 against upstream main). Real-world
+      `.jc` usage by jacy exists outside Linguist; if maintainers want
+      a heuristic, one can be added distinguishing `give back` /
+      `bring in` / `to <name>` (Jesun.Code) from jacy's
+      `import "..."` / `__c_function` style.
 
-## Grammar
+## languages.yml entry (alphabetical: between JCL and JFlex)
 
-TextMate grammar `source.jesun`, vendored from a permissively licensed
-(MIT) source. Grammar repo for `script/add-grammar`:
-`https://github.com/JesunAhmadUshno/jesun-code-tmlanguage`
-(to be created from `editors/vscode/syntaxes/jesun-code.tmLanguage.json`
-in this repo).
+```yaml
+Jesun.Code:
+  type: programming
+  color: "#0C9463"
+  extensions:
+    - ".jc"
+  tm_scope: source.jesun
+  ace_mode: text
+```
 
-## Samples
+`language_id` omitted per CONTRIBUTING.md ("Omit the language_id field
+for now"); assigned by `script/update-ids` at PR time. Expected value
+for `Jesun.Code` per the script's algorithm
+(`SHA256(name) mod (2**30 - 1)`): 303685207.
 
-`samples/` in this bundle holds real-world Jesun.Code (MIT, written for
-this repo, not tutorial snippets):
+## Local verification done (2026-10-01)
 
-- `todo.jc` — a todo-list web app on jweb: SQLite storage, sessions, a
-  JSON API and HTML from one file.
-- `sitegen_demo.jc` — a static site generator run: builds a multi-page
-  site with sitemap, robots.txt and llms.txt, then self-verifies.
-- `time.jc` — a stdlib package source file.
-
-## Usage evidence
-
-- 164 `.jc` files in the main repo (interpreter, 13+ packages, examples,
-  tests, site builder).
-- GitHub code search for `extension:jc` at PR time (link results here).
-
-## Checklist against CONTRIBUTING.md
-
-- [x] Unique extension (`.jc` — verify no collision in languages.yml)
-- [x] TextMate grammar, permissively licensed
-- [x] Real-world samples (not hello-world)
-- [x] Usage evidence on GitHub
-- [x] `script/update-ids` run (at PR time, in the Linguist checkout)
-- [x] `bundle exec rake test` green (at PR time, in the Linguist checkout)
+- Bundle validator: 27/27 green (`python3 linguist/validate.py`).
+- Grammar parses as JSON, scope `source.jesun`, 7 top-level patterns,
+  byte-identical to the VS Code source.
+- Upstream `script/update-ids` algorithm reproduced in Python;
+  expected id 303685207 recorded above.
+- Upstream test suite (`bundle exec rake test`) and
+  `script/add-grammar` still need a Ruby machine; Ruby is not installed
+  on this VM (apt has no ruby package). Run before submitting.

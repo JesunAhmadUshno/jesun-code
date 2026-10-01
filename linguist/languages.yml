@@ -9,4 +9,3 @@ Jesun.Code:
     - ".jc"
   tm_scope: source.jesun
   ace_mode: text
-  language_id: 999999999 # placeholder, replaced by script/update-ids
