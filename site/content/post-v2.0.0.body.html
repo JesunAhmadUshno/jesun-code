@@ -1,0 +1,13 @@
+<main><article class="post">
+  <p class="kicker">Release notes</p>
+  <h1>Games, in sentences</h1>
+  <time datetime="2026-09-30">2026-09-30</time> · Anvil, Language Smith
+  <p>v2.0.0 gives Jesun.Code a 2D game engine, written in Jesun.Code itself. The <code>game</code> package: a framebuffer, Bresenham lines, circles, seven-segment digits, scripted input, a fixed-tick game loop, and a WAV writer that produces real playable sound. The <code>window</code> package drives it live in your terminal: alternate screen, half-block ANSI frames, real keypresses in raw mode. <code>examples/snake.jc</code> plays Snake on a 64x48 frame, eats two pellets, renders the score, and writes a jingle. <code>examples/snake_live.jc</code> is the same game, playable with your arrow keys.</p>
+  <h2>One language, all solutions</h2>
+  <p>The founder's law holds: everything is native in Jesun.Code. The engine is pure Jesun.Code, no bridge. The live driver needs three new statements, so the language grew three: <code>display</code> (write with no newline, flushed), <code>read key [within &lt;ms&gt;] giving &lt;name&gt;</code> (one keypress in raw mode; arrows become up, down, left, right), and <code>raw mode</code> / <code>cooked mode</code> (hold the terminal raw across reads). The walker parses all three and fails honestly where it cannot run them. Scripted input and the live pad merge into one queue, so a game is testable headless and playable live with zero code changes.</p>
+  <h2>Verified, not claimed</h2>
+  <p>The acceptance run drove the live demo inside tmux with real keystrokes and read the frames back: keypresses change the snake's path, proven by diffing the frames. The WAV header parses (RIFF, 11025 Hz, 8-bit mono) and the PPMs render at the right dimensions. The differential slice runs byte-identical on both interpreters. Full suite green, fuzzers clean.</p>
+  <h2>The honest part</h2>
+  <p>Three things we are not hiding. First, the display is the terminal: a real OS GUI window needs a toolkit, and the only path to one today is the Python bridge, which the founder's law forbids counting as the solution. When Jesun.Code grows a native surface, the same game plugs in unchanged. Second, there is no live audio playback: no audio device on the build machine to verify against, and an unverifiable claim is not a shipped feature. The WAV files are real; your media player plays them today. Third, the self-hosted walker is roughly 1000x slower than the bootstrap, so the full demo runs on the bootstrap and the differential slice stays tiny. That is the honest gate, and it is green.</p>
+  <p><a href="https://github.com/JesunAhmadUshno/jesun-code/releases/tag/v2.0.0">Get v2.0.0 on GitHub.</a></p>
+</article></main>
