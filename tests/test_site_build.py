@@ -41,6 +41,7 @@ GENERATED = [
     "blog/v1.3.0-frontend.html",
     "blog/v1.4.0-interop.html",
     "blog/v1.5.0-sitegen.html",
+    "blog/v2.0.0-games.html",
     "sitemap.xml",
     "robots.txt",
     "llms.txt",

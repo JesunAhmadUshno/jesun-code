@@ -24,7 +24,7 @@ note ---- shared site table ----
 site is a new table
 site["base"] is base
 site["site_url"] is "https://jesunahmadushno.github.io/jesun-code/"
-site["version"] is "v1.5.0"
+site["version"] is "v2.0.0"
 
 note ---- sitemap: explicit entries, hand order preserved ----
 sitemap_entries is []
@@ -40,6 +40,7 @@ push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.2.0-jweb.html
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.3.0-frontend.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.4.0-interop.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.5.0-sitegen.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v2.0.0-games.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.0.0-self-hosting.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.6.0-fleets.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.4.0-jpm-packages.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
@@ -55,6 +56,13 @@ to build_links with pairs
 note ---- blog posts, newest first (summaries are content fragments: they
 note ---- may contain brace syntax that string literals cannot spell) ----
 posts is []
+post is a new table
+post["title"] is "Games, in sentences"
+post["date"] is "2026-09-30"
+post["slug"] is "v2.0.0-games"
+read file "site/content/v2.0.0-games.summary.html" giving post_summary
+post["summary"] is post_summary
+push post to posts
 post is a new table
 post["title"] is "The site builds itself"
 post["date"] is "2026-09-30"
@@ -454,6 +462,31 @@ post9["foot_project"] is build_links with foot_project_pairs
 read file "site/content/post-v1.5.0.body.html" giving post9_body
 post9["body"] is post9_body
 push post9 to pages
+
+post10 is a new table
+post10["path"] is "blog/v2.0.0-games.html"
+post10["title"] is "Games, in sentences: Jesun.Code v2.0.0 ships the game engine - The Smithy"
+post10["description"] is "Jesun.Code v2.0.0: a 2D game engine written in Jesun.Code itself. Framebuffer, sprites, input, sound, and a live terminal driver. Snake is playable."
+post10["canonical"] is "https://jesunahmadushno.github.io/jesun-code/blog/v2.0.0-games.html"
+post10["nav"] is "sub"
+post10["root_prefix"] is "../"
+nav_links_pairs is [["../", "Home"], ["../#language", "Language"], ["../#install", "Install"], ["./", "All posts"], ["../faq.html", "FAQ"], ["../about.html", "About"], ["../community.html", "Community"], ["../brand/", "Brand"]]
+post10["nav_links"] is build_links with nav_links_pairs
+post10["og_type"] is "article"
+post10["og_title"] is "Games, in sentences: Jesun.Code v2.0.0 ships the game engine"
+post10["og_description"] is "v2.0.0: the game package, written in Jesun.Code itself. A 2D engine, a playable Snake, scripted and live input, real WAV sound."
+post10["no_twitter_meta"] is true
+post10["article_date"] is "2026-09-30"
+post10["tagline"] is "The programming language that reads like plain English. Designed and built by Jesun Ahmad Ushno. MIT licensed."
+foot_product_pairs is [["../#language", "Language"], ["../#install", "Install"], ["../#roadmap", "Roadmap"]]
+post10["foot_product"] is build_links with foot_product_pairs
+foot_resources_pairs is [["./", "Blog"], ["../faq.html", "FAQ"], ["../brand/", "Brand kit"], ["https://github.com/JesunAhmadUshno/jesun-code/releases", "Releases"]]
+post10["foot_resources"] is build_links with foot_resources_pairs
+foot_project_pairs is [["../about.html", "About"], ["../community.html", "Community"], ["https://github.com/JesunAhmadUshno/jesun-code", "GitHub"]]
+post10["foot_project"] is build_links with foot_project_pairs
+read file "site/content/post-v2.0.0.body.html" giving post10_body
+post10["body"] is post10_body
+push post10 to pages
 
 note ---- the blog index page: body assembled from the post tables ----
 blogpage is a new table

@@ -40,6 +40,17 @@
 
 ## Roadmap (honest)
 
+- v2.0.0 (shipped 2026-09-30): games on PC. The `game` package is a 2D
+  game engine written in Jesun.Code itself: framebuffer, Bresenham lines,
+  circles, seven-segment digits, scripted input, a fixed-tick game loop,
+  and a WAV writer that produces real playable sound. The `window`
+  package drives it live in the terminal (alternate screen, half-block
+  ANSI frames, real keypresses in raw mode). Flagship demos:
+  examples/snake.jc (plays Snake headless, eats two pellets, renders the
+  score, writes a jingle) and examples/snake_live.jc (the same game,
+  playable with the arrow keys). Three new statements: `display`,
+  `read key [within <ms>] giving <name>`, `raw mode` / `cooked mode`.
+  Honest: the display is the terminal; there is no live audio playback.
 - v1.5.0 (shipped 2026-09-30): the site builds itself. The sitegen
   package is a static site generator written in Jesun.Code itself:
   chrome builders (head, nav, footer), blog builders (index, posts),
