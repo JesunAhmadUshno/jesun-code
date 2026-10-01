@@ -1,7 +1,8 @@
 note Jesun.Code Playground: the Serve framework dogfood app.
 note One language, all solutions: routes, pages, a live view over SSE,
-note an English data layer with a generated admin page, and a three.js
-note scene, all in plain-English Jesun.Code. Runs on the native binary.
+note an English data layer with a generated admin page, a three.js
+note scene, and a fenced code runner (POST /run), all in plain-English
+note Jesun.Code. Runs on the native binary.
 
 bring in "jweb"
 bring in "sitegen"
@@ -22,6 +23,7 @@ to home with request
     body is body + "<li><a href=\"/like\">Like button: a live view over SSE</a></li>"
     body is body + "<li><a href=\"/admin/todos\">Todos: English data layer with generated admin</a></li>"
     body is body + "<li><a href=\"/scene\">Spinning box: a three.js scene in English</a></li>"
+    body is body + "<li><a href=\"/run\">Run: post Jesun.Code source, get fenced output</a></li>"
     body is body + "</ul></main>"
     give back serve_page with "Jesun.Code Playground" and body
 
@@ -45,6 +47,9 @@ db is open_database with "playground.db"
 todos is serve_table with "todos" and [["task", "text"], ["done", "true/false"]]
 serve_migrate with db and todos
 serve_admin with db and todos
+
+note ---- fenced code runner: POST /run (spec v3.0 section 9, M4) ----
+serve_run_api
 
 note ---- three.js scene: describe in English, emit real three.js ----
 scene is three_scene

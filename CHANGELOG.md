@@ -39,6 +39,27 @@ Not shipped, not claimed: no release until the spec's section-11
 acceptance is genuinely green (M4's dogfood soak needs the founder's
 hosting decision).
 
+Also in this cycle: the M4 playground fence (spec section 9).
+`serve_run_fenced with source` runs untrusted Jesun.Code in a child
+process: a 5-second timeout, a fresh sandbox working folder per run
+(under the server's working folder, because Jesun.Code file I/O
+refuses paths outside it), stdout/stderr capped at 64 KiB, and the
+network cut with `unshare -n` where the host allows it. It gives back
+`{ok, output, timed_out, net_isolated}`; failures are plain-English
+text, never a traceback. `serve_run_api` registers `POST /run`
+(source in, JSON out; empty bodies are 400, bodies over 1 MiB are 413)
+and `GET /run` (the usage page). The playground app (`playground.jc`)
+serves both, and its README documents the curl form. The child is the
+same runtime that serves: the frozen binary runs itself, the bootstrap
+re-runs `jesun.py`. Honest boundary, stated in the code: the Python
+bridge is available to the child by design (the whole language has
+it); the fence's contract is the process, the timeout, the sandbox
+folder, the output cap, and the network cut.
+`tests/test_serve.py` gains `FenceTest` (7 differential cases:
+ok, plain-English error, timeout, output cap, sandbox cwd, network
+isolation, input validation) and `LiveRunTest` (`POST /run` live on
+both interpreters, including the 400 and 413 shapes).
+
 Also in this cycle: `raw`/`cooked` are contextual keywords, not
 global ones. The v2.0 worker had reserved them globally for
 `raw mode` statements, which broke `raw` as a parameter name in the

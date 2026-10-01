@@ -1077,3 +1077,19 @@ every workspace file.)
   (wrapped by `serve_scene`, section 3.6). The jweb row now also names
   these three; a new threejs row names `three_page`. No behavior
   change, no new surface.
+- 2026-09-30: M4 fence API (section 9). `serve_run_fenced with source`
+  runs untrusted Jesun.Code in a child process: a 5-second timeout, a
+  fresh sandbox working folder per run (under the server's working
+  folder, because Jesun.Code file I/O refuses paths outside it),
+  stdout/stderr capped at 64 KiB, and the network cut with `unshare -n`
+  where the host allows it. Gives back {ok, output, timed_out,
+  net_isolated}; failures are plain-English text, never a traceback.
+  `serve_run_api` registers `POST /run` (source in, JSON out; empty is
+  400, over 1 MiB is 413 via jweb's too_big) and `GET /run` (the usage
+  page). The child is the same runtime: the frozen binary runs itself,
+  the bootstrap re-runs jesun.py. Honest boundary: the Python bridge is
+  available to the child by design (the whole language has it); the
+  fence's contract is the process, the timeout, the sandbox folder, the
+  output cap, and the network cut, and `net_isolated` reports whether
+  the cut applied. No spec text changed; this amendment records the
+  as-built surface.

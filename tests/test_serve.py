@@ -1031,3 +1031,193 @@ serve_start with {PORT}
 
     def test_live_sse_walker(self):
         self.live_sse(True)
+
+
+class FenceTest(ServeCase):
+    """v3.0 M4: the playground fence (spec section 9).
+
+    serve_run_fenced runs untrusted source in a child process: 5s
+    timeout, sandbox cwd, 64 KiB output cap, unshare -n network cut
+    where the host allows it. Every case is differential
+    (bootstrap + self-hosted walker must agree byte for byte); the
+    child is the bootstrap runtime on both legs because sys.argv[0]
+    is jesun.py either way.
+    """
+
+    FENCE_HDR = 'bring in "jweb"\nbring in "sitegen"\nbring in "serve"\n'
+
+    def test_fence_ok(self):
+        # net_isolated must agree with the module-level unshare probe
+        src = (
+            self.FENCE_HDR
+            + 'r is serve_run_fenced with "show 6 * 7"\n'
+            + 'show r["ok"]\n'
+            + 'show r["output"]\n'
+            + 'show r["timed_out"]\n'
+            + 'a is r["net_isolated"]\n'
+            + 'b is serve_fence_unshare\n'
+            + 'if a is b then\n'
+            + '    show "consistent"\n'
+            + 'otherwise\n'
+            + '    show "INCONSISTENT"\n'
+        )
+        self.check(src, "true\n42\n\nfalse\nconsistent\n")
+
+    def test_fence_error_plain_english(self):
+        src = (
+            self.FENCE_HDR
+            + 'r is serve_run_fenced with "show nosuchname"\n'
+            + 'show r["ok"]\n'
+            + 'show r["output"]\n'
+            + 'show r["timed_out"]\n'
+        )
+        self.check(
+            src, 'false\nLine 1: I do not know the word "nosuchname".\n\nfalse\n'
+        )
+
+    def test_fence_timeout(self):
+        src = (
+            self.FENCE_HDR
+            + 'r is serve_run_fenced with "import time as tmod\\ntmod.sleep(30)"\n'
+            + 'show r["ok"]\n'
+            + 'show r["timed_out"]\n'
+            + 'show r["output"]\n'
+        )
+        self.check(
+            src,
+            "false\ntrue\n"
+            "that program took too long; the fence stopped it after 5 seconds.\n",
+        )
+
+    def test_fence_output_cap(self):
+        child = (
+            '"s is \\"\\"\\nrepeat 7000 times\\n'
+            '    s is s + \\"0123456789\\"\\nshow s"'
+        )
+        src = (
+            self.FENCE_HDR
+            + "r is serve_run_fenced with " + child + "\n"
+            + 'show r["ok"]\n'
+            + 'show length of r["output"]\n'
+            + 'show (r["output"]) contains "(output cut at 64 KiB)"\n'
+        )
+        # 70001 chars of output: capped at 65536 + the 23-char cut note.
+        self.check(src, "true\n65559\ntrue\n")
+
+    def test_fence_sandbox_cwd(self):
+        src = (
+            self.FENCE_HDR
+            + 'r is serve_run_fenced with "import os as osmod\\nshow osmod.getcwd()"\n'
+            + 'show (r["output"]) contains "jc_fence_"\n'
+        )
+        self.check(src, "true\n")
+
+    def test_fence_net_isolation(self):
+        child = (
+            '"import socket as smod\\nimport builtins as bmod\\n'
+            'p is bmod.eval(\\"lambda: __import__(\\\'socket\\\').'
+            'create_connection((\\\'8.8.8.8\\\', 53), timeout=3)\\")\\n'
+            'r is attempt p()\\nshow r[\\"ok\\"]"'
+        )
+        src = (
+            self.FENCE_HDR
+            + "f is serve_run_fenced with " + child + "\n"
+            + "net_ok is true\n"
+            + 'if f["net_isolated"] then\n'
+            + '    if f["output"] is "false\\n" then\n'
+            + "        net_ok is true\n"
+            + "    otherwise\n"
+            + "        net_ok is false\n"
+            + "show net_ok\n"
+        )
+        # Where unshare works the child cannot dial out; elsewhere the
+        # fence reports net_isolated false and the check is vacuous.
+        self.check(src, "true\n")
+
+    def test_run_route_guards(self):
+        # The route's own guards, called directly: empty body is 400,
+        # a body over 1 MiB is 413. (Over HTTP, jweb's too_big fires
+        # first; this exercises the route branch itself.)
+        src = (
+            self.FENCE_HDR
+            + 'import builtins as tbmod\n'
+            + 'big is tbmod.eval("chr(120) * 1048577")\n'
+            + 'r400 is serve_run_route with {"method": "POST", "path": "/run", "body": ""}\n'
+            + 'show r400["status"]\n'
+            + 'r413 is serve_run_route with {"method": "POST", "path": "/run", "body": big}\n'
+            + 'show r413["status"]\n'
+            + 'show (r413["body"]) contains "over 1 MiB"\n'
+        )
+        self.check(src, "400\n413\ntrue\n")
+
+    def test_fence_rejects(self):
+        src = (
+            self.FENCE_HDR
+            + 'a is attempt serve_run_fenced with ""\n'
+            + 'show a["ok"]\n'
+            + 'show a["error"]\n'
+            + 'b is attempt serve_run_fenced with 42\n'
+            + 'show b["ok"]\n'
+            + 'show b["error"]\n'
+        )
+        self.check(
+            src,
+            "false\n"
+            'Line 0: in the "serve" package: '
+            "fenced source is empty; there is nothing to run.\n"
+            "false\n"
+            'Line 0: in the "serve" package: '
+            "fenced source has to be text, but this is 42.\n",
+        )
+
+
+class LiveRunTest(LiveTest):
+    """POST /run live: source in, fenced output out as JSON."""
+
+    RUN_APP = (
+        'bring in "jweb"\nbring in "sitegen"\nbring in "serve"\n'
+        'serve_site with "Run" and "https://run.example" and "v1.0.0"\n'
+        "serve_run_api\nserve_start with {PORT}\n"
+    )
+
+    def live_run(self, walker):
+        port = self.free_port()
+        tmp, proc = self.start_server(
+            self.RUN_APP.replace("{PORT}", str(port)), walker
+        )
+        try:
+            self.wait_up(port, proc)
+            get = self.raw(port, "GET", "/run")
+            head, _, body = get.partition(b"\r\n\r\n")
+            self.assertIn(b"200", head.split(b"\r\n")[0])
+            self.assertIn(b"Run Jesun.Code in the fence", body)
+
+            post = self.raw(port, "POST", "/run", b"show 40 + 2")
+            head, _, pbody = post.partition(b"\r\n\r\n")
+            self.assertIn(b"200", head.split(b"\r\n")[0])
+            data = json.loads(pbody.decode())
+            self.assertTrue(data["ok"])
+            self.assertEqual(data["output"], "42\n")
+            self.assertFalse(data["timed_out"])
+            self.assertIn("net_isolated", data)
+
+            post2 = self.raw(port, "POST", "/run", b"show nosuchname")
+            data2 = json.loads(post2.partition(b"\r\n\r\n")[2].decode())
+            self.assertFalse(data2["ok"])
+            self.assertIn("I do not know the word", data2["output"])
+
+            post3 = self.raw(port, "POST", "/run", b"")
+            self.assertTrue(post3.startswith(b"HTTP/1.1 400"))
+
+            # No live >1 MiB check here: jweb answers 413 before
+            # routing (covered by tests/test_jweb.py), and a client
+            # racing that early close sees RST instead of the status.
+            # The route's own 1 MiB guard is tested directly below.
+        finally:
+            self.stop(tmp, proc)
+
+    def test_live_run_bootstrap(self):
+        self.live_run(False)
+
+    def test_live_run_walker(self):
+        self.live_run(True)

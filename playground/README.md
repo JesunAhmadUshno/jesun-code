@@ -8,9 +8,22 @@ hand). It serves:
 - `GET /like` — a like button as an M3 live view (state on the server, pushed over SSE)
 - `GET /admin/todos` — a todos app on the English data layer, with its generated admin page
 - `GET /scene` — a three.js scene (spinning box) described in English, emitted as real three.js
+- `POST /run` — the fenced code runner (spec v3.0 section 9, M4): post Jesun.Code
+  source as the body, get the output as JSON. The source runs in a child
+  process with a 5-second timeout, a fresh sandbox working folder, output
+  capped at 64 KiB, and no network (unshare -n where the host allows it).
+  Failures come back as plain-English text, never a traceback. Empty bodies
+  are 400, bodies over 1 MiB are 413.
+- `GET /run` — a human page explaining `POST /run` with a curl example.
 
-The marketing site stays on GitHub Pages. This playground runs on its own
-always-on host (Fly.io).
+```bash
+curl -X POST --data-binary @hello.jc http://127.0.0.1:8080/run
+# {"ok": true, "output": "hi\n", "timed_out": false, "net_isolated": true}
+```
+
+The marketing site stays on GitHub Pages. The playground dogfood soak
+runs LOCAL on the founder's laptop first (founder decision 2026-10-01);
+the public always-on host (Railway) is deferred, not cancelled.
 
 ## Run it locally
 
@@ -30,7 +43,7 @@ Then run the playground on the binary and open http://127.0.0.1:8080/ :
 Every route must return 200:
 
 ```bash
-for r in / /like /admin/todos /scene; do
+for r in / /like /admin/todos /scene /run; do
   curl -s -o /dev/null -w "$r -> %{http_code}\n" "http://127.0.0.1:8080$r"
 done
 ```
