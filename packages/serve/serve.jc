@@ -578,3 +578,155 @@ to serve_scene with title and scene
         fail with "a page needs a title, but this one is missing."
     doc is three_page with title and scene
     give back ok with doc
+
+note ---- fenced code running: the playground fence (spec v3.0 section 9, M4) ----
+note Untrusted Jesun.Code source runs in a child process: a 5-second timeout,
+note a fresh sandbox working folder per run, stdout/stderr capped at 64 KiB,
+note and the network cut with unshare -n where the host allows it. Failures
+note come back as plain-English text, never a traceback. This is the one
+note exception to the framework's rule against running client code.
+note Raw primitives (the v1.4 scaffolder boundary, like sitegen's makedirs):
+note the child is spawned through one eval'd lambda so the timeout and the
+note capture kwargs stay on the Python side; the fence's decisions (sandbox,
+note timeout mapping, output cap) are all Jesun.Code.
+
+import os as osfencemod
+import sys as sysfencemod
+import builtins as bmodfence
+import shutil as shutfence
+import tempfile as tmpfence
+
+serve_fence_spawn is bmodfence.eval("lambda argv, cwd: __import__('subprocess').run(argv, capture_output=True, text=True, timeout=5, cwd=cwd)")
+
+to serve_fence_cmd
+    note The child is this same runtime: the frozen binary runs itself,
+    note the bootstrap runs the python script again.
+    exe is bmodfence.getattr(sysfencemod, "executable")
+    frozen is bmodfence.getattr(sysfencemod, "frozen", false)
+    argv is bmodfence.getattr(sysfencemod, "argv")
+    script is argv[0]
+    if frozen or not ((text of script) contains ".py") then
+        give back [exe]
+    note Absolute: the child runs with the sandbox as its working folder,
+    note so a relative interpreter path would not resolve there.
+    give back [exe, serve_fence_abspath(script)]
+
+to serve_fence_net
+    note true when unshare -n actually cuts the network on this host.
+    unshare is shutfence.which("unshare")
+    if kind of unshare is "nothing" then
+        give back false
+    probe is attempt serve_fence_spawn([unshare, "-n", "true"], "/tmp")
+    if not (probe["ok"]) then
+        give back false
+    done is probe["value"]
+    give back (bmodfence.getattr(done, "returncode") is 0)
+
+serve_fence_unshare is serve_fence_net
+
+serve_fence_slice is bmodfence.eval("lambda s, n: s[:n]")
+
+serve_fence_abspath is bmodfence.eval("lambda p: __import__('os').path.abspath(p)")
+
+to serve_fence_cap with content
+    note 64 KiB cap; the tail note says when it cut. The slice is a
+    note bridge lambda on purpose: a character loop here would be quadratic
+    note and a big output would hang the server it is meant to protect.
+    if length of content is at most 65536 then
+        give back content
+    cut is serve_fence_slice(content, 65536)
+    give back cut + "\n(output cut at 64 KiB)"
+
+to serve_fence_text with value
+    note Bridge strings come back as "" or text; None would be nothing.
+    if kind of value is "nothing" then
+        give back ""
+    give back value
+
+to serve_run_fenced with source
+    note Run untrusted Jesun.Code source inside the fence. Gives back a table:
+    note ok, output (capped plain text), timed_out, net_isolated.
+    if kind of source is not "text" then
+        d is serve_describe with source
+        fail with "fenced source has to be text, but this is " + d + "."
+    if source is "" then
+        fail with "fenced source is empty; there is nothing to run."
+    if length of source is greater than 1048576 then
+        fail with "fenced source is over 1 MiB; the fence refuses it."
+    note The sandbox lives under this process's working folder: Jesun.Code
+    note file I/O refuses paths outside the working folder, so the system
+    note temp dir is off limits. The child's own writes are confined to
+    note the box the same way, because the child runs with the box as its
+    note working folder.
+    here is osfencemod.getcwd()
+    box is tmpfence.mkdtemp("", "jc_fence_", here)
+    write source to file (box + "/main.jc")
+    cmd is serve_fence_cmd
+    if serve_fence_unshare then
+        unshare is shutfence.which("unshare")
+        full is [unshare, "-n"]
+        for each part in cmd
+            push part to full
+        push (box + "/main.jc") to full
+        cmd is full
+    otherwise
+        push (box + "/main.jc") to cmd
+    outcome is attempt serve_fence_spawn(cmd, box)
+    ignored is attempt shutfence.rmtree(box, true)
+    result is {"ok": false, "output": "", "timed_out": false, "net_isolated": serve_fence_unshare}
+    if not (outcome["ok"]) then
+        err is outcome["error"]
+        if (text of err) contains "timed out" then
+            result["timed_out"] is true
+            result["output"] is "that program took too long; the fence stopped it after 5 seconds."
+        otherwise
+            result["output"] is "the fence could not start that program: " + err
+        give back result
+    done is outcome["value"]
+    code is bmodfence.getattr(done, "returncode")
+    if code is 0 then
+        result["ok"] is true
+        result["output"] is serve_fence_cap with (serve_fence_text with (bmodfence.getattr(done, "stdout")))
+    otherwise
+        note Jesun.Code failures print to stdout, so the plain-English
+        note error is there; stderr is the fallback for bridge-level noise.
+        errtext is serve_fence_text with (bmodfence.getattr(done, "stdout"))
+        if errtext is "" then
+            errtext is serve_fence_text with (bmodfence.getattr(done, "stderr"))
+        if errtext is "" then
+            errtext is "that program failed without saying why."
+        result["output"] is serve_fence_cap with errtext
+    give back result
+
+to serve_run_route with request
+    note POST /run: Jesun.Code source in, fenced output out as JSON.
+    body is ""
+    if request contains "body" then
+        body is request["body"]
+    if kind of body is not "text" or body is "" then
+        give back {"status": 400, "headers": {"content-type": "application/json"}, "body": "{{\"error\": \"post Jesun.Code source as the body.\"}}"}
+    if length of body is greater than 1048576 then
+        give back {"status": 413, "headers": {"content-type": "application/json"}, "body": "{{\"error\": \"source is over 1 MiB; the fence refuses it.\"}}"}
+    fenced is serve_run_fenced with body
+    give back {"status": 200, "headers": {"content-type": "application/json"}, "body": json of {"ok": fenced["ok"], "output": fenced["output"], "timed_out": fenced["timed_out"], "net_isolated": fenced["net_isolated"]}}
+
+serve_run_state is {"registered": false}
+
+to serve_run_api
+    note Register POST /run and GET /run (the usage page) on this site.
+    serve_need_site
+    if serve_run_state["registered"] then
+        fail with "the /run api is already registered."
+    serve_run_state["registered"] is true
+    add_route with "POST /run" and serve_run_route
+    add_route with "GET /run" and serve_run_help
+    give back nothing
+
+to serve_run_help with request
+    note A human page explaining POST /run with a curl example.
+    body is "<main><h1>Run Jesun.Code in the fence</h1>"
+    body is body + "<p>POST Jesun.Code source to <code>/run</code>. It runs in a child process: 5-second timeout, a fresh sandbox folder, output capped at 64 KiB, no network. You get JSON back.</p>"
+    body is body + "<pre>curl -X POST --data-binary @hello.jc https://HOST/run</pre>"
+    body is body + "<p>Example reply: <code>{{\"ok\": true, \"output\": \"hi\\n\", \"timed_out\": false, \"net_isolated\": true}}</code></p>"
+    body is body + "</main>"
+    give back serve_page with "Run in the fence" and body

@@ -118,6 +118,9 @@ its milestone ships green.
   implemented and under test (Live view over SSE, Scene via the
   `threejs` package, jweb SSE primitives per spec sections 3.4,
   3.6, 5). tests/test_serve.py 80/80 green, differential
-  bootstrap/walker; fuzz_serve.py clean. M4 (dogfood: the
-  playground API on a small host for 7 continuous days) is next
-  and needs the founder's hosting decision before it can start.
+  bootstrap/walker; fuzz_serve.py clean. M4's fenced `POST /run`
+  playground API is implemented, differentially tested, and wired
+  into `playground.jc` (verified live through the Linux binary:
+  all 5 routes 200, timeout enforced at 5s, network cut confirmed).
+  M4's 7-day soak still needs the founder's hosting decision
+  before its clock can start.
