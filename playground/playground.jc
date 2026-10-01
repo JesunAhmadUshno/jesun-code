@@ -1,0 +1,63 @@
+note Jesun.Code Playground: the Serve framework dogfood app.
+note One language, all solutions: routes, pages, a live view over SSE,
+note an English data layer with a generated admin page, and a three.js
+note scene, all in plain-English Jesun.Code. Runs on the native binary.
+
+bring in "jweb"
+bring in "sitegen"
+bring in "html"
+bring in "sqlite"
+bring in "js"
+bring in "time"
+bring in "serve"
+bring in "threejs"
+
+serve_site with "Jesun.Code Playground" and "https://jesun-code-playground.fly.dev" and "v1.0.0"
+
+note ---- home page: zero JavaScript, server-rendered ----
+to home with request
+    body is "<main><h1>Jesun.Code Playground</h1>"
+    body is body + "<p>A live demo of the Serve web framework, written in plain-English Jesun.Code.</p>"
+    body is body + "<ul>"
+    body is body + "<li><a href=\"/like\">Like button: a live view over SSE</a></li>"
+    body is body + "<li><a href=\"/admin/todos\">Todos: English data layer with generated admin</a></li>"
+    body is body + "<li><a href=\"/scene\">Spinning box: a three.js scene in English</a></li>"
+    body is body + "</ul></main>"
+    give back serve_page with "Jesun.Code Playground" and body
+
+serve_route with "GET /" and home
+
+note ---- like button: an M3 live view, state on the server, SSE push ----
+to render_likes with state
+    give back "<p>" + (text of state["n"]) + " likes</p><button data-event=\"like\">Like</button>"
+
+to bump_likes with state and event
+    state["n"] is state["n"] + 1
+    give back render_likes with state
+
+to like_page with request
+    give back serve_live with request and "Like Button" and {"n": 0} and render_likes and bump_likes
+
+serve_route with "GET /like" and like_page
+
+note ---- todos: declare fields once, get migrations and an admin page ----
+db is open_database with "playground.db"
+todos is serve_table with "todos" and [["task", "text"], ["done", "true/false"]]
+serve_migrate with db and todos
+serve_admin with db and todos
+
+note ---- three.js scene: describe in English, emit real three.js ----
+scene is three_scene
+geo is three_box with 1
+mat is three_material with "red"
+three_add_mesh with scene and "box" and geo and mat
+three_light with scene and "soft"
+three_spin with scene and "box"
+three_camera_at with scene and 0 and 1 and 6
+
+to scene_page with request
+    give back serve_scene with "Spinning Box" and scene
+
+serve_route with "GET /scene" and scene_page
+
+serve_start with 8080
