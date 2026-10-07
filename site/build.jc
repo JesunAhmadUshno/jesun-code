@@ -41,6 +41,7 @@ push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.3.0-frontend.
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.4.0-interop.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.5.0-sitegen.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v2.0.0-games.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
+push {"url": "https://jesunahmadushno.github.io/jesun-code/games/deepdelve.html", "changefreq": "monthly", "priority": "0.8"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v1.0.0-self-hosting.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.6.0-fleets.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
 push {"url": "https://jesunahmadushno.github.io/jesun-code/blog/v0.4.0-jpm-packages.html", "changefreq": "never", "priority": "0.7"} to sitemap_entries
