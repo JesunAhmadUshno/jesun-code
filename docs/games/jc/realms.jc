@@ -12,6 +12,43 @@ note animated color cycling. Anything fancier would need new driver primitives.
 G is a new table
 OUT is a new table
 
+note Logical sprite names. The driver resolves these through assets/atlas.json.
+note drawImage blits keep every gameplay system in pure Jesun.Code.
+SPR is a new table
+SPR["tile_wall"] is "tile_wall"
+SPR["tile_floor"] is "tile_floor"
+SPR["tile_grass"] is "tile_grass"
+SPR["tile_flowers"] is "tile_flowers"
+SPR["tile_tree_pine"] is "tile_tree_pine"
+SPR["tile_tree_round"] is "tile_tree_round"
+SPR["tile_water0"] is "tile_water0"
+SPR["tile_water1"] is "tile_water1"
+SPR["tile_path"] is "tile_path"
+SPR["tile_roof"] is "tile_roof"
+SPR["tile_housewall"] is "tile_housewall"
+SPR["tile_cave"] is "tile_cave"
+SPR["tile_gold"] is "tile_gold"
+SPR["tile_potion"] is "tile_potion"
+SPR["tile_bridge"] is "tile_bridge"
+SPR["tile_torch"] is "tile_torch"
+SPR["knight"] is "knight"
+SPR["goblin"] is "goblin"
+SPR["ogre"] is "ogre"
+SPR["warden"] is "warden"
+SPR["merchant"] is "merchant"
+SPR["elder"] is "elder"
+SPR["villager0"] is "villager0"
+SPR["villager1"] is "villager1"
+SPR["wanderer"] is "wanderer"
+SPR["rat"] is "rat"
+SPR["bat"] is "bat"
+SPR["well"] is "well"
+SPR["stairs_down"] is "stairs_down"
+SPR["stairs_sealed"] is "stairs_sealed"
+SPR["ladder"] is "ladder"
+SPR["shrine_might"] is "shrine_might"
+SPR["shrine_vitality"] is "shrine_vitality"
+
 to rnd with n
     note Park-Miller LCG. n must be a positive whole number.
     G["seed"] is (G["seed"] * 16807) % 2147483647
@@ -89,6 +126,13 @@ to seed_game with s
     G["pph"] is 0
     G["blessed"] is false
     G["parts"] is []
+    G["floaters"] is []
+    G["shake"] is 0
+    G["hitstop"] is 0
+    G["flash"] is 0
+    G["dying"] is 0
+    G["shx"] is 0
+    G["shy"] is 0
     G["enemies"] is []
     G["npcs"] is []
     G["items"] is []
@@ -103,6 +147,7 @@ to seed_game with s
     G["upy"] is 0 - 1
     G["locked"] is false
     G["mission"] is ""
+    G["quest"] is ""
     G["fdx"] is 1
     G["fdy"] is 0
     G["ptx"] is 15
@@ -507,6 +552,10 @@ to mk_enemy with et and x and y
     e["face"] is 1
     e["boss"] is false
     e["atkT"] is 0 - 999
+    e["flash"] is 0
+    e["kb"] is 0
+    e["kbx"] is 0
+    e["kby"] is 0
     G["eid"] is G["eid"] + 1
     e["id"] is G["eid"]
     d is G["depth"]
@@ -670,8 +719,10 @@ to gen_floor with d
             G["upy"] is s["y"]
     if isboss then
         G["mission"] is "Slay the Deep Warden, then take the stairs down."
+        G["quest"] is "Slay the Deep Warden"
     otherwise
         G["mission"] is "Find the stairs and descend."
+        G["quest"] is ""
     G["enemies"] is []
     ne is 4 + d * 2
     if ne is greater than 22 then
@@ -781,6 +832,25 @@ to press with k
 
 to tick
     G["tick"] is G["tick"] + 1
+    if G["hitstop"] is greater than 0 then
+        note Hit-stop: freeze frames on heavy hits. World holds, particles drift.
+        G["hitstop"] is G["hitstop"] - 1
+        tick_parts
+        tick_floaters
+        rebuild_dl
+        refresh_out
+        give back nothing
+    if G["dying"] is greater than 0 then
+        note Death delay: let the burst play before the YOU DIED overlay.
+        G["dying"] is G["dying"] - 1
+        tick_parts
+        tick_floaters
+        rebuild_dl
+        refresh_out
+        if G["dying"] is 0 then
+            G["over"] is true
+            refresh_out
+        give back nothing
     n is 0
     repeat while n is less than 3
         if length of G["queue"] is 0 then
@@ -799,6 +869,7 @@ to tick
     if G["over"] is false then
         enemy_ai
     tick_parts
+    tick_floaters
     rebuild_dl
     refresh_out
     give back nothing
@@ -948,6 +1019,12 @@ to fpp_step with amt
 to enter_stairs
     G["missions"] is G["missions"] + 1
     msg with "Mission complete. Descending..."
+    G["flash"] is 12
+    i is 0
+    repeat while i is less than 8
+        spawn_part with G["px"] and G["py"] and "ffffff" and 8
+        spawn_part with G["px"] and G["py"] and "ffd75e" and 8
+        i is i + 1
     gen_floor with G["depth"] + 1
     sync_fpp
     msg with "Depth " + (text of G["depth"]) + ". " + G["mission"]
@@ -998,10 +1075,35 @@ to try_move with dx and dy
 to player_attack with e
     r4 is rnd with 4
     dmg is G["atk"] + r4
+    crit is false
+    if r4 is 3 then
+        crit is true
+        dmg is ipart with (dmg * 3) / 2
     e["hp"] is e["hp"] - dmg
+    e["flash"] is 2
+    kbx is 0
+    if e["x"] is greater than G["px"] then
+        kbx is 2
+    otherwise if e["x"] is less than G["px"] then
+        kbx is 0 - 2
+    kby is 0
+    if e["y"] is greater than G["py"] then
+        kby is 2
+    otherwise if e["y"] is less than G["py"] then
+        kby is 0 - 2
+    e["kbx"] is kbx
+    e["kby"] is kby
+    e["kb"] is 3
     G["patk"] is G["tick"]
     spawn_part with e["x"] and e["y"] and "ffd75e" and 4
-    msg with "You hit the " + e["name"] + " for " + (text of dmg) + "."
+    if crit then
+        spawn_floater with e["x"] and e["y"] and ("CRIT " + (text of dmg)) and "ffd75e" and 22
+        G["shake"] is G["shake"] + 2
+        G["hitstop"] is 2
+        msg with "Critical hit! " + (text of dmg) + " to the " + e["name"] + "."
+    otherwise
+        spawn_floater with e["x"] and e["y"] and (text of dmg) and "ffffff" and 18
+        msg with "You hit the " + e["name"] + " for " + (text of dmg) + "."
     if e["hp"] is less than 1 then
         kill_enemy with e
     give back nothing
@@ -1021,7 +1123,15 @@ to kill_enemy with e
         loot is 60 + G["depth"] * 10
         G["locked"] is false
         G["mission"] is "Warden slain. Take the stairs down."
+        G["quest"] is ""
         G["missions"] is G["missions"] + 1
+        G["shake"] is 10
+        G["hitstop"] is 4
+        i is 0
+        repeat while i is less than 12
+            spawn_part with e["x"] and e["y"] and "ffd75e" and 12
+            i is i + 1
+        spawn_floater with e["x"] and e["y"] and ("+" + (text of loot) + " gold") and "ffd75e" and 26
         msg with "The Deep Warden falls. The stairs grind open."
         msg with "The Warden's hoard: +" + (text of loot) + " gold."
     otherwise
@@ -1032,10 +1142,18 @@ to kill_enemy with e
 to hurt_player with dmg and nm
     G["hp"] is G["hp"] - dmg
     spawn_part with G["px"] and G["py"] and "e03030" and 5
+    spawn_floater with G["px"] and G["py"] and (text of dmg) and "ff5a5a" and 18
+    G["shake"] is G["shake"] + 3
     msg with nm + " hits you for " + (text of dmg) + "."
     if G["hp"] is less than 1 then
         G["hp"] is 0
-        G["over"] is true
+        G["dying"] is 30
+        G["shake"] is 10
+        i is 0
+        repeat while i is less than 12
+            spawn_part with G["px"] and G["py"] and "ff5a5a" and 10
+            spawn_part with G["px"] and G["py"] and "ffffff" and 8
+            i is i + 1
         msg with "You died in the deep."
     give back nothing
 
@@ -1103,11 +1221,15 @@ to interact
         msg with "Nobody to talk to here."
         give back nothing
     if n["nkind"] is "elder" then
+        if G["blessed"] is false then
+            G["quest"] is "Bring Elder Marla 30 gold for her blessing"
         if G["blessed"] is false and G["gold"] is greater than 29 then
             G["gold"] is G["gold"] - 30
             G["atk"] is G["atk"] + 2
             G["blessed"] is true
+            G["quest"] is ""
             spawn_part with n["x"] and n["y"] and "ffe75a" and 8
+            spawn_floater with n["x"] and n["y"] and "Blessed! Atk +2" and "ffe75a" and 24
             msg with "Elder Marla accepts the offering and blesses your blade. Attack +2."
             give back nothing
         msg with "Elder Marla: " + npc_line with n
@@ -1143,25 +1265,33 @@ to take_item with it
     G["items"] is kept
     if it["kind"] is "gold" then
         G["gold"] is G["gold"] + it["amt"]
+        spawn_floater with G["px"] and G["py"] and ("+" + (text of it["amt"]) + " gold") and "ffd75e" and 20
         msg with "Picked up " + (text of it["amt"]) + " gold."
     otherwise if it["kind"] is "potion" then
         G["potions"] is G["potions"] + 1
+        spawn_floater with G["px"] and G["py"] and "+1 potion" and "7df0a8" and 20
         msg with "Found a healing potion. Press Q to drink."
     otherwise
         spawn_part with it["x"] and it["y"] and "4ae08a" and 7
         if it["boon"] is "might" then
             G["atk"] is G["atk"] + 2
+            spawn_floater with G["px"] and G["py"] and "Might +2" and "ff9a3c" and 20
             msg with "Shrine of Might: attack +2."
         otherwise
             G["maxhp"] is G["maxhp"] + 10
             G["hp"] is G["hp"] + 10
             if G["hp"] is greater than G["maxhp"] then
                 G["hp"] is G["maxhp"]
+            spawn_floater with G["px"] and G["py"] and "Vitality +10" and "ff9a3c" and 20
             msg with "Shrine of Vitality: max HP +10."
     give back nothing
 
 to enemy_ai
     for each e in G["enemies"]
+        if e["flash"] is greater than 0 then
+            e["flash"] is e["flash"] - 1
+        if e["kb"] is greater than 0 then
+            e["kb"] is e["kb"] - 1
         e["tick"] is e["tick"] + 1
         if e["tick"] is less than e["rate"] then
             skip
@@ -1283,6 +1413,34 @@ to tick_parts
     G["parts"] is np
     give back nothing
 
+to spawn_floater with tx and ty and txt and col and life
+    f is a new table
+    f["x"] is tx
+    f["y"] is ty
+    f["t"] is txt
+    f["c"] is col
+    f["l"] is life
+    f["m"] is life
+    fs is G["floaters"]
+    push f to fs
+    if length of fs is greater than 24 then
+        nf is []
+        i is 1
+        repeat while i is less than length of fs
+            push fs[i] to nf
+            i is i + 1
+        G["floaters"] is nf
+    give back nothing
+
+to tick_floaters
+    nf is []
+    for each f in G["floaters"]
+        f["l"] is f["l"] - 1
+        if f["l"] is greater than 0 then
+            push f to nf
+    G["floaters"] is nf
+    give back nothing
+
 note ---- display list ----
 
 to on_screen with x and y and camx and camy
@@ -1298,6 +1456,21 @@ to on_screen with x and y and camx and camy
 
 to rebuild_dl
     dl is []
+    if G["shake"] is greater than 0 then
+        note Deterministic camera shake from a tick hash. No RNG is burned.
+        h1 is (G["tick"] * 37 + 11) % 3
+        h2 is (G["tick"] * 53 + 29) % 3
+        G["shx"] is h1 - 1
+        G["shy"] is h2 - 1
+        if G["shake"] is greater than 4 then
+            h3 is (G["tick"] * 37 + 11) % 5
+            h4 is (G["tick"] * 53 + 29) % 5
+            G["shx"] is h3 - 2
+            G["shy"] is h4 - 2
+        G["shake"] is G["shake"] - 1
+    otherwise
+        G["shx"] is 0
+        G["shy"] is 0
     push ["clear", "0a0a0f"] to dl
     if G["mode"] is "fpp" then
         render_fpp with dl
@@ -1305,6 +1478,22 @@ to rebuild_dl
         render_over with dl
     otherwise
         render_top with dl
+    for each f in G["floaters"]
+        rise is ipart with (f["m"] - f["l"]) / 2
+        fy is f["y"] - rise
+        push ["text", f["x"] + G["shx"], fy + G["shy"], f["t"], f["c"], 8] to dl
+    hpf is (G["hp"] * 100) / G["maxhp"]
+    if hpf is less than 30 then
+        note Low-HP warning: red pulsing vignette border.
+        tm is G["tick"] % 8
+        pulse is 2 + ipart with tm / 4
+        push ["rect", 0, 0, 192, pulse, "c02020"] to dl
+        push ["rect", 0, 128 - pulse, 192, pulse, "c02020"] to dl
+        push ["rect", 0, 0, pulse, 128, "c02020"] to dl
+        push ["rect", 192 - pulse, 0, pulse, 128, "c02020"] to dl
+    if G["flash"] is greater than 0 then
+        G["flash"] is G["flash"] - 1
+        push ["rect", 0, 0, 192, 128, "ffffff"] to dl
     OUT["dl"] is dl
     give back nothing
 
@@ -1312,8 +1501,8 @@ to draw_parts_top with dl and camx and camy
     for each p in G["parts"]
         vis is on_screen with p["x"] and p["y"] and camx and camy
         if vis then
-            sx is (p["x"] - camx) * 8 + 3 + p["s"]
-            sy is (p["y"] - camy) * 8 + 2 + ((p["l"] + p["s"]) % 3)
+            sx is (p["x"] - camx) * 8 + 3 + p["s"] + G["shx"]
+            sy is (p["y"] - camy) * 8 + 2 + ((p["l"] + p["s"]) % 3) + G["shy"]
             push ["rect", sx, sy, 2, 2, p["c"]] to dl
     give back nothing
 
@@ -1327,14 +1516,15 @@ to render_top with dl
             mx is camx + tx
             my is camy + ty
             if G["grid"][my][mx] is 1 then
-                sx is tx * 8
-                sy is ty * 8
-                wc is "3d3d52"
-                if (mx + my + G["tick"]) % 2 is 1 then
-                    wc is "353548"
-                push ["rect", sx, sy, 8, 8, wc] to dl
+                sx is tx * 8 + G["shx"]
+                sy is ty * 8 + G["shy"]
+                push ["sprite", SPR["tile_wall"], sx, sy, 8, 8, 0, 0] to dl
                 if (mx * 3 + my * 5 + G["tick"]) % 7 is 0 then
                     push ["rect", sx + 3, sy + 2, 2, 2, "ffd75e"] to dl
+            otherwise
+                sx is tx * 8 + G["shx"]
+                sy is ty * 8 + G["shy"]
+                push ["sprite", SPR["tile_floor"], sx, sy, 8, 8, 0, 0] to dl
             tx is tx + 1
         ty is ty + 1
     if G["depth"] is 1 and G["upx"] is not 0 - 1 then
@@ -1354,109 +1544,91 @@ to draw_ladder with dl and camx and camy
     vis is on_screen with G["upx"] and G["upy"] and camx and camy
     if vis is false then
         give back nothing
-    sx is (G["upx"] - camx) * 8
-    sy is (G["upy"] - camy) * 8
-    push ["rect", sx + 1, sy + 0, 2, 8, "8a6a2a"] to dl
-    push ["rect", sx + 5, sy + 0, 2, 8, "8a6a2a"] to dl
-    push ["rect", sx + 1, sy + 2, 6, 1, "c8a02a"] to dl
-    push ["rect", sx + 1, sy + 5, 6, 1, "c8a02a"] to dl
+    sx is (G["upx"] - camx) * 8 + G["shx"]
+    sy is (G["upy"] - camy) * 8 + G["shy"]
+    push ["sprite", SPR["ladder"], sx, sy, 8, 8, 0, 0] to dl
     give back nothing
 
 to draw_stairs with dl and camx and camy
     vis is on_screen with G["sx"] and G["sy"] and camx and camy
     if vis is false then
         give back nothing
-    sx is (G["sx"] - camx) * 8
-    sy is (G["sy"] - camy) * 8
-    c is "8a6a2a"
+    sx is (G["sx"] - camx) * 8 + G["shx"]
+    sy is (G["sy"] - camy) * 8 + G["shy"]
+    nm is SPR["stairs_down"]
     if G["locked"] then
-        c is "5a2a2a"
-    push ["rect", sx + 1, sy + 1, 6, 6, c] to dl
-    push ["rect", sx + 3, sy + 3, 2, 2, "0a0a0f"] to dl
+        nm is SPR["stairs_sealed"]
+    push ["sprite", nm, sx, sy, 8, 8, 0, 0] to dl
     give back nothing
 
 to draw_item with dl and it and camx and camy
     vis is on_screen with it["x"] and it["y"] and camx and camy
     if vis is false then
         give back nothing
-    sx is (it["x"] - camx) * 8
-    sy is (it["y"] - camy) * 8
+    sx is (it["x"] - camx) * 8 + G["shx"]
+    sy is (it["y"] - camy) * 8 + G["shy"]
     bob is (G["tick"] + it["id"]) % 2
     if it["kind"] is "gold" then
-        push ["circle", sx + 3, sy + 6, 2, "b8860b"] to dl
-        push ["circle", sx + 5, sy + 6, 2, "b8860b"] to dl
-        push ["circle", sx + 4, sy + 4 - bob, 2, "ffd75e"] to dl
-        push ["rect", sx + 6, sy + 2 - bob, 1, 1, "ffffff"] to dl
+        push ["sprite", SPR["tile_gold"], sx, sy - bob, 8, 8, 0, 0] to dl
     otherwise if it["kind"] is "potion" then
-        push ["rect", sx + 2, sy + 3, 4, 5, "8f1438"] to dl
-        push ["rect", sx + 3, sy + 5, 2, 2, "e03060"] to dl
-        push ["rect", sx + 3, sy + 1, 2, 2, "6e0f2c"] to dl
-        push ["rect", sx + 3, sy + 0, 2, 1, "c8961e"] to dl
-        push ["rect", sx + 2, sy + 4, 1, 3, "ffffff"] to dl
+        push ["sprite", SPR["tile_potion"], sx, sy - bob, 8, 8, 0, 0] to dl
     otherwise
-        push ["rect", sx + 1, sy + 6, 6, 2, "54546a"] to dl
-        push ["rect", sx + 3, sy + 3, 2, 3, "45455a"] to dl
-        glow is "ff9a3a"
+        nm is SPR["shrine_might"]
         if it["boon"] is "vitality" then
-            glow is "4ae08a"
+            nm is SPR["shrine_vitality"]
+        push ["sprite", nm, sx, sy, 8, 8, 0, 0] to dl
         if (G["tick"] + it["id"]) % 4 is less than 2 then
-            push ["rect", sx + 3, sy + 0, 2, 3, glow] to dl
-        otherwise
-            push ["rect", sx + 3, sy + 0, 2, 3, "ffffff"] to dl
-        push ["rect", sx + 3, sy + 1, 2, 1, "ffffff"] to dl
+            push ["rect", sx + 3, sy + 1, 2, 1, "ffffff"] to dl
     give back nothing
 
 to draw_npc with dl and n and camx and camy
     vis is on_screen with n["x"] and n["y"] and camx and camy
     if vis is false then
         give back nothing
-    sx is (n["x"] - camx) * 8
-    sy is (n["y"] - camy) * 8
+    sx is (n["x"] - camx) * 8 + G["shx"]
+    sy is (n["y"] - camy) * 8 + G["shy"]
     idle is (G["tick"] + n["ph"]) % 4
     bob is 0
     if idle is 3 then
         bob is 1
+    nm is SPR["wanderer"]
     if n["nkind"] is "merchant" then
-        push ["rect", sx + 2, sy + 3, 4, 5, "6a3a7a"] to dl
-        push ["rect", sx + 2, sy + 2 - bob, 4, 2, "f0c090"] to dl
-        push ["rect", sx + 1, sy + 1 - bob, 6, 1, "3f2547"] to dl
-        push ["rect", sx + 3, sy + 0 - bob, 2, 1, "3f2547"] to dl
-        push ["rect", sx + 0, sy + 4, 2, 2, "c8a02a"] to dl
+        nm is SPR["merchant"]
     otherwise if n["nkind"] is "elder" then
-        push ["rect", sx + 2, sy + 3, 4, 5, "8a6a2a"] to dl
-        push ["rect", sx + 2, sy + 2 - bob, 4, 2, "f0d0a0"] to dl
-        push ["rect", sx + 1, sy + 0 - bob, 6, 1, "5a4a1a"] to dl
-        push ["line", sx + 6, sy + 1 - bob, sx + 6, sy + 8, "7a5a2a"] to dl
-        push ["circle", sx + 6, sy + 0 - bob, 1, "ffe75a"] to dl
+        nm is SPR["elder"]
     otherwise if n["nkind"] is "villager" then
-        push ["rect", sx + 2, sy + 3, 4, 5, "3a7a5a"] to dl
-        push ["rect", sx + 2, sy + 2 - bob, 4, 2, "f0c090"] to dl
-        push ["rect", sx + 2, sy + 1 - bob, 4, 1, "2a5a3a"] to dl
-    otherwise
-        push ["rect", sx + 2, sy + 2, 4, 6, "2f5a7a"] to dl
-        push ["rect", sx + 2, sy + 0 - bob, 4, 1, "1f3a5a"] to dl
-        push ["rect", sx + 2, sy + 1 - bob, 4, 1, "f0c090"] to dl
-        push ["line", sx + 6, sy + 0 - bob, sx + 6, sy + 8, "7a5a2a"] to dl
-        push ["rect", sx + 5, sy + 0 - bob, 2, 1, "8fd6ff"] to dl
+        nm is SPR["villager0"]
+        if n["ph"] % 2 is 1 then
+            nm is SPR["villager1"]
+    push ["sprite", nm, sx, sy - bob, 8, 8, 0, 0] to dl
     give back nothing
 
 to draw_enemy with dl and e and camx and camy
     vis is on_screen with e["x"] and e["y"] and camx and camy
     if vis is false then
         give back nothing
-    sx is (e["x"] - camx) * 8
-    sy is (e["y"] - camy) * 8
+    sx is (e["x"] - camx) * 8 + G["shx"]
+    sy is (e["y"] - camy) * 8 + G["shy"]
+    if e["kb"] is greater than 0 then
+        sx is sx + e["kbx"]
+        sy is sy + e["kby"]
+    fl is 0
+    if e["flash"] is greater than 0 then
+        fl is 1
+    face is 0
+    if G["px"] is less than e["x"] then
+        face is 1
     t is e["type"]
+    nm is SPR["goblin"]
     if t is "rat" then
-        draw_rat with dl and sx and sy and e
+        nm is SPR["rat"]
     otherwise if t is "bat" then
-        draw_bat with dl and sx and sy and e
-    otherwise if t is "goblin" then
-        draw_goblin with dl and sx and sy and e
+        nm is SPR["bat"]
     otherwise if t is "ogre" then
-        draw_ogre with dl and sx and sy and e
-    otherwise
-        draw_warden with dl and sx and sy and e
+        nm is SPR["ogre"]
+    otherwise if t is "warden" then
+        nm is SPR["warden"]
+    push ["sprite", nm, sx, sy, 8, 8, face, fl] to dl
     lunging is false
     if G["tick"] - e["atkT"] is less than 2 then
         lunging is true
@@ -1470,67 +1642,18 @@ to draw_enemy with dl and e and camx and camy
     give back nothing
 
 to draw_rat with dl and sx and sy and e
-    hop is (e["ph"] + G["tick"]) % 2
-    push ["rect", sx + 1, sy + 3 + hop, 5, 3, "9a9a8a"] to dl
-    push ["rect", sx + 5, sy + 2 + hop, 2, 2, "9a9a8a"] to dl
-    push ["rect", sx + 5, sy + 1 + hop, 1, 1, "9a9a8a"] to dl
-    push ["line", sx + 1, sy + 4, sx - 1, sy + 6, "8a8a7a"] to dl
-    push ["rect", sx + 6, sy + 2 + hop, 1, 1, "e03030"] to dl
-    if hop is 0 then
-        push ["rect", sx + 2, sy + 6, 1, 2, "7a7a6a"] to dl
-        push ["rect", sx + 4, sy + 5, 1, 2, "7a7a6a"] to dl
-    otherwise
-        push ["rect", sx + 2, sy + 5, 1, 2, "7a7a6a"] to dl
-        push ["rect", sx + 4, sy + 6, 1, 2, "7a7a6a"] to dl
     give back nothing
 
 to draw_bat with dl and sx and sy and e
-    flap is (G["tick"] + e["ph"]) % 2
-    push ["rect", sx + 3, sy + 3, 2, 3, "7a6ae0"] to dl
-    push ["rect", sx + 3, sy + 2, 2, 1, "7a6ae0"] to dl
-    if flap is 0 then
-        push ["rect", sx + 0, sy + 1, 3, 2, "4a3ed0"] to dl
-        push ["rect", sx + 5, sy + 1, 3, 2, "4a3ed0"] to dl
-    otherwise
-        push ["rect", sx + 0, sy + 4, 3, 2, "4a3ed0"] to dl
-        push ["rect", sx + 5, sy + 4, 3, 2, "4a3ed0"] to dl
-    push ["rect", sx + 3, sy + 2, 1, 1, "ff5a5a"] to dl
     give back nothing
 
 to draw_goblin with dl and sx and sy and e
-    step is (e["ph"] + G["tick"]) % 2
-    push ["rect", sx + 2, sy + 6 + step, 2, 2, "3a5a2a"] to dl
-    push ["rect", sx + 4, sy + 6 + (1 - step), 2, 2, "3a5a2a"] to dl
-    push ["rect", sx + 2, sy + 3, 4, 3, "4ae08a"] to dl
-    push ["rect", sx + 2, sy + 1, 4, 2, "7ae09a"] to dl
-    push ["rect", sx + 0, sy + 1, 2, 1, "7ae09a"] to dl
-    push ["rect", sx + 6, sy + 1, 2, 1, "7ae09a"] to dl
-    push ["rect", sx + 6, sy + 4, 2, 1, "dfe6f5"] to dl
-    push ["rect", sx + 3, sy + 1, 1, 1, "101010"] to dl
     give back nothing
 
 to draw_ogre with dl and sx and sy and e
-    step is (e["ph"] + G["tick"]) % 2
-    push ["rect", sx + 1, sy + 6 + step, 3, 2, "5a4a3a"] to dl
-    push ["rect", sx + 4, sy + 6 + (1 - step), 3, 2, "5a4a3a"] to dl
-    push ["rect", sx + 0, sy + 2, 8, 4, "8a6a4a"] to dl
-    push ["rect", sx + 2, sy + 0, 4, 2, "a07a52"] to dl
-    push ["rect", sx + 7, sy + 1, 2, 4, "7a5a2a"] to dl
-    push ["rect", sx + 3, sy + 0, 1, 1, "101010"] to dl
     give back nothing
 
 to draw_warden with dl and sx and sy and e
-    pulse is (G["tick"] + e["ph"]) % 4
-    ec is "ff2a2a"
-    if pulse is 2 then
-        ec is "ff8a8a"
-    push ["rect", sx + 1, sy - 2, 6, 10, "14141e"] to dl
-    push ["rect", sx + 2, sy - 1, 4, 8, "23232f"] to dl
-    push ["rect", sx + 1, sy - 2, 6, 3, "0a0a10"] to dl
-    push ["rect", sx + 2, sy - 1, 2, 1, ec] to dl
-    push ["rect", sx + 4, sy - 1, 2, 1, ec] to dl
-    push ["rect", sx + 0, sy + 4, 1, 2, "cfd6e4"] to dl
-    push ["rect", sx + 7, sy + 4, 1, 2, "cfd6e4"] to dl
     give back nothing
 
 to pmx with sx and o and w
@@ -1539,18 +1662,12 @@ to pmx with sx and o and w
     give back sx + 8 - o - w
 
 to draw_player with dl and camx and camy
-    sx is (G["px"] - camx) * 8
-    sy is (G["py"] - camy) * 8
-    step is G["pph"] % 2
-    push ["rect", sx + 1, sy + 0, 6, 2, "9a9ab0"] to dl
-    push ["rect", sx + 2, sy + 2, 4, 2, "f0c090"] to dl
-    push ["rect", sx + 1, sy + 4, 6, 2, "2a6ae0"] to dl
-    if step is 0 then
-        push ["rect", sx + 2, sy + 6, 2, 2, "3a3a5a"] to dl
-        push ["rect", sx + 4, sy + 7, 2, 1, "3a3a5a"] to dl
-    otherwise
-        push ["rect", sx + 2, sy + 7, 2, 1, "3a3a5a"] to dl
-        push ["rect", sx + 4, sy + 6, 2, 2, "3a3a5a"] to dl
+    sx is (G["px"] - camx) * 8 + G["shx"]
+    sy is (G["py"] - camy) * 8 + G["shy"]
+    face is 0
+    if G["pface"] is 0 then
+        face is 1
+    push ["sprite", SPR["knight"], sx, sy, 8, 8, face, 0] to dl
     recent is false
     if G["tick"] - G["patk"] is less than 2 then
         recent is true
@@ -1558,38 +1675,27 @@ to draw_player with dl and camx and camy
         bx is pmx with sx and 7 and 6
         push ["rect", bx, sy + 3, 6, 1, "dfe6f5"] to dl
         push ["rect", bx, sy + 2, 2, 1, "ffffff"] to dl
-    otherwise
-        bx is pmx with sx and 6 and 2
-        push ["rect", bx, sy + 4, 2, 1, "dfe6f5"] to dl
     give back nothing
 
 to draw_terrain with dl and c and sx and sy and mx and my
+    shx is G["shx"]
+    shy is G["shy"]
     if c is 0 then
-        gc is "2a4a2a"
-        if (mx + my) % 2 is 1 then
-            gc is "264026"
-        push ["rect", sx, sy, 8, 8, gc] to dl
+        push ["sprite", SPR["tile_grass"], sx + shx, sy + shy, 8, 8, 0, 0] to dl
     otherwise if c is 6 then
-        push ["rect", sx, sy, 8, 8, "2a4a2a"] to dl
-        push ["rect", sx + 2, sy + 3, 1, 1, "ff6aff"] to dl
-        push ["rect", sx + 5, sy + 5, 1, 1, "ffe75a"] to dl
+        push ["sprite", SPR["tile_flowers"], sx + shx, sy + shy, 8, 8, 0, 0] to dl
     otherwise if c is 3 then
-        pc is "6a5a3a"
-        if (mx + my) % 2 is 1 then
-            pc is "655636"
-        push ["rect", sx, sy, 8, 8, pc] to dl
+        push ["sprite", SPR["tile_path"], sx + shx, sy + shy, 8, 8, 0, 0] to dl
     otherwise if c is 1 then
-        push ["rect", sx, sy, 8, 8, "22401f"] to dl
-        push ["rect", sx + 3, sy + 5, 2, 3, "5a3a1a"] to dl
-        push ["rect", sx + 1, sy + 0, 6, 4, "1e6a1e"] to dl
-        push ["rect", sx + 2, sy + 1, 4, 2, "2a8a2a"] to dl
+        tn is SPR["tile_tree_pine"]
+        if (mx + my) % 2 is 1 then
+            tn is SPR["tile_tree_round"]
+        push ["sprite", tn, sx + shx, sy + shy, 8, 8, 0, 0] to dl
     otherwise if c is 2 then
-        wc is "1a4a8a"
-        if (mx + G["tick"]) % 2 is 0 then
-            wc is "2a5aaa"
-        push ["rect", sx, sy, 8, 8, wc] to dl
-        if (mx + G["tick"]) % 4 is 0 then
-            push ["rect", sx + 1, sy + 2, 6, 1, "8fd6ff"] to dl
+        wn is SPR["tile_water0"]
+        if (mx + G["tick"]) % 4 is less than 2 then
+            wn is SPR["tile_water1"]
+        push ["sprite", wn, sx + shx, sy + shy, 8, 8, 0, 0] to dl
     otherwise if c is 4 then
         roof is false
         if my is 0 then
@@ -1597,25 +1703,15 @@ to draw_terrain with dl and c and sx and sy and mx and my
         otherwise if G["grid"][my - 1][mx] is not 4 then
             roof is true
         if roof then
-            push ["rect", sx, sy, 8, 8, "a03a2a"] to dl
-            push ["rect", sx, sy + 6, 8, 2, "7a2a1e"] to dl
+            push ["sprite", SPR["tile_roof"], sx + shx, sy + shy, 8, 8, 0, 0] to dl
         otherwise
-            push ["rect", sx, sy, 8, 8, "7a6a5a"] to dl
-            push ["rect", sx + 3, sy + 3, 2, 2, "ffe75a"] to dl
-            push ["rect", sx, sy + 7, 8, 1, "5a4a3a"] to dl
+            push ["sprite", SPR["tile_housewall"], sx + shx, sy + shy, 8, 8, 0, 0] to dl
     otherwise if c is 5 then
-        push ["rect", sx + 1, sy + 1, 6, 6, "5a5a6a"] to dl
-        wob is (G["tick"]) % 4
-        wcol is "1a4a8a"
-        if wob is 2 then
-            wcol is "2a5aaa"
-        push ["rect", sx + 2, sy + 2, 4, 4, wcol] to dl
-        push ["rect", sx + 1, sy + 1, 6, 1, "7a7a8a"] to dl
+        push ["sprite", SPR["well"], sx + shx, sy + shy, 8, 8, 0, 0] to dl
     otherwise
-        push ["rect", sx, sy, 8, 8, "2a2a33"] to dl
-        push ["rect", sx + 2, sy + 3, 4, 5, "050508"] to dl
-        push ["rect", sx + 1, sy + 1, 6, 2, "3a3a4a"] to dl
+        push ["sprite", SPR["tile_cave"], sx + shx, sy + shy, 8, 8, 0, 0] to dl
     give back nothing
+
 
 to render_over with dl
     camx is clamp with G["px"] - 12 and 0 and 36
@@ -1649,7 +1745,44 @@ note 128 / perpendicular-distance, shaded by distance band and wall side.
 note Sprites are billboarded: project to camera space, sort far to near,
 note test the center column against the ray depth buffer, draw shaded rects.
 
-to cast_one with ox and oy and rdx and rdy and zb
+to tex_col with t
+    note Fast texture column 0-15 from t in [-16, 16]. Binary range reduction,
+    note no slow ipart loops. Caller clamps t; far walls are too dark to show detail.
+    s is 0.5 + t
+    s2 is s + 32
+    if s2 is greater than 31 then
+        s2 is s2 - 32
+    if s2 is greater than 15 then
+        s2 is s2 - 16
+    if s2 is greater than 7 then
+        s2 is s2 - 8
+    if s2 is greater than 3 then
+        s2 is s2 - 4
+    if s2 is greater than 1 then
+        s2 is s2 - 2
+        if s2 is greater than 1 then
+            s2 is s2 - 1
+    if s2 is 1 then
+        s2 is 0
+    if s2 is less than 0 then
+        s2 is s2 + 1
+    note s2 is now frac(s) in [0, 1).
+    v is s2 * 16
+    texx is 0
+    if v is greater than 7 then
+        texx is 8
+        v is v - 8
+    if v is greater than 3 then
+        texx is texx + 4
+        v is v - 4
+    if v is greater than 1 then
+        texx is texx + 2
+        v is v - 2
+        if v is greater than 1 then
+            texx is texx + 1
+    give back texx
+
+to cast_one with ox and oy and rdx and rdy and zb and xb
     mx is G["ptx"]
     my is G["pty"]
     ax is absv with rdx
@@ -1697,6 +1830,23 @@ to cast_one with ox and oy and rdx and rdy and zb
     if depth is less than 0.15 then
         depth is 0.15
     push depth to zb
+    note Texture column via fast binary frac. Far walls clamp; detail invisible there.
+    if side is 0 then
+        t is depth * rdy
+    otherwise
+        t is depth * rdx
+    if t is greater than 16 then
+        t is 16
+    if t is less than 0 - 16 then
+        t is 0 - 16
+    texx is tex_col with t
+    if side is 0 then
+        if rdx is greater than 0 then
+            texx is 15 - texx
+    otherwise
+        if rdy is less than 0 then
+            texx is 15 - texx
+    push texx to xb
     give back side
 
 to wall_col with depth and side
@@ -1747,6 +1897,36 @@ to sprite_cols with tag and ref and d
     if ref["boon"] is "vitality" then
         give back ["4ae08a", "2a6a4a"]
     give back ["ff9a3a", "8a5a1a"]
+
+to fpp_spr_name with tag and ref
+    if tag is "e" then
+        t is ref["type"]
+        if t is "rat" then
+            give back SPR["rat"]
+        otherwise if t is "bat" then
+            give back SPR["bat"]
+        otherwise if t is "goblin" then
+            give back SPR["goblin"]
+        otherwise if t is "ogre" then
+            give back SPR["ogre"]
+        give back SPR["warden"]
+    if tag is "n" then
+        nk is ref["nkind"]
+        if nk is "merchant" then
+            give back SPR["merchant"]
+        otherwise if nk is "elder" then
+            give back SPR["elder"]
+        otherwise if nk is "villager" then
+            give back SPR["villager0"]
+        give back SPR["wanderer"]
+    k is ref["kind"]
+    if k is "gold" then
+        give back SPR["tile_gold"]
+    if k is "potion" then
+        give back SPR["tile_potion"]
+    if ref["boon"] is "vitality" then
+        give back SPR["shrine_vitality"]
+    give back SPR["shrine_might"]
 
 to draw_fpp_sprites with dl and zb and ox and oy
     fdx is G["fdx"]
@@ -1808,8 +1988,8 @@ to draw_fpp_sprites with dl and zb and ox and oy
         if y0 is less than 0 then
             y0 is 0
         cols is sprite_cols with s[1] and s[2] and d
-        push ["rect", x0, y0, wi, hi, cols[0]] to dl
-        push ["rect", x0, y0, wi, ipart with (h * 0.3), cols[1]] to dl
+        nm is fpp_spr_name with s[1] and s[2]
+        push ["sprite", nm, x0 + G["shx"], y0 + G["shy"], wi, hi, 0, 0] to dl
     give back nothing
 
 to draw_fpp_parts with dl and zb and ox and oy
@@ -1856,9 +2036,10 @@ to render_fpp with dl
     rdx is fdx * 0.83867 + fdy * 0.54464
     rdy is (0 - fdx) * 0.54464 + fdy * 0.83867
     zb is []
+    xb is []
     i is 0
     repeat while i is less than 48
-        side is cast_one with ox and oy and rdx and rdy and zb
+        side is cast_one with ox and oy and rdx and rdy and zb and xb
         dist is zb[i]
         wh is 128 / dist
         if wh is greater than 128 then
@@ -1870,8 +2051,12 @@ to render_fpp with dl
             y1 is 128
         hh is y1 - y0
         if hh is greater than 0 then
-            col is wall_col with dist and side
-            push ["rect", i * 4, y0, 4, hh, col] to dl
+            shade is 1 - dist / 14
+            if shade is less than 0.15 then
+                shade is 0.15
+            if side is 1 then
+                shade is shade * 0.7
+            push ["slice", SPR["tile_wall"], xb[i], i * 4 + G["shx"], y0 + G["shy"], hh, shade] to dl
         nrx is rdx * 0.99970 - rdy * 0.02450
         nrdy is rdx * 0.02450 + rdy * 0.99970
         rdx is nrx
@@ -1879,8 +2064,8 @@ to render_fpp with dl
         i is i + 1
     draw_fpp_sprites with dl and zb and ox and oy
     draw_fpp_parts with dl and zb and ox and oy
-    push ["rect", 94, 116, 4, 12, "9a9ab0"] to dl
-    push ["rect", 93, 112, 6, 4, "dfe6f5"] to dl
+    push ["rect", 94 + G["shx"], 116 + G["shy"], 4, 12, "9a9ab0"] to dl
+    push ["rect", 93 + G["shx"], 112 + G["shy"], 6, 4, "dfe6f5"] to dl
     give back nothing
 
 to refresh_out
@@ -1896,6 +2081,18 @@ to refresh_out
         dep is 1
     hud["score"] is G["gold"] + ((dep - 1) * 100) + (G["kills"] * 10)
     hud["mission"] is G["mission"]
+    hud["quest"] is G["quest"]
+    bb is 0
+    bbm is 1
+    bbn is ""
+    for each e in G["enemies"]
+        if e["boss"] then
+            bb is e["hp"]
+            bbm is e["maxhp"]
+            bbn is e["name"]
+    hud["bosshp"] is bb
+    hud["bossmax"] is bbm
+    hud["bossname"] is bbn
     hud["mode"] is G["mode"]
     hud["diff"] is G["dname"]
     if G["map"] is "over" then
