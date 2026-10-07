@@ -441,6 +441,9 @@ to handle_key with k
     if k is " " then
         attack_all
         give back nothing
+    if k is "space" then
+        attack_all
+        give back nothing
     if k is "e" then
         interact
         give back nothing
