@@ -602,6 +602,77 @@ function drawWarden(x, y, ph){
   }
   ctx.restore();
 }
+/* ---- item elements: designed, animated sprites ---- */
+function drawGold(x, y){
+  ctx.save(); ctx.translate(x, y+5);
+  function coin(cx, cy, r){
+    ctx.fillStyle = '#b8860b';
+    ctx.beginPath(); ctx.ellipse(cx,cy,r,r*0.72,0,0,7); ctx.fill();
+    ctx.fillStyle = '#ffd75e';
+    ctx.beginPath(); ctx.ellipse(cx,cy-1.5,r*0.78,r*0.55,0,0,7); ctx.fill();
+    ctx.fillStyle = '#fff2b8';
+    ctx.beginPath(); ctx.ellipse(cx-2,cy-2.5,r*0.28,r*0.18,0,0,7); ctx.fill();
+  }
+  coin(-6,4,7); coin(6,4,7); coin(0,0,7); coin(0,-5,6);
+  var tw = Math.sin(animNow/280);
+  if(tw>0.25){
+    var sx=9, sy=-9, a=0.35+tw*0.5;
+    ctx.fillStyle = 'rgba(255,255,255,'+a.toFixed(2)+')';
+    ctx.beginPath();
+    ctx.moveTo(sx,sy-5); ctx.lineTo(sx+1.5,sy-1.5); ctx.lineTo(sx+5,sy);
+    ctx.lineTo(sx+1.5,sy+1.5); ctx.lineTo(sx,sy+5); ctx.lineTo(sx-1.5,sy+1.5);
+    ctx.lineTo(sx-5,sy); ctx.lineTo(sx-1.5,sy-1.5);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawPotion(x, y){
+  ctx.save(); ctx.translate(x, y+Math.sin(animNow/500)*1.5);
+  ctx.fillStyle = '#8f1438';
+  ctx.beginPath(); ctx.ellipse(0,5,8.5,9,0,0,7); ctx.fill();
+  ctx.fillStyle = '#e03060';
+  ctx.beginPath(); ctx.ellipse(0,6,6.5,6.5,0,0,7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath(); ctx.ellipse(-3.5,2,2,5,0.3,0,7); ctx.fill();
+  var bt = (animNow/700)%1;
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.beginPath(); ctx.arc(-1, 9-bt*11, 1.6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, 10-((bt+0.5)%1)*11, 1.2, 0, 7); ctx.fill();
+  ctx.fillStyle = '#6e0f2c';
+  ctx.fillRect(-3,-7,6,6);
+  ctx.fillStyle = '#c8961e';
+  ctx.fillRect(-3.5,-10,7,4);
+  ctx.fillStyle = '#8a6a1e';
+  ctx.fillRect(-3.5,-10,7,1.5);
+  ctx.restore();
+}
+function drawShrine(x, y, boon){
+  var glow = boon==='might' ? '#ff9a3a' : '#4ae08a';
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = '#3f3f52';
+  ctx.beginPath(); ctx.ellipse(0,11,13,5,0,0,7); ctx.fill();
+  ctx.fillStyle = '#54546a';
+  ctx.fillRect(-8,1,16,10);
+  ctx.fillStyle = '#33333f';
+  ctx.fillRect(-8,1,16,2.5);
+  ctx.fillStyle = '#45455a';
+  ctx.fillRect(-5,4,3,7);
+  ctx.fillRect(2,4,3,7);
+  var fy = -9+Math.sin(animNow/450)*3;
+  var pulse = 0.35+Math.abs(Math.sin(animNow/350))*0.35;
+  ctx.globalAlpha = pulse;
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(0,fy,14,0,7); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.moveTo(0,fy-9); ctx.lineTo(6,fy); ctx.lineTo(0,fy+9); ctx.lineTo(-6,fy); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath(); ctx.moveTo(0,fy-9); ctx.lineTo(2.5,fy-1); ctx.lineTo(0,fy+9); ctx.lineTo(-2.5,fy-1); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = glow; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7;
+  ctx.beginPath(); ctx.ellipse(0,fy,10,4,0,0,7); ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
 /* ---- rendering ---- */
 var TILE_COLORS = { floor:'#1b1b24', floor2:'#202029', wall:'#3d3d52', wallTop:'#55556e' };
 function draw(){
@@ -634,12 +705,13 @@ function draw(){
   ctx.fillRect(sp.x+4,sp.y+4,TILE-8,TILE-8);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 20px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText('>', sp.x+TILE/2, sp.y+TILE/2+1);
-  /* items */
+  /* items: designed, animated elements */
   for(var i=0;i<st.items.length;i++){
     var it=st.items[i], ip=scr(it.x,it.y);
-    if(it.kind==='gold'){ ctx.fillStyle='#ffd75e'; ctx.beginPath(); ctx.arc(ip.x+TILE/2,ip.y+TILE/2,7,0,7); ctx.fill(); }
-    else if(it.kind==='potion'){ ctx.fillStyle='#e03060'; ctx.fillRect(ip.x+11,ip.y+8,10,16); ctx.fillStyle='#fff'; ctx.fillRect(ip.x+13,ip.y+5,6,4); }
-    else { ctx.fillStyle='#8fd6ff'; ctx.beginPath(); ctx.arc(ip.x+TILE/2,ip.y+TILE/2,9,0,7); ctx.fill(); ctx.fillStyle='#0a0a0f'; ctx.font='bold 14px monospace'; ctx.fillText('+',ip.x+TILE/2,ip.y+TILE/2+1); }
+    var icx=ip.x+TILE/2, icy=ip.y+TILE/2;
+    if(it.kind==='gold') drawGold(icx, icy);
+    else if(it.kind==='potion') drawPotion(icx, icy);
+    else drawShrine(icx, icy, it.boon);
   }
   /* NPC bots: animated wanderers and merchants */
   for(var n=0;n<st.npcs.length;n++){
