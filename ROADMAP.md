@@ -39,17 +39,24 @@ America/Toronto.
   section 9.7; `tests/check_classification.py` enforces the tagging).
   The victory condition of the grind; the Python implementation is now
   the bootstrap only.
+- **v1.1.0 (2026-09-26): NATIVE.** `jesun build` transpiles Jesun.Code
+  to C11 and compiles real native binaries with `cc`, no bundled
+  runtime. 48/48 build tests; 413 tests green full suite.
+- **v1.2.0 (2026-09-26): jweb.** Native web framework in Jesun.Code:
+  HTTP server, routing, sessions, sqlite (parameterized queries,
+  plain-English errors). 463 tests green.
 
 
 ## Up next (in order, no skipping)
 
-- **v1.1: native (IN PROGRESS, not shipped).** A `jesun build` command
-  producing real native binaries (transpile Jesun.Code to C, compile
-  with cc). No bundled runtime. Spec: `docs/spec-v1.1.md`. The core
-  language, decisions, loops, functions (including closures), lists,
-  text, and files build natively today; unsupported features fail at
-  build time with plain-English errors. Until v1.1 ships green, releases
-  remain honestly described as runtime-bundled.
+- **v3.0: Serve (IN PROGRESS).** A full-stack web framework written in
+  Jesun.Code itself: Route, Page, Island, Table + admin (M2), live
+  views over SSE and 3D scenes (M3), fenced POST /run playground API
+  (M4), deployment package (playground.jc + Dockerfile + fly.toml).
+  Spec `docs/spec-serve.md` (founder-approved 2026-09-30). M4's 7-day
+  soak runs on the founder's laptop (hosting revised 2026-10-01); the
+  v3.0.0 release ships only on soak numbers (spec section 11). Soak
+  and release are founder-blocked, see below.
 
 ## The founder's law (2026-09-25): one language, all solutions
 
@@ -102,10 +109,14 @@ its milestone ships green.
 
 ## Blocked on the founder (not worked around)
 
-1. A real LLM for `JESUNCODE_AI_COMMAND` (his call which provider) to
-   dogfood `ask ai` against a true model.
-2. A real LLM for `JESUNCODE_AI_COMMAND` (his call which provider) to
-   dogfood `ask ai` against a true model.
+1. [CLEARED 2026-09-25] A real LLM for `JESUNCODE_AI_COMMAND`: Gemini
+   connected via the secure connector and verified live end-to-end
+   through the interpreter (ask ai, streaming, agent with persistent
+   memory). Pollinations ships keyless for end users. No longer
+   blocking.
+2. v3.0 M4: the 7-day dogfood soak runs on the founder's laptop (his
+   tap starts the clock); the v3.0.0 release is gated on soak numbers
+   per `docs/spec-serve.md` section 11.
 
 ## Dated amendments (append-only; newest last)
 
@@ -124,3 +135,21 @@ its milestone ships green.
   all 5 routes 200, timeout enforced at 5s, network cut confirmed).
   M4's 7-day soak still needs the founder's hosting decision
   before its clock can start.
+- 2026-10-01: v3.0 M4 hosting REVISED by the founder (supersedes the
+  separate-host note): the dogfood soak starts LOCAL on his laptop;
+  the public cloud host (his pick: Railway) is deferred, not
+  cancelled. The 7-day soak and the v3.0.0 release stay gated on his
+  tap and on soak numbers per spec section 11.
+- 2026-10-04: test count 711/711 at 93a5165 (full suite green); the
+  live site shows v2.0.0 with v3.0 Serve in progress. The platform
+  campaign's Serve framework checkpoint fixes (jweb_rotate_session,
+  404 XSS escape, serve_live draft preservation, sitegen escaping)
+  sit uncommitted in the worktree; adoption needs that campaign's
+  handover and is not taken up here.
+- 2026-10-06/07: the grind stood down on the 90%+ weekly Power
+  budget hold per the standing guardrail (no ladder work, no pushes).
+- 2026-10-07: D19 (founder, "Use them"): the founder's additional
+  lifetime token pool lifts the grind's token guardrail. Below 90%
+  weekly usage the grind runs on the weekly budget; at/above 90% it
+  continues from the additional pool (publish-only below 100k,
+  full stop below 20k). The grind resumes after the reset.
