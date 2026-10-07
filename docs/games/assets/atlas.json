@@ -1,0 +1,233 @@
+{
+ "tile_wall": {
+  "file": "tiles.png",
+  "sx": 391,
+  "sy": 204,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_floor": {
+  "file": "tiles.png",
+  "sx": 476,
+  "sy": 204,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_grass": {
+  "file": "tiles.png",
+  "sx": 85,
+  "sy": 0,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_flowers": {
+  "file": "tiles.png",
+  "sx": 153,
+  "sy": 17,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_tree_pine": {
+  "file": "tiles.png",
+  "sx": 408,
+  "sy": 136,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_tree_round": {
+  "file": "tiles.png",
+  "sx": 391,
+  "sy": 153,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_water0": {
+  "file": "tiles.png",
+  "sx": 0,
+  "sy": 17,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_water1": {
+  "file": "tiles.png",
+  "sx": 17,
+  "sy": 17,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_path": {
+  "file": "tiles.png",
+  "sx": 119,
+  "sy": 17,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_roof": {
+  "file": "tiles.png",
+  "sx": 850,
+  "sy": 136,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_housewall": {
+  "file": "tiles.png",
+  "sx": 289,
+  "sy": 187,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_cave": {
+  "file": "tiles.png",
+  "sx": 561,
+  "sy": 136,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_gold": {
+  "file": "tiles.png",
+  "sx": 714,
+  "sy": 187,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_potion": {
+  "file": "tiles.png",
+  "sx": 544,
+  "sy": 153,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_bridge": {
+  "file": "tiles.png",
+  "sx": 170,
+  "sy": 68,
+  "sw": 16,
+  "sh": 16
+ },
+ "tile_torch": {
+  "file": "tiles.png",
+  "sx": 289,
+  "sy": 119,
+  "sw": 16,
+  "sh": 16
+ },
+ "knight": {
+  "file": "chars.png",
+  "sx": 0,
+  "sy": 187,
+  "sw": 16,
+  "sh": 16
+ },
+ "goblin": {
+  "file": "chars.png",
+  "sx": 0,
+  "sy": 51,
+  "sw": 16,
+  "sh": 16
+ },
+ "ogre": {
+  "file": "chars.png",
+  "sx": 0,
+  "sy": 34,
+  "sw": 16,
+  "sh": 16
+ },
+ "merchant": {
+  "file": "chars.png",
+  "sx": 0,
+  "sy": 102,
+  "sw": 16,
+  "sh": 16
+ },
+ "elder": {
+  "file": "chars.png",
+  "sx": 17,
+  "sy": 85,
+  "sw": 16,
+  "sh": 16
+ },
+ "villager0": {
+  "file": "chars.png",
+  "sx": 0,
+  "sy": 85,
+  "sw": 16,
+  "sh": 16
+ },
+ "villager1": {
+  "file": "chars.png",
+  "sx": 0,
+  "sy": 119,
+  "sw": 16,
+  "sh": 16
+ },
+ "wanderer": {
+  "file": "chars.png",
+  "sx": 0,
+  "sy": 170,
+  "sw": 16,
+  "sh": 16
+ },
+ "rat": {
+  "file": "custom.png",
+  "sx": 0,
+  "sy": 0,
+  "sw": 16,
+  "sh": 16
+ },
+ "bat": {
+  "file": "custom.png",
+  "sx": 16,
+  "sy": 0,
+  "sw": 16,
+  "sh": 16
+ },
+ "warden": {
+  "file": "custom.png",
+  "sx": 32,
+  "sy": 0,
+  "sw": 16,
+  "sh": 16
+ },
+ "well": {
+  "file": "custom.png",
+  "sx": 48,
+  "sy": 0,
+  "sw": 16,
+  "sh": 16
+ },
+ "stairs_down": {
+  "file": "custom.png",
+  "sx": 0,
+  "sy": 16,
+  "sw": 16,
+  "sh": 16
+ },
+ "stairs_sealed": {
+  "file": "custom.png",
+  "sx": 16,
+  "sy": 16,
+  "sw": 16,
+  "sh": 16
+ },
+ "ladder": {
+  "file": "custom.png",
+  "sx": 32,
+  "sy": 16,
+  "sw": 16,
+  "sh": 16
+ },
+ "shrine_might": {
+  "file": "custom.png",
+  "sx": 48,
+  "sy": 16,
+  "sw": 16,
+  "sh": 16
+ },
+ "shrine_vitality": {
+  "file": "custom.png",
+  "sx": 0,
+  "sy": 32,
+  "sw": 16,
+  "sh": 16
+ }
+}

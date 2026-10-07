@@ -16,6 +16,11 @@
   #hpbar { width:110px; height:12px; background:#3a0d0d; border:1px solid #666; border-radius:3px; display:inline-block; vertical-align:middle; }
   #hpfill { height:100%; background:linear-gradient(90deg,#e03030,#ff7a5e); border-radius:2px; width:100%; transition:width .2s; }
   #mission { color:#8fd6ff; width:100%; }
+  #quest { color:#ffe75a; width:100%; font-size:13px; }
+  #bossbar { position:absolute; top:6px; left:50%; transform:translateX(-50%); width:72%; z-index:5; text-align:center; pointer-events:none; }
+  #bossname { font-size:11px; color:#ff8a8a; letter-spacing:2px; text-shadow:0 1px 3px #000; }
+  #bosstrack { height:8px; background:#3a0d0d; border:1px solid #a02020; border-radius:4px; overflow:hidden; margin-top:2px; }
+  #bossfill { height:100%; background:linear-gradient(90deg,#c02020,#ff5a5a); width:100%; transition:width .2s; }
   #log { width:100%; max-width:768px; height:84px; overflow:hidden; background:#0d0d13; border:1px solid #3a3a4a; border-radius:6px; margin-top:8px; padding:8px 12px; font-size:13px; line-height:1.5; }
   #log div:last-child { color:#ffd75e; }
   .overlay { position:absolute; inset:0; background:rgba(5,5,10,.93); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-radius:6px; padding:20px; z-index:10; }
@@ -30,13 +35,14 @@
   #diffdesc { font-size:12px; color:#8a8a9a; min-height:18px; }
   .hidden { display:none !important; }
   #touch { display:none; width:100%; max-width:768px; margin-top:8px; justify-content:space-between; }
-  #dpad { display:grid; grid-template-columns:repeat(3,54px); grid-template-rows:repeat(3,54px); gap:4px; }
-  #dpad button { background:#1e1e2a; color:#ffd75e; border:1px solid #4a4a5e; border-radius:8px; font-size:20px; font-family:inherit; }
-  #dpad button:active { background:#33334a; }
-  #acts { display:flex; gap:8px; align-items:center; }
-  #acts button { width:62px; height:62px; border-radius:50%; border:1px solid #4a4a5e; background:#1e1e2a; color:#fff; font-family:inherit; font-size:12px; font-weight:bold; }
-  #acts button:active { background:#33334a; }
+  #dpad { display:grid; grid-template-columns:repeat(3,64px); grid-template-rows:repeat(3,64px); gap:6px; }
+  #dpad button { background:#1e1e2a; color:#ffd75e; border:1px solid #4a4a5e; border-radius:10px; font-size:24px; font-family:inherit; }
+  #dpad button:active, #dpad button.tapped { background:#3a3a55; transform:scale(.9); }
+  #acts { display:flex; gap:10px; align-items:center; }
+  #acts button { width:76px; height:76px; border-radius:50%; border:2px solid #4a4a5e; background:#1e1e2a; color:#fff; font-family:inherit; font-size:14px; font-weight:bold; }
+  #acts button:active, #acts button.tapped { background:#3a3a55; transform:scale(.9); }
   #btnAtk { border-color:#e03030 !important; color:#ff9a8a !important; }
+  #btnMode { border-color:#4ae08a !important; color:#9af0c0 !important; }
   #help { width:100%; max-width:768px; margin-top:8px; font-size:12px; color:#77778a; text-align:center; }
   @media (pointer:coarse) { #touch { display:flex; } #help { display:none; } }
 </style>
@@ -46,6 +52,7 @@
 <div id="badge">RUNS 100% IN JESUN.CODE</div>
 <div id="wrap">
   <canvas id="game" width="192" height="128"></canvas>
+  <div id="bossbar" class="hidden"><span id="bossname"></span><div id="bosstrack"><div id="bossfill"></div></div></div>
   <div id="loading" class="overlay">
     <h2>SUMMONING THE DELVE</h2>
     <p id="loadmsg">Loading the Jesun.Code interpreter...</p>
@@ -63,6 +70,7 @@
     </div>
     <p id="diffdesc">Delver: the intended delve. Full danger, full glory.</p>
     <button id="startBtn">ENTER THE REALMS</button>
+    <p style="font-size:11px;color:#77778a;margin-top:10px">Sprite art: Kenney (kenney.nl), public domain (CC0).</p>
   </div>
   <div id="gameover" class="overlay hidden">
     <h2>YOU DIED IN THE DEEP</h2>
@@ -82,6 +90,7 @@
   <span>Realm <b id="realm"></b></span>
   <span>Mood <b id="diff"></b></span>
   <span id="mission"></span>
+  <span id="quest"></span>
 </div>
 <div id="log"></div>
 <div id="touch">
@@ -106,23 +115,83 @@ var ctx=canvas.getContext('2d');
 var ready=false, playing=false, over=false;
 var keyQueue=[];
 var pumpFn=null, startFn=null;
+var ATLAS={};
+var FLASHCACHE={};
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+function atlasSprite(name){
+  var a=ATLAS[name];
+  if(!a||!a.img) return null;
+  try{ if(!a.img.complete||a.img.naturalWidth===0) return null; }catch(e){ return null; }
+  return a;
+}
+
+function drawSprite(c){
+  var a=atlasSprite(c[1]);
+  var dx=c[2], dy=c[3], dw=c[4], dh=c[5], flip=c[6], flash=c[7];
+  if(!a){ ctx.fillStyle='#ff00ff'; ctx.fillRect(dx,dy,dw,dh); return; }
+  var img=a.img;
+  function blit(src, sx, sy, sw, sh){
+    if(flip){ ctx.save(); ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,sx,sy,sw,sh,0,0,dw,dh); ctx.restore(); }
+    else ctx.drawImage(src,sx,sy,sw,sh,dx,dy,dw,dh);
+  }
+  if(flash){
+    var key=c[1];
+    var w=FLASHCACHE[key];
+    if(!w){
+      w=document.createElement('canvas'); w.width=a.sw; w.height=a.sh;
+      var wc=w.getContext('2d');
+      wc.drawImage(img,a.sx,a.sy,a.sw,a.sh,0,0,a.sw,a.sh);
+      wc.globalCompositeOperation='source-in';
+      wc.fillStyle='#ffffff'; wc.fillRect(0,0,a.sw,a.sh);
+      FLASHCACHE[key]=w;
+    }
+    blit(w,0,0,a.sw,a.sh);
+  } else {
+    blit(img,a.sx,a.sy,a.sw,a.sh);
+  }
+}
+
+function drawSlice(c){
+  var a=atlasSprite(c[1]);
+  var sx=c[2], dx=c[3], dy=c[4], dh=c[5], shade=c[6];
+  if(!a){ ctx.fillStyle='#ff00ff'; ctx.fillRect(dx,dy,1,dh); return; }
+  if(dh<=0) return;
+  ctx.drawImage(a.img,a.sx+sx,a.sy,1,a.sh,dx,dy,1,dh);
+  if(shade<0.99){ ctx.fillStyle='rgba(0,0,0,'+(1-shade).toFixed(2)+')'; ctx.fillRect(dx,dy,1,dh); }
+}
+
+function drawText(c){
+  var x=c[1], y=c[2], str=String(c[3]), col=c[4], size=c[5]||8;
+  ctx.font=size+'px "Courier New",monospace';
+  ctx.textBaseline='top';
+  ctx.fillStyle='#000000';
+  ctx.fillText(str,x+1,y+1);
+  ctx.fillStyle='#'+col;
+  ctx.fillText(str,x,y);
+}
+
 function render(dl){
+  ctx.imageSmoothingEnabled=false;
   var img=ctx.createImageData(FW,FH), d=img.data;
-  function px(x,y,r,g,b){ if(x<0||y<0||x>=FW||y>=FH)return; var i=(y*FW+x)*4; d[i]=r; d[i+1]=g; d[i+2]=b; d[i+3]=255; }
+  var dirty=false;
+  function px(x,y,r,g,b){ if(x<0||y<0||x>=FW||y>=FH)return; var i=(y*FW+x)*4; d[i]=r; d[i+1]=g; d[i+2]=b; d[i+3]=255; dirty=true; }
   function hex(h){ return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+  function flush(){ if(dirty){ ctx.putImageData(img,0,0); dirty=false; } }
   for(var n=0;n<dl.length;n++){
     var c=dl[n], op=c[0];
-    if(op==='clear'){ var col=hex(c[1]); for(var i=0;i<d.length;i+=4){ d[i]=col[0]; d[i+1]=col[1]; d[i+2]=col[2]; d[i+3]=255; } }
+    if(op==='clear'){ var col=hex(c[1]); for(var i=0;i<d.length;i+=4){ d[i]=col[0]; d[i+1]=col[1]; d[i+2]=col[2]; d[i+3]=255; } dirty=true; }
     else if(op==='rect'){ var rc=hex(c[5]); for(var y=c[2];y<c[2]+c[4];y++) for(var x=c[1];x<c[1]+c[3];x++) px(x,y,rc[0],rc[1],rc[2]); }
     else if(op==='circle'){ var cc=hex(c[4]), rr=c[3]; for(var dy=-rr;dy<=rr;dy++) for(var dx=-rr;dx<=rr;dx++) if(dx*dx+dy*dy<=rr*rr) px(c[1]+dx,c[2]+dy,cc[0],cc[1],cc[2]); }
     else if(op==='line'){ var lc=hex(c[5]); var x0=c[1],y0=c[2],x1=c[3],y1=c[4];
       var dx=Math.abs(x1-x0), dy=Math.abs(y1-y0), sx=x0<x1?1:-1, sy=y0<y1?1:-1, e=dx-dy;
       while(true){ px(x0,y0,lc[0],lc[1],lc[2]); if(x0===x1&&y0===y1)break; var e2=2*e; if(e2>-dy){e-=dy;x0+=sx;} if(e2<dx){e+=dx;y0+=sy;} } }
+    else if(op==='sprite'){ flush(); drawSprite(c); }
+    else if(op==='slice'){ flush(); drawSlice(c); }
+    else if(op==='text'){ flush(); drawText(c); }
   }
-  ctx.putImageData(img,0,0);
+  flush();
 }
 
 function updateHUD(h, msgs){
@@ -137,6 +206,13 @@ function updateHUD(h, msgs){
   document.getElementById('realm').textContent=h.realm;
   document.getElementById('diff').textContent=h.diff;
   document.getElementById('mission').textContent='Mission: '+h.mission;
+  document.getElementById('quest').textContent=h.quest?('Objective: '+h.quest):'';
+  var bb=document.getElementById('bossbar');
+  if(h.bosshp>0){
+    bb.classList.remove('hidden');
+    document.getElementById('bossname').textContent=h.bossname||'BOSS';
+    document.getElementById('bossfill').style.width=Math.max(0,Math.min(100,h.bosshp/h.bossmax*100))+'%';
+  } else bb.classList.add('hidden');
   document.getElementById('log').innerHTML=msgs.map(function(m){ return '<div>'+esc(m)+'</div>'; }).join('');
 }
 
@@ -155,17 +231,19 @@ function frame(){
     if(!res.ok){ showFatal('Game error: '+res.error); over=true; return; }
     render(res.dl);
     updateHUD(res.hud,res.msgs);
-    if(res.over){ doGameOver(res.score); }
+    if(res.over){ doGameOver(res); }
   }catch(err){ showFatal('Frame failed: '+((err&&err.message)||String(err))); over=true; }
 }
 
-function doGameOver(score){
+function doGameOver(res){
   over=true; playing=false;
+  var score=res.score||0;
   var best=0;
   try{ best=parseInt(localStorage.getItem('deepdelve_realms_best')||'0',10)||0; }catch(e){}
   if(score>best){ best=score; try{ localStorage.setItem('deepdelve_realms_best',String(score)); }catch(e){} }
+  var h=res.hud||{};
   document.getElementById('finalScore').textContent='Score '+score;
-  document.getElementById('bestScore').textContent='Best score: '+best;
+  document.getElementById('bestScore').textContent='Best: '+best+' · Depth '+(h.depth||0)+' · Kills '+(h.kills||0)+' · Gold '+(h.gold||0);
   document.getElementById('gameover').classList.remove('hidden');
 }
 
@@ -235,6 +313,21 @@ async function boot(){
     }
     msg.textContent='Waking the interpreter...';
     await pyodide.runPythonAsync(DRIVER_PY);
+    msg.textContent='Loading sprite atlas...';
+    var ar=await fetch('assets/atlas.json');
+    if(!ar.ok) throw new Error('fetch atlas.json -> '+ar.status);
+    var atlasDef=await ar.json();
+    var fileList=[];
+    for(var ak in atlasDef){ var ef=atlasDef[ak].file; if(fileList.indexOf(ef)<0) fileList.push(ef); }
+    var fileImgs={};
+    for(var fi=0;fi<fileList.length;fi++){
+      var fn=fileList[fi];
+      var im=new Image();
+      im.src='assets/'+fn;
+      try{ await new Promise(function(res,rej){ im.onload=res; im.onerror=rej; }); fileImgs[fn]=im; }
+      catch(e){ fileImgs[fn]=null; }
+    }
+    for(var ak2 in atlasDef){ var ed=atlasDef[ak2]; ATLAS[ak2]={img:fileImgs[ed.file]||null,sx:ed.sx,sy:ed.sy,sw:ed.sw,sh:ed.sh}; }
     var bootErr=pyodide.globals.get('BOOT_ERROR');
     var bootErrStr=bootErr ? bootErr.toJs() : null;
     if(bootErrStr){ throw new Error(bootErrStr); }
@@ -267,15 +360,19 @@ window.addEventListener('keydown',function(e){
   if(mapped){ if(keyQueue.length<8) keyQueue.push(mapped); }
 });
 document.querySelectorAll('#dpad button').forEach(function(b){
-  function go(e){ e.preventDefault(); if(keyQueue.length<8) keyQueue.push(b.getAttribute('data-k')); }
+  function go(e){ e.preventDefault(); if(keyQueue.length<8) keyQueue.push(b.getAttribute('data-k')); b.classList.add('tapped'); }
+  function un(e){ b.classList.remove('tapped'); }
   b.addEventListener('touchstart',go,{passive:false});
   b.addEventListener('mousedown',go);
+  b.addEventListener('touchend',un); b.addEventListener('mouseup',un); b.addEventListener('mouseleave',un);
 });
 function bindBtn(id,k){
   var el=document.getElementById(id);
-  function go(e){ e.preventDefault(); if(keyQueue.length<8) keyQueue.push(k); }
+  function go(e){ e.preventDefault(); if(keyQueue.length<8) keyQueue.push(k); el.classList.add('tapped'); }
+  function un(e){ el.classList.remove('tapped'); }
   el.addEventListener('touchstart',go,{passive:false});
   el.addEventListener('mousedown',go);
+  el.addEventListener('touchend',un); el.addEventListener('mouseup',un); el.addEventListener('mouseleave',un);
 }
 bindBtn('btnAtk','space'); bindBtn('btnUse','e'); bindBtn('btnPot','q'); bindBtn('btnMode','m');
 var chosenDiff=2;
