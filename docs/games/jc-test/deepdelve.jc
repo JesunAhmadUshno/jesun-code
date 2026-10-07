@@ -1,0 +1,52 @@
+G is a new table
+OUT is a new table
+
+to seed_game with s
+    G["seed"] is s
+    G["px"] is 90
+    G["py"] is 60
+    G["queue"] is []
+    G["tickn"] is 0
+    OUT["dl"] is []
+    h is a new table
+    h["hp"] is 100
+    h["maxhp"] is 100
+    h["depth"] is 1
+    h["gold"] is 0
+    h["potions"] is 1
+    h["kills"] is 0
+    h["score"] is 0
+    h["mission"] is "stub mission: move around"
+    OUT["hud"] is h
+    OUT["msgs"] is ["stub booted in Jesun.Code"]
+    OUT["over"] is false
+    OUT["score"] is 0
+    give back nothing
+
+to press with k
+    q is G["queue"]
+    push k to q
+    give back nothing
+
+to tick
+    q is G["queue"]
+    for each k in q
+        if k is "w" then
+            G["py"] is G["py"] - 4
+        otherwise if k is "s" then
+            G["py"] is G["py"] + 4
+        otherwise if k is "a" then
+            G["px"] is G["px"] - 4
+        otherwise if k is "d" then
+            G["px"] is G["px"] + 4
+    G["queue"] is []
+    G["tickn"] is G["tickn"] + 1
+    dl is []
+    push ["clear", "0a0a0f"] to dl
+    push ["rect", 10, 10, 40, 20, "ff0000"] to dl
+    push ["rect", G["px"], G["py"], 8, 8, "4ae08a"] to dl
+    push ["circle", 150, 60, 8, "ffd75e"] to dl
+    OUT["dl"] is dl
+    h2 is OUT["hud"]
+    h2["score"] is G["tickn"]
+    give back nothing
