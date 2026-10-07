@@ -205,7 +205,8 @@ async function boot(){
     document.getElementById('title').classList.remove('hidden');
     setInterval(frame,150);
   }catch(err){
-    msg.textContent='Failed to boot: '+err.message;
+    var detail = (err && err.message) ? err.message : String(err);
+    msg.textContent='Failed to boot: '+detail+' (tap START to retry once loaded)';
   }
 }
 
