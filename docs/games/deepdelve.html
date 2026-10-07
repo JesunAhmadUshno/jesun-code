@@ -3,48 +3,54 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>DEEPDELVE - Roguelike Dungeon Crawler</title>
+<title>DEEPDELVE - 100% Jesun.Code</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
-  body { background:#0a0a0f; color:#e8e8e8; font-family: 'Courier New', monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:8px; touch-action:none; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:#0a0a0f; color:#e8e8e8; font-family:'Courier New',monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:8px; touch-action:none; }
   h1 { color:#ffd75e; letter-spacing:4px; font-size:22px; margin:6px 0; text-shadow:0 0 12px #7a5c00; }
-  #wrap { position:relative; width:100%; max-width:960px; }
-  canvas { width:100%; height:auto; display:block; background:#111; border:2px solid #3a3a4a; border-radius:6px; image-rendering:pixelated; }
-  #hud { display:flex; flex-wrap:wrap; gap:8px 16px; background:#14141c; border:1px solid #3a3a4a; border-radius:6px; padding:8px 12px; margin-top:8px; font-size:14px; width:100%; max-width:960px; }
+  #badge { font-size:11px; color:#4ae08a; border:1px solid #4ae08a; border-radius:4px; padding:2px 8px; margin-bottom:8px; letter-spacing:1px; }
+  #wrap { position:relative; width:100%; max-width:768px; }
+  canvas { width:100%; height:auto; display:block; background:#111; border:2px solid #3a3a4a; border-radius:6px; image-rendering:pixelated; image-rendering:crisp-edges; }
+  #hud { display:flex; flex-wrap:wrap; gap:8px 16px; background:#14141c; border:1px solid #3a3a4a; border-radius:6px; padding:8px 12px; margin-top:8px; font-size:14px; width:100%; max-width:768px; }
   #hud b { color:#ffd75e; }
-  #hpbar { width:120px; height:12px; background:#3a0d0d; border:1px solid #666; border-radius:3px; display:inline-block; vertical-align:middle; }
+  #hpbar { width:110px; height:12px; background:#3a0d0d; border:1px solid #666; border-radius:3px; display:inline-block; vertical-align:middle; }
   #hpfill { height:100%; background:linear-gradient(90deg,#e03030,#ff7a5e); border-radius:2px; width:100%; transition:width .2s; }
-  #mission { color:#8fd6ff; }
-  #log { width:100%; max-width:960px; height:88px; overflow:hidden; background:#0d0d13; border:1px solid #3a3a4a; border-radius:6px; margin-top:8px; padding:8px 12px; font-size:13px; line-height:1.5; }
+  #mission { color:#8fd6ff; width:100%; }
+  #log { width:100%; max-width:768px; height:84px; overflow:hidden; background:#0d0d13; border:1px solid #3a3a4a; border-radius:6px; margin-top:8px; padding:8px 12px; font-size:13px; line-height:1.5; }
   #log div:last-child { color:#ffd75e; }
-  .overlay { position:absolute; inset:0; background:rgba(5,5,10,.92); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-radius:6px; padding:20px; z-index:10; }
+  .overlay { position:absolute; inset:0; background:rgba(5,5,10,.93); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-radius:6px; padding:20px; z-index:10; }
   .overlay h2 { color:#ffd75e; letter-spacing:3px; margin-bottom:12px; }
-  .overlay p { max-width:560px; margin:6px 0; line-height:1.6; font-size:14px; color:#c9c9d6; }
+  .overlay p { max-width:520px; margin:6px 0; line-height:1.6; font-size:14px; color:#c9c9d6; }
   .overlay button { margin-top:16px; background:#ffd75e; color:#111; border:none; font-family:inherit; font-weight:bold; font-size:16px; padding:12px 32px; border-radius:6px; cursor:pointer; letter-spacing:2px; }
   .overlay button:active { transform:scale(.96); }
+  .overlay button:disabled { background:#555; color:#999; cursor:wait; }
   .hidden { display:none !important; }
-  #touch { display:none; width:100%; max-width:960px; margin-top:8px; justify-content:space-between; }
-  #dpad { display:grid; grid-template-columns:repeat(3,56px); grid-template-rows:repeat(3,56px); gap:4px; }
+  #touch { display:none; width:100%; max-width:768px; margin-top:8px; justify-content:space-between; }
+  #dpad { display:grid; grid-template-columns:repeat(3,54px); grid-template-rows:repeat(3,54px); gap:4px; }
   #dpad button { background:#1e1e2a; color:#ffd75e; border:1px solid #4a4a5e; border-radius:8px; font-size:20px; font-family:inherit; }
   #dpad button:active { background:#33334a; }
   #acts { display:flex; gap:8px; align-items:center; }
-  #acts button { width:64px; height:64px; border-radius:50%; border:1px solid #4a4a5e; background:#1e1e2a; color:#fff; font-family:inherit; font-size:12px; font-weight:bold; }
+  #acts button { width:62px; height:62px; border-radius:50%; border:1px solid #4a4a5e; background:#1e1e2a; color:#fff; font-family:inherit; font-size:12px; font-weight:bold; }
   #acts button:active { background:#33334a; }
   #btnAtk { border-color:#e03030 !important; color:#ff9a8a !important; }
-  #help { width:100%; max-width:960px; margin-top:8px; font-size:12px; color:#77778a; text-align:center; }
+  #help { width:100%; max-width:768px; margin-top:8px; font-size:12px; color:#77778a; text-align:center; }
   @media (pointer:coarse) { #touch { display:flex; } #help { display:none; } }
 </style>
 </head>
 <body>
 <h1>DEEPDELVE</h1>
+<div id="badge">RUNS 100% IN JESUN.CODE</div>
 <div id="wrap">
-  <canvas id="game" width="960" height="640"></canvas>
-  <div id="title" class="overlay">
+  <canvas id="game" width="192" height="128"></canvas>
+  <div id="loading" class="overlay">
+    <h2>SUMMONING THE DELVE</h2>
+    <p id="loadmsg">Loading the Jesun.Code interpreter...</p>
+  </div>
+  <div id="title" class="overlay hidden">
     <h2>DEEPDELVE</h2>
     <p>Centuries ago the Deepdelve swallowed a kingdom and its gold. Delvers go down. Most do not come back.</p>
-    <p>You are the next delver. Fight goblins, rats and worse. Befriend the wanderers. Trade with the merchants. Slay the Wardens. Go deep.</p>
-    <p><b style="color:#ffd75e">Move:</b> WASD / Arrows &nbsp; <b style="color:#ffd75e">Attack:</b> bump into enemies or Space &nbsp; <b style="color:#ffd75e">Talk/Trade:</b> E &nbsp; <b style="color:#ffd75e">Potion:</b> Q</p>
-    <p>Death is permanent. Gold, depth and kills are your score.</p>
+    <p>Every tile of this dungeon, every goblin, every gold coin is computed live in <b style="color:#4ae08a">Jesun.Code</b>, running in your browser.</p>
+    <p><b style="color:#ffd75e">Move:</b> WASD / Arrows &nbsp; <b style="color:#ffd75e">Attack:</b> bump or Space &nbsp; <b style="color:#ffd75e">Talk:</b> E &nbsp; <b style="color:#ffd75e">Potion:</b> Q</p>
     <button id="startBtn">ENTER THE DELVE</button>
   </div>
   <div id="gameover" class="overlay hidden">
@@ -52,10 +58,6 @@
     <p id="finalScore"></p>
     <p id="bestScore"></p>
     <button id="retryBtn">DELVE AGAIN</button>
-  </div>
-  <div id="dialog" class="overlay hidden" style="background:rgba(5,5,10,.78); inset:auto; left:10%; right:10%; top:auto; bottom:12px;">
-    <p id="dialogText" style="color:#ffe9a8;"></p>
-    <button id="dialogBtn" style="padding:8px 24px; font-size:14px;">CONTINUE</button>
   </div>
 </div>
 <div id="hud">
@@ -70,8 +72,8 @@
 <div id="log"></div>
 <div id="touch">
   <div id="dpad">
-    <span></span><button data-dx="0" data-dy="-1">&#9650;</button><span></span>
-    <button data-dx="-1" data-dy="0">&#9664;</button><button data-dx="0" data-dy="1">&#9660;</button><button data-dx="1" data-dy="0">&#9654;</button>
+    <span></span><button data-k="w">&#9650;</button><span></span>
+    <button data-k="a">&#9664;</button><button data-k="s">&#9660;</button><button data-k="d">&#9654;</button>
   </div>
   <div id="acts">
     <button id="btnAtk">ATK</button>
@@ -79,737 +81,165 @@
     <button id="btnPot">POT</button>
   </div>
 </div>
-<div id="help">WASD / Arrows: move (bump to attack) &nbsp;|&nbsp; Space: attack all adjacent &nbsp;|&nbsp; E: talk / trade / use stairs &nbsp;|&nbsp; Q: drink potion &nbsp;|&nbsp; R: restart after death</div>
+<div id="help">WASD / Arrows: move (bump to attack) &nbsp;|&nbsp; Space: attack &nbsp;|&nbsp; E: talk / trade &nbsp;|&nbsp; Q: potion</div>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <script>
 "use strict";
-/* DEEPDELVE - a roguelike dungeon crawler. No external assets. */
-var TILE = 32, VIEW_W = 30, VIEW_H = 20, MAP_W = 60, MAP_H = 42;
-var canvas = document.getElementById('game');
-var ctx = canvas.getContext('2d');
-var dark = document.createElement('canvas');
-dark.width = 960; dark.height = 640;
-var dctx = dark.getContext('2d');
+var FW=192, FH=128;
+var canvas=document.getElementById('game');
+var ctx=canvas.getContext('2d');
+var ready=false, playing=false, over=false;
+var keyQueue=[];
+var pumpFn=null, startFn=null;
 
-var G = null; /* game state */
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-var ENEMY_TYPES = {
-  rat:    { name:'Cave Rat',    hp:14, atk:4,  rate:3, glyph:'r', color:'#9a9a8a', xp:10 },
-  bat:    { name:'Gloom Bat',   hp:10, atk:5,  rate:1, glyph:'b', color:'#7a6ae0', xp:12 },
-  goblin: { name:'Goblin',      hp:26, atk:7,  rate:2, glyph:'g', color:'#4ae08a', xp:20 },
-  ogre:   { name:'Deep Ogre',   hp:55, atk:11, rate:3, glyph:'O', color:'#e08a4a', xp:40 },
-  warden: { name:'Deep Warden', hp:120, atk:14, rate:2, glyph:'W', color:'#e03030', xp:150 }
-};
-var HINTS = [
-  "The Wardens sleep on every third floor. Wake them and the stairs stay shut.",
-  "Merchants love gold. Twenty coins buys a full heal in a bottle.",
-  "Rats are weak but they travel in packs. Keep moving.",
-  "Bats are fast and stupid. Let them come to you.",
-  "Shrines hum with old power. Touch one if you dare.",
-  "The deeper you go, the meaner it gets. That is the whole deal."
-];
-function rnd(n){ return Math.floor(Math.random()*n); }
-function pick(a){ return a[rnd(a.length)]; }
-function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
-</script>
-<script>
-"use strict";
-/* ---- dungeon generation ---- */
-function genFloor(depth){
-  var grid = [];
-  for(var y=0;y<MAP_H;y++){ grid.push([]); for(var x=0;x<MAP_W;x++) grid[y].push(1); }
-  var rooms = [];
-  var tries = 0;
-  while(rooms.length < 11 && tries < 200){
-    tries++;
-    var w = 5+rnd(7), h = 4+rnd(5);
-    var x = 1+rnd(MAP_W-w-2), y = 1+rnd(MAP_H-h-2);
-    var ok = true;
-    for(var i=0;i<rooms.length;i++){
-      var r = rooms[i];
-      if(x < r.x+r.w+1 && x+w+1 > r.x && y < r.y+r.h+1 && y+h+1 > r.y){ ok=false; break; }
-    }
-    if(!ok) continue;
-    rooms.push({x:x,y:y,w:w,h:h,cx:x+Math.floor(w/2),cy:y+Math.floor(h/2)});
+function render(dl){
+  var img=ctx.createImageData(FW,FH), d=img.data;
+  function px(x,y,r,g,b){ if(x<0||y<0||x>=FW||y>=FH)return; var i=(y*FW+x)*4; d[i]=r; d[i+1]=g; d[i+2]=b; d[i+3]=255; }
+  function hex(h){ return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+  for(var n=0;n<dl.length;n++){
+    var c=dl[n], op=c[0];
+    if(op==='clear'){ var col=hex(c[1]); for(var i=0;i<d.length;i+=4){ d[i]=col[0]; d[i+1]=col[1]; d[i+2]=col[2]; d[i+3]=255; } }
+    else if(op==='rect'){ var rc=hex(c[5]); for(var y=c[2];y<c[2]+c[4];y++) for(var x=c[1];x<c[1]+c[3];x++) px(x,y,rc[0],rc[1],rc[2]); }
+    else if(op==='circle'){ var cc=hex(c[4]), rr=c[3]; for(var dy=-rr;dy<=rr;dy++) for(var dx=-rr;dx<=rr;dx++) if(dx*dx+dy*dy<=rr*rr) px(c[1]+dx,c[2]+dy,cc[0],cc[1],cc[2]); }
+    else if(op==='line'){ var lc=hex(c[5]); var x0=c[1],y0=c[2],x1=c[3],y1=c[4];
+      var dx=Math.abs(x1-x0), dy=Math.abs(y1-y0), sx=x0<x1?1:-1, sy=y0<y1?1:-1, e=dx-dy;
+      while(true){ px(x0,y0,lc[0],lc[1],lc[2]); if(x0===x1&&y0===y1)break; var e2=2*e; if(e2>-dy){e-=dy;x0+=sx;} if(e2<dx){e+=dx;y0+=sy;} } }
   }
-  function carve(x,y){ if(x>0&&y>0&&x<MAP_W-1&&y<MAP_H-1) grid[y][x]=0; }
-  for(var ri=0;ri<rooms.length;ri++){
-    var rm = rooms[ri];
-    for(var yy=rm.y; yy<rm.y+rm.h; yy++) for(var xx=rm.x; xx<rm.x+rm.w; xx++) carve(xx,yy);
-    if(ri>0){
-      var pr = rooms[ri-1];
-      var cx = pr.cx, cy = pr.cy;
-      while(cx !== rm.cx){ carve(cx,cy); cx += (rm.cx>cx?1:-1); }
-      while(cy !== rm.cy){ carve(cx,cy); cy += (rm.cy>cy?1:-1); }
-      carve(cx,cy);
-    }
-  }
-  var isBoss = (depth % 3 === 0);
-  var st = {
-    grid:grid, rooms:rooms, depth:depth, isBoss:isBoss,
-    enemies:[], npcs:[], items:[], bossDead:false, stairsLocked:isBoss,
-    mission: isBoss ? "Slay the Deep Warden, then take the stairs (>) down." : "Find the stairs (>) and descend."
-  };
-  function freeSpot(){
-    for(var t=0;t<300;t++){
-      var r = pick(rooms);
-      var x = r.x+rnd(r.w), y = r.y+rnd(r.h);
-      if(grid[y][x]===0 && !entityAt(st,x,y) && !itemAt(st,x,y)) return {x:x,y:y};
-    }
-    return null;
-  }
-  /* player start: first room center */
-  st.px = rooms[0].cx; st.py = rooms[0].cy;
-  /* stairs: last room center */
-  st.sx = rooms[rooms.length-1].cx; st.sy = rooms[rooms.length-1].cy;
-  /* enemies */
-  var nE = Math.min(4 + depth*2, 22);
-  for(var e=0;e<nE;e++){
-    var s = freeSpot(); if(!s) break;
-    var type = 'rat';
-    var roll = Math.random();
-    if(depth>=4 && roll<0.22) type='ogre';
-    else if(depth>=2 && roll<0.5) type='goblin';
-    else if(roll<0.72) type='bat';
-    var base = ENEMY_TYPES[type];
-    var hp = base.hp + Math.floor(depth*2.5);
-    st.enemies.push({x:s.x,y:s.y,type:type,name:base.name,hp:hp,maxhp:hp,
-      atk:base.atk+Math.floor(depth*0.8),rate:base.rate,glyph:base.glyph,color:base.color,xp:base.xp,tick:rnd(base.rate),
-      ph:0,face:1,attT:0});
-  }
-  if(isBoss){
-    var bs = freeSpot() || {x:st.sx,y:st.sy};
-    var b = ENEMY_TYPES.warden;
-    st.enemies.push({x:bs.x,y:bs.y,type:'warden',name:b.name,hp:b.hp+depth*12,maxhp:b.hp+depth*12,
-      atk:b.atk+depth,rate:b.rate,glyph:b.glyph,color:b.color,xp:b.xp,tick:0,boss:true,ph:0,face:1,attT:0});
-  }
-  /* NPC bots: wanderers and merchants */
-  var nN = 1+rnd(2);
-  for(var n=0;n<nN;n++){
-    var ns = freeSpot(); if(!ns) break;
-    var kind = (Math.random()<0.45) ? 'merchant' : 'wanderer';
-    if(isBoss && kind==='merchant' && Math.random()<0.5) kind='wanderer';
-    st.npcs.push({x:ns.x,y:ns.y,kind:kind,
-      name: kind==='merchant' ? pick(['Sable','Old Fen','Marla']) : pick(['Wren','Pip','Sage','Dain']),
-      used:false, tick:rnd(4), ph:0, face:1});
-  }
-  /* loot: gold piles and potions */
-  for(var li=0;li<5+rnd(4);li++){
-    var ls = freeSpot(); if(!ls) break;
-    if(Math.random()<0.7) st.items.push({x:ls.x,y:ls.y,kind:'gold',amt:5+rnd(6+depth*3)});
-    else st.items.push({x:ls.x,y:ls.y,kind:'potion'});
-  }
-  /* shrine */
-  if(Math.random()<0.55){
-    var ss = freeSpot();
-    if(ss) st.items.push({x:ss.x,y:ss.y,kind:'shrine',boon: Math.random()<0.5?'might':'vitality'});
-  }
-  return st;
+  ctx.putImageData(img,0,0);
 }
-function entityAt(st,x,y){
-  for(var i=0;i<st.enemies.length;i++) if(st.enemies[i].x===x&&st.enemies[i].y===y) return st.enemies[i];
-  for(var j=0;j<st.npcs.length;j++) if(st.npcs[j].x===x&&st.npcs[j].y===y) return st.npcs[j];
-  return null;
+
+function updateHUD(h, msgs){
+  document.getElementById('hpfill').style.width=Math.max(0,Math.min(100,h.hp/h.maxhp*100))+'%';
+  document.getElementById('hptext').textContent=h.hp+'/'+h.maxhp;
+  document.getElementById('depth').textContent=h.depth;
+  document.getElementById('gold').textContent=h.gold;
+  document.getElementById('potions').textContent=h.potions;
+  document.getElementById('kills').textContent=h.kills;
+  document.getElementById('score').textContent=h.score;
+  document.getElementById('mission').textContent='Mission: '+h.mission;
+  document.getElementById('log').innerHTML=msgs.map(function(m){ return '<div>'+esc(m)+'</div>'; }).join('');
 }
-function itemAt(st,x,y){
-  for(var i=0;i<st.items.length;i++) if(st.items[i].x===x&&st.items[i].y===y) return st.items[i];
-  return null;
+
+function frame(){
+  if(!ready||!playing||over) return;
+  var q=keyQueue; keyQueue=[];
+  var raw=pumpFn(q);
+  var res=JSON.parse(raw.toJs ? raw.toJs() : raw);
+  render(res.dl);
+  updateHUD(res.hud,res.msgs);
+  if(res.over){ doGameOver(res.score); }
 }
-function isWall(st,x,y){ return x<0||y<0||x>=MAP_W||y>=MAP_H||st.grid[y][x]===1; }
-</script>
-<script>
-"use strict";
-/* ---- game state and rules ---- */
-function newGame(){
-  G = {
-    depth:1, hp:100, maxhp:100, atk:12, gold:0, potions:1, kills:0,
-    missionsDone:0, over:false, started:false, floor:null, log:[],
-    pph:0, pface:1, attT:0
-  };
-  descend(1);
-}
-function score(){ return G.gold + (G.depth-1)*100 + G.kills*10; }
-function descend(d){
-  G.depth = d;
-  G.floor = genFloor(d);
-  G.px = G.floor.px; G.py = G.floor.py;
-  addMsg("Depth "+d+". "+G.floor.mission);
-  if(G.floor.isBoss) addMsg("The air grows cold. The Deep Warden stirs.", true);
-  updateHUD();
-}
-function addMsg(t, hot){
-  G.log.push(t);
-  if(G.log.length>6) G.log.shift();
-  var log = document.getElementById('log');
-  log.innerHTML = G.log.map(function(m){ return "<div>"+escapeHtml(m)+"</div>"; }).join('');
-}
-function escapeHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function updateHUD(){
-  document.getElementById('hpfill').style.width = clamp(G.hp/G.maxhp*100,0,100)+'%';
-  document.getElementById('hptext').textContent = G.hp+'/'+G.maxhp;
-  document.getElementById('depth').textContent = G.depth;
-  document.getElementById('gold').textContent = G.gold;
-  document.getElementById('potions').textContent = G.potions;
-  document.getElementById('kills').textContent = G.kills;
-  document.getElementById('score').textContent = score();
-  document.getElementById('mission').textContent = 'Mission: '+G.floor.mission;
-}
-function playerAttack(target){
-  var dmg = G.atk + rnd(4);
-  target.hp -= dmg;
-  G.attT = performance.now();
-  addMsg("You hit the "+target.name+" for "+dmg+".");
-  if(target.hp<=0) killEnemy(target);
-  updateHUD();
-}
-function killEnemy(e){
-  var st = G.floor;
-  st.enemies.splice(st.enemies.indexOf(e),1);
-  G.kills++;
-  var loot = 3+rnd(6)+Math.floor(G.depth*1.5);
-  if(e.boss){
-    loot = 60+G.depth*10;
-    st.bossDead = true; st.stairsLocked = false;
-    st.mission = "Warden slain. Take the stairs (>) down.";
-    G.missionsDone++;
-    addMsg("The Deep Warden falls. The stairs grind open.", true);
-    addMsg("The Warden's hoard: +"+loot+" gold.", true);
-  } else {
-    addMsg("The "+e.name+" dies. +"+loot+" gold.");
-  }
-  G.gold += loot;
-  updateHUD();
-}
-function hurtPlayer(dmg, from){
-  G.hp -= dmg;
-  addMsg(from+" hits you for "+dmg+".");
-  if(G.hp<=0){ G.hp=0; gameOver(); }
-  updateHUD();
-}
-function gameOver(){
-  G.over = true;
-  clearInterval(G.tickTimer);
-  var s = score();
-  var best = 0;
-  try{ best = parseInt(localStorage.getItem('deepdelve_best')||'0',10)||0; }catch(e){}
-  if(s>best){ best=s; try{ localStorage.setItem('deepdelve_best',String(s)); }catch(e){} }
-  document.getElementById('finalScore').textContent =
-    "Depth "+G.depth+" | Kills "+G.kills+" | Gold "+G.gold+" | Missions "+G.missionsDone+" | Score "+s;
-  document.getElementById('bestScore').textContent = "Best score: "+best;
+
+function doGameOver(score){
+  over=true; playing=false;
+  var best=0;
+  try{ best=parseInt(localStorage.getItem('deepdelve_jc_best')||'0',10)||0; }catch(e){}
+  if(score>best){ best=score; try{ localStorage.setItem('deepdelve_jc_best',String(score)); }catch(e){} }
+  document.getElementById('finalScore').textContent='Score '+score;
+  document.getElementById('bestScore').textContent='Best score: '+best;
   document.getElementById('gameover').classList.remove('hidden');
 }
-function tryMove(dx,dy){
-  if(!G || !G.started || G.over || dialogOpen) return;
-  var st = G.floor;
-  var nx = G.px+dx, ny = G.py+dy;
-  if(isWall(st,nx,ny)) return;
-  var ent = entityAt(st,nx,ny);
-  if(ent){
-    if(ent.hp !== undefined){ playerAttack(ent); return; }
-    addMsg(ent.name+(ent.kind==='merchant'?" the merchant":" the wanderer")+" blocks the way. Press E to talk.");
-    return;
-  }
-  /* stairs */
-  if(nx===st.sx && ny===st.sy){
-    if(st.stairsLocked){ addMsg("The stairs are sealed. Slay the Deep Warden first.", true); return; }
-    G.px=nx; G.py=ny;
-    G.missionsDone++;
-    addMsg("Mission complete. Descending...", true);
-    updateHUD();
-    setTimeout(function(){ if(!G.over) descend(G.depth+1); }, 350);
-    return;
-  }
-  var it = itemAt(st,nx,ny);
-  if(it){ takeItem(it); }
-  G.px=nx; G.py=ny;
-  G.pph += 1.4;
-  if(dx>0) G.pface=1; else if(dx<0) G.pface=-1;
-  updateHUD();
-}
-function takeItem(it){
-  var st = G.floor;
-  st.items.splice(st.items.indexOf(it),1);
-  if(it.kind==='gold'){ G.gold+=it.amt; addMsg("Picked up "+it.amt+" gold."); }
-  else if(it.kind==='potion'){ G.potions++; addMsg("Found a healing potion. (Q to drink)"); }
-  else if(it.kind==='shrine'){
-    if(it.boon==='might'){ G.atk+=2; addMsg("Shrine of Might: attack +2.", true); }
-    else { G.maxhp+=10; G.hp=Math.min(G.maxhp,G.hp+10); addMsg("Shrine of Vitality: max HP +10.", true); }
-  }
-}
-function attackAll(){
-  if(!G || !G.started || G.over || dialogOpen) return;
-  var st=G.floor, hit=false;
-  var copy = st.enemies.slice();
-  for(var i=0;i<copy.length;i++){
-    var e=copy[i];
-    if(Math.abs(e.x-G.px)<=1 && Math.abs(e.y-G.py)<=1){ playerAttack(e); hit=true; }
-  }
-  if(!hit) addMsg("You swing at empty air.");
-}
-function drinkPotion(){
-  if(!G || !G.started || G.over || dialogOpen) return;
-  if(G.potions<=0){ addMsg("No potions left."); return; }
-  if(G.hp>=G.maxhp){ addMsg("Already at full health."); return; }
-  G.potions--;
-  G.hp = Math.min(G.maxhp, G.hp+40);
-  addMsg("You drink a potion. +40 HP.", true);
-  updateHUD();
-}
-var dialogOpen = false;
-function showDialog(text){
-  dialogOpen = true;
-  document.getElementById('dialogText').textContent = text;
-  document.getElementById('dialog').classList.remove('hidden');
-}
-function hideDialog(){
-  dialogOpen = false;
-  document.getElementById('dialog').classList.add('hidden');
-}
-function adjacentNPC(){
-  var st=G.floor;
-  for(var i=0;i<st.npcs.length;i++){
-    var n=st.npcs[i];
-    if(Math.abs(n.x-G.px)<=1 && Math.abs(n.y-G.py)<=1) return n;
-  }
-  return null;
-}
-function interact(){
-  if(!G || !G.started || G.over || dialogOpen) return;
-  var st=G.floor;
-  /* stairs use */
-  if(Math.abs(G.px-st.sx)<=1 && Math.abs(G.py-st.sy)<=1 && !(G.px===st.sx&&G.py===st.sy)){
-    tryMove(st.sx-G.px, st.sy-G.py); return;
-  }
-  var n = adjacentNPC();
-  if(!n){ addMsg("Nobody to talk to here."); return; }
-  if(n.kind==='merchant'){
-    if(G.gold>=20){
-      G.gold-=20; G.potions++;
-      addMsg(n.name+": \"Pleasure doing business. One potion, good as new.\"", true);
-    } else {
-      showDialog(n.name+" the merchant: \"Potions, 20 gold. Come back when your purse is heavier, delver.\"");
-    }
-  } else {
-    if(!n.used){
-      n.used=true;
-      G.hp=Math.min(G.maxhp,G.hp+30);
-      showDialog(n.name+" the wanderer: \""+pick(HINTS)+"\" (You feel restored. +30 HP.)");
-    } else {
-      showDialog(n.name+" the wanderer: \""+pick(HINTS)+"\"");
-    }
-  }
-  updateHUD();
-}
-/* ---- enemy AI: real-time ticks ---- */
-function enemyTick(){
-  if(!G || !G.started || G.over || dialogOpen) return;
-  var st=G.floor;
-  var copy = st.enemies.slice();
-  for(var i=0;i<copy.length;i++){
-    var e=copy[i];
-    if(st.enemies.indexOf(e)<0) continue;
-    e.tick++;
-    if(e.tick < e.rate) continue;
-    e.tick=0;
-    var dx = G.px-e.x, dy = G.py-e.y;
-    var dist = Math.abs(dx)+Math.abs(dy);
-    if(dist===1){ e.attT=performance.now(); e.face = G.px>=e.x?1:-1; hurtPlayer(e.atk+rnd(3), "The "+e.name); continue; }
-    var chaser = (e.type==='goblin'||e.type==='ogre'||e.boss);
-    var mx=0,my=0;
-    if(chaser && dist<=9){
-      if(Math.abs(dx)>Math.abs(dy)) mx = dx>0?1:-1; else my = dy>0?1:-1;
-      if(Math.random()<0.25){ mx = rnd(3)-1; my = mx===0 ? (rnd(3)-1) : 0; }
-    } else { mx = rnd(3)-1; my = mx===0 ? (rnd(3)-1) : 0; }
-    var nx=e.x+mx, ny=e.y+my;
-    if(mx===0&&my===0) continue;
-    if(isWall(st,nx,ny)) continue;
-    if(nx===G.px&&ny===G.py){ e.attT=performance.now(); e.face = G.px>=e.x?1:-1; hurtPlayer(e.atk+rnd(3), "The "+e.name); continue; }
-    if(entityAt(st,nx,ny)) continue;
-    e.x=nx; e.y=ny;
-    e.ph += 1.3;
-    e.face = G.px>=nx?1:-1;
-  }
-  /* NPC bots wander slowly */
-  for(var j=0;j<st.npcs.length;j++){
-    var n=st.npcs[j];
-    n.tick++;
-    if(n.tick<4) continue;
-    n.tick=0;
-    var wx=rnd(3)-1, wy=wx===0?(rnd(3)-1):0;
-    var tx=n.x+wx, ty=n.y+wy;
-    if(wx===0&&wy===0) continue;
-    if(isWall(st,tx,ty)) continue;
-    if(tx===G.px&&ty===G.py) continue;
-    if(entityAt(st,tx,ty)) continue;
-    if(tx===st.sx&&ty===st.sy) continue;
-    n.x=tx; n.y=ty;
-    n.ph += 0.9;
-  }
-}
-</script>
-<script>
-"use strict";
-/* ---- animated characters (procedural sprites, no assets) ---- */
-var animNow = 0;
-function drawHumanoid(x, y, o){
-  var s = o.scale||1, face = o.face||1;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(face*s, s);
-  ctx.lineCap = 'round';
-  var sw = Math.sin(o.ph||0);
-  var idle = Math.sin(animNow/600)*1.2;
-  if(o.robe){
-    ctx.fillStyle = o.robe;
-    ctx.beginPath(); ctx.moveTo(-8,-6); ctx.lineTo(8,-6); ctx.lineTo(11,12); ctx.lineTo(-11,12); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(-11,6,22,6);
-    ctx.fillStyle = o.head||'#f0c090';
-    ctx.beginPath(); ctx.arc(0,-12+idle*0.3,6,0,7); ctx.fill();
-    if(o.hood){
-      ctx.fillStyle = o.robe;
-      ctx.beginPath(); ctx.arc(0,-13,8.5,Math.PI*0.95,Math.PI*2.05); ctx.fill();
-    }
-    if(o.hat){
-      ctx.fillStyle = o.hat;
-      ctx.beginPath(); ctx.ellipse(0,-15,12,4,0,0,7); ctx.fill();
-      ctx.fillRect(-5,-25,10,10);
-      ctx.fillStyle = '#ffd75e';
-      ctx.fillRect(-5,-17,10,2);
-    }
-    if(o.staff){
-      var sway = Math.sin((o.ph||0)*0.7)*2;
-      ctx.strokeStyle = '#7a5a2a'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(10+sway,-16); ctx.lineTo(12+sway,12); ctx.stroke();
-      ctx.fillStyle = '#8fd6ff';
-      ctx.beginPath(); ctx.arc(10+sway,-18,3.5,0,7); ctx.fill();
-    }
-    ctx.fillStyle = '#14141c';
-    ctx.beginPath(); ctx.arc(1.5,-12+idle*0.3,1.3,0,7); ctx.fill();
-    ctx.beginPath(); ctx.arc(5,-12+idle*0.3,1.3,0,7); ctx.fill();
-  } else {
-    ctx.strokeStyle = o.legs; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(-3,-2); ctx.lineTo(-3+sw*5,12); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(3,-2); ctx.lineTo(3-sw*5,12); ctx.stroke();
-    ctx.strokeStyle = o.body; ctx.lineWidth = o.bulky?11:7;
-    ctx.beginPath(); ctx.moveTo(0,-10+idle*0.3); ctx.lineTo(0,-1); ctx.stroke();
-    if(o.belt){
-      ctx.strokeStyle = o.belt; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(-5,-4); ctx.lineTo(5,-4); ctx.stroke();
-    }
-    ctx.fillStyle = o.head;
-    ctx.beginPath(); ctx.arc(0,-15+idle*0.3,6,0,7); ctx.fill();
-    if(o.helm){
-      ctx.fillStyle = o.helm;
-      ctx.beginPath(); ctx.arc(0,-16+idle*0.3,6.5,Math.PI*1.02,Math.PI*1.98); ctx.fill();
-      ctx.fillRect(-6.5,-17+idle*0.3,13,3);
-    }
-    if(o.ears){
-      ctx.fillStyle = o.head;
-      ctx.beginPath(); ctx.moveTo(-5,-17); ctx.lineTo(-12,-22); ctx.lineTo(-6,-13); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(5,-17); ctx.lineTo(12,-22); ctx.lineTo(6,-13); ctx.closePath(); ctx.fill();
-    }
-    ctx.fillStyle = '#14141c';
-    ctx.beginPath(); ctx.arc(1.5,-15+idle*0.3,1.3,0,7); ctx.fill();
-    ctx.beginPath(); ctx.arc(5,-15+idle*0.3,1.3,0,7); ctx.fill();
-    var atk = o.attackK||0;
-    var ax = 5+atk*11, ay = -6+atk*1;
-    ctx.strokeStyle = o.head; ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.moveTo(3,-8); ctx.lineTo(ax,ay); ctx.stroke();
-    if(o.weapon==='sword'){
-      ctx.strokeStyle = '#dfe6f5'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax+13+atk*7,ay-5); ctx.stroke();
-      ctx.strokeStyle = '#8a6a2a'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(ax+2,ay-7); ctx.lineTo(ax+2,ay+1); ctx.stroke();
-    } else if(o.weapon==='dagger'){
-      ctx.strokeStyle = '#dfe6f5'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax+7+atk*4,ay-2); ctx.stroke();
-    } else if(o.weapon==='club'){
-      ctx.strokeStyle = '#7a5a2a'; ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax+10+atk*5,ay-6); ctx.stroke();
-      ctx.fillStyle = '#5a4020';
-      ctx.beginPath(); ctx.arc(ax+11+atk*5,ay-7,4.5,0,7); ctx.fill();
-    }
-  }
-  ctx.restore();
-}
-function drawRat(x, y, ph, face){
-  ctx.save(); ctx.translate(x,y); ctx.scale(face||1,1);
-  var sc = Math.sin(ph*2.2)*2.5;
-  ctx.strokeStyle = '#8a8a7a'; ctx.lineWidth = 2; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-11,0); ctx.quadraticCurveTo(-18,2+sc,-21,-3); ctx.stroke();
-  ctx.fillStyle = '#9a9a8a';
-  ctx.beginPath(); ctx.ellipse(0,0,11,6.5,0,0,7); ctx.fill();
-  ctx.beginPath(); ctx.arc(10,-3,4.5,0,7); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(8,-6); ctx.lineTo(9,-11); ctx.lineTo(12,-7); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(12,-6); ctx.lineTo(14,-10); ctx.lineTo(15,-5); ctx.closePath(); ctx.fill();
-  ctx.lineWidth = 2.5;
-  for(var i=0;i<2;i++){
-    var off = i===0?-5:4;
-    ctx.beginPath(); ctx.moveTo(off,5); ctx.lineTo(off+sc,9); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(off+3,5); ctx.lineTo(off+3-sc,9); ctx.stroke();
-  }
-  ctx.fillStyle = '#e03030';
-  ctx.beginPath(); ctx.arc(11,-4,1.4,0,7); ctx.fill();
-  ctx.restore();
-}
-function drawBat(x, y, ph, face){
-  ctx.save(); ctx.translate(x, y-2+Math.sin(animNow/170)*3); ctx.scale(face||1,1);
-  var w = Math.sin(ph*3.2);
-  ctx.fillStyle = '#4a3ed0';
-  ctx.save(); ctx.rotate(-0.45-w*0.55);
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-17,-7); ctx.lineTo(-14,5); ctx.lineTo(-7,2); ctx.closePath(); ctx.fill();
-  ctx.restore();
-  ctx.save(); ctx.scale(-1,1); ctx.rotate(-0.45-w*0.55);
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-17,-7); ctx.lineTo(-14,5); ctx.lineTo(-7,2); ctx.closePath(); ctx.fill();
-  ctx.restore();
-  ctx.fillStyle = '#7a6ae0';
-  ctx.beginPath(); ctx.ellipse(0,2,5,7,0,0,7); ctx.fill();
-  ctx.beginPath(); ctx.arc(0,-6,4,0,7); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-3,-8); ctx.lineTo(-4,-13); ctx.lineTo(-1,-9); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(3,-8); ctx.lineTo(4,-13); ctx.lineTo(1,-9); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#ff5a5a';
-  ctx.beginPath(); ctx.arc(-1.5,-6,1.2,0,7); ctx.fill();
-  ctx.beginPath(); ctx.arc(1.5,-6,1.2,0,7); ctx.fill();
-  ctx.restore();
-}
-function drawWarden(x, y, ph){
-  ctx.save(); ctx.translate(x, y+Math.sin(animNow/380)*2.5);
-  var sw = Math.sin(ph*1.4)*2.5;
-  ctx.fillStyle = '#14141e';
-  ctx.beginPath(); ctx.moveTo(-10,-22); ctx.lineTo(10,-22); ctx.lineTo(15,12); ctx.lineTo(-15,12); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#23232f';
-  ctx.beginPath(); ctx.moveTo(-10,-22); ctx.lineTo(10,-22); ctx.lineTo(6,12); ctx.lineTo(-6,12); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#e03030'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(-8,-14); ctx.lineTo(-5,8); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(8,-14); ctx.lineTo(5,8); ctx.stroke();
-  ctx.fillStyle = '#0a0a10';
-  ctx.beginPath(); ctx.arc(0,-28,9.5,0,7); ctx.fill();
-  ctx.fillStyle = '#ff2a2a';
-  ctx.beginPath(); ctx.arc(-3.5,-29,2.2,0,7); ctx.fill();
-  ctx.beginPath(); ctx.arc(3.5,-29,2.2,0,7); ctx.fill();
-  ctx.fillStyle = 'rgba(255,42,42,0.25)';
-  ctx.beginPath(); ctx.arc(-3.5,-29,4,0,7); ctx.fill();
-  ctx.beginPath(); ctx.arc(3.5,-29,4,0,7); ctx.fill();
-  ctx.strokeStyle = '#2e2e40'; ctx.lineWidth = 4; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-10,-12); ctx.lineTo(-17+sw,-3); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(10,-12); ctx.lineTo(17-sw,-3); ctx.stroke();
-  ctx.fillStyle = '#cfd6e4';
-  for(var i=0;i<3;i++){
-    ctx.beginPath(); ctx.arc(-17+sw+i*2.5,-2,1.2,0,7); ctx.fill();
-    ctx.beginPath(); ctx.arc(17-sw-i*2.5,-2,1.2,0,7); ctx.fill();
-  }
-  ctx.restore();
-}
-/* ---- item elements: designed, animated sprites ---- */
-function drawGold(x, y){
-  ctx.save(); ctx.translate(x, y+5);
-  function coin(cx, cy, r){
-    ctx.fillStyle = '#b8860b';
-    ctx.beginPath(); ctx.ellipse(cx,cy,r,r*0.72,0,0,7); ctx.fill();
-    ctx.fillStyle = '#ffd75e';
-    ctx.beginPath(); ctx.ellipse(cx,cy-1.5,r*0.78,r*0.55,0,0,7); ctx.fill();
-    ctx.fillStyle = '#fff2b8';
-    ctx.beginPath(); ctx.ellipse(cx-2,cy-2.5,r*0.28,r*0.18,0,0,7); ctx.fill();
-  }
-  coin(-6,4,7); coin(6,4,7); coin(0,0,7); coin(0,-5,6);
-  var tw = Math.sin(animNow/280);
-  if(tw>0.25){
-    var sx=9, sy=-9, a=0.35+tw*0.5;
-    ctx.fillStyle = 'rgba(255,255,255,'+a.toFixed(2)+')';
-    ctx.beginPath();
-    ctx.moveTo(sx,sy-5); ctx.lineTo(sx+1.5,sy-1.5); ctx.lineTo(sx+5,sy);
-    ctx.lineTo(sx+1.5,sy+1.5); ctx.lineTo(sx,sy+5); ctx.lineTo(sx-1.5,sy+1.5);
-    ctx.lineTo(sx-5,sy); ctx.lineTo(sx-1.5,sy-1.5);
-    ctx.closePath(); ctx.fill();
-  }
-  ctx.restore();
-}
-function drawPotion(x, y){
-  ctx.save(); ctx.translate(x, y+Math.sin(animNow/500)*1.5);
-  ctx.fillStyle = '#8f1438';
-  ctx.beginPath(); ctx.ellipse(0,5,8.5,9,0,0,7); ctx.fill();
-  ctx.fillStyle = '#e03060';
-  ctx.beginPath(); ctx.ellipse(0,6,6.5,6.5,0,0,7); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.beginPath(); ctx.ellipse(-3.5,2,2,5,0.3,0,7); ctx.fill();
-  var bt = (animNow/700)%1;
-  ctx.fillStyle = 'rgba(255,255,255,0.65)';
-  ctx.beginPath(); ctx.arc(-1, 9-bt*11, 1.6, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.5, 10-((bt+0.5)%1)*11, 1.2, 0, 7); ctx.fill();
-  ctx.fillStyle = '#6e0f2c';
-  ctx.fillRect(-3,-7,6,6);
-  ctx.fillStyle = '#c8961e';
-  ctx.fillRect(-3.5,-10,7,4);
-  ctx.fillStyle = '#8a6a1e';
-  ctx.fillRect(-3.5,-10,7,1.5);
-  ctx.restore();
-}
-function drawShrine(x, y, boon){
-  var glow = boon==='might' ? '#ff9a3a' : '#4ae08a';
-  ctx.save(); ctx.translate(x, y);
-  ctx.fillStyle = '#3f3f52';
-  ctx.beginPath(); ctx.ellipse(0,11,13,5,0,0,7); ctx.fill();
-  ctx.fillStyle = '#54546a';
-  ctx.fillRect(-8,1,16,10);
-  ctx.fillStyle = '#33333f';
-  ctx.fillRect(-8,1,16,2.5);
-  ctx.fillStyle = '#45455a';
-  ctx.fillRect(-5,4,3,7);
-  ctx.fillRect(2,4,3,7);
-  var fy = -9+Math.sin(animNow/450)*3;
-  var pulse = 0.35+Math.abs(Math.sin(animNow/350))*0.35;
-  ctx.globalAlpha = pulse;
-  ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.arc(0,fy,14,0,7); ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.moveTo(0,fy-9); ctx.lineTo(6,fy); ctx.lineTo(0,fy+9); ctx.lineTo(-6,fy); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.beginPath(); ctx.moveTo(0,fy-9); ctx.lineTo(2.5,fy-1); ctx.lineTo(0,fy+9); ctx.lineTo(-2.5,fy-1); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = glow; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7;
-  ctx.beginPath(); ctx.ellipse(0,fy,10,4,0,0,7); ctx.stroke();
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-/* ---- rendering ---- */
-var TILE_COLORS = { floor:'#1b1b24', floor2:'#202029', wall:'#3d3d52', wallTop:'#55556e' };
-function draw(){
-  ctx.fillStyle = '#0a0a0f';
-  ctx.fillRect(0,0,960,640);
-  if(!G || !G.started) return;
-  animNow = performance.now();
-  var st = G.floor;
-  var camX = clamp(G.px - Math.floor(VIEW_W/2), 0, MAP_W-VIEW_W);
-  var camY = clamp(G.py - Math.floor(VIEW_H/2), 0, MAP_H-VIEW_H);
-  for(var ty=0; ty<VIEW_H; ty++){
-    for(var tx=0; tx<VIEW_W; tx++){
-      var mx = camX+tx, my = camY+ty;
-      var sx = tx*TILE, sy = ty*TILE;
-      if(st.grid[my][mx]===1){
-        ctx.fillStyle = TILE_COLORS.wall;
-        ctx.fillRect(sx,sy,TILE,TILE);
-        ctx.fillStyle = TILE_COLORS.wallTop;
-        ctx.fillRect(sx,sy,TILE,4);
-      } else {
-        ctx.fillStyle = ((mx+my)%2===0) ? TILE_COLORS.floor : TILE_COLORS.floor2;
-        ctx.fillRect(sx,sy,TILE,TILE);
-      }
-    }
-  }
-  function scr(x,y){ return {x:(x-camX)*TILE, y:(y-camY)*TILE}; }
-  /* stairs */
-  var sp = scr(st.sx,st.sy);
-  ctx.fillStyle = st.stairsLocked ? '#5a2a2a' : '#8a6a2a';
-  ctx.fillRect(sp.x+4,sp.y+4,TILE-8,TILE-8);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 20px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('>', sp.x+TILE/2, sp.y+TILE/2+1);
-  /* items: designed, animated elements */
-  for(var i=0;i<st.items.length;i++){
-    var it=st.items[i], ip=scr(it.x,it.y);
-    var icx=ip.x+TILE/2, icy=ip.y+TILE/2;
-    if(it.kind==='gold') drawGold(icx, icy);
-    else if(it.kind==='potion') drawPotion(icx, icy);
-    else drawShrine(icx, icy, it.boon);
-  }
-  /* NPC bots: animated wanderers and merchants */
-  for(var n=0;n<st.npcs.length;n++){
-    var npc=st.npcs[n], np=scr(npc.x,npc.y);
-    var nopts = {ph:npc.ph, face:npc.face||1, head:'#f0c090', scale:0.95};
-    if(npc.kind==='merchant'){ nopts.robe='#6a3a7a'; nopts.hat='#3f2547'; }
-    else { nopts.robe='#2f5a7a'; nopts.hood=true; nopts.staff=true; }
-    drawHumanoid(np.x+TILE/2, np.y+6, nopts);
-  }
-  /* enemies: true animated characters */
-  for(var e=0;e<st.enemies.length;e++){
-    var en=st.enemies[e], ep=scr(en.x,en.y);
-    var ecx=ep.x+TILE/2, ecy=ep.y+TILE/2;
-    var atkK = en.attT ? Math.sin(clamp(1-(animNow-en.attT)/220,0,1)*Math.PI) : 0;
-    if(en.type==='rat') drawRat(ecx, ecy+5, en.ph, en.face);
-    else if(en.type==='bat') drawBat(ecx, ecy, en.ph, en.face);
-    else if(en.type==='goblin') drawHumanoid(ecx, ecy+9, {ph:en.ph, face:en.face, scale:0.8, legs:'#3a5a2a', body:'#4ae08a', head:'#7ae09a', ears:true, weapon:'dagger', attackK:atkK});
-    else if(en.type==='ogre') drawHumanoid(ecx, ecy+8, {ph:en.ph, face:en.face, scale:1.25, bulky:true, legs:'#5a4a3a', body:'#8a6a4a', head:'#a07a52', weapon:'club', attackK:atkK});
-    else drawWarden(ecx, ecy+11, en.ph);
-    if(en.hp<en.maxhp){
-      ctx.fillStyle='#400'; ctx.fillRect(ep.x+4,ep.y+1,TILE-8,4);
-      ctx.fillStyle='#e03030'; ctx.fillRect(ep.x+4,ep.y+1,(TILE-8)*clamp(en.hp/en.maxhp,0,1),4);
-    }
-  }
-  /* player: animated delver */
-  var pp=scr(G.px,G.py);
-  var pAtk = G.attT ? Math.sin(clamp(1-(animNow-G.attT)/220,0,1)*Math.PI) : 0;
-  drawHumanoid(pp.x+TILE/2, pp.y+8, {ph:G.pph, face:G.pface, legs:'#3a3a5a', body:'#2a6ae0', head:'#f0c090', helm:'#9a9ab0', belt:'#5a4020', weapon:'sword', attackK:pAtk, scale:1});
-  /* darkness with light radius */
-  dctx.globalCompositeOperation='source-over';
-  dctx.clearRect(0,0,960,640);
-  dctx.fillStyle='rgba(4,4,8,0.84)';
-  dctx.fillRect(0,0,960,640);
-  dctx.globalCompositeOperation='destination-out';
-  var g=dctx.createRadialGradient(pp.x+TILE/2,pp.y+TILE/2,50,pp.x+TILE/2,pp.y+TILE/2,230);
-  g.addColorStop(0,'rgba(0,0,0,1)');
-  g.addColorStop(1,'rgba(0,0,0,0)');
-  dctx.fillStyle=g;
-  dctx.fillRect(0,0,960,640);
-  ctx.drawImage(dark,0,0);
-  requestAnimationFrame(draw);
-}
-/* ---- input ---- */
-var KEYS = {};
-window.addEventListener('keydown', function(e){
-  var k = e.key;
-  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].indexOf(k)>=0) e.preventDefault();
-  if(k==='Enter' && (!G || !G.started)){ startGame(); return; }
-  if((k==='r'||k==='R') && G && G.over){ hideOver(); newGame(); G.started=true; G.tickTimer=setInterval(enemyTick,200); requestAnimationFrame(draw); return; }
-  if(!G || !G.started || G.over) return;
-  if(dialogOpen && (k==='Enter'||k===' '||k==='Escape')){ hideDialog(); return; }
-  var lk = k.toLowerCase();
-  if(lk==='w'||k==='ArrowUp') tryMove(0,-1);
-  else if(lk==='s'||k==='ArrowDown') tryMove(0,1);
-  else if(lk==='a'||k==='ArrowLeft') tryMove(-1,0);
-  else if(lk==='d'||k==='ArrowRight') tryMove(1,0);
-  else if(k===' ') attackAll();
-  else if(lk==='e') interact();
-  else if(lk==='q') drinkPotion();
-});
-function hideOver(){ document.getElementById('gameover').classList.add('hidden'); }
-/* touch controls */
-document.querySelectorAll('#dpad button').forEach(function(b){
-  b.addEventListener('touchstart', function(e){
-    e.preventDefault();
-    tryMove(parseInt(b.getAttribute('data-dx'),10), parseInt(b.getAttribute('data-dy'),10));
-  }, {passive:false});
-  b.addEventListener('mousedown', function(e){
-    e.preventDefault();
-    tryMove(parseInt(b.getAttribute('data-dx'),10), parseInt(b.getAttribute('data-dy'),10));
-  });
-});
-function bindBtn(id, fn){
-  var el = document.getElementById(id);
-  el.addEventListener('touchstart', function(e){ e.preventDefault(); fn(); }, {passive:false});
-  el.addEventListener('mousedown', function(e){ e.preventDefault(); fn(); });
-}
-bindBtn('btnAtk', attackAll);
-bindBtn('btnUse', interact);
-bindBtn('btnPot', drinkPotion);
-/* start / restart */
-function startGame(){
+
+function startRun(){
   document.getElementById('title').classList.add('hidden');
-  newGame();
-  G.started = true;
-  G.tickTimer = setInterval(enemyTick, 200);
-  addMsg("You enter the Deepdelve. Gold glitters below.", true);
-  updateHUD();
-  requestAnimationFrame(draw);
+  document.getElementById('gameover').classList.add('hidden');
+  over=false; keyQueue=[];
+  var seed=(Date.now()%2000000000);
+  var raw=startFn(seed);
+  var res=JSON.parse(raw.toJs ? raw.toJs() : raw);
+  render(res.dl); updateHUD(res.hud,res.msgs);
+  playing=true;
 }
-document.getElementById('startBtn').addEventListener('click', startGame);
-document.getElementById('retryBtn').addEventListener('click', function(){
-  hideOver(); newGame(); G.started=true;
-  G.tickTimer = setInterval(enemyTick, 200);
-  requestAnimationFrame(draw);
+
+var DRIVER_PY = `
+import io, sys, json
+sys.path.insert(0, '/jc')
+BOOT_ERROR = None
+try:
+    import jesun
+    _out = io.StringIO()
+    interp = jesun.Interpreter(stdout=_out, stdin=io.StringIO())
+    jesun.run_source(open('/jc/deepdelve.jc', encoding='utf-8').read(), interp)
+    _OUTV = interp.global_env.vars['OUT']
+except Exception as e:
+    BOOT_ERROR = 'boot: ' + str(e)
+
+def _snap():
+    o = _OUTV
+    return json.dumps({'dl': o['dl'], 'hud': o['hud'], 'msgs': o['msgs'], 'over': o['over'], 'score': o['score']})
+
+def start_game(seed):
+    jesun.run_source('seed_game with %d' % int(seed), interp)
+    return _snap()
+
+def pump(keys):
+    for k in keys:
+        jesun.run_source('press with "%s"' % k, interp)
+    jesun.run_source('tick', interp)
+    return _snap()
+`;
+
+async function boot(){
+  var msg=document.getElementById('loadmsg');
+  try{
+    msg.textContent='Loading the Jesun.Code interpreter (Pyodide)...';
+    var pyodide=await loadPyodide();
+    msg.textContent='Fetching jesun.py and deepdelve.jc...';
+    pyodide.FS.mkdirTree('/jc');
+    for(const f of ['jesun.py','deepdelve.jc']){
+      var r=await fetch('jc/'+f);
+      if(!r.ok) throw new Error('fetch '+f+' -> '+r.status);
+      pyodide.FS.writeFile('/jc/'+f, await r.text());
+    }
+    msg.textContent='Waking the interpreter...';
+    await pyodide.runPythonAsync(DRIVER_PY);
+    var bootErr=pyodide.globals.get('BOOT_ERROR');
+    var bootErrStr=bootErr ? bootErr.toJs() : null;
+    if(bootErrStr){ throw new Error(bootErrStr); }
+    pumpFn=pyodide.globals.get('pump');
+    startFn=pyodide.globals.get('start_game');
+    ready=true;
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('title').classList.remove('hidden');
+    setInterval(frame,150);
+  }catch(err){
+    msg.textContent='Failed to boot: '+err.message;
+  }
+}
+
+window.addEventListener('keydown',function(e){
+  var k=e.key;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].indexOf(k)>=0) e.preventDefault();
+  if(!ready) return;
+  var lk=k.toLowerCase(), mapped=null;
+  if(lk==='w'||k==='ArrowUp') mapped='w';
+  else if(lk==='s'||k==='ArrowDown') mapped='s';
+  else if(lk==='a'||k==='ArrowLeft') mapped='a';
+  else if(lk==='d'||k==='ArrowRight') mapped='d';
+  else if(lk==='e') mapped='e';
+  else if(lk==='q') mapped='q';
+  else if(k===' ') mapped='space';
+  else if(k==='Enter'&&!playing&&!over&&document.getElementById('title').classList.contains('hidden')===false) { startRun(); return; }
+  if(mapped){ if(keyQueue.length<8) keyQueue.push(mapped); }
 });
-document.getElementById('dialogBtn').addEventListener('click', hideDialog);
-document.addEventListener('touchmove', function(e){ e.preventDefault(); }, {passive:false});
+document.querySelectorAll('#dpad button').forEach(function(b){
+  function go(e){ e.preventDefault(); if(keyQueue.length<8) keyQueue.push(b.getAttribute('data-k')); }
+  b.addEventListener('touchstart',go,{passive:false});
+  b.addEventListener('mousedown',go);
+});
+function bindBtn(id,k){
+  var el=document.getElementById(id);
+  function go(e){ e.preventDefault(); if(keyQueue.length<8) keyQueue.push(k); }
+  el.addEventListener('touchstart',go,{passive:false});
+  el.addEventListener('mousedown',go);
+}
+bindBtn('btnAtk','space'); bindBtn('btnUse','e'); bindBtn('btnPot','q');
+document.getElementById('startBtn').addEventListener('click',startRun);
+document.getElementById('retryBtn').addEventListener('click',startRun);
+document.addEventListener('touchmove',function(e){ e.preventDefault(); },{passive:false});
+boot();
 </script>
 </body>
 </html>
