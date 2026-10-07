@@ -187,6 +187,7 @@ def _snap():
 def start_game(seed):
     try:
         jesun.run_source('seed_game with %d' % int(seed), interp)
+        jesun.run_source('tick', interp)
     except Exception as e:
         return json.dumps({'ok': False, 'error': 'seed: ' + str(e)})
     return _snap()
