@@ -273,3 +273,10 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
   not game state).
 - Diagnosis aids kept: "3D status: GL_OK=... (...)" line in the FPP log on first
   entry, plus "3D display fault" surfacing if the renderer ever throws.
+
+## 20261008h+ - REALMS: overworld back to 2D top-down (founder: "Ewww")
+- The oblique overworld 3D shipped too early and looked cheap (flat garish
+  colors, crude geometry). Pulled back to the 2D top-down overworld, which
+  carries the dark gritty art direction properly.
+- Dungeon first-person stays real 3D (WebGL). Overworld 3D returns only with
+  a real art pass, not programmer art.
