@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>glprobe</title></head>
+<body><div id="r"> probing... </div>
+<script>
+var r = document.getElementById('r');
+try {
+  var c1 = document.createElement('canvas').getContext('webgl');
+  var c2 = document.createElement('canvas').getContext('webgl2');
+  var e2 = document.createElement('canvas').getContext('experimental-webgl');
+  r.textContent = 'WEBGL1:' + (c1 ? 'YES' : 'no') +
+    ' WEBGL2:' + (c2 ? 'YES' : 'no') +
+    ' EXP:' + (e2 ? 'YES' : 'no') +
+    ' UA:' + navigator.userAgent;
+} catch (e) { r.textContent = 'WEBGL_ERROR: ' + e.message; }
+</script>
+</body></html>
