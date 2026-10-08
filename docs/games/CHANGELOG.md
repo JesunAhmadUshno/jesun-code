@@ -4,6 +4,22 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-08
 
+### Pause with P key and touch button (indie dev loop, run 3)
+- New `G["paused"]` flag toggled by the P key (keyboard) and a II button in
+  the touch dpad. While paused the tick pump freezes the world clock, enemy
+  AI, particles and floaters; queued keys are dropped instead of piling up;
+  only P is honored so the player can always resume.
+- A PAUSED panel stamps itself through the display list on the frozen frame
+  (gold-bordered plate with "PAUSED" and "press P", 192x128 canvas coords),
+  in both top-down and first-person modes.
+- Game logic stays 100% Jesun.Code; driver maps P in the keydown handler and
+  adds the touch button plus help/title copy.
+- Verified: CPython 1200-tick pump across difficulties zero exceptions,
+  pause freeze/drop-key/resume unit checks, determinism byte-identical,
+  Node+Pyodide exact bridge flow FPP avg 40.1ms/tick (budget 120ms).
+  Two harness-caught bugs fixed pre-ship (overlay missed on the toggle tick,
+  overlay stamped on the resume tick).
+
 ### FPP minimap (indie dev loop, run 2)
 - First-person mode now draws a 1px-per-tile dungeon overview in the top-right
   corner of the 192x128 canvas via the display list: rooms as dark rects,
