@@ -211,6 +211,7 @@ to sfx with nm
 
 to seed_game with s
     G["seed"] is s
+    was3d is G["gl3d"]
     G["diff"] is 2
     G["diffset"] is false
     G["dname"] is "DELVER"
@@ -218,7 +219,7 @@ to seed_game with s
     G["edmg"] is 100
     G["mode"] is "top"
     G["map"] is "over"
-    G["gl3d"] is false
+    G["gl3d"] is was3d
     G["hp"] is 100
     G["maxhp"] is 100
     G["atk"] is 12
