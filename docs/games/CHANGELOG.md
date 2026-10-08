@@ -216,3 +216,12 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 - Emberhold overworld: village, river + bridge, well, houses, cave entrance,
   elder/villager NPCs, blessing quest.
 - 3 difficulties (story / delver / nightmare). Space attack key fix.
+
+## 20261008g - REALMS: fix 3D mode never activating (seed_game wiped the WebGL flag)
+- Root cause: boot set G["gl3d"]=true when WebGL was available, but seed_game
+  (run on every new game) reset G["gl3d"] to false. First-person mode therefore
+  always used the 2D fallback and the WebGL canvas stayed hidden.
+- Fix: seed_game now preserves G["gl3d"] across the reset (display capability,
+  not game state).
+- Diagnosis aids kept: "3D status: GL_OK=... (...)" line in the FPP log on first
+  entry, plus "3D display fault" surfacing if the renderer ever throws.
