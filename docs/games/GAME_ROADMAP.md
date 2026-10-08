@@ -20,11 +20,16 @@ Phases, one per run:
 - (b) Floor and ceiling casting with textures. (Superseded by (d).)
 - (c) Distance fog, dynamic per-column lighting, weapon overlay. (Superseded
   by (d).)
-- (d) ACTIVE: WebGL 3D renderer. Jesun.Code emits the 3D scene (camera,
-  textured dungeon quads, 3D character models with position, rotation, walk
-  pose); the driver draws it with WebGL: real perspective, real depth, torch
-  lighting. Enemies, NPCs, and items as low-poly 3D models built from
-  textured cuboids in the dark style. Replaces all sprite rendering in FPP.
+- (d) SHIPPED 2026-10-08 (browser screenshot verification pending): WebGL 3D
+  renderer. Jesun.Code emits the 3D scene (cam3d camera, quad3d textured
+  dungeon quads from a 13x13 grid window, model3d entities with 8-direction
+  facing and walk pose, text3d, sword3d); the driver draws it with WebGL:
+  real perspective, depth testing, torch light at the camera, distance fog.
+  13 low-poly cuboid models (dark style, all under 20 boxes, emissive eyes).
+  2D raycaster kept as fallback when WebGL is missing. Scene build
+  18.5ms/tick under Node+Pyodide (budget 120ms). Playtest bug fixes in this
+  ship: water rescue, NPCs cannot block cave/ladder/stairs, M reliably
+  enters FPP (ladder placement + no false surfacing).
 - (e) Overworld in 3D: the village and wilderness as real 3D terrain.
 Budget guard stays: scene build per tick under ~120ms under Node+Pyodide;
 WebGL draw itself is GPU-cheap.

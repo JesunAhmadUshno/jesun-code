@@ -11,6 +11,7 @@
   #badge { font-size:11px; color:#4ae08a; border:1px solid #4ae08a; border-radius:4px; padding:2px 8px; margin-bottom:8px; letter-spacing:1px; }
   #wrap { position:relative; width:100%; max-width:768px; }
   canvas { width:100%; height:auto; display:block; background:#111; border:2px solid #3a3a4a; border-radius:6px; image-rendering:pixelated; image-rendering:crisp-edges; }
+  #gl { position:absolute; inset:0; width:100%; height:100%; image-rendering:auto; display:none; border-radius:6px; }
   #hud { display:flex; flex-wrap:wrap; gap:8px 16px; background:#14141c; border:1px solid #3a3a4a; border-radius:6px; padding:8px 12px; margin-top:8px; font-size:14px; width:100%; max-width:768px; }
   #hud b { color:#ffd75e; }
   #hpbar { width:110px; height:12px; background:#3a0d0d; border:1px solid #666; border-radius:3px; display:inline-block; vertical-align:middle; }
@@ -51,6 +52,7 @@
 <h1>DEEPDELVE REALMS</h1>
 <div id="badge">RUNS 100% IN JESUN.CODE</div>
 <div id="wrap">
+  <canvas id="gl" width="576" height="384"></canvas>
   <canvas id="game" width="192" height="128"></canvas>
   <div id="bossbar" class="hidden"><span id="bossname"></span><div id="bosstrack"><div id="bossfill"></div></div></div>
   <div id="loading" class="overlay">
@@ -121,7 +123,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261008d';
+var APP_VERSION='20261008e';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -212,7 +214,432 @@ function drawText(c){
   ctx.fillText(str,x,y);
 }
 
+/* ================= REAL 3D: WebGL first-person renderer =================
+   Jesun.Code emits the scene (cam3d / quad3d / model3d / text3d / sword3d).
+   This draws it with real perspective, depth testing, a torch light at the
+   camera, and distance fog. If WebGL is missing, the game falls back to the
+   2D raycaster (G["gl3d"] stays false). */
+var glCanvas=document.getElementById('gl');
+var gl=null, GL_OK=false;
+try{ gl=glCanvas.getContext('webgl',{antialias:false,alpha:false})||glCanvas.getContext('experimental-webgl'); GL_OK=!!gl; }catch(e){ GL_OK=false; }
+var glProg=null, glBuf=null, glTex=null;
+var GLA={}, GLU={};
+var MODELS3D={};
+var GLV=[];
+
+function glMakeAtlas(){
+  var c=document.createElement('canvas'); c.width=128; c.height=128;
+  var g=c.getContext('2d');
+  function speckle(x0,y0,n,dark,light){
+    var i;
+    for(i=0;i<n;i++){ g.fillStyle='rgba(0,0,0,'+(Math.random()*dark).toFixed(2)+')'; g.fillRect(x0+(Math.random()*64|0),y0+(Math.random()*64|0),2,2); }
+    for(i=0;i<n/2;i++){ g.fillStyle='rgba(255,255,255,'+(Math.random()*light).toFixed(2)+')'; g.fillRect(x0+(Math.random()*64|0),y0+(Math.random()*64|0),1,1); }
+  }
+  var x,y,off;
+  g.fillStyle='#3b3b49'; g.fillRect(0,0,64,64);
+  g.strokeStyle='#23232c'; g.lineWidth=2;
+  for(y=0;y<=64;y+=16){
+    g.beginPath(); g.moveTo(0,y); g.lineTo(64,y); g.stroke();
+    off=((y/16)%2)*16;
+    for(x=off;x<=64;x+=32){ g.beginPath(); g.moveTo(x,y); g.lineTo(x,y+16); g.stroke(); }
+  }
+  speckle(0,0,260,0.3,0.07);
+  g.fillStyle='#2e2e36'; g.fillRect(64,0,64,64);
+  g.strokeStyle='#1c1c22'; g.lineWidth=2;
+  for(y=0;y<=64;y+=21){ g.beginPath(); g.moveTo(64,y); g.lineTo(128,y); g.stroke(); }
+  for(x=64;x<=128;x+=21){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,64); g.stroke(); }
+  speckle(64,0,200,0.3,0.05);
+  g.fillStyle='#26262e'; g.fillRect(0,64,64,64);
+  g.strokeStyle='#17171d'; g.lineWidth=2;
+  for(x=0;x<=64;x+=13){ g.beginPath(); g.moveTo(x,64); g.lineTo(x,128); g.stroke(); }
+  speckle(0,64,160,0.3,0.04);
+  g.fillStyle='#8a8a8a'; g.fillRect(64,64,64,64);
+  speckle(64,64,320,0.18,0.10);
+  return c;
+}
+
+function glInit(){
+  if(!GL_OK) return;
+  var vsrc='attribute vec3 aPos;attribute vec2 aUV;attribute vec3 aCol;attribute vec3 aNrm;attribute float aEmi;'+
+  'uniform mat4 uMVP;varying vec2 vUV;varying vec3 vCol;varying vec3 vNrm;varying vec3 vW;varying float vEmi;'+
+  'void main(){vUV=aUV;vCol=aCol;vNrm=aNrm;vW=aPos;vEmi=aEmi;gl_Position=uMVP*vec4(aPos,1.0);}';
+  var fsrc='precision mediump float;varying vec2 vUV;varying vec3 vCol;varying vec3 vNrm;varying vec3 vW;varying float vEmi;'+
+  'uniform sampler2D uTex;uniform vec3 uLight;uniform vec3 uFog;uniform float uFogD;'+
+  'void main(){vec3 tex=texture2D(uTex,vUV).rgb;vec3 base=tex*vCol;'+
+  'vec3 Lv=uLight-vW;float dist=length(Lv);vec3 L=Lv/max(dist,0.001);vec3 N=normalize(vNrm);'+
+  'if(dot(N,L)<0.0)N=-N;'+
+  'float diff=max(dot(N,L),0.0);float att=1.0/(1.0+0.35*dist*dist);'+
+  'vec3 lit=base*(0.22+1.15*diff*att)+base*vEmi*1.6;'+
+  'float f=1.0-exp(-uFogD*uFogD*dist*dist);f=clamp(f,0.0,1.0);'+
+  'vec3 col=mix(lit,uFog,f*(1.0-vEmi*0.75));'+
+  'gl_FragColor=vec4(col,1.0);}';
+  function sh(t,s){ var h=gl.createShader(t); gl.shaderSource(h,s); gl.compileShader(h);
+    if(!gl.getShaderParameter(h,gl.COMPILE_STATUS)){ GL_OK=false; return null; } return h; }
+  var v=sh(gl.VERTEX_SHADER,vsrc), f=sh(gl.FRAGMENT_SHADER,fsrc);
+  if(!v||!f) return;
+  var p=gl.createProgram(); gl.attachShader(p,v); gl.attachShader(p,f); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ GL_OK=false; return; }
+  glProg=p; gl.useProgram(p);
+  var an=['aPos','aUV','aCol','aNrm','aEmi'], un=['uMVP','uTex','uLight','uFog','uFogD'], i;
+  for(i=0;i<an.length;i++) GLA[an[i]]=gl.getAttribLocation(p,an[i]);
+  for(i=0;i<un.length;i++) GLU[un[i]]=gl.getUniformLocation(p,un[i]);
+  glBuf=gl.createBuffer();
+  glTex=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,glTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,glMakeAtlas());
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.viewport(0,0,glCanvas.width,glCanvas.height);
+  gl.clearColor(0.03,0.03,0.06,1);
+  defModels3D();
+}
+
+function mPersp(fovy,aspect,near,far){
+  var f=1/Math.tan(fovy/2), nf=1/(near-far);
+  return [f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0];
+}
+function mLookAt(ex,ey,ez,cx,cy,cz,ux,uy,uz){
+  var zx=ex-cx,zy=ey-cy,zz=ez-cz,l=1/Math.hypot(zx,zy,zz); zx*=l; zy*=l; zz*=l;
+  var xx=uy*zz-uz*zy,xy=uz*zx-ux*zz,xz=ux*zy-uy*zx;
+  l=1/Math.hypot(xx,xy,xz); xx*=l; xy*=l; xz*=l;
+  var yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
+  return [xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0,
+    -(xx*ex+xy*ey+xz*ez),-(yx*ex+yy*ey+yz*ez),-(zx*ex+zy*ey+zz*ez),1];
+}
+function mMul(a,b){
+  var o=new Array(16),c,r;
+  for(c=0;c<4;c++) for(r=0;r<4;r++)
+    o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];
+  return o;
+}
+
+function BX(a,cx,cy,cz,sx,sy,sz,r,g,b,o){
+  o=o||{};
+  a.push({cx:cx,cy:cy,cz:cz,sx:sx,sy:sy,sz:sz,r:r,g:g,b:b,
+    limb:o.limb||null,px:o.px||0,py:o.py||0,pz:o.pz||0,emi:o.emi||0});
+}
+function defModels3D(){
+  var B;
+  B=[];
+  BX(B, 0,0.45,0, 0.34,0.40,0.22, 0.16,0.28,0.12);
+  BX(B, 0,0.72,0.03, 0.26,0.24,0.24, 0.19,0.33,0.14);
+  BX(B, -0.17,0.77,0, 0.11,0.05,0.06, 0.15,0.27,0.11);
+  BX(B, 0.17,0.77,0, 0.11,0.05,0.06, 0.15,0.27,0.11);
+  BX(B, 0,0.69,0.155, 0.07,0.07,0.07, 0.13,0.23,0.10);
+  BX(B, -0.06,0.75,0.15, 0.05,0.035,0.025, 1.0,0.85,0.15,{emi:1});
+  BX(B, 0.06,0.75,0.15, 0.05,0.035,0.025, 1.0,0.85,0.15,{emi:1});
+  BX(B, -0.23,0.40,0, 0.10,0.34,0.10, 0.13,0.23,0.10,{limb:'armL',px:-0.18,py:0.56,pz:0});
+  BX(B, 0.23,0.40,0, 0.10,0.34,0.10, 0.13,0.23,0.10,{limb:'armR',px:0.18,py:0.56,pz:0});
+  BX(B, -0.09,0.17,0, 0.11,0.34,0.12, 0.11,0.19,0.08,{limb:'legL',px:-0.09,py:0.34,pz:0});
+  BX(B, 0.09,0.17,0, 0.11,0.34,0.12, 0.11,0.19,0.08,{limb:'legR',px:0.09,py:0.34,pz:0});
+  MODELS3D.goblin=B;
+  B=[];
+  BX(B, 0,0.68,0, 0.56,0.62,0.40, 0.24,0.27,0.21);
+  BX(B, 0,1.10,0.05, 0.30,0.28,0.30, 0.26,0.29,0.23);
+  BX(B, 0,1.17,0.16, 0.24,0.07,0.10, 0.18,0.20,0.16);
+  BX(B, -0.07,1.11,0.20, 0.06,0.045,0.025, 1.0,0.25,0.15,{emi:1});
+  BX(B, 0.07,1.11,0.20, 0.06,0.045,0.025, 1.0,0.25,0.15,{emi:1});
+  BX(B, -0.36,1.00,0, 0.20,0.16,0.26, 0.16,0.18,0.14);
+  BX(B, 0.36,1.00,0, 0.20,0.16,0.26, 0.16,0.18,0.14);
+  BX(B, -0.40,0.60,0, 0.17,0.60,0.17, 0.22,0.25,0.19,{limb:'armL',px:-0.36,py:0.92,pz:0});
+  BX(B, 0.40,0.60,0, 0.17,0.60,0.17, 0.22,0.25,0.19,{limb:'armR',px:0.36,py:0.92,pz:0});
+  BX(B, -0.15,0.24,0, 0.20,0.48,0.22, 0.20,0.22,0.17,{limb:'legL',px:-0.15,py:0.48,pz:0});
+  BX(B, 0.15,0.24,0, 0.20,0.48,0.22, 0.20,0.22,0.17,{limb:'legR',px:0.15,py:0.48,pz:0});
+  MODELS3D.ogre=B;
+  B=[];
+  BX(B, 0,0.18,-0.05, 0.22,0.20,0.50, 0.20,0.14,0.10);
+  BX(B, 0,0.25,0.24, 0.18,0.17,0.20, 0.22,0.16,0.11);
+  BX(B, 0,0.21,0.37, 0.10,0.09,0.12, 0.18,0.13,0.09);
+  BX(B, -0.07,0.36,0.22, 0.06,0.08,0.03, 0.20,0.14,0.10);
+  BX(B, 0.07,0.36,0.22, 0.06,0.08,0.03, 0.20,0.14,0.10);
+  BX(B, -0.05,0.27,0.335, 0.035,0.03,0.02, 1.0,0.2,0.15,{emi:1});
+  BX(B, 0.05,0.27,0.335, 0.035,0.03,0.02, 1.0,0.2,0.15,{emi:1});
+  BX(B, 0,0.13,-0.42, 0.045,0.045,0.38, 0.16,0.11,0.08,{limb:'tail',px:0,py:0.14,pz:-0.28});
+  BX(B, -0.08,0.07,0.12, 0.05,0.14,0.05, 0.15,0.11,0.08,{limb:'legL',px:-0.08,py:0.14,pz:0.12});
+  BX(B, 0.08,0.07,0.12, 0.05,0.14,0.05, 0.15,0.11,0.08,{limb:'legR',px:0.08,py:0.14,pz:0.12});
+  BX(B, -0.08,0.07,-0.20, 0.05,0.14,0.05, 0.15,0.11,0.08,{limb:'legL',px:-0.08,py:0.14,pz:-0.20});
+  BX(B, 0.08,0.07,-0.20, 0.05,0.14,0.05, 0.15,0.11,0.08,{limb:'legR',px:0.08,py:0.14,pz:-0.20});
+  MODELS3D.rat=B;
+  B=[];
+  BX(B, 0,0.55,0, 0.18,0.26,0.18, 0.14,0.10,0.19);
+  BX(B, 0,0.73,0.03, 0.16,0.14,0.16, 0.16,0.11,0.21);
+  BX(B, -0.05,0.75,0.105, 0.035,0.035,0.02, 1.0,0.2,0.2,{emi:1});
+  BX(B, 0.05,0.75,0.105, 0.035,0.035,0.02, 1.0,0.2,0.2,{emi:1});
+  BX(B, -0.06,0.82,0, 0.05,0.07,0.03, 0.14,0.10,0.19);
+  BX(B, 0.06,0.82,0, 0.05,0.07,0.03, 0.14,0.10,0.19);
+  BX(B, -0.32,0.60,-0.02, 0.40,0.05,0.26, 0.12,0.09,0.17,{limb:'wingL',px:-0.10,py:0.62,pz:0});
+  BX(B, 0.32,0.60,-0.02, 0.40,0.05,0.26, 0.12,0.09,0.17,{limb:'wingR',px:0.10,py:0.62,pz:0});
+  MODELS3D.bat=B;
+  B=[];
+  BX(B, 0,0.82,0, 0.50,0.72,0.34, 0.07,0.07,0.09);
+  BX(B, 0,0.88,0.15, 0.36,0.42,0.08, 0.14,0.14,0.17);
+  BX(B, 0,1.32,0, 0.30,0.30,0.32, 0.05,0.05,0.07);
+  BX(B, 0,1.50,-0.03, 0.09,0.12,0.30, 0.35,0.08,0.08);
+  BX(B, -0.08,1.33,0.155, 0.09,0.03,0.02, 0.4,0.9,1.0,{emi:1});
+  BX(B, 0.08,1.33,0.155, 0.09,0.03,0.02, 0.4,0.9,1.0,{emi:1});
+  BX(B, -0.34,1.10,0, 0.20,0.18,0.26, 0.10,0.10,0.13);
+  BX(B, 0.34,1.10,0, 0.20,0.18,0.26, 0.10,0.10,0.13);
+  BX(B, -0.42,0.72,0, 0.16,0.62,0.16, 0.08,0.08,0.10,{limb:'armL',px:-0.34,py:1.04,pz:0});
+  BX(B, 0.42,0.72,0, 0.16,0.62,0.16, 0.08,0.08,0.10,{limb:'armR',px:0.34,py:1.04,pz:0});
+  BX(B, -0.14,0.28,0, 0.18,0.56,0.20, 0.06,0.06,0.08,{limb:'legL',px:-0.14,py:0.56,pz:0});
+  BX(B, 0.14,0.28,0, 0.18,0.56,0.20, 0.06,0.06,0.08,{limb:'legR',px:0.14,py:0.56,pz:0});
+  MODELS3D.warden=B;
+  B=[];
+  BX(B, 0,0.40,0, 0.36,0.80,0.28, 0.24,0.15,0.19);
+  BX(B, 0,0.90,0, 0.22,0.22,0.22, 0.42,0.30,0.22);
+  BX(B, 0,0.99,-0.03, 0.28,0.14,0.28, 0.18,0.11,0.15);
+  BX(B, -0.05,0.91,0.105, 0.03,0.03,0.02, 0.15,0.12,0.10);
+  BX(B, 0.05,0.91,0.105, 0.03,0.03,0.02, 0.15,0.12,0.10);
+  BX(B, -0.22,0.55,0, 0.10,0.40,0.10, 0.20,0.12,0.16,{limb:'armL',px:-0.18,py:0.72,pz:0});
+  BX(B, 0.22,0.55,0, 0.10,0.40,0.10, 0.20,0.12,0.16,{limb:'armR',px:0.18,py:0.72,pz:0});
+  BX(B, 0,0.62,0.145, 0.30,0.07,0.02, 0.45,0.32,0.12);
+  MODELS3D.merchant=B;
+  B=[];
+  BX(B, 0,0.40,0, 0.36,0.80,0.28, 0.32,0.32,0.34);
+  BX(B, 0,0.90,0, 0.22,0.22,0.22, 0.45,0.33,0.25);
+  BX(B, 0,0.78,0.10, 0.14,0.18,0.06, 0.75,0.75,0.78);
+  BX(B, 0,1.00,-0.02, 0.28,0.14,0.28, 0.25,0.25,0.28);
+  BX(B, -0.05,0.91,0.105, 0.03,0.03,0.02, 0.12,0.12,0.12);
+  BX(B, 0.05,0.91,0.105, 0.03,0.03,0.02, 0.12,0.12,0.12);
+  BX(B, 0.24,0.55,0.05, 0.045,0.95,0.045, 0.30,0.22,0.14);
+  BX(B, 0.24,1.02,0.05, 0.09,0.07,0.09, 0.20,0.25,0.35,{emi:0.6});
+  MODELS3D.elder=B;
+  B=[];
+  BX(B, 0,0.45,0, 0.32,0.55,0.24, 0.28,0.22,0.16);
+  BX(B, 0,0.88,0, 0.22,0.22,0.22, 0.44,0.31,0.23);
+  BX(B, -0.05,0.89,0.105, 0.03,0.03,0.02, 0.12,0.10,0.08);
+  BX(B, 0.05,0.89,0.105, 0.03,0.03,0.02, 0.12,0.10,0.08);
+  BX(B, -0.21,0.55,0, 0.09,0.38,0.09, 0.24,0.19,0.14,{limb:'armL',px:-0.17,py:0.70,pz:0});
+  BX(B, 0.21,0.55,0, 0.09,0.38,0.09, 0.24,0.19,0.14,{limb:'armR',px:0.17,py:0.70,pz:0});
+  BX(B, -0.08,0.15,0, 0.10,0.30,0.11, 0.20,0.16,0.12,{limb:'legL',px:-0.08,py:0.30,pz:0});
+  BX(B, 0.08,0.15,0, 0.10,0.30,0.11, 0.20,0.16,0.12,{limb:'legR',px:0.08,py:0.30,pz:0});
+  MODELS3D.villager=B;
+  B=[];
+  BX(B, 0,0.45,0, 0.34,0.90,0.26, 0.10,0.10,0.14);
+  BX(B, 0,0.92,0.02, 0.20,0.20,0.20, 0.05,0.05,0.07);
+  BX(B, 0,1.00,-0.02, 0.28,0.16,0.28, 0.08,0.08,0.11);
+  BX(B, -0.05,0.93,0.115, 0.035,0.03,0.02, 0.9,0.75,0.25,{emi:0.8});
+  BX(B, 0.05,0.93,0.115, 0.035,0.03,0.02, 0.9,0.75,0.25,{emi:0.8});
+  BX(B, -0.22,0.55,0, 0.10,0.42,0.10, 0.08,0.08,0.11,{limb:'armL',px:-0.17,py:0.74,pz:0});
+  BX(B, 0.22,0.55,0, 0.10,0.42,0.10, 0.08,0.08,0.11,{limb:'armR',px:0.17,py:0.74,pz:0});
+  MODELS3D.wanderer=B;
+  B=[];
+  BX(B, -0.08,0.05,0.02, 0.22,0.10,0.18, 0.85,0.65,0.15);
+  BX(B, 0.10,0.05,-0.04, 0.18,0.10,0.16, 0.80,0.60,0.12);
+  BX(B, 0.0,0.13,0.0, 0.20,0.08,0.18, 0.90,0.70,0.18,{emi:0.25});
+  MODELS3D.gold=B;
+  B=[];
+  BX(B, 0,0.14,0, 0.16,0.24,0.16, 0.55,0.10,0.12,{emi:0.35});
+  BX(B, 0,0.30,0, 0.07,0.10,0.07, 0.40,0.08,0.10);
+  BX(B, 0,0.37,0, 0.08,0.05,0.08, 0.35,0.25,0.15);
+  MODELS3D.potion=B;
+  B=[];
+  BX(B, 0,0.12,0, 0.44,0.24,0.44, 0.25,0.25,0.28);
+  BX(B, 0,0.42,0, 0.26,0.36,0.26, 0.30,0.30,0.34);
+  BX(B, 0,0.68,0, 0.34,0.16,0.34, 0.22,0.22,0.26);
+  BX(B, 0,0.80,0, 0.16,0.10,0.16, 0.35,0.85,0.55,{emi:1});
+  MODELS3D.shrine=B;
+  B=[];
+  BX(B, 0,0,0, 0.07,0.07,0.07, 1.0,0.85,0.5,{emi:1});
+  MODELS3D.spark=B;
+}
+
+function glPushBoxLocal(V,b,ang){
+  var hx=b.sx/2,hy=b.sy/2,hz=b.sz/2,i,x,y,z;
+  var cn=[];
+  for(i=0;i<8;i++){
+    x=b.cx+(i&1?hx:-hx); y=b.cy+(i&2?hy:-hy); z=b.cz+(i&4?hz:-hz);
+    if(ang&&b.limb){
+      var dx=x-b.px,dy=y-b.py,dz=z-b.pz;
+      var ca=Math.cos(ang),sa=Math.sin(ang),L=b.limb,rx,ry,rz;
+      if(L==='armL'||L==='armR'||L==='legL'||L==='legR'){ ry=dy*ca-dz*sa; rz=dy*sa+dz*ca; dy=ry; dz=rz; }
+      else if(L==='wingL'||L==='wingR'){ rx=dx*ca-dy*sa; ry=dx*sa+dy*ca; dx=rx; dy=ry; }
+      else if(L==='tail'){ rx=dx*ca+dz*sa; rz=-dx*sa+dz*ca; dx=rx; dz=rz; }
+      x=b.px+dx; y=b.py+dy; z=b.pz+dz;
+    }
+    cn.push([x,y,z]);
+  }
+  var F=[
+    [[1,3,7,5],[1,0,0]],[[0,4,6,2],[-1,0,0]],
+    [[2,3,7,6],[0,1,0]],[[0,1,5,4],[0,-1,0]],
+    [[4,5,7,6],[0,0,1]],[[0,2,3,1],[0,0,-1]]
+  ];
+  var DU=[[0.5,0.5],[1,0.5],[1,1],[0.5,1]];
+  for(var f=0;f<6;f++){
+    var q=F[f][0],n=F[f][1];
+    var vs=[cn[q[0]],cn[q[1]],cn[q[2]],cn[q[3]]];
+    var tr=[0,1,2,0,2,3];
+    for(var k=0;k<6;k++){
+      var vv=vs[tr[k]],uv=DU[tr[k]];
+      V.push(vv[0],vv[1],vv[2],uv[0],uv[1],b.r,b.g,b.b,n[0],n[1],n[2],b.emi);
+    }
+  }
+}
+
+function glPushModel(name,wx,h,wy,yaw,pose){
+  var boxes=MODELS3D[name];
+  if(!boxes) return;
+  var ang=pose?0.45:-0.45;
+  var cy=Math.cos(yaw),sy=Math.sin(yaw),i,v;
+  var tmp=[];
+  for(i=0;i<boxes.length;i++){
+    var b=boxes[i];
+    var ph=(b.limb&&b.limb.charAt(b.limb.length-1)==='R')?-1:1;
+    glPushBoxLocal(tmp,{cx:b.cx,cy:b.cy+h,cz:b.cz,sx:b.sx,sy:b.sy,sz:b.sz,
+      r:b.r,g:b.g,b:b.b,emi:b.emi,limb:b.limb,px:b.px,py:b.py+h,pz:b.pz},ang*ph);
+  }
+  for(v=0;v<tmp.length;v+=12){
+    var x=tmp[v],z=tmp[v+2],nx=tmp[v+8],nz=tmp[v+10];
+    tmp[v]=x*cy+z*sy+wx;
+    tmp[v+2]=-x*sy+z*cy+wy;
+    tmp[v+8]=nx*cy+nz*sy;
+    tmp[v+10]=-nx*sy+nz*cy;
+  }
+  for(v=0;v<tmp.length;v++) GLV.push(tmp[v]);
+}
+
+function glPushQuad(p1,p2,p3,p4,tex,shade){
+  var R=[[0,0.5,0,0.5],[0.5,1,0,0.5],[0,0.5,0.5,1]][tex]||[0.5,1,0.5,1];
+  var e1=[p2[0]-p1[0],p2[1]-p1[1],p2[2]-p1[2]];
+  var e2=[p4[0]-p1[0],p4[1]-p1[1],p4[2]-p1[2]];
+  var n1=Math.max(1,Math.round(Math.hypot(e1[0],e1[1],e1[2])));
+  var n2=Math.max(1,Math.round(Math.hypot(e2[0],e2[1],e2[2])));
+  var nx=e1[1]*e2[2]-e1[2]*e2[1],ny=e1[2]*e2[0]-e1[0]*e2[2],nz=e1[0]*e2[1]-e1[1]*e2[0];
+  var nl=Math.hypot(nx,ny,nz)||1; nx/=nl; ny/=nl; nz/=nl;
+  var uvs=[[R[0],R[2]],[R[1],R[2]],[R[1],R[3]],[R[0],R[3]]];
+  var tr=[0,1,2,0,2,3];
+  for(var i=0;i<n1;i++) for(var j=0;j<n2;j++){
+    var a0=i/n1,a1=(i+1)/n1,b0=j/n2,b1=(j+1)/n2;
+    var qs=[
+      [p1[0]+e1[0]*a0+e2[0]*b0, p1[1]+e1[1]*a0+e2[1]*b0, p1[2]+e1[2]*a0+e2[2]*b0],
+      [p1[0]+e1[0]*a1+e2[0]*b0, p1[1]+e1[1]*a1+e2[1]*b0, p1[2]+e1[2]*a1+e2[2]*b0],
+      [p1[0]+e1[0]*a1+e2[0]*b1, p1[1]+e1[1]*a1+e2[1]*b1, p1[2]+e1[2]*a1+e2[2]*b1],
+      [p1[0]+e1[0]*a0+e2[0]*b1, p1[1]+e1[1]*a0+e2[1]*b1, p1[2]+e1[2]*a0+e2[2]*b1]
+    ];
+    for(var k=0;k<6;k++){
+      var q=qs[tr[k]],uv=uvs[tr[k]];
+      GLV.push(q[0],q[1],q[2],uv[0],uv[1],shade,shade,shade,nx,ny,nz,0);
+    }
+  }
+}
+
+function glPushSword(camx,ey,camz,fdx,fdy,swing,t){
+  var sway=Math.sin(t/450)*0.015;
+  var lunge=swing?0.14:0;
+  var boxes=[
+    {cx:0.30+sway,cy:0.02,cz:-0.55-lunge,sx:0.028,sy:0.36,sz:0.012,r:0.72,g:0.76,b:0.86},
+    {cx:0.30+sway,cy:-0.20,cz:-0.55-lunge,sx:0.11,sy:0.028,sz:0.028,r:0.75,g:0.58,b:0.20},
+    {cx:0.30+sway,cy:-0.28,cz:-0.55-lunge,sx:0.032,sy:0.13,sz:0.032,r:0.22,g:0.13,b:0.08}
+  ];
+  var rx=-fdy,rz=fdx,i,v;
+  var tmp=[];
+  for(i=0;i<boxes.length;i++){
+    var b=boxes[i];
+    glPushBoxLocal(tmp,{cx:b.cx,cy:b.cy,cz:b.cz,sx:b.sx,sy:b.sy,sz:b.sz,
+      r:b.r,g:b.g,b:b.b,emi:0,limb:null,px:0,py:0,pz:0},0);
+  }
+  for(v=0;v<tmp.length;v+=12){
+    var x=tmp[v],y=tmp[v+1],z=tmp[v+2],nx=tmp[v+8],ny=tmp[v+9],nz=tmp[v+10];
+    var fz=-z;
+    tmp[v]=camx+rx*x+fdx*fz;
+    tmp[v+1]=ey+y;
+    tmp[v+2]=camz+rz*x+fdy*fz;
+    tmp[v+8]=rx*nx+fdx*(-nz);
+    tmp[v+10]=rz*nx+fdy*(-nz);
+  }
+  for(v=0;v<tmp.length;v++) GLV.push(tmp[v]);
+}
+
+function glProject(mvp,x,y,z){
+  var w=mvp[3]*x+mvp[7]*y+mvp[11]*z+mvp[15];
+  if(w<0.02) return null;
+  var cx=(mvp[0]*x+mvp[4]*y+mvp[8]*z+mvp[12])/w;
+  var cy=(mvp[1]*x+mvp[5]*y+mvp[9]*z+mvp[13])/w;
+  if(cx<-1.05||cx>1.05||cy<-1.05||cy>1.05) return null;
+  return [(cx*0.5+0.5)*192,(1-(cy*0.5+0.5))*128];
+}
+
+function renderGL(dl){
+  var i,c,op,cam=null,sword=0;
+  for(i=0;i<dl.length;i++){ c=dl[i]; op=c[0];
+    if(op==='cam3d') cam=c; else if(op==='sword3d') sword=c[1]; }
+  if(!cam) return [];
+  var camx=cam[1],camz=cam[2],fdx=cam[3],fdy=cam[4],ey=0.55;
+  var mvp=mMul(mPersp(0.817,576/384,0.05,60),
+    mLookAt(camx,ey,camz,camx+fdx,ey,camz+fdy,0,1,0));
+  GLV.length=0;
+  for(i=0;i<dl.length;i++){ c=dl[i]; op=c[0];
+    if(op==='quad3d'){
+      var tex=c[13]==='floor'?1:(c[13]==='ceil'?2:0);
+      glPushQuad([c[1],c[2],c[3]],[c[4],c[5],c[6]],[c[7],c[8],c[9]],[c[10],c[11],c[12]],tex,c[14]);
+    } else if(op==='model3d'){
+      glPushModel(c[1],c[2],c[3],c[4],c[5],c[6]);
+    }
+  }
+  glPushSword(camx,ey,camz,fdx,fdy,sword,performance.now());
+  gl.bindBuffer(gl.ARRAY_BUFFER,glBuf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(GLV),gl.DYNAMIC_DRAW);
+  var S=12,FS=Float32Array.BYTES_PER_ELEMENT;
+  function attr(n,sz,off){ gl.enableVertexAttribArray(GLA[n]); gl.vertexAttribPointer(GLA[n],sz,gl.FLOAT,false,S*FS,off*FS); }
+  attr('aPos',3,0); attr('aUV',2,3); attr('aCol',3,5); attr('aNrm',3,8); attr('aEmi',1,11);
+  gl.uniformMatrix4fv(GLU.uMVP,false,new Float32Array(mvp));
+  gl.uniform3f(GLU.uLight,camx,ey,camz);
+  gl.uniform3f(GLU.uFog,0.02,0.02,0.06);
+  gl.uniform1f(GLU.uFogD,0.09);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D,glTex);
+  gl.uniform1i(GLU.uTex,0);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.drawArrays(gl.TRIANGLES,0,GLV.length/12);
+  var texts=[];
+  for(i=0;i<dl.length;i++){ c=dl[i];
+    if(c[0]==='text3d'){
+      var p=glProject(mvp,c[1],c[2],c[3]);
+      if(p) texts.push({x:p[0],y:p[1],txt:String(c[4]),col:c[5]});
+    }
+  }
+  return texts;
+}
+glInit();
+/* =============== end WebGL renderer =============== */
+
 function render(dl){
+  var has3d=false, s;
+  if(GL_OK){ for(s=0;s<dl.length;s++){ if(dl[s][0]==='cam3d'){ has3d=true; break; } } }
+  var glc=document.getElementById('gl');
+  if(has3d){
+    glc.style.display='block';
+    canvas.style.background='transparent';
+    try{
+      var texts=renderGL(dl);
+      ctx.clearRect(0,0,FW,FH);
+      ctx.imageSmoothingEnabled=false;
+      for(var n=0;n<dl.length;n++){
+        var c=dl[n], op=c[0];
+        if(op==='rect'){ ctx.fillStyle='#'+c[5]; ctx.fillRect(c[1],c[2],c[3],c[4]); }
+        else if(op==='text'){ drawText(c); }
+        else if(op==='circle'){ ctx.fillStyle='#'+c[4]; ctx.beginPath(); ctx.arc(c[1],c[2],c[3],0,6.2832); ctx.fill(); }
+        else if(op==='line'){ ctx.strokeStyle='#'+c[5]; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(c[1],c[2]); ctx.lineTo(c[3],c[4]); ctx.stroke(); }
+      }
+      ctx.font='8px "Courier New",monospace'; ctx.textBaseline='top';
+      for(var t=0;t<texts.length;t++){
+        var tc=texts[t];
+        ctx.fillStyle='#000000'; ctx.fillText(tc.txt,tc.x-8+1,tc.y+1);
+        ctx.fillStyle='#'+tc.col; ctx.fillText(tc.txt,tc.x-8,tc.y);
+      }
+    }catch(err){
+      glc.style.display='none';
+      canvas.style.background='#111';
+    }
+    return;
+  }
+  glc.style.display='none';
+  canvas.style.background='#111';
   ctx.imageSmoothingEnabled=false;
   var img=ctx.createImageData(FW,FH), d=img.data;
   var dirty=false;
@@ -428,6 +855,7 @@ async function boot(){
     }
     msg.textContent='Waking the interpreter...';
     await pyodide.runPythonAsync(DRIVER_PY);
+    if(GL_OK){ try{ await pyodide.runPythonAsync('jesun.run_source(\'G["gl3d"] is true\', interp)'); }catch(e){} }
     msg.textContent='Loading sprite atlas...';
     var ar=await fetch(av('assets/atlas.json'));
     if(!ar.ok) throw new Error('fetch atlas.json -> '+ar.status);
