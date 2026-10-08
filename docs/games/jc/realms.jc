@@ -2898,8 +2898,8 @@ to refresh_out
     hud["bossname"] is bbn
     hud["mode"] is G["mode"]
     hud["over3d"] is 0
-    if G["map"] is "over" and G["gl3d"] then
-        hud["over3d"] is 1
+    note Overworld 3D pulled back 20261008: HUD must match the 2D renderer.
+    note (The old "if gl3d then over3d=1" lied after the revert.)
     hud["paused"] is G["paused"]
     hud["diff"] is G["dname"]
     if G["map"] is "over" then
