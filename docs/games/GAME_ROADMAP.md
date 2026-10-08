@@ -8,24 +8,26 @@ unit of risk. One item ships per run, top first. Done items move to CHANGELOG.md
 ## Open
 
 ### 1. REALMS 3D upgrade (founder directive 2026-10-08)
-Founder order: "I want 3D. Not 2D any more. Unreal engine. Ultra realistic."
-Honest boundary: photorealism is impossible on this stack. Jesun.Code runs
-through a Python interpreter inside the browser (Pyodide). No GPU engine can
-live there, and no mockup ships as the real thing. What ships instead is REAL
-3D: a major upgrade of the raycast engine, all game logic still 100%
-Jesun.Code. Phases, one per run:
-- (a) DONE 2026-10-08: billboarded sprites in FPP. Enemies, NPCs, items as
-  textured vertical strips from the atlas (`sslice` command), per-column
-  depth-tested against the ray depth buffer, runs coalesced, exact
-  early-outs, 12-sprite cap. Subtle shading (min 0.5) plus driver-side
-  bilinear smooth filtering for crisp close reads. FPP 60.9ms/tick with
-  sprites in view (budget 120ms).
-- (b) Floor and ceiling casting with textures. NEXT.
-- (c) Distance fog, dynamic per-column lighting, weapon overlay.
-- (d) WebGL display driver: the browser GPU draws the 3D scene from
-  Jesun.Code display-list commands.
-- (e) Overworld depth: raised tiles, drop shadows, 2.5D feel.
-Budget guard stays: FPP tick under ~120ms under Node+Pyodide.
+Founder order: "I want 3D. Not 2D any more." Then: "I don't want pixel style
+any more, I need real 3D. Everything in 3D." No more sprites, no pixel art:
+everything becomes REAL 3D geometry rendered with WebGL. Characters are
+low-poly 3D models in the dark style, the dungeon is real 3D space. All game
+logic and scene math stay 100% Jesun.Code; the browser's WebGL renderer is
+the host (honest boundary, same as before).
+Phases, one per run:
+- (a) DONE 2026-10-08: billboarded sprites in FPP (stepping stone, replaced
+  by (d)).
+- (b) Floor and ceiling casting with textures. (Superseded by (d).)
+- (c) Distance fog, dynamic per-column lighting, weapon overlay. (Superseded
+  by (d).)
+- (d) ACTIVE: WebGL 3D renderer. Jesun.Code emits the 3D scene (camera,
+  textured dungeon quads, 3D character models with position, rotation, walk
+  pose); the driver draws it with WebGL: real perspective, real depth, torch
+  lighting. Enemies, NPCs, and items as low-poly 3D models built from
+  textured cuboids in the dark style. Replaces all sprite rendering in FPP.
+- (e) Overworld in 3D: the village and wilderness as real 3D terrain.
+Budget guard stays: scene build per tick under ~120ms under Node+Pyodide;
+WebGL draw itself is GPU-cheap.
 
 ### 2. UX/UI overhaul program (founder directive 2026-10-08)
 Founder: "Get ux ui even better." A full pass over every screen with fresh
