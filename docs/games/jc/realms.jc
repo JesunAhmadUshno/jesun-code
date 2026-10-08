@@ -1899,8 +1899,9 @@ note cos15 0.96593 sin15 0.25882, cos33 0.83867 sin33 0.54464,
 note per-ray cos 0.99970 sin 0.02450. Focal length 147.83 = 96 / tan(33deg).
 note DDA walks the 0/1 dungeon grid, max 48 steps per ray. Wall height is
 note 128 / perpendicular-distance, shaded by distance band and wall side.
-note Sprites are billboarded: project to camera space, sort far to near,
-note test the center column against the ray depth buffer, draw shaded rects.
+note Sprites are true-3D billboards: project to camera space, sort far to
+note near, depth-test every screen column against the ray depth buffer,
+note draw textured vertical strips from the atlas (mirrors wall columns).
 
 to tex_col with t
     note Fast texture column 0-15 from t in [-16, 16]. Binary range reduction,
@@ -2086,6 +2087,14 @@ to fpp_spr_name with tag and ref
     give back SPR["shrine_might"]
 
 to draw_fpp_sprites with dl and zb and ox and oy
+    note True-3D billboarded sprites. Each visible entity is projected to
+    note camera space, scaled by distance, then drawn as textured vertical
+    note strips from the atlas (["sslice", name, t0, t1, dx, dy, dw, dh, shade]).
+    note Every screen column is depth-tested against the ray depth buffer, so
+    note sprites clip correctly behind wall edges instead of popping. Visible
+    note columns are coalesced into runs to keep the display list small.
+    note Shading is deliberately subtle (min 0.5) so texture detail stays
+    note readable; the driver smooth-filters strips for crisp scaled reads.
     fdx is G["fdx"]
     fdy is G["fdy"]
     rx is 0 - fdy
@@ -2103,6 +2112,7 @@ to draw_fpp_sprites with dl and zb and ox and oy
         d is sproj with it["x"] + 0.5 and it["y"] + 0.5 and ox and oy and fdx and fdy
         if d is greater than 0.4 and d is less than 14 then
             push [d, "i", it] to spr
+    note far to near so near sprites overdraw far ones
     n2 is length of spr
     i is 1
     repeat while i is less than n2
@@ -2116,17 +2126,16 @@ to draw_fpp_sprites with dl and zb and ox and oy
             otherwise
                 stop
         i is i + 1
+    drawn is 0
     for each s in spr
+        if drawn is greater than 11 then
+            stop
         d is s[0]
         relx is (s[2]["x"] + 0.5) - ox
         rely is (s[2]["y"] + 0.5) - oy
         lat is relx * rx + rely * ry
         fx is 96 + lat * 147.83 / d
         if fx is less than (0 - d * 8) or fx is greater than 192 + d * 8 then
-            skip
-        qc is ipart with (fx / 4)
-        col is clamp with qc and 0 and 47
-        if zb[col] is less than d - 0.3 then
             skip
         h is 147.83 * 0.85 / d
         if h is greater than 120 then
@@ -2137,16 +2146,86 @@ to draw_fpp_sprites with dl and zb and ox and oy
         wi is ipart with (h * 0.7)
         if wi is less than 2 then
             wi is 2
-        rx0 is fx - h * 0.35
-        if rx0 is less than 0 then
-            rx0 is 0
-        x0 is ipart with rx0
+        x0 is ipart with (fx - h * 0.35)
+        x1 is x0 + wi
+        if x1 is less than 0 or x0 is greater than 191 then
+            skip
         y0 is ipart with (64 + h * 0.15 - h)
         if y0 is less than 0 then
             y0 is 0
-        cols is sprite_cols with s[1] and s[2] and d
+        shade is 1 - d / 28
+        if shade is less than 0.5 then
+            shade is 0.5
         nm is fpp_spr_name with s[1] and s[2]
-        push ["sprite", nm, x0 + G["shx"], y0 + G["shy"], wi, hi, 0, 0] to dl
+        note depth buffer span for this sprite, one ray column per 4px
+        col0 is ipart with (x0 / 4)
+        if col0 is less than 0 then
+            col0 is 0
+        if col0 is greater than 47 then
+            col0 is 47
+        col1 is ipart with ((x1 - 1) / 4)
+        if col1 is less than 0 then
+            col1 is 0
+        if col1 is greater than 47 then
+            col1 is 47
+        note exact early-outs: min/max over the covered ray columns
+        zbmin is 99999
+        zbmax is 0 - 99999
+        cc is col0
+        repeat while cc is less than col1 + 1
+            z is zb[cc]
+            if z is less than zbmin then
+                zbmin is z
+            if z is greater than zbmax then
+                zbmax is z
+            cc is cc + 1
+        if zbmax is less than d - 0.25 then
+            note fully behind a wall: nothing to draw
+            skip
+        if zbmin is greater than d - 0.25 then
+            note fully visible: one strip, no per-column loop
+            dx0 is x0
+            if dx0 is less than 0 then
+                dx0 is 0
+            dx1 is x1
+            if dx1 is greater than 192 then
+                dx1 is 192
+            t0 is ipart with ((dx0 - x0) * 16 / wi)
+            t1 is ipart with ((dx1 - 1 - x0) * 16 / wi)
+            dw is dx1 - dx0
+            push ["sslice", nm, t0, t1, dx0 + G["shx"], y0 + G["shy"], dw, hi, shade] to dl
+            drawn is drawn + 1
+            skip
+        note partial occlusion: coalesce visible columns into runs
+        c is x0
+        run0 is 0 - 1
+        t0 is 0
+        repeat while c is less than x1
+            vis is 0
+            if c is greater than 0 - 1 and c is less than 192 then
+                qc is ipart with (c / 4)
+                if qc is less than 0 then
+                    qc is 0
+                if qc is greater than 47 then
+                    qc is 47
+                if zb[qc] is greater than d - 0.25 then
+                    vis is 1
+            if vis is 1 then
+                if run0 is 0 - 1 then
+                    run0 is c
+                    t0 is ipart with ((c - x0) * 16 / wi)
+            otherwise
+                if run0 is not 0 - 1 then
+                    t1 is ipart with ((c - 1 - x0) * 16 / wi)
+                    dw is c - run0
+                    push ["sslice", nm, t0, t1, run0 + G["shx"], y0 + G["shy"], dw, hi, shade] to dl
+                    run0 is 0 - 1
+            c is c + 1
+        if run0 is not 0 - 1 then
+            t1 is ipart with ((x1 - 1 - x0) * 16 / wi)
+            dw is x1 - run0
+            push ["sslice", nm, t0, t1, run0 + G["shx"], y0 + G["shy"], dw, hi, shade] to dl
+        drawn is drawn + 1
     give back nothing
 
 to draw_fpp_parts with dl and zb and ox and oy

@@ -4,6 +4,33 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-08
 
+### REALMS 3D phase (a): billboarded sprites in FPP (indie dev loop)
+- Every visible enemy, NPC, and item in first-person mode is now a true-3D
+  billboarded sprite: projected to camera space, scaled by distance, drawn
+  as textured vertical strips from the atlas (new `sslice` display-list
+  command), mirroring the existing textured wall-column technique.
+- Per-column depth test against the 48-ray depth buffer, so sprites clip
+  correctly behind wall edges instead of popping. Visible columns are
+  coalesced into runs (usually one strip per sprite) to keep the display
+  list small.
+- Exact early-outs keep it fast: fully-behind-wall sprites are skipped and
+  fully-visible sprites take a single-strip fast path (min/max over covered
+  ray columns). Sprite draw capped at the 12 nearest.
+- Founder texture-quality pass: shading is deliberately subtle (min 0.5, was
+  0.15) so texture detail stays readable at range; the driver smooth-filters
+  sprite strips (bilinear, high quality) so close sprites are not blocky.
+  Shaded sprite cache is source-atop, so transparent pixels stay transparent.
+- No projectiles exist in the game yet (Gloom Spitter is a later roadmap
+  item); when it ships its bolts reuse this path.
+- Game logic stays 100% Jesun.Code; driver adds only the `sslice` strip
+  renderer plus the shade cache (small, driver-only).
+- Verified: CPython 400-tick randomized pump across modes/difficulties zero
+  exceptions; determinism byte-identical; occlusion unit tests (visible /
+  fully hidden / partial wall edge / behind camera) all exact; PIL render of
+  a staged FPP frame confirms textured billboards with correct depth order;
+  Node+Pyodide exact bridge flow: FPP 60.9ms/tick with 6 sprites in view,
+  45.6ms/tick without sprites (budget 120ms).
+
 ### Pause with P key and touch button (indie dev loop, run 3)
 - New `G["paused"]` flag toggled by the P key (keyboard) and a II button in
   the touch dpad. While paused the tick pump freezes the world clock, enemy

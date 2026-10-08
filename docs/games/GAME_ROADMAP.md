@@ -7,34 +7,54 @@ unit of risk. One item ships per run, top first. Done items move to CHANGELOG.md
 
 ## Open
 
-### 1. Enemy separation steering
+### 1. REALMS 3D upgrade (founder directive 2026-10-08)
+Founder order: "I want 3D. Not 2D any more. Unreal engine. Ultra realistic."
+Honest boundary: photorealism is impossible on this stack. Jesun.Code runs
+through a Python interpreter inside the browser (Pyodide). No GPU engine can
+live there, and no mockup ships as the real thing. What ships instead is REAL
+3D: a major upgrade of the raycast engine, all game logic still 100%
+Jesun.Code. Phases, one per run:
+- (a) DONE 2026-10-08: billboarded sprites in FPP. Enemies, NPCs, items as
+  textured vertical strips from the atlas (`sslice` command), per-column
+  depth-tested against the ray depth buffer, runs coalesced, exact
+  early-outs, 12-sprite cap. Subtle shading (min 0.5) plus driver-side
+  bilinear smooth filtering for crisp close reads. FPP 60.9ms/tick with
+  sprites in view (budget 120ms).
+- (b) Floor and ceiling casting with textures. NEXT.
+- (c) Distance fog, dynamic per-column lighting, weapon overlay.
+- (d) WebGL display driver: the browser GPU draws the 3D scene from
+  Jesun.Code display-list commands.
+- (e) Overworld depth: raised tiles, drop shadows, 2.5D feel.
+Budget guard stays: FPP tick under ~120ms under Node+Pyodide.
+
+### 2. Enemy separation steering
 Chasers conga-line behind each other in corridors. Add a cheap sidestep: when
 the target tile is occupied by another enemy, try the perpendicular tile before
 giving up. Keeps per-tick cost O(enemies).
 
-### 2. Ranged enemy: Gloom Spitter (depth 2+)
+### 3. Ranged enemy: Gloom Spitter (depth 2+)
 First ranged threat. Slow projectiles as a small entity list (1 tile per 2
 ticks, die on wall or player hit). Needs one new sprite in `assets/custom.png`
 plus an `atlas.json` entry, drawn in the existing 16x16 style.
 
-### 3. Villager quest log
+### 4. Villager quest log
 One elder quest is the whole quest system. Add three turn-in quests from
 villagers/wanderers (rat pelts x6, gold tithe 50g, deep shard from depth 3+),
 tracked in the quest HUD line, rewarding atk / max HP / potions.
 
-### 4. Second boss: Gloom Matriarch (depth 6)
+### 5. Second boss: Gloom Matriarch (depth 6)
 The Deep Warden is the only boss. A second boss on depth 6 that periodically
 spawns bats, reusing the stairs lock/seal logic and boss HP bar.
 
-### 5. Overworld day/night tint
+### 6. Overworld day/night tint
 Slow palette cycle on overworld top-down tiles driven by tick. Cheap
 atmosphere, zero gameplay cost, no driver change.
 
-### 6. FPP torch flicker lighting
+### 7. FPP torch flicker lighting
 Per-column brightness noise tied to tick in the FPP renderer. Sells the dungeon
 mood; bounded by the existing 48-ray budget.
 
-### 7. Boot progress readout
+### 8. Boot progress readout
 Phone boot (Pyodide + atlas fetch) feels long and silent. Show a % counter on
 the loading overlay while fetching atlas files. Driver-only change.
 
