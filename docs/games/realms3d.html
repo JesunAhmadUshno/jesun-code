@@ -1263,7 +1263,14 @@ const overlay = document.getElementById('overlay');
 overlay.addEventListener('click', () => {
   ac();   // unlock WebAudio on the user gesture
   if (IS_TOUCH) { overlay.classList.add('hidden'); return; }  // no pointer lock on touch
-  if (renderer.domElement.requestPointerLock) renderer.domElement.requestPointerLock();
+  // Try pointer lock, but hide overlay regardless so the game is never stuck
+  try {
+    if (renderer.domElement.requestPointerLock) {
+      const p = renderer.domElement.requestPointerLock();
+      if (p && p.catch) p.catch(() => {});
+    }
+  } catch (e) {}
+  setTimeout(() => overlay.classList.add('hidden'), 300);
 });
 addEventListener('mousedown', e => {
   if (e.button === 0 && overlay.classList.contains('hidden')) shoot();
@@ -1287,6 +1294,8 @@ const touch = { moveX: 0, moveY: 0, jump: false, sprint: false,
                 lookId: null, lookX: 0, lookY: 0 };
 if (IS_TOUCH) {
   document.body.classList.add('touch');
+  // Auto-hide overlay on touch: no pointer lock needed, start playing immediately
+  overlay.classList.add('hidden');
   document.querySelector('#overlay .btn').textContent = 'TAP TO PLAY';
   const note = overlay.querySelectorAll('p')[1];
   note.textContent = 'LEFT STICK MOVES // DRAG RIGHT SIDE TO LOOK';
