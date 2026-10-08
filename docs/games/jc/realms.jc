@@ -763,6 +763,25 @@ to gen_floor with d
                     cy is cy - 1
             carve with cx and cy
         ri is ri + 1
+    note Precompute FPP minimap cells: corridor floor tiles not inside a room.
+    note Rooms are drawn as rects at tick time; this one-time pass costs about
+    note 27k checks at floor gen so the per-tick draw stays O(cells).
+    corr is []
+    yy2 is 0
+    repeat while yy2 is less than 42
+        xx2 is 0
+        repeat while xx2 is less than 60
+            if grid[yy2][xx2] is 0 then
+                inroom is false
+                for each r in rooms
+                    if xx2 is at least r["x"] and xx2 is less than r["x"] + r["w"] and yy2 is at least r["y"] and yy2 is less than r["y"] + r["h"] then
+                        inroom is true
+                if inroom is false then
+                    cell is [xx2, yy2]
+                    push cell to corr
+            xx2 is xx2 + 1
+        yy2 is yy2 + 1
+    G["mmap_corr"] is corr
     isboss is false
     if d % 3 is 0 then
         isboss is true
@@ -2109,6 +2128,37 @@ to draw_fpp_parts with dl and zb and ox and oy
             push ["rect", x0, y0, sz, sz, p["c"]] to dl
     give back nothing
 
+to draw_fpp_minimap with dl
+    note FPP minimap, top-right corner of the 192x128 canvas. 1px per tile,
+    note 60x42 tile dungeon plus a 1px plate border. Rooms are dark rects,
+    note corridor cells dark dots, stairs gold, up-ladder cyan, boss red,
+    note player white arrow. All pushes are small rects: bounded per-tick cost.
+    ox is 128 + G["shx"]
+    oy is 2 + G["shy"]
+    push ["rect", ox, oy, 62, 44, "050508"] to dl
+    for each r in G["rooms"]
+        push ["rect", ox + 1 + r["x"], oy + 1 + r["y"], r["w"], r["h"], "262630"] to dl
+    for each c in G["mmap_corr"]
+        push ["rect", ox + 1 + c[0], oy + 1 + c[1], 1, 1, "262630"] to dl
+    if G["upx"] is not 0 - 1 then
+        push ["rect", ox + G["upx"], oy + G["upy"], 2, 2, "7ee0ff"] to dl
+    push ["rect", ox + G["sx"], oy + G["sy"], 2, 2, "ffd75e"] to dl
+    for each e in G["enemies"]
+        if e["boss"] then
+            push ["rect", ox + e["x"], oy + e["y"], 2, 2, "ff2020"] to dl
+    px2 is ox + 1 + G["px"]
+    py2 is oy + 1 + G["py"]
+    push ["rect", px2, py2, 2, 2, "ffffff"] to dl
+    if G["fdx"] is greater than 0.5 then
+        push ["rect", px2 + 2, py2, 1, 2, "ffffff"] to dl
+    otherwise if G["fdx"] is less than 0 - 0.5 then
+        push ["rect", px2 - 1, py2, 1, 2, "ffffff"] to dl
+    otherwise if G["fdy"] is greater than 0.5 then
+        push ["rect", px2, py2 + 2, 2, 1, "ffffff"] to dl
+    otherwise
+        push ["rect", px2, py2 - 1, 2, 1, "ffffff"] to dl
+    give back nothing
+
 to render_fpp with dl
     i is 0
     repeat while i is less than 8
@@ -2155,6 +2205,7 @@ to render_fpp with dl
     draw_fpp_parts with dl and zb and ox and oy
     push ["rect", 94 + G["shx"], 116 + G["shy"], 4, 12, "9a9ab0"] to dl
     push ["rect", 93 + G["shx"], 112 + G["shy"], 6, 4, "dfe6f5"] to dl
+    draw_fpp_minimap with dl
     give back nothing
 
 to refresh_out
