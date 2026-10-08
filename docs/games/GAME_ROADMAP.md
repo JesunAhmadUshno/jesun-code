@@ -30,16 +30,11 @@ Phases, one per run:
   18.5ms/tick under Node+Pyodide (budget 120ms). Playtest bug fixes in this
   ship: water rescue, NPCs cannot block cave/ladder/stairs, M reliably
   enters FPP (ladder placement + no false surfacing).
-- (e) SHIPPED 2026-10-08 (browser screenshot verification delegated next):
-  Overworld in real 3D. Jesun.Code emits an oblique third-person scene
-  (`cam3do` over the knight): textured terrain quads per tile in a 13x13
-  window (grass, flowers, path, two-frame shimmering water, wood, stone,
-  dark), house walls with raised roof planes, tree/well/cave prop models.
-  New knight player model (horned helm, glowing visor, walk pose, faces
-  travel direction via `G["pyaw"]`); NPCs/items/parts reuse existing models.
-  Driver atlas 256x256 with 9 new terrain cells; sky-blue clear, sun light,
-  light fog; HUD shows OVERWORLD 3D. 2D top-down stays as the WebGL-missing
-  fallback. Scene build 14.9ms/tick under Node+Pyodide (budget 120ms).
+- (e) PULLED BACK 2026-10-08 (founder: "Ewww"): the oblique overworld 3D
+  shipped too early and looked cheap (flat garish colors, crude geometry).
+  Overworld is back to the 2D top-down, which carries the dark art direction.
+  The `render_over3d` code stays in the file, bypassed, for a future real art
+  pass. Dungeon first-person stays real 3D.
 Budget guard stays: scene build per tick under ~120ms under Node+Pyodide;
 WebGL draw itself is GPU-cheap.
 
