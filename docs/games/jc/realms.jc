@@ -255,6 +255,7 @@ to seed_game with s
     G["py"] is 15
     G["lpx"] is 15
     G["lpy"] is 15
+    G["block_npc"] is nothing
     G["sx"] is 0
     G["sy"] is 0
     G["upx"] is 0 - 1
@@ -562,6 +563,39 @@ to gen_overworld
     G["py"] is 15
     G["lpx"] is 15
     G["lpy"] is 15
+    G["block_npc"] is nothing
+    note Spawn clearing: the seed is random every run, so the knight must
+    note never wake up boxed in by river, trees or houses. Pave the ring
+    note around spawn to grass.
+    cdx is 0 - 1
+    repeat while cdx is less than 2
+        cdy is 0 - 1
+        repeat while cdy is less than 2
+            cw is ov_walk with 15 + cdx and 15 + cdy
+            if cw is false then
+                grid[15 + cdy][15 + cdx] is 0
+            cdy is cdy + 1
+        cdx is cdx + 1
+    note River repair: the river meanders, so the carved village path can
+    note hit water where ov_set refused to pave, cutting the cave off.
+    note Pave any water on the route so the cave is always reachable.
+    ry is 11
+    repeat while ry is less than 35
+        if grid[ry][brx] is 2 then
+            grid[ry][brx] is 3
+        if grid[ry][brx + 1] is 2 then
+            grid[ry][brx + 1] is 3
+        ry is ry + 1
+    rx3 is 14
+    repeat while rx3 is less than brx + 1
+        if grid[11][rx3] is 2 then
+            grid[11][rx3] is 3
+        rx3 is rx3 + 1
+    rx4 is brx
+    repeat while rx4 is less than 50
+        if grid[34][rx4] is 2 then
+            grid[34][rx4] is 3
+        rx4 is rx4 + 1
     G["ptx"] is 15
     G["pty"] is 15
     G["pfx"] is 0.5
@@ -754,6 +788,7 @@ to hint
 to gen_floor with d
     G["map"] is "dungeon"
     G["depth"] is d
+    G["block_npc"] is nothing
     mw is 60
     mh is 42
     grid is []
@@ -1239,9 +1274,19 @@ to try_move with dx and dy
         w is ov_walk with G["px"] and G["py"]
         if w is false then
             note Rescue: the knight somehow stands on an unwalkable tile.
-            note Step back to the last walkable tile instead of softlocking.
-            G["px"] is G["lpx"]
-            G["py"] is G["lpy"]
+            note Step to the last walkable tile, or the nearest one, so
+            note movement can never die while other keys keep working.
+            wl is ov_walk with G["lpx"] and G["lpy"]
+            if wl is false then
+                s is rescue_spot
+                if s is not nothing then
+                    G["px"] is s["x"]
+                    G["py"] is s["y"]
+                    G["lpx"] is s["x"]
+                    G["lpy"] is s["y"]
+            otherwise
+                G["px"] is G["lpx"]
+                G["py"] is G["lpy"]
             msg with "You scramble back to solid ground."
             give back nothing
     nx is G["px"] + dx
@@ -1274,6 +1319,9 @@ to try_move with dx and dy
         enter_stairs
         give back nothing
     if e is not nothing then
+        note Remember the blocker so E always reaches them, even if they
+        note wander a step before the player presses it.
+        G["block_npc"] is e
         msg with e["name"] + " blocks the way. Press E to talk."
         give back nothing
     G["pph"] is G["pph"] + 1
@@ -1285,12 +1333,36 @@ to try_move with dx and dy
         G["py"] is ny
         G["lpx"] is nx
         G["lpy"] is ny
+        G["block_npc"] is nothing
         give back nothing
     it is item_at with nx and ny
     if it is not nothing then
         take_item with it
     G["px"] is nx
     G["py"] is ny
+    G["block_npc"] is nothing
+    give back nothing
+
+to rescue_spot
+    note Spiral out from the knight for the nearest walkable tile.
+    r is 1
+    repeat while r is less than 12
+        dx is 0 - r
+        repeat while dx is less than r + 1
+            dy is 0 - r
+            repeat while dy is less than r + 1
+                cx is G["px"] + dx
+                cy is G["py"] + dy
+                w is ov_walk with cx and cy
+                if w is false then
+                    dy is dy + 1
+                otherwise
+                    s is a new table
+                    s["x"] is cx
+                    s["y"] is cy
+                    give back s
+            dx is dx + 1
+        r is r + 1
     give back nothing
 
 to player_attack with e
@@ -1452,7 +1524,18 @@ to interact
                     dy is 0 - 1
                 try_move with dx and dy
                 give back nothing
-    n is adjacent_npc
+    n is nothing
+    bn is G["block_npc"]
+    if bn is not nothing then
+        note The NPC that just blocked the way answers E even if they
+        note wandered a step. This is what stops the Marla soft-lock.
+        bax is absv with bn["x"] - G["px"]
+        bay is absv with bn["y"] - G["py"]
+        if bax is less than 3 and bay is less than 3 then
+            n is bn
+    if n is nothing then
+        n is adjacent_npc
+    G["block_npc"] is nothing
     if n is nothing then
         msg with "Nobody to talk to here."
         give back nothing
