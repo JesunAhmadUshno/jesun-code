@@ -49,6 +49,33 @@ SPR["ladder"] is "ladder"
 SPR["shrine_might"] is "shrine_might"
 SPR["shrine_vitality"] is "shrine_vitality"
 
+to sprw_of with nm
+    note Texture width for FPP billboard column math. The dark character set
+    note is 32px; every tile stays 16px.
+    if nm is "knight" then
+        give back 32
+    otherwise if nm is "goblin" then
+        give back 32
+    otherwise if nm is "ogre" then
+        give back 32
+    otherwise if nm is "rat" then
+        give back 32
+    otherwise if nm is "bat" then
+        give back 32
+    otherwise if nm is "warden" then
+        give back 32
+    otherwise if nm is "merchant" then
+        give back 32
+    otherwise if nm is "elder" then
+        give back 32
+    otherwise if nm is "villager0" then
+        give back 32
+    otherwise if nm is "villager1" then
+        give back 32
+    otherwise if nm is "wanderer" then
+        give back 32
+    give back 16
+
 to rnd with n
     note Park-Miller LCG. n must be a positive whole number.
     G["seed"] is (G["seed"] * 16807) % 2147483647
@@ -2185,10 +2212,11 @@ to draw_fpp_sprites with dl and zb and ox and oy
         y0 is ipart with (64 + h * 0.15 - h)
         if y0 is less than 0 then
             y0 is 0
-        shade is 1 - d / 28
-        if shade is less than 0.5 then
-            shade is 0.5
+        shade is 1 - d / 24
+        if shade is less than 0.45 then
+            shade is 0.45
         nm is fpp_spr_name with s[1] and s[2]
+        tw is sprw_of with nm
         note depth buffer span for this sprite, one ray column per 4px
         col0 is ipart with (x0 / 4)
         if col0 is less than 0 then
@@ -2222,8 +2250,8 @@ to draw_fpp_sprites with dl and zb and ox and oy
             dx1 is x1
             if dx1 is greater than 192 then
                 dx1 is 192
-            t0 is ipart with ((dx0 - x0) * 16 / wi)
-            t1 is ipart with ((dx1 - 1 - x0) * 16 / wi)
+            t0 is ipart with ((dx0 - x0) * tw / wi)
+            t1 is ipart with ((dx1 - 1 - x0) * tw / wi)
             dw is dx1 - dx0
             push ["sslice", nm, t0, t1, dx0 + G["shx"], y0 + G["shy"], dw, hi, shade] to dl
             drawn is drawn + 1
@@ -2245,16 +2273,16 @@ to draw_fpp_sprites with dl and zb and ox and oy
             if vis is 1 then
                 if run0 is 0 - 1 then
                     run0 is c
-                    t0 is ipart with ((c - x0) * 16 / wi)
+                    t0 is ipart with ((c - x0) * tw / wi)
             otherwise
                 if run0 is not 0 - 1 then
-                    t1 is ipart with ((c - 1 - x0) * 16 / wi)
+                    t1 is ipart with ((c - 1 - x0) * tw / wi)
                     dw is c - run0
                     push ["sslice", nm, t0, t1, run0 + G["shx"], y0 + G["shy"], dw, hi, shade] to dl
                     run0 is 0 - 1
             c is c + 1
         if run0 is not 0 - 1 then
-            t1 is ipart with ((x1 - 1 - x0) * 16 / wi)
+            t1 is ipart with ((x1 - 1 - x0) * tw / wi)
             dw is x1 - run0
             push ["sslice", nm, t0, t1, run0 + G["shx"], y0 + G["shy"], dw, hi, shade] to dl
         drawn is drawn + 1

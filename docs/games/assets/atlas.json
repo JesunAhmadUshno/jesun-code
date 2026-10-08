@@ -112,81 +112,81 @@
   "sh": 16
  },
  "knight": {
-  "file": "chars.png",
+  "file": "dark.png",
   "sx": 0,
-  "sy": 187,
-  "sw": 16,
-  "sh": 16
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
  },
  "goblin": {
-  "file": "chars.png",
-  "sx": 0,
-  "sy": 51,
-  "sw": 16,
-  "sh": 16
- },
- "ogre": {
-  "file": "chars.png",
-  "sx": 0,
-  "sy": 34,
-  "sw": 16,
-  "sh": 16
- },
- "merchant": {
-  "file": "chars.png",
-  "sx": 0,
-  "sy": 102,
-  "sw": 16,
-  "sh": 16
- },
- "elder": {
-  "file": "chars.png",
-  "sx": 17,
-  "sy": 85,
-  "sw": 16,
-  "sh": 16
- },
- "villager0": {
-  "file": "chars.png",
-  "sx": 0,
-  "sy": 85,
-  "sw": 16,
-  "sh": 16
- },
- "villager1": {
-  "file": "chars.png",
-  "sx": 0,
-  "sy": 119,
-  "sw": 16,
-  "sh": 16
- },
- "wanderer": {
-  "file": "chars.png",
-  "sx": 0,
-  "sy": 170,
-  "sw": 16,
-  "sh": 16
- },
- "rat": {
-  "file": "custom.png",
-  "sx": 0,
-  "sy": 0,
-  "sw": 16,
-  "sh": 16
- },
- "bat": {
-  "file": "custom.png",
-  "sx": 16,
-  "sy": 0,
-  "sw": 16,
-  "sh": 16
- },
- "warden": {
-  "file": "custom.png",
+  "file": "dark.png",
   "sx": 32,
   "sy": 0,
-  "sw": 16,
-  "sh": 16
+  "sw": 32,
+  "sh": 32
+ },
+ "ogre": {
+  "file": "dark.png",
+  "sx": 64,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "merchant": {
+  "file": "dark.png",
+  "sx": 192,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "elder": {
+  "file": "dark.png",
+  "sx": 224,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "villager0": {
+  "file": "dark.png",
+  "sx": 256,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "villager1": {
+  "file": "dark.png",
+  "sx": 288,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "wanderer": {
+  "file": "dark.png",
+  "sx": 320,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "rat": {
+  "file": "dark.png",
+  "sx": 96,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "bat": {
+  "file": "dark.png",
+  "sx": 128,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "warden": {
+  "file": "dark.png",
+  "sx": 160,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
  },
  "well": {
   "file": "custom.png",
