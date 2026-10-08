@@ -280,3 +280,10 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
   carries the dark gritty art direction properly.
 - Dungeon first-person stays real 3D (WebGL). Overworld 3D returns only with
   a real art pass, not programmer art.
+
+## 20261008m - REALMS: first-person 3D VERIFIED in live browser
+- Browser task verified real WebGL first-person dungeon: stone walls with
+  perspective, floor tiles converging, 3D sword model, torch light, fog.
+- Dpad movement confirmed: perspective shifts when walking forward.
+- HUD shows FIRST-PERSON, Depth 1. Log: "You squeeze through the cave mouth."
+- The "3D status:" line did not appear in the visible log (minor).
