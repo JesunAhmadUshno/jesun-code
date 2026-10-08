@@ -841,6 +841,132 @@ if (IS_TOUCH) {
 }
 
 /* === WORLD-PEOPLE-ANCHOR === */
+/* === PEOPLE (worker): 12 NPC pedestrians, walk/idle/flee states === */
+{
+  /* shared geometry and materials, created once, reused by all 12 NPCs.
+     4 parts per NPC (body, head, 2 legs) = 48 draw calls total. */
+  const geoBody = new THREE.BoxGeometry(0.52, 0.62, 0.34);
+  const geoHead = new THREE.BoxGeometry(0.3, 0.32, 0.3);
+  const geoLeg  = new THREE.BoxGeometry(0.22, 0.9, 0.26);
+  const SHIRTS = [0x2a4a7a, 0x7a2a2a, 0x2a7a3a, 0x7a6a2a, 0x5a2a7a, 0x2a7a6a, 0x7a4a2a, 0x9a9a9a]
+    .map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 }));
+  const SKINS = [0x8a6f5c, 0xc9a183, 0x6e523e]
+    .map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }));
+  const matLeg = new THREE.MeshStandardMaterial({ color: 0x24262e, roughness: 0.9 });
+
+  const npcs = [];
+  function makeNPC(shirtIdx, skinIdx, zone, wpList, wpStart) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(geoBody, SHIRTS[shirtIdx % SHIRTS.length]);
+    body.position.set(0, 1.21, 0); body.castShadow = true; g.add(body);
+    const head = new THREE.Mesh(geoHead, SKINS[skinIdx % SKINS.length]);
+    head.position.set(0, 1.68, 0); head.castShadow = true; g.add(head);
+    /* legs pivot at hip (y=0.9) so the walk swing looks right */
+    const legL = new THREE.Group(), legR = new THREE.Group();
+    legL.position.set(-0.16, 0.9, 0); legR.position.set(0.16, 0.9, 0);
+    const ll = new THREE.Mesh(geoLeg, matLeg); ll.position.set(0, -0.45, 0); ll.castShadow = true; legL.add(ll);
+    const lr = new THREE.Mesh(geoLeg, matLeg); lr.position.set(0, -0.45, 0); lr.castShadow = true; legR.add(lr);
+    g.add(legL, legR);
+    const s = wpList[wpStart % wpList.length];
+    g.position.set(s[0], terrainHeight(s[0], s[1]), s[1]);
+    scene.add(g);
+    npcs.push({
+      g, legL, legR, zone, wps: wpList,
+      wi: (wpStart + 1) % wpList.length,
+      state: 'WALK', idleT: 0, fleeT: 0,
+      fleeDir: new THREE.Vector3(),
+      phase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  /* route A: city sidewalks along z=-70 horizontal and x=70 vertical (city zone x 40..100, z -100..-40) */
+  const cityWps = [[44,-70],[62,-70],[78,-70],[96,-70],[70,-70],[70,-48],[70,-92],[70,-70]];
+  /* route B: spawn/village paths, circle radius 20 around (0,0) */
+  const spawnWps = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    spawnWps.push([Math.cos(a) * 20, Math.sin(a) * 20]);
+  }
+  const clampCity = (x, z) => [Math.min(104, Math.max(36, x)), Math.min(-36, Math.max(-104, z))];
+  for (let i = 0; i < 6; i++) makeNPC(i, i, 'city', cityWps, i * 2);
+  for (let i = 0; i < 6; i++) makeNPC(i + 3, i + 1, 'spawn', spawnWps, i);
+
+  const WALK_SPD = 1.8, FLEE_SPD = 5;
+  const tmpDir = new THREE.Vector3();
+
+  worldTickers.push((dt, now) => {
+    /* __lastShotAt is performance.now() in ms; now is seconds. Convert. */
+    const shotAgeMs = now * 1000 - (window.__lastShotAt || 0);
+    const shotLive = shotAgeMs < 1500 && window.__lastShotPos;
+    for (const n of npcs) {
+      const p = n.g.position;
+
+      /* --- FLEE trigger: shot within 1.5s and NPC within 25 units of it --- */
+      if (n.state !== 'FLEE' && shotLive) {
+        const dxs = p.x - window.__lastShotPos.x, dzs = p.z - window.__lastShotPos.z;
+        if (dxs * dxs + dzs * dzs < 25 * 25) {
+          n.state = 'FLEE'; n.fleeT = 3;
+          n.fleeDir.set(dxs, 0, dzs);
+          if (n.fleeDir.lengthSq() < 0.01) n.fleeDir.set(1, 0, 0);
+          n.fleeDir.normalize();
+        }
+      }
+
+      if (n.state === 'FLEE') {
+        /* run away from the shot at 5 u/s for 3s */
+        n.fleeT -= dt;
+        p.x += n.fleeDir.x * FLEE_SPD * dt;
+        p.z += n.fleeDir.z * FLEE_SPD * dt;
+        n.g.rotation.y = Math.atan2(n.fleeDir.x, n.fleeDir.z);
+        const sw = Math.sin(now * 14 + n.phase);
+        n.legL.rotation.x = sw * 0.8; n.legR.rotation.x = -sw * 0.8;
+        if (n.fleeT <= 0) n.state = 'WALK';
+      } else if (n.state === 'IDLE') {
+        /* at waypoint: stand 2-5s, slight bob */
+        n.idleT -= dt;
+        n.legL.rotation.x = 0; n.legR.rotation.x = 0;
+        if (n.idleT <= 0) { n.wi = (n.wi + 1) % n.wps.length; n.state = 'WALK'; }
+      } else {
+        /* WALK: 1.8 u/s toward next waypoint, legs swing, face direction */
+        const wp = n.wps[n.wi];
+        tmpDir.set(wp[0] - p.x, 0, wp[1] - p.z);
+        const dist = tmpDir.length();
+        if (dist < 0.6) {
+          n.state = 'IDLE'; n.idleT = 2 + Math.random() * 3;
+          n.legL.rotation.x = 0; n.legR.rotation.x = 0;
+        } else {
+          tmpDir.normalize();
+          p.x += tmpDir.x * WALK_SPD * dt;
+          p.z += tmpDir.z * WALK_SPD * dt;
+          n.g.rotation.y = Math.atan2(tmpDir.x, tmpDir.z);
+          const sw = Math.sin(now * 7 + n.phase);
+          n.legL.rotation.x = sw * 0.6; n.legR.rotation.x = -sw * 0.6;
+        }
+      }
+
+      /* --- keep NPCs inside their zones --- */
+      if (n.zone === 'city') {
+        const c = clampCity(p.x, p.z); p.x = c[0]; p.z = c[1];
+      } else {
+        const r = Math.hypot(p.x, p.z);
+        if (r > 27) { p.x *= 27 / r; p.z *= 27 / r; }
+        else if (r < 13) { p.x *= 13 / r; p.z *= 13 / r; }
+      }
+
+      /* --- player collision: push the NPC aside, never block the player --- */
+      const dxp = p.x - player.position.x, dzp = p.z - player.position.z;
+      const pd = Math.hypot(dxp, dzp);
+      if (pd < 1.2 && pd > 0.001) {
+        p.x += (dxp / pd) * 2.5 * dt;
+        p.z += (dzp / pd) * 2.5 * dt;
+      }
+
+      /* --- ground the NPC, with an idle bob --- */
+      const bob = n.state === 'IDLE' ? Math.abs(Math.sin(now * 2 + n.phase)) * 0.04 : 0;
+      p.y = terrainHeight(p.x, p.z) + bob;
+    }
+  });
+}
 /* NPC pedestrians code goes here (worker: people). 12 walkers with walk/idle/flee states. */
 
 /* World tickers: workers push (dt, now) => {} functions here. tick() runs them.
