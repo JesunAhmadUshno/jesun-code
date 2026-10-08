@@ -218,6 +218,7 @@ to seed_game with s
     G["edmg"] is 100
     G["mode"] is "top"
     G["map"] is "over"
+    G["gl3d"] is false
     G["hp"] is 100
     G["maxhp"] is 100
     G["atk"] is 12
@@ -252,6 +253,8 @@ to seed_game with s
     G["iid"] is 0
     G["px"] is 15
     G["py"] is 15
+    G["lpx"] is 15
+    G["lpy"] is 15
     G["sx"] is 0
     G["sy"] is 0
     G["upx"] is 0 - 1
@@ -557,6 +560,8 @@ to gen_overworld
         grid[15][15] is 0
     G["px"] is 15
     G["py"] is 15
+    G["lpx"] is 15
+    G["lpy"] is 15
     G["ptx"] is 15
     G["pty"] is 15
     G["pfx"] is 0.5
@@ -848,10 +853,23 @@ to gen_floor with d
     if d is 1 then
         s is free_spot
         if s is not nothing then
-            if s["x"] is G["sx"] and s["y"] is G["sy"] then
-                s["x"] is s["x"] + 1
-            G["upx"] is s["x"]
-            G["upy"] is s["y"]
+            note Keep the rope ladder away from the spawn: surfacing on the
+            note first step feels like the dungeon rejected the player.
+            t2 is 0
+            repeat while t2 is less than 40
+                dx2 is absv with s["x"] - G["px"]
+                dy2 is absv with s["y"] - G["py"]
+                if dx2 is greater than 1 or dy2 is greater than 1 then
+                    stop
+                s is free_spot
+                if s is nothing then
+                    stop
+                t2 is t2 + 1
+            if s is not nothing then
+                if s["x"] is G["sx"] and s["y"] is G["sy"] then
+                    s["x"] is s["x"] + 1
+                G["upx"] is s["x"]
+                G["upy"] is s["y"]
     if isboss then
         G["mission"] is "Slay the Deep Warden, then take the stairs down."
         G["quest"] is "Slay the Deep Warden"
@@ -1191,9 +1209,12 @@ to fpp_step with amt
         enter_stairs
         give back nothing
     if G["depth"] is 1 and G["ptx"] is G["upx"] and G["pty"] is G["upy"] then
-        msg with "You climb the rope back to Emberhold."
-        gen_overworld
-        give back nothing
+        if G["ptx"] is not ox or G["pty"] is not oy then
+            note Only surface when this step actually moved onto the ladder.
+            note Standing still on it (even against a wall) must not surface.
+            msg with "You climb the rope back to Emberhold."
+            gen_overworld
+            give back nothing
     give back nothing
 
 to enter_stairs
@@ -1214,39 +1235,56 @@ to enter_stairs
     give back nothing
 
 to try_move with dx and dy
+    if G["map"] is "over" then
+        w is ov_walk with G["px"] and G["py"]
+        if w is false then
+            note Rescue: the knight somehow stands on an unwalkable tile.
+            note Step back to the last walkable tile instead of softlocking.
+            G["px"] is G["lpx"]
+            G["py"] is G["lpy"]
+            msg with "You scramble back to solid ground."
+            give back nothing
     nx is G["px"] + dx
     ny is G["py"] + dy
     if is_wall with nx and ny then
         give back nothing
-    e is entity_at with nx and ny
-    if e is not nothing then
-        if e["kind"] is "enemy" then
-            player_attack with e
-        otherwise
-            msg with e["name"] + " blocks the way. Press E to talk."
-        give back nothing
-    G["pph"] is G["pph"] + 1
     if G["map"] is "over" then
-        if G["grid"][ny][nx] is 7 then
-            enter_dungeon
+        w2 is ov_walk with nx and ny
+        if w2 is false then
             give back nothing
-        it is item_at with nx and ny
-        if it is not nothing then
-            take_item with it
-        G["px"] is nx
-        G["py"] is ny
+    e is entity_at with nx and ny
+    if e is not nothing and e["kind"] is "enemy" then
+        player_attack with e
         give back nothing
-    if G["depth"] is 1 and nx is G["upx"] and ny is G["upy"] then
+    if G["map"] is "over" and G["grid"][ny][nx] is 7 then
+        note The cave mouth always wins: no NPC can block the descent.
+        enter_dungeon
+        give back nothing
+    if G["map"] is "dungeon" and G["depth"] is 1 and nx is G["upx"] and ny is G["upy"] then
+        note The rope ladder always wins: no NPC can block the climb.
         msg with "You climb the rope back to Emberhold."
         sfx with "surface"
         gen_overworld
         give back nothing
-    if nx is G["sx"] and ny is G["sy"] then
+    if G["map"] is "dungeon" and nx is G["sx"] and ny is G["sy"] then
         if G["locked"] then
             sfx with "error"
             msg with "The stairs are sealed. Slay the Deep Warden first."
             give back nothing
         enter_stairs
+        give back nothing
+    if e is not nothing then
+        msg with e["name"] + " blocks the way. Press E to talk."
+        give back nothing
+    G["pph"] is G["pph"] + 1
+    if G["map"] is "over" then
+        it is item_at with nx and ny
+        if it is not nothing then
+            take_item with it
+        G["px"] is nx
+        G["py"] is ny
+        G["lpx"] is nx
+        G["lpy"] is ny
         give back nothing
     it is item_at with nx and ny
     if it is not nothing then
@@ -1586,6 +1624,12 @@ to npc_wander
             skip
         if G["map"] is "dungeon" and tx is G["sx"] and ty is G["sy"] then
             skip
+        if G["map"] is "over" and G["grid"][ty][tx] is 7 then
+            note Never camp the cave mouth on the surface.
+            skip
+        if G["map"] is "dungeon" and tx is G["upx"] and ty is G["upy"] then
+            note Never camp the rope ladder in the dungeon.
+            skip
         n["x"] is tx
         n["y"] is ty
         n["ph"] is n["ph"] + 1
@@ -1678,14 +1722,20 @@ to rebuild_dl
         G["shy"] is 0
     push ["clear", "0a0a0f"] to dl
     if G["mode"] is "fpp" then
-        render_fpp with dl
+        if G["gl3d"] then
+            render_fpp3d with dl
+        otherwise
+            render_fpp with dl
     otherwise if G["map"] is "over" then
         render_over with dl
     otherwise
         render_top with dl
     for each f in G["floaters"]
         rise is ipart with (f["m"] - f["l"]) / 2
-        if G["mode"] is "fpp" then
+        if G["mode"] is "fpp" and G["gl3d"] then
+            note WebGL first-person: world-anchored text, the driver projects it.
+            push ["text3d", f["x"] + 0.5, 0.9, f["y"] + 0.5, f["t"], f["c"]] to dl
+        otherwise if G["mode"] is "fpp" then
             note First-person: project the floater into the 3D view, like parts.
             ox is G["ptx"] + G["pfx"]
             oy is G["pty"] + G["pfy"]
@@ -2440,6 +2490,126 @@ to render_fpp with dl
     draw_fpp_parts with dl and zb and ox and oy
     push ["rect", 94 + G["shx"], 116 + G["shy"], 4, 12, "9a9ab0"] to dl
     push ["rect", 93 + G["shx"], 112 + G["shy"], 6, 4, "dfe6f5"] to dl
+    draw_fpp_minimap with dl
+    give back nothing
+
+note ---- WebGL 3D scene emission (first-person) ----
+note The driver draws this with real perspective, depth testing, torch light
+note and distance fog. cam3d carries the camera; quad3d carries dungeon
+note geometry as (x, y-up, z-grid) corners; model3d places a low-poly cuboid
+note model by name. Command counts stay bounded: one 13x13 window of wall
+note faces plus the culled visible entities.
+
+to face_yaw with dx and dy
+    note Coarse 8-direction yaw toward (dx, dy); no trig needed in the language.
+    note Yaw 0 faces south (+grid-y); pi/2 faces east (+grid-x).
+    ax is absv with dx
+    ay is absv with dy
+    if ax is greater than ay * 2 then
+        if dx is greater than 0 then
+            give back 1.5708
+        give back 4.7124
+    if ay is greater than ax * 2 then
+        if dy is greater than 0 then
+            give back 0
+        give back 3.1416
+    if dx is greater than 0 and dy is greater than 0 then
+        give back 0.7854
+    if dx is less than 0 and dy is greater than 0 then
+        give back 5.4978
+    if dx is greater than 0 and dy is less than 0 then
+        give back 2.3562
+    give back 3.927
+
+to fpp3d_put with dl and wx and wy and h and nm and yaw and pose and maxd
+    note Cull to the view cone, then emit one model3d command.
+    ox is G["ptx"] + G["pfx"]
+    oy is G["pty"] + G["pfy"]
+    fdx is G["fdx"]
+    fdy is G["fdy"]
+    d is sproj with wx and wy and ox and oy and fdx and fdy
+    if d is less than 0.3 or d is greater than maxd then
+        give back nothing
+    rx is 0 - fdy
+    ry is fdx
+    lat is (wx - ox) * rx + (wy - oy) * ry
+    alat is absv with lat
+    if alat is greater than d * 0.8 + 1 then
+        give back nothing
+    push ["model3d", nm, wx, h, wy, yaw, pose, 1] to dl
+    give back nothing
+
+to render_fpp3d with dl
+    ox is G["ptx"] + G["pfx"]
+    oy is G["pty"] + G["pfy"]
+    fdx is G["fdx"]
+    fdy is G["fdy"]
+    push ["cam3d", ox, oy, fdx, fdy] to dl
+    cx is ipart with ox
+    cy is ipart with oy
+    x0 is cx - 6
+    if x0 is less than 0 then
+        x0 is 0
+    x1 is cx + 6
+    if x1 is greater than 59 then
+        x1 is 59
+    y0 is cy - 6
+    if y0 is less than 0 then
+        y0 is 0
+    y1 is cy + 6
+    if y1 is greater than 41 then
+        y1 is 41
+    note Floor and ceiling span the window as single quads.
+    push ["quad3d", x0, 0, y0, x1 + 1, 0, y0, x1 + 1, 0, y1 + 1, x0, 0, y1 + 1, "floor", 1] to dl
+    push ["quad3d", x0, 1, y1 + 1, x1 + 1, 1, y1 + 1, x1 + 1, 1, y0, x0, 1, y0, "ceil", 1] to dl
+    note Walls: one quad per exposed face of each wall cell in the window.
+    my is y0
+    repeat while my is less than y1 + 1
+        mx is x0
+        repeat while mx is less than x1 + 1
+            if G["grid"][my][mx] is 1 then
+                if my is greater than 0 then
+                    if G["grid"][my - 1][mx] is not 1 then
+                        push ["quad3d", mx, 0, my, mx + 1, 0, my, mx + 1, 1, my, mx, 1, my, "wall", 1] to dl
+                if my is less than 41 then
+                    if G["grid"][my + 1][mx] is not 1 then
+                        push ["quad3d", mx, 0, my + 1, mx + 1, 0, my + 1, mx + 1, 1, my + 1, mx, 1, my + 1, "wall", 0.8] to dl
+                if mx is greater than 0 then
+                    if G["grid"][my][mx - 1] is not 1 then
+                        push ["quad3d", mx, 0, my, mx, 0, my + 1, mx, 1, my + 1, mx, 1, my, "wall", 0.85] to dl
+                if mx is less than 59 then
+                    if G["grid"][my][mx + 1] is not 1 then
+                        push ["quad3d", mx + 1, 0, my, mx + 1, 0, my + 1, mx + 1, 1, my + 1, mx + 1, 1, my, "wall", 0.85] to dl
+            mx is mx + 1
+        my is my + 1
+    for each e in G["enemies"]
+        wx is e["x"] + 0.5
+        wy is e["y"] + 0.5
+        yaw is face_yaw with ox - wx and oy - wy
+        pose is 0
+        if (G["tick"] + e["x"] + e["y"]) % 4 is less than 2 then
+            pose is 1
+        fpp3d_put with dl and wx and wy and 0 and e["type"] and yaw and pose and 14
+    for each n in G["npcs"]
+        wx is n["x"] + 0.5
+        wy is n["y"] + 0.5
+        yaw is face_yaw with ox - wx and oy - wy
+        pose is 0
+        if (G["tick"] + n["ph"]) % 8 is less than 4 then
+            pose is 1
+        fpp3d_put with dl and wx and wy and 0 and n["nkind"] and yaw and pose and 14
+    for each it in G["items"]
+        wx is it["x"] + 0.5
+        wy is it["y"] + 0.5
+        fpp3d_put with dl and wx and wy and 0 and it["kind"] and 0 and 0 and 12
+    for each p in G["parts"]
+        wx is p["x"] + 0.5
+        wy is p["y"] + 0.5
+        fpp3d_put with dl and wx and wy and 0.5 and "spark" and 0 and 0 and 10
+    sw is 0
+    if G["tick"] - G["patk"] is less than 2 then
+        sw is 1
+    push ["sword3d", sw] to dl
     draw_fpp_minimap with dl
     give back nothing
 

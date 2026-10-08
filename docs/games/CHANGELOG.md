@@ -4,6 +4,38 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-08
 
+### REALMS 3D phase (d): real WebGL 3D renderer, no sprites in first-person (founder directive)
+- First-person mode is now real 3D geometry. Jesun.Code emits a 3D scene
+  (`cam3d` camera, `quad3d` textured dungeon quads, `model3d` entities,
+  `text3d` world-anchored text, `sword3d` attack swing); the driver draws it
+  with WebGL: true perspective projection, depth testing, a torch point
+  light at the camera, and distance fog. Zero sprites in FPP.
+- Dungeon from the grid: one 13x13 window around the player, one quad per
+  exposed wall face, single floor and ceiling quads with repeating
+  procedural stone textures (canvas-generated, dark style).
+- 13 low-poly cuboid character/prop models in the driver (all under 20
+  boxes): goblin, ogre, cave rat, gloom bat, Deep Warden, merchant, elder,
+  villager, wanderer, gold pile, potion, shrine, plus spark particles and a
+  3D sword viewmodel. Walk pose swings limbs on the tick parity; glowing
+  eyes are emissive. Enemies face the player in 8 coarse directions
+  (no trig in the language).
+- Fallback: if WebGL is unavailable the game keeps the 2D raycaster
+  (`G["gl3d"]` flag, set by the driver at boot). Top-down overworld stays
+  2D (phase (e)).
+- Three playtest bugs fixed in game logic: (1) water rescue: the knight can
+  never be stranded on an unwalkable tile (last-walkable tracking plus an
+  explicit walkability guard); (2) NPCs can no longer block the cave mouth,
+  rope ladder, or stairs (special tiles win over NPC blocking, NPCs never
+  wander onto them); (3) M reliably enters FPP in the dungeon (rope ladder
+  never spawns adjacent to the dungeon entry, and stepping in place on the
+  ladder no longer surfaces the player).
+- Driver: `APP_VERSION` bumped to `20261008e`.
+- Verified: CPython 400-tick pump zero exceptions, determinism byte-identical
+  (2D and 3D paths), bug-fix reproductions (water rescue, cave unblockable,
+  ladder placement 0/200 adjacent, no false surface, legit surfacing intact),
+  Node+Pyodide exact bridge flow FPP-3D scene build 18.5ms/tick (budget
+  120ms). Browser playtest with screenshots still owed (delegated).
+
 ### Dark art phase 2: polish + walk frames (indie dev loop)
 - Polish pass on all 11 dark sprites: deeper multi-stop shading gradient,
   silhouette edge vignette, ordered dither grain, stronger cold rim light,
