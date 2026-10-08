@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REALMS 3D - Third-Person Prototype</title>
+<style>
+  /* Dark military HUD */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000;
+    font-family: 'Courier New', monospace; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+
+  #title {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    color: #d8c84a; font-size: 15px; letter-spacing: 6px; font-weight: bold;
+    text-shadow: 0 0 12px rgba(216,200,74,.5);
+  }
+  #hpwrap {
+    position: absolute; top: 16px; left: 18px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240;
+    padding: 8px 10px; width: 230px;
+  }
+  #hpwrap .label { color: #9aa584; font-size: 11px; letter-spacing: 3px; margin-bottom: 5px; }
+  #hpbar { height: 12px; background: #1c2018; border: 1px solid #333a2c; }
+  #hpfill { height: 100%; width: 100%; background: linear-gradient(90deg,#5da23c,#8fd45a); }
+  #hptext { color: #c9d2b8; font-size: 11px; margin-top: 4px; }
+
+  /* Crosshair */
+  #cross { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); }
+  #cross .dot { width: 4px; height: 4px; background: #e8e8e8; border-radius: 50%;
+    margin: 8px auto; box-shadow: 0 0 4px #000; }
+  #cross .ring { width: 20px; height: 20px; border: 1px solid rgba(232,232,232,.65);
+    border-radius: 50%; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%,-50%); }
+
+  #help {
+    position: absolute; bottom: 16px; left: 18px; color: #8b937a; font-size: 12px;
+    line-height: 1.7; background: rgba(10,12,10,.6); border: 1px solid #3a4034;
+    padding: 8px 12px; letter-spacing: 1px;
+  }
+  #help b { color: #d8c84a; }
+
+  #pos {
+    position: absolute; bottom: 16px; right: 18px; color: #6a725c; font-size: 11px;
+    background: rgba(10,12,10,.6); border: 1px solid #3a4034; padding: 8px 12px;
+    letter-spacing: 1px;
+  }
+
+  /* Click-to-play overlay */
+  #overlay {
+    position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 18px;
+    background: rgba(4,6,4,.82); cursor: pointer;
+  }
+  #overlay h1 { color: #d8c84a; letter-spacing: 10px; font-size: 34px; }
+  #overlay p { color: #9aa584; letter-spacing: 2px; font-size: 14px; }
+  #overlay .btn { color: #0c0e0a; background: #d8c84a; padding: 12px 34px;
+    font-weight: bold; letter-spacing: 4px; font-size: 15px; }
+  #overlay.hidden { display: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <div id="title">REALMS 3D</div>
+  <div id="hpwrap">
+    <div class="label">HEALTH</div>
+    <div id="hpbar"><div id="hpfill"></div></div>
+    <div id="hptext">100 / 100</div>
+  </div>
+  <div id="cross"><div class="ring"></div><div class="dot"></div></div>
+  <div id="help">
+    <b>WASD</b> move &nbsp; <b>MOUSE</b> look &nbsp; <b>SHIFT</b> sprint<br>
+    <b>SPACE</b> jump &nbsp; <b>ESC</b> release mouse
+  </div>
+  <div id="pos">X 0.0 &nbsp; Z 0.0</div>
+</div>
+
+<div id="overlay">
+  <h1>REALMS 3D</h1>
+  <p>THIRD-PERSON PROTOTYPE // THREE.JS</p>
+  <div class="btn">CLICK TO PLAY</div>
+  <p style="font-size:11px">mouse look needs pointer lock</p>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ============================ RENDERER / SCENE ============================ */
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0d1420, 40, 160);          // distance haze
+
+/* Sky dome: vertical gradient, dark tactical dusk */
+{
+  const c = document.createElement('canvas'); c.width = 2; c.height = 256;
+  const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0.0, '#060a14');
+  gr.addColorStop(0.45, '#0d1626');
+  gr.addColorStop(0.62, '#1a2a40');
+  gr.addColorStop(0.72, '#3a4a5e');
+  gr.addColorStop(1.0, '#0a0d12');
+  g.fillStyle = gr; g.fillRect(0, 0, 2, 256);
+  const tex = new THREE.CanvasTexture(c);
+  const sky = new THREE.Mesh(
+    new THREE.SphereGeometry(400, 24, 16),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false })
+  );
+  scene.add(sky);
+}
+
+/* ================================ LIGHTING ================================ */
+const sun = new THREE.DirectionalLight(0xffe0b3, 2.2);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -45; sun.shadow.camera.right = 45;
+sun.shadow.camera.top = 45; sun.shadow.camera.bottom = -45;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
+sun.shadow.bias = -0.0004;
+scene.add(sun, sun.target);
+
+scene.add(new THREE.HemisphereLight(0x8fa3c7, 0x1c2416, 0.85));  // sky/ground fill
+
+/* ================================ TERRAIN ================================= */
+/* One noise function drives both the mesh and the walk height. */
+function terrainHeight(x, z) {
+  let h = Math.sin(x * 0.045) * Math.cos(z * 0.05) * 1.6
+        + Math.sin(x * 0.13 + 1.7) * 0.55
+        + Math.cos(z * 0.11 + 0.6) * 0.55;
+  const d = Math.hypot(x, z);                       // flatten spawn area
+  const f = Math.min(1, Math.max(0, (d - 6) / 14));
+  return h * f * f * (3 - 2 * f);
+}
+
+const WORLD = 220;
+{
+  const geo = new THREE.PlaneGeometry(WORLD, WORLD, 110, 110);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const cGrass = new THREE.Color(0x2f4a22), cGrass2 = new THREE.Color(0x3d5c2a),
+        cDirt = new THREE.Color(0x4a3d28), cRock = new THREE.Color(0x5a5a58);
+  const tmp = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const h = terrainHeight(x, z);
+    pos.setY(i, h);
+    const n = Math.sin(x * 0.9 + z * 1.3) * 0.5 + 0.5;   // patch variation
+    tmp.copy(cGrass).lerp(cGrass2, n);
+    if (h > 1.1) tmp.lerp(cRock, Math.min(1, (h - 1.1) * 0.8));  // rocky peaks
+    if (n > 0.86) tmp.lerp(cDirt, 0.5);                          // dirt patches
+    colors[i * 3] = tmp.r; colors[i * 3 + 1] = tmp.g; colors[i * 3 + 2] = tmp.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const ground = new THREE.Mesh(geo,
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+  ground.receiveShadow = true;
+  scene.add(ground);
+}
+
+/* ============================ TREES AND ROCKS ============================= */
+const dummy = new THREE.Object3D();
+function scatter(mesh, count, minR, maxR, sMin, sMax) {
+  let placed = 0, guard = 0;
+  while (placed < count && guard++ < count * 40) {
+    const x = (Math.random() * 2 - 1) * maxR, z = (Math.random() * 2 - 1) * maxR;
+    if (Math.hypot(x, z) < minR) continue;          // keep spawn clear
+    dummy.position.set(x, terrainHeight(x, z), z);
+    dummy.rotation.y = Math.random() * Math.PI * 2;
+    const s = sMin + Math.random() * (sMax - sMin);
+    dummy.scale.set(s, s * (0.85 + Math.random() * 0.3), s);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(placed++, dummy.matrix);
+  }
+  mesh.count = placed;
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.castShadow = mesh.receiveShadow = true;
+  scene.add(mesh);
+}
+/* Pine: trunk + 2 stacked cones, merged into one geometry per part via instancing */
+{
+  const trunkG = new THREE.CylinderGeometry(0.14, 0.22, 1.6, 7);
+  trunkG.translate(0, 0.8, 0);
+  const trunkM = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 1 });
+  const trunks = new THREE.InstancedMesh(trunkG, trunkM, 70);
+
+  const folG = new THREE.ConeGeometry(1.5, 3.4, 8);
+  folG.translate(0, 3.1, 0);
+  const folG2 = new THREE.ConeGeometry(1.05, 2.4, 8);
+  folG2.translate(0, 4.6, 0);
+  // merge two cones manually: build one BufferGeometry via groups is overkill;
+  // instead use two instanced meshes sharing transforms
+  const folM = new THREE.MeshStandardMaterial({ color: 0x1e3a1c, roughness: 1 });
+  const fol1 = new THREE.InstancedMesh(folG, folM, 70);
+  const fol2 = new THREE.InstancedMesh(folG2, folM, 70);
+
+  const spots = [];
+  let guard = 0;
+  while (spots.length < 70 && guard++ < 4000) {
+    const x = (Math.random() * 2 - 1) * 100, z = (Math.random() * 2 - 1) * 100;
+    if (Math.hypot(x, z) < 10) continue;
+    spots.push([x, z]);
+  }
+  spots.forEach(([x, z], i) => {
+    const s = 0.8 + Math.random() * 0.9;
+    dummy.position.set(x, terrainHeight(x, z), z);
+    dummy.rotation.y = Math.random() * Math.PI * 2;
+    dummy.scale.set(s, s, s);
+    dummy.updateMatrix();
+    trunks.setMatrixAt(i, dummy.matrix);
+    fol1.setMatrixAt(i, dummy.matrix);
+    fol2.setMatrixAt(i, dummy.matrix);
+  });
+  for (const m of [trunks, fol1, fol2]) {
+    m.instanceMatrix.needsUpdate = true;
+    m.castShadow = m.receiveShadow = true;
+    scene.add(m);
+  }
+
+  const rockG = new THREE.DodecahedronGeometry(0.9, 0);
+  const rockM = new THREE.MeshStandardMaterial({ color: 0x6a6d68, roughness: 0.95 });
+  scatter(new THREE.InstancedMesh(rockG, rockM, 45), 45, 8, 100, 0.4, 1.6);
+}
+
+/* ============================ PLAYER CHARACTER ============================ */
+/* Box-built tactical operator. Dark kit, plate carrier, helmet. */
+const player = new THREE.Group();
+const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0 };
+const MAT = {
+  kit:   new THREE.MeshStandardMaterial({ color: 0x23262e, roughness: 0.9 }),
+  vest:  new THREE.MeshStandardMaterial({ color: 0x3a3f2e, roughness: 0.95 }),
+  skin:  new THREE.MeshStandardMaterial({ color: 0x8a6f5c, roughness: 0.8 }),
+  helm:  new THREE.MeshStandardMaterial({ color: 0x1b1e24, roughness: 0.6, metalness: 0.3 }),
+  accent:new THREE.MeshStandardMaterial({ color: 0xc7a23a, roughness: 0.7 }),
+};
+function part(w, h, d, mat, x, y, z, parent) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  (parent || player).add(m);
+  return m;
+}
+/* Legs pivot at hip (y=0.9) so the walk swing looks right */
+const legL = new THREE.Group(), legR = new THREE.Group();
+legL.position.set(-0.16, 0.9, 0); legR.position.set(0.16, 0.9, 0);
+part(0.22, 0.9, 0.26, MAT.kit, 0, -0.45, 0, legL);
+part(0.22, 0.9, 0.26, MAT.kit, 0, -0.45, 0, legR);
+player.add(legL, legR);
+part(0.52, 0.62, 0.32, MAT.kit, 0, 1.21, 0);          // torso
+part(0.56, 0.4, 0.38, MAT.vest, 0, 1.18, 0.01);       // plate carrier
+part(0.1, 0.12, 0.05, MAT.accent, 0, 1.22, 0.21);     // chest light
+/* Arms pivot at shoulder (y=1.45) */
+const armL = new THREE.Group(), armR = new THREE.Group();
+armL.position.set(-0.36, 1.45, 0); armR.position.set(0.36, 1.45, 0);
+part(0.16, 0.62, 0.2, MAT.kit, 0, -0.31, 0, armL);
+part(0.16, 0.62, 0.2, MAT.kit, 0, -0.31, 0, armR);
+player.add(armL, armR);
+part(0.3, 0.32, 0.3, MAT.skin, 0, 1.68, 0);           // head
+part(0.36, 0.2, 0.36, MAT.helm, 0, 1.82, 0);          // helmet
+part(0.37, 0.06, 0.1, MAT.helm, 0, 1.76, 0.18);       // visor brim
+scene.add(player);
+
+/* ============================ CAMERA (OVER-SHOULDER) ====================== */
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 500);
+let camYaw = Math.PI, camPitch = 0.32;               // start behind player
+const camPos = new THREE.Vector3(0, 4, -6);
+const camTargetPos = new THREE.Vector3();
+const lookTarget = new THREE.Vector3();
+const fwd = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+
+/* ================================ INPUT =================================== */
+const keys = {};
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); });
+addEventListener('keyup', e => keys[e.code] = false);
+
+const overlay = document.getElementById('overlay');
+overlay.addEventListener('click', () => renderer.domElement.requestPointerLock());
+document.addEventListener('pointerlockchange', () => {
+  overlay.classList.toggle('hidden', document.pointerLockElement === renderer.domElement);
+});
+addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== renderer.domElement) return;
+  camYaw -= e.movementX * 0.0022;
+  camPitch -= e.movementY * 0.0022;
+  camPitch = Math.max(-0.5, Math.min(1.05, camPitch));   // don't flip under ground
+});
+
+/* ============================== GAME LOOP ================================= */
+const clock = new THREE.Clock();
+const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
+const wishDir = new THREE.Vector3(), tmpV = new THREE.Vector3();
+const posEl = document.getElementById('pos');
+let hudTick = 0;
+
+function angleLerp(a, b, t) {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}
+
+function tick() {
+  requestAnimationFrame(tick);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  /* --- camera-relative wish direction --- */
+  fwd.set(Math.sin(camYaw), 0, Math.cos(camYaw));
+  right.crossVectors(up, fwd).normalize().negate(); // up x fwd points left, negate -> right
+  // (verify: yaw=PI -> fwd=(0,0,-1); right should be (-1,0,0)? cross((0,1,0),(0,0,-1)) = (1*-1-0*0, 0*0-0*-1, 0*0-1*0)=(-1,0,0); negate -> (1,0,0). Character at origin facing -z (yaw PI => facing (sin PI, cos PI)=(0,-1)); camera behind at +z. Screen-right for a viewer looking -z is... world -x? Viewer looking along -z, up +y: right hand is -x?? Let's think: looking down -z, +x is to the LEFT? No: standard camera looks down -z with +x to the right. Here fwd=(0,0,-1) means looking toward -z, so right = +x = (1,0,0). Correct.)
+  wishDir.set(0, 0, 0);
+  if (keys.KeyW) wishDir.add(fwd);
+  if (keys.KeyS) wishDir.sub(fwd);
+  if (keys.KeyD) wishDir.add(right);
+  if (keys.KeyA) wishDir.sub(right);
+
+  const sprint = keys.ShiftLeft || keys.ShiftRight;
+  const maxSpeed = sprint ? SPRINT : WALK;
+
+  /* --- accelerate / decelerate (no ice-skating, no teleport) --- */
+  if (wishDir.lengthSq() > 0) {
+    wishDir.normalize().multiplyScalar(maxSpeed);
+    tmpV.copy(wishDir).sub(P.vel);
+    const maxDelta = ACCEL * dt;
+    if (tmpV.length() > maxDelta) tmpV.setLength(maxDelta);
+    P.vel.add(tmpV);
+  } else {
+    const f = Math.max(0, 1 - 10 * dt);   // ground friction
+    P.vel.multiplyScalar(f);
+    if (P.vel.lengthSq() < 0.0004) P.vel.set(0, 0, 0);
+  }
+
+  player.position.addScaledVector(P.vel, dt);
+
+  /* --- face travel direction, smooth turn --- */
+  const speed = Math.hypot(P.vel.x, P.vel.z);
+  if (speed > 0.6) {
+    const targetYaw = Math.atan2(P.vel.x, P.vel.z);
+    player.rotation.y = angleLerp(player.rotation.y, targetYaw, 1 - Math.exp(-12 * dt));
+  }
+
+  /* --- jump + gravity, collide with terrain --- */
+  const groundY = terrainHeight(player.position.x, player.position.z);
+  if (keys.Space && P.grounded) { P.vy = JUMP_V; P.grounded = false; }
+  P.vy += GRAV * dt;
+  player.position.y += P.vy * dt;
+  if (player.position.y <= groundY) {
+    player.position.y = groundY; P.vy = 0; P.grounded = true;
+  }
+
+  /* --- procedural walk cycle --- */
+  P.walkPhase += dt * (4 + speed * 1.6);
+  const swing = Math.min(1, speed / WALK) * 0.65;
+  const s = Math.sin(P.walkPhase) * swing;
+  legL.rotation.x = s; legR.rotation.x = -s;
+  armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8;
+  if (!P.grounded) { legL.rotation.x = 0.35; legR.rotation.x = -0.25; armL.rotation.x = -0.5; armR.rotation.x = -0.5; }
+  player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob
+
+  /* --- over-shoulder camera --- */
+  lookTarget.copy(player.position); lookTarget.y += 1.55;
+  const dist = 4.6, cp = Math.cos(camPitch), sp = Math.sin(camPitch);
+  camTargetPos.set(
+    lookTarget.x - Math.sin(camYaw) * cp * dist - Math.cos(camYaw) * 0.85,
+    lookTarget.y + sp * dist,
+    lookTarget.z - Math.cos(camYaw) * cp * dist + Math.sin(camYaw) * 0.85
+  );
+  // keep camera above terrain
+  const camGround = terrainHeight(camTargetPos.x, camTargetPos.z) + 0.35;
+  if (camTargetPos.y < camGround) camTargetPos.y = camGround;
+  camPos.lerp(camTargetPos, 1 - Math.exp(-11 * dt));   // smooth follow
+  camera.position.copy(camPos);
+  camera.lookAt(lookTarget);
+
+  /* --- sun follows player for crisp shadows --- */
+  sun.position.set(player.position.x + 45, 70, player.position.z + 28);
+  sun.target.position.copy(player.position);
+  sun.target.updateMatrixWorld();
+
+  /* --- HUD position readout --- */
+  if ((hudTick += dt) > 0.12) {
+    hudTick = 0;
+    posEl.textContent = 'X ' + player.position.x.toFixed(1) + '  Z ' + player.position.z.toFixed(1)
+      + '  ' + (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE');
+  }
+
+  renderer.render(scene, camera);
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+player.position.set(0, terrainHeight(0, 0), 0);
+player.rotation.y = Math.PI;   // face away from the starting camera
+tick();
+</script>
+</body>
+</html>
