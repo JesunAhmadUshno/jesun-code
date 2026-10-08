@@ -7,9 +7,13 @@ try {
   var c1 = document.createElement('canvas').getContext('webgl');
   var c2 = document.createElement('canvas').getContext('webgl2');
   var e2 = document.createElement('canvas').getContext('experimental-webgl');
+  var g1 = null, g1why = '';
+  try { g1 = document.createElement('canvas').getContext('webgl',{antialias:false,alpha:false}); g1why = g1 ? 'ok' : 'null'; }
+  catch (e) { g1why = 'threw: ' + e.message; }
   r.textContent = 'WEBGL1:' + (c1 ? 'YES' : 'no') +
     ' WEBGL2:' + (c2 ? 'YES' : 'no') +
     ' EXP:' + (e2 ? 'YES' : 'no') +
+    ' GAMECTX:' + (g1 ? 'YES' : 'no') + '(' + g1why + ')' +
     ' UA:' + navigator.userAgent;
 } catch (e) { r.textContent = 'WEBGL_ERROR: ' + e.message; }
 </script>
