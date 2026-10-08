@@ -91,6 +91,7 @@
   <span>Mood <b id="diff"></b></span>
   <span id="mission"></span>
   <span id="quest"></span>
+  <span><button id="mutebtn" type="button" style="background:#1e1e2a;color:#c9c9d6;border:1px solid #4a4a5e;border-radius:4px;font-family:inherit;font-size:12px;padding:3px 10px;cursor:pointer;letter-spacing:1px">SOUND: ON</button></span>
 </div>
 <div id="log"></div>
 <div id="touch">
@@ -218,6 +219,68 @@ function updateHUD(h, msgs){
 
 function parseRes(raw){ var s=(raw&&raw.toJs)?raw.toJs():raw; return JSON.parse(s); }
 
+var AC=null, masterGain=null, noiseBuf=null, muted=false;
+try{ muted=(localStorage.getItem('deepdelve_realms_mute')==='1'); }catch(e){}
+function ensureAudio(){
+  if(muted) return null;
+  try{
+    var Ctx=window.AudioContext||window.webkitAudioContext;
+    if(!Ctx) return null;
+    if(!AC){
+      AC=new Ctx();
+      masterGain=AC.createGain(); masterGain.gain.value=0.5; masterGain.connect(AC.destination);
+      var len=AC.sampleRate|0;
+      noiseBuf=AC.createBuffer(1,len,AC.sampleRate);
+      var d=noiseBuf.getChannelData(0);
+      for(var i=0;i<len;i++) d[i]=Math.random()*2-1;
+    }
+    if(AC.state==='suspended') AC.resume();
+    return AC;
+  }catch(e){ return null; }
+}
+function playTone(f0,f1,dur,wv,vol,when){
+  var ac=ensureAudio(); if(!ac) return;
+  try{
+    var t=ac.currentTime+when, durS=dur/1000;
+    var o=ac.createOscillator(), g=ac.createGain();
+    var types={square:'square',saw:'sawtooth',tri:'triangle',sine:'sine'};
+    o.type=types[wv]||'square';
+    f0=Math.max(20,+f0); f1=Math.max(20,+f1);
+    o.frequency.setValueAtTime(f0,t);
+    if(f1!==f0) o.frequency.exponentialRampToValueAtTime(f1,t+durS);
+    vol=Math.min(0.5,Math.max(0.001,+vol));
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol,t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+durS);
+    o.connect(g); g.connect(masterGain);
+    o.start(t); o.stop(t+durS+0.05);
+  }catch(e){}
+}
+function playNoise(dur,vol,when){
+  var ac=ensureAudio(); if(!ac||!noiseBuf) return;
+  try{
+    var t=ac.currentTime+when, durS=dur/1000;
+    var s=ac.createBufferSource(); s.buffer=noiseBuf; s.loop=true;
+    var g=ac.createGain();
+    vol=Math.min(0.5,Math.max(0.001,+vol));
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol,t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+durS);
+    s.connect(g); g.connect(masterGain);
+    s.start(t); s.stop(t+durS+0.05);
+  }catch(e){}
+}
+function playSounds(snd){
+  if(!snd||!snd.length||muted) return;
+  var when=0;
+  for(var i=0;i<snd.length;i++){
+    var c=snd[i];
+    if(c[0]==='tone') playTone(c[1],c[2],c[3],c[4],c[5],when);
+    else if(c[0]==='noise') playNoise(c[1],c[2],when);
+    when+=0.045;
+  }
+}
+
 function showFatal(t){
   document.getElementById('loadmsg').textContent=t;
   document.getElementById('loading').classList.remove('hidden');
@@ -231,6 +294,7 @@ function frame(){
     if(!res.ok){ showFatal('Game error: '+res.error); over=true; return; }
     render(res.dl);
     updateHUD(res.hud,res.msgs);
+    playSounds(res.snd);
     if(res.over){ doGameOver(res); }
   }catch(err){ showFatal('Frame failed: '+((err&&err.message)||String(err))); over=true; }
 }
@@ -250,15 +314,26 @@ function doGameOver(res){
 function startRun(){
   document.getElementById('title').classList.add('hidden');
   document.getElementById('gameover').classList.add('hidden');
+  ensureAudio();
   try{
     over=false; keyQueue=[];
     var seed=(Date.now()%2000000000);
     var res=parseRes(startFn(seed, chosenDiff));
     if(!res.ok){ showFatal('Game error: '+res.error); return; }
-    render(res.dl); updateHUD(res.hud,res.msgs);
+    render(res.dl); updateHUD(res.hud,res.msgs); playSounds(res.snd);
     playing=true;
   }catch(err){ showFatal('Start failed: '+((err&&err.message)||String(err))); }
 }
+var mutebtn=document.getElementById('mutebtn');
+function paintMute(){ mutebtn.textContent=muted?'SOUND: OFF':'SOUND: ON'; }
+mutebtn.addEventListener('click',function(){
+  muted=!muted;
+  try{ localStorage.setItem('deepdelve_realms_mute',muted?'1':'0'); }catch(e){}
+  if(masterGain) masterGain.gain.value=muted?0:0.5;
+  paintMute();
+});
+paintMute();
+document.getElementById('touch').addEventListener('touchstart',function(){ ensureAudio(); },{passive:true});
 
 var DRIVER_PY = `
 import io, sys, json
@@ -276,7 +351,7 @@ except Exception as e:
 def _snap():
     try:
         o = _OUTV
-        return json.dumps({'ok': True, 'dl': o['dl'], 'hud': o['hud'], 'msgs': o['msgs'], 'over': o['over'], 'score': o['score']})
+        return json.dumps({'ok': True, 'dl': o['dl'], 'hud': o['hud'], 'msgs': o['msgs'], 'over': o['over'], 'score': o['score'], 'snd': o['snd']})
     except Exception as e:
         return json.dumps({'ok': False, 'error': 'snap: ' + str(e)})
 

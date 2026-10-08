@@ -101,6 +101,69 @@ to msg with t
         G["log"] is nl
     give back nothing
 
+note ---- procedural sound: game logic emits commands, the driver plays them ----
+note A tone is ["tone", f0, f1, dur_ms, wave, vol]; wave is square, saw, tri, sine.
+note A burst is ["noise", dur_ms, vol]. The queue drains into OUT["snd"] each tick.
+
+to tone with f0 and f1 and dur and wv and vol
+    q is G["sndq"]
+    push ["tone", f0, f1, dur, wv, vol] to q
+    give back nothing
+
+to hiss with dur and vol
+    q is G["sndq"]
+    push ["noise", dur, vol] to q
+    give back nothing
+
+to sfx with nm
+    if nm is "swing" then
+        hiss with 40 and 0.20
+        tone with 320 and 140 and 70 and "saw" and 0.14
+    otherwise if nm is "hit" then
+        tone with 180 and 90 and 80 and "square" and 0.28
+        hiss with 60 and 0.18
+    otherwise if nm is "crit" then
+        tone with 220 and 660 and 110 and "square" and 0.32
+        tone with 660 and 990 and 90 and "square" and 0.26
+    otherwise if nm is "kill" then
+        tone with 300 and 60 and 150 and "saw" and 0.28
+        hiss with 110 and 0.22
+    otherwise if nm is "hurt" then
+        tone with 140 and 70 and 130 and "saw" and 0.32
+    otherwise if nm is "die" then
+        tone with 220 and 40 and 700 and "saw" and 0.36
+        hiss with 400 and 0.18
+    otherwise if nm is "potion" then
+        tone with 400 and 900 and 90 and "sine" and 0.28
+        tone with 600 and 1200 and 90 and "sine" and 0.24
+    otherwise if nm is "gold" then
+        tone with 1250 and 1250 and 50 and "square" and 0.20
+        tone with 1660 and 1660 and 70 and "square" and 0.20
+    otherwise if nm is "stairs" then
+        tone with 500 and 120 and 260 and "tri" and 0.28
+    otherwise if nm is "surface" then
+        tone with 120 and 500 and 260 and "tri" and 0.28
+    otherwise if nm is "shrine" then
+        tone with 523 and 523 and 90 and "sine" and 0.28
+        tone with 659 and 659 and 90 and "sine" and 0.28
+        tone with 784 and 784 and 140 and "sine" and 0.28
+    otherwise if nm is "buy" then
+        tone with 880 and 880 and 60 and "square" and 0.22
+        tone with 1174 and 1174 and 80 and "square" and 0.22
+    otherwise if nm is "bless" then
+        tone with 523 and 1046 and 200 and "sine" and 0.28
+        tone with 784 and 784 and 130 and "sine" and 0.24
+    otherwise if nm is "bossdie" then
+        tone with 330 and 55 and 600 and "saw" and 0.36
+        hiss with 300 and 0.26
+    otherwise if nm is "heal" then
+        tone with 500 and 800 and 120 and "sine" and 0.24
+    otherwise if nm is "error" then
+        tone with 160 and 160 and 90 and "square" and 0.18
+    otherwise if nm is "click" then
+        tone with 700 and 700 and 40 and "square" and 0.14
+    give back nothing
+
 to seed_game with s
     G["seed"] is s
     G["diff"] is 2
@@ -127,6 +190,7 @@ to seed_game with s
     G["blessed"] is false
     G["parts"] is []
     G["floaters"] is []
+    G["sndq"] is []
     G["shake"] is 0
     G["hitstop"] is 0
     G["flash"] is 0
@@ -455,6 +519,7 @@ to gen_overworld
 to enter_dungeon
     G["map"] is "dungeon"
     G["mode"] is "top"
+    sfx with "stairs"
     gen_floor with 1
     sync_fpp
     msg with "You squeeze through the cave mouth into the dark."
@@ -881,9 +946,11 @@ to toggle_mode
     if G["mode"] is "top" then
         G["mode"] is "fpp"
         sync_fpp
+        sfx with "click"
         msg with "First-person sight. W/S walk, A/D turn, M to return."
     otherwise
         G["mode"] is "top"
+        sfx with "click"
         msg with "Bird's-eye sight."
     give back nothing
 
@@ -1018,6 +1085,7 @@ to fpp_step with amt
 
 to enter_stairs
     G["missions"] is G["missions"] + 1
+    sfx with "stairs"
     msg with "Mission complete. Descending..."
     G["flash"] is 12
     i is 0
@@ -1057,10 +1125,12 @@ to try_move with dx and dy
         give back nothing
     if G["depth"] is 1 and nx is G["upx"] and ny is G["upy"] then
         msg with "You climb the rope back to Emberhold."
+        sfx with "surface"
         gen_overworld
         give back nothing
     if nx is G["sx"] and ny is G["sy"] then
         if G["locked"] then
+            sfx with "error"
             msg with "The stairs are sealed. Slay the Deep Warden first."
             give back nothing
         enter_stairs
@@ -1095,14 +1165,17 @@ to player_attack with e
     e["kby"] is kby
     e["kb"] is 3
     G["patk"] is G["tick"]
+    sfx with "swing"
     spawn_part with e["x"] and e["y"] and "ffd75e" and 4
     if crit then
         spawn_floater with e["x"] and e["y"] and ("CRIT " + (text of dmg)) and "ffd75e" and 22
         G["shake"] is G["shake"] + 2
         G["hitstop"] is 2
+        sfx with "crit"
         msg with "Critical hit! " + (text of dmg) + " to the " + e["name"] + "."
     otherwise
         spawn_floater with e["x"] and e["y"] and (text of dmg) and "ffffff" and 18
+        sfx with "hit"
         msg with "You hit the " + e["name"] + " for " + (text of dmg) + "."
     if e["hp"] is less than 1 then
         kill_enemy with e
@@ -1134,8 +1207,10 @@ to kill_enemy with e
         spawn_floater with e["x"] and e["y"] and ("+" + (text of loot) + " gold") and "ffd75e" and 26
         msg with "The Deep Warden falls. The stairs grind open."
         msg with "The Warden's hoard: +" + (text of loot) + " gold."
+        sfx with "bossdie"
     otherwise
         msg with "The " + e["name"] + " dies. +" + (text of loot) + " gold."
+        sfx with "kill"
     G["gold"] is G["gold"] + loot
     give back nothing
 
@@ -1154,7 +1229,10 @@ to hurt_player with dmg and nm
             spawn_part with G["px"] and G["py"] and "ff5a5a" and 10
             spawn_part with G["px"] and G["py"] and "ffffff" and 8
             i is i + 1
+        sfx with "die"
         msg with "You died in the deep."
+    otherwise
+        sfx with "hurt"
     give back nothing
 
 to attack_all
@@ -1169,14 +1247,17 @@ to attack_all
             player_attack with e
             hit is true
     if hit is false then
+        sfx with "swing"
         msg with "You swing at empty air."
     give back nothing
 
 to drink_potion
     if G["potions"] is less than 1 then
+        sfx with "error"
         msg with "No potions left."
         give back nothing
     if G["hp"] is G["maxhp"] then
+        sfx with "error"
         msg with "Already at full health."
         give back nothing
     G["potions"] is G["potions"] - 1
@@ -1185,6 +1266,7 @@ to drink_potion
         G["hp"] is G["maxhp"]
     spawn_part with G["px"] and G["py"] and "8fd6ff" and 6
     spawn_part with G["px"] and G["py"] and "bfe9ff" and 5
+    sfx with "potion"
     msg with "You drink a potion. +40 HP."
     give back nothing
 
@@ -1230,6 +1312,7 @@ to interact
             G["quest"] is ""
             spawn_part with n["x"] and n["y"] and "ffe75a" and 8
             spawn_floater with n["x"] and n["y"] and "Blessed! Atk +2" and "ffe75a" and 24
+            sfx with "bless"
             msg with "Elder Marla accepts the offering and blesses your blade. Attack +2."
             give back nothing
         msg with "Elder Marla: " + npc_line with n
@@ -1241,6 +1324,7 @@ to interact
         if G["gold"] is greater than 19 then
             G["gold"] is G["gold"] - 20
             G["potions"] is G["potions"] + 1
+            sfx with "buy"
             msg with n["name"] + ": Pleasure doing business. One potion, good as new."
         otherwise
             msg with n["name"] + " the merchant: Potions, 20 gold. Come back richer, delver."
@@ -1250,6 +1334,7 @@ to interact
             G["hp"] is G["hp"] + 30
             if G["hp"] is greater than G["maxhp"] then
                 G["hp"] is G["maxhp"]
+            sfx with "heal"
             msg with n["name"] + " the wanderer shares a tale. You feel restored. +30 HP."
             msg with hint
         otherwise
@@ -1266,16 +1351,19 @@ to take_item with it
     if it["kind"] is "gold" then
         G["gold"] is G["gold"] + it["amt"]
         spawn_floater with G["px"] and G["py"] and ("+" + (text of it["amt"]) + " gold") and "ffd75e" and 20
+        sfx with "gold"
         msg with "Picked up " + (text of it["amt"]) + " gold."
     otherwise if it["kind"] is "potion" then
         G["potions"] is G["potions"] + 1
         spawn_floater with G["px"] and G["py"] and "+1 potion" and "7df0a8" and 20
+        sfx with "click"
         msg with "Found a healing potion. Press Q to drink."
     otherwise
         spawn_part with it["x"] and it["y"] and "4ae08a" and 7
         if it["boon"] is "might" then
             G["atk"] is G["atk"] + 2
             spawn_floater with G["px"] and G["py"] and "Might +2" and "ff9a3c" and 20
+            sfx with "shrine"
             msg with "Shrine of Might: attack +2."
         otherwise
             G["maxhp"] is G["maxhp"] + 10
@@ -1283,6 +1371,7 @@ to take_item with it
             if G["hp"] is greater than G["maxhp"] then
                 G["hp"] is G["maxhp"]
             spawn_floater with G["px"] and G["py"] and "Vitality +10" and "ff9a3c" and 20
+            sfx with "shrine"
             msg with "Shrine of Vitality: max HP +10."
     give back nothing
 
@@ -2103,4 +2192,6 @@ to refresh_out
     OUT["msgs"] is G["log"]
     OUT["over"] is G["over"]
     OUT["score"] is hud["score"]
+    OUT["snd"] is G["sndq"]
+    G["sndq"] is []
     give back nothing
