@@ -2,6 +2,21 @@
 
 Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
+## 2026-10-08
+
+### FPP minimap (indie dev loop, run 2)
+- First-person mode now draws a 1px-per-tile dungeon overview in the top-right
+  corner of the 192x128 canvas via the display list: rooms as dark rects,
+  corridor cells as dark dots, stairs in gold, up-ladder in cyan, boss in
+  red, player as a white arrow that tracks facing.
+- Corridor cells are precomputed once per floor at gen time (one 60x42 pass),
+  so the per-tick draw stays O(rooms + corridor cells), about 180 small
+  rects.
+- Game logic stays 100% Jesun.Code; no driver change.
+- Verified: 1600-tick CPython pump across modes/maps/difficulties zero
+  exceptions, determinism byte-identical, minimap markers track player and
+  facing, Node+Pyodide exact bridge flow FPP avg 43.9ms/tick (budget 120ms).
+
 ## 2026-10-07
 
 ### Procedural sound effects (indie dev loop, run 1)
