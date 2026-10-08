@@ -229,5 +229,47 @@
   "sy": 32,
   "sw": 16,
   "sh": 16
+ },
+ "knight2": {
+  "file": "dark.png",
+  "sx": 352,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "goblin2": {
+  "file": "dark.png",
+  "sx": 384,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "ogre2": {
+  "file": "dark.png",
+  "sx": 416,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "rat2": {
+  "file": "dark.png",
+  "sx": 448,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "bat2": {
+  "file": "dark.png",
+  "sx": 480,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "warden2": {
+  "file": "dark.png",
+  "sx": 512,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
  }
 }

@@ -32,16 +32,22 @@ SPR["tile_potion"] is "tile_potion"
 SPR["tile_bridge"] is "tile_bridge"
 SPR["tile_torch"] is "tile_torch"
 SPR["knight"] is "knight"
+SPR["knight2"] is "knight2"
 SPR["goblin"] is "goblin"
+SPR["goblin2"] is "goblin2"
 SPR["ogre"] is "ogre"
+SPR["ogre2"] is "ogre2"
 SPR["warden"] is "warden"
+SPR["warden2"] is "warden2"
 SPR["merchant"] is "merchant"
 SPR["elder"] is "elder"
 SPR["villager0"] is "villager0"
 SPR["villager1"] is "villager1"
 SPR["wanderer"] is "wanderer"
 SPR["rat"] is "rat"
+SPR["rat2"] is "rat2"
 SPR["bat"] is "bat"
+SPR["bat2"] is "bat2"
 SPR["well"] is "well"
 SPR["stairs_down"] is "stairs_down"
 SPR["stairs_sealed"] is "stairs_sealed"
@@ -54,15 +60,27 @@ to sprw_of with nm
     note is 32px; every tile stays 16px.
     if nm is "knight" then
         give back 32
+    otherwise if nm is "knight2" then
+        give back 32
     otherwise if nm is "goblin" then
+        give back 32
+    otherwise if nm is "goblin2" then
         give back 32
     otherwise if nm is "ogre" then
         give back 32
+    otherwise if nm is "ogre2" then
+        give back 32
     otherwise if nm is "rat" then
+        give back 32
+    otherwise if nm is "rat2" then
         give back 32
     otherwise if nm is "bat" then
         give back 32
+    otherwise if nm is "bat2" then
+        give back 32
     otherwise if nm is "warden" then
+        give back 32
+    otherwise if nm is "warden2" then
         give back 32
     otherwise if nm is "merchant" then
         give back 32
@@ -1844,6 +1862,19 @@ to draw_enemy with dl and e and camx and camy
         nm is SPR["ogre"]
     otherwise if t is "warden" then
         nm is SPR["warden"]
+    note walk-cycle frame: alternate sprite on a 4-tick period, offset per
+    note enemy so a pack does not march in lockstep
+    if (G["tick"] + e["x"] + e["y"]) % 4 is less than 2 then
+        if t is "rat" then
+            nm is SPR["rat2"]
+        otherwise if t is "bat" then
+            nm is SPR["bat2"]
+        otherwise if t is "ogre" then
+            nm is SPR["ogre2"]
+        otherwise if t is "warden" then
+            nm is SPR["warden2"]
+        otherwise
+            nm is SPR["goblin2"]
     push ["sprite", nm, sx, sy, 8, 8, face, fl] to dl
     lunging is false
     if G["tick"] - e["atkT"] is less than 2 then
@@ -1883,7 +1914,10 @@ to draw_player with dl and camx and camy
     face is 0
     if G["pface"] is 0 then
         face is 1
-    push ["sprite", SPR["knight"], sx, sy, 8, 8, face, 0] to dl
+    knm is SPR["knight"]
+    if G["tick"] % 4 is less than 2 then
+        knm is SPR["knight2"]
+    push ["sprite", knm, sx, sy, 8, 8, face, 0] to dl
     recent is false
     if G["tick"] - G["patk"] is less than 2 then
         recent is true
@@ -2118,15 +2152,28 @@ to sprite_cols with tag and ref and d
 to fpp_spr_name with tag and ref
     if tag is "e" then
         t is ref["type"]
+        nm is SPR["goblin"]
         if t is "rat" then
-            give back SPR["rat"]
+            nm is SPR["rat"]
         otherwise if t is "bat" then
-            give back SPR["bat"]
-        otherwise if t is "goblin" then
-            give back SPR["goblin"]
+            nm is SPR["bat"]
         otherwise if t is "ogre" then
-            give back SPR["ogre"]
-        give back SPR["warden"]
+            nm is SPR["ogre"]
+        otherwise if t is "warden" then
+            nm is SPR["warden"]
+        note same walk-cycle parity as draw_enemy so both views agree
+        if (G["tick"] + ref["x"] + ref["y"]) % 4 is less than 2 then
+            if t is "rat" then
+                nm is SPR["rat2"]
+            otherwise if t is "bat" then
+                nm is SPR["bat2"]
+            otherwise if t is "ogre" then
+                nm is SPR["ogre2"]
+            otherwise if t is "warden" then
+                nm is SPR["warden2"]
+            otherwise
+                nm is SPR["goblin2"]
+        give back nm
     if tag is "n" then
         nk is ref["nkind"]
         if nk is "merchant" then
