@@ -95,8 +95,6 @@
     transition: opacity .25s; text-shadow: 0 0 18px rgba(255,60,40,.6); white-space: nowrap; }
   #firebtn { right: 26px; bottom: 200px; border-color: rgba(216,80,60,.7); color: #ff9d8a; }
   #firebtn:active { background: rgba(216,60,40,.7); color: #fff; }
-  #punchbtn { right: 116px; bottom: 200px; border-color: rgba(216,200,74,.7); }
-  #punchbtn:active { background: rgba(216,200,74,.7); color: #0c0e0a; }
 </style>
 </head>
 <body>
@@ -112,7 +110,7 @@
   <div id="cross"><div class="ring"></div><div class="dot"></div></div>
   <div id="help">
     <b>WASD</b> move &nbsp; <b>MOUSE</b> look &nbsp; <b>SHIFT</b> sprint<br>
-    <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>F</b> punch &nbsp; <b>ESC</b> release mouse
+    <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>ESC</b> release mouse
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b></div>
@@ -124,7 +122,6 @@
 <div id="touchui">
   <div id="stick"><div id="stickknob"></div></div>
   <div class="tbtn" id="firebtn">FIRE</div>
-  <div class="tbtn" id="punchbtn">PUNCH</div>
   <div class="tbtn" id="jumpbtn">JUMP</div>
   <div class="tbtn" id="sprintbtn">RUN</div>
 </div>
@@ -950,104 +947,43 @@ const birds = [];
 }
 
 /* ============================ PLAYER CHARACTER ============================ */
-/* Realistic humanoid: capsules/spheres, skin texture, face. ~1.85 units tall. */
+/* Box-built tactical operator. Dark kit, plate carrier, helmet. */
 const player = new THREE.Group();
 const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0,
-            hp: 100, dead: false, deadT: 0, godT: 0, punchT: 0, punchCd: 0, punchHit: false };
-
-/* --- procedural skin texture: tone variation, pores --- */
-function makeSkinTex() {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d');
-  g.fillStyle = '#8a6f5c'; g.fillRect(0, 0, 64, 64);
-  for (let i = 0; i < 400; i++) {
-    const v = Math.random();
-    g.fillStyle = v < 0.5 ? 'rgba(60,40,28,0.08)' : 'rgba(255,220,190,0.06)';
-    g.fillRect(Math.random() * 64 | 0, Math.random() * 64 | 0, 2, 2);
-  }
-  for (let i = 0; i < 60; i++) {
-    g.fillStyle = 'rgba(50,32,22,0.12)';
-    g.fillRect(Math.random() * 64 | 0, Math.random() * 64 | 0, 1, 1);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  return t;
-}
-const skinTex = makeSkinTex();
+            hp: 100, dead: false, deadT: 0, godT: 0 };
 const MAT = {
-  skin:  new THREE.MeshStandardMaterial({ map: skinTex, roughness: 0.65 }),
-  shirt: new THREE.MeshStandardMaterial({ color: 0x4a5238, roughness: 0.95 }),
-  pants: new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.95 }),
-  boots: new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 0.7 }),
-  vest:  new THREE.MeshStandardMaterial({ color: 0x3a3f2e, roughness: 0.9 }),
-  accent:new THREE.MeshStandardMaterial({ color: 0xc7a23a, roughness: 0.6, emissive: 0x553f00, emissiveIntensity: 0.4 }),
+  kit:   new THREE.MeshStandardMaterial({ color: 0x23262e, roughness: 0.9 }),
+  vest:  new THREE.MeshStandardMaterial({ color: 0x3a3f2e, roughness: 0.95 }),
+  skin:  new THREE.MeshStandardMaterial({ color: 0x8a6f5c, roughness: 0.8 }),
+  helm:  new THREE.MeshStandardMaterial({ color: 0x1b1e24, roughness: 0.6, metalness: 0.3 }),
+  accent:new THREE.MeshStandardMaterial({ color: 0xc7a23a, roughness: 0.7 }),
 };
-/* shared geometries */
-const GEO = {
-  thigh: new THREE.CapsuleGeometry(0.09, 0.32, 6, 12),
-  shin:  new THREE.CapsuleGeometry(0.07, 0.32, 6, 12),
-  foot:  new THREE.SphereGeometry(0.09, 10, 8),
-  torso: new THREE.CylinderGeometry(0.19, 0.15, 0.55, 14),
-  vestG: new THREE.CylinderGeometry(0.21, 0.18, 0.38, 14),
-  uarm:  new THREE.CapsuleGeometry(0.065, 0.26, 6, 12),
-  farm:  new THREE.CapsuleGeometry(0.055, 0.26, 6, 12),
-  fist:  new THREE.SphereGeometry(0.075, 12, 10),
-  head:  new THREE.SphereGeometry(0.14, 18, 14),
-  eye:   new THREE.SphereGeometry(0.018, 8, 6),
-  nose:  new THREE.BoxGeometry(0.03, 0.05, 0.03),
-  mouth: new THREE.BoxGeometry(0.07, 0.012, 0.01),
-};
-function pm(geo, mat, x, y, z, parent) {
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set(x, y, z); m.castShadow = true;
+function part(w, h, d, mat, x, y, z, parent) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  m.castShadow = true;
   (parent || player).add(m);
   return m;
 }
-/* Legs: hip pivot (y=0.95) -> thigh -> knee pivot -> shin -> foot */
+/* Legs pivot at hip (y=0.9) so the walk swing looks right */
 const legL = new THREE.Group(), legR = new THREE.Group();
-const kneeL = new THREE.Group(), kneeR = new THREE.Group();
-legL.position.set(-0.11, 0.95, 0); legR.position.set(0.11, 0.95, 0);
-pm(GEO.thigh, MAT.pants, 0, -0.21, 0, legL);
-pm(GEO.thigh, MAT.pants, 0, -0.21, 0, legR);
-kneeL.position.set(0, -0.42, 0); kneeR.position.set(0, -0.42, 0);
-legL.add(kneeL); legR.add(kneeR);
-pm(GEO.shin, MAT.pants, 0, -0.2, 0, kneeL);
-pm(GEO.shin, MAT.pants, 0, -0.2, 0, kneeR);
-const footL = pm(GEO.foot, MAT.boots, 0, -0.42, 0.04, kneeL); footL.scale.set(1, 0.6, 1.4);
-const footR = pm(GEO.foot, MAT.boots, 0, -0.42, 0.04, kneeR); footR.scale.set(1, 0.6, 1.4);
+legL.position.set(-0.16, 0.9, 0); legR.position.set(0.16, 0.9, 0);
+part(0.22, 0.9, 0.26, MAT.kit, 0, -0.45, 0, legL);
+part(0.22, 0.9, 0.26, MAT.kit, 0, -0.45, 0, legR);
 player.add(legL, legR);
-/* Torso: tapered cylinder + vest */
-pm(GEO.torso, MAT.shirt, 0, 1.22, 0);
-pm(GEO.vestG, MAT.vest, 0, 1.2, 0);
-pm(new THREE.BoxGeometry(0.08, 0.1, 0.03), MAT.accent, 0, 1.24, 0.2);  // chest light
-/* Arms: shoulder pivot (y=1.45) -> upper -> elbow pivot -> forearm -> fist */
+part(0.52, 0.62, 0.32, MAT.kit, 0, 1.21, 0);          // torso
+part(0.56, 0.4, 0.38, MAT.vest, 0, 1.18, 0.01);       // plate carrier
+part(0.1, 0.12, 0.05, MAT.accent, 0, 1.22, 0.21);     // chest light
+/* Arms pivot at shoulder (y=1.45) */
 const armL = new THREE.Group(), armR = new THREE.Group();
-const elbowL = new THREE.Group(), elbowR = new THREE.Group();
-armL.position.set(-0.28, 1.45, 0); armR.position.set(0.28, 1.45, 0);
-pm(GEO.uarm, MAT.shirt, 0, -0.17, 0, armL);
-pm(GEO.uarm, MAT.shirt, 0, -0.17, 0, armR);
-elbowL.position.set(0, -0.34, 0); elbowR.position.set(0, -0.34, 0);
-armL.add(elbowL); armR.add(elbowR);
-pm(GEO.farm, MAT.skin, 0, -0.16, 0, elbowL);
-pm(GEO.farm, MAT.skin, 0, -0.16, 0, elbowR);
-const fistL = pm(GEO.fist, MAT.skin, 0, -0.36, 0, elbowL);
-const fistR = pm(GEO.fist, MAT.skin, 0, -0.36, 0, elbowR);
+armL.position.set(-0.36, 1.45, 0); armR.position.set(0.36, 1.45, 0);
+part(0.16, 0.62, 0.2, MAT.kit, 0, -0.31, 0, armL);
+part(0.16, 0.62, 0.2, MAT.kit, 0, -0.31, 0, armR);
 player.add(armL, armR);
-/* Head with face (faces +z, player-forward) */
-const headM = pm(GEO.head, MAT.skin, 0, 1.68, 0);
-const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
-const pupMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3 });
-pm(GEO.eye, eyeMat, -0.052, 1.70, 0.125); pm(GEO.eye, eyeMat, 0.052, 1.70, 0.125);
-const pupG = new THREE.SphereGeometry(0.009, 6, 5);
-pm(pupG, pupMat, -0.052, 1.70, 0.14); pm(pupG, pupMat, 0.052, 1.70, 0.14);
-pm(GEO.nose, MAT.skin, 0, 1.655, 0.135);
-pm(GEO.mouth, new THREE.MeshStandardMaterial({ color: 0x5a3a30, roughness: 0.8 }), 0, 1.615, 0.128);
-/* short hair cap */
-const hairM = pm(new THREE.SphereGeometry(0.145, 14, 10, 0, Math.PI * 2, 0, 1.35),
-  new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.95 }), 0, 1.685, -0.008);
+part(0.3, 0.32, 0.3, MAT.skin, 0, 1.68, 0);           // head
+part(0.36, 0.2, 0.36, MAT.helm, 0, 1.82, 0);          // helmet
+part(0.37, 0.06, 0.1, MAT.helm, 0, 1.76, 0.18);       // visor brim
 scene.add(player);
-/* natural elbow bend */
-elbowL.rotation.x = -0.25; elbowR.rotation.x = -0.25;
 
 /* ============================ COMBAT ==================================== */
 let fireCd = 0, kills = 0, dmgV = 0, toastT = 0;
@@ -1112,34 +1048,6 @@ function sfxDie() {
   g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.32);
   o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + 0.34);
 }
-function sfxPunch() {
-  const a = ac(); if (!a) return;
-  const dur = 0.12, n = Math.floor(a.sampleRate * dur);
-  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3); }
-  const s = a.createBufferSource(); s.buffer = buf;
-  const f = a.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 1.2;
-  const g = a.createGain(); g.gain.value = 0.5;
-  s.connect(f); f.connect(g); g.connect(a.destination); s.start();
-}
-/* --- melee punch: F key / PUNCH button. Right arm extends, hits enemies in front cone --- */
-function doPunch() {
-  if (!playing() || P.dead || P.punchCd > 0) return;
-  P.punchCd = 0.45; P.punchT = 0.32; P.punchHit = false;
-  sfxPunch();
-}
-function punchHitCheck() {
-  const px = player.position.x, pz = player.position.z;
-  const fx = Math.sin(player.rotation.y), fz = Math.cos(player.rotation.y);
-  for (const e of enemies) {
-    if (e.state === 'dead') continue;
-    const dx = e.g.position.x - px, dz = e.g.position.z - pz;
-    const dist = Math.hypot(dx, dz);
-    if (dist > 2.4) continue;
-    const dot = (dx * fx + dz * fz) / Math.max(dist, 0.001);
-    if (dot > 0.7) damageEnemy(e, 2);   // 45-degree frontal cone, 2 dmg
-  }
-}
 
 /* --- rifle: box-built, held at the right side, points where the player faces --- */
 const gun = new THREE.Group();
@@ -1156,7 +1064,7 @@ const gun = new THREE.Group();
   gp(0.08, 0.16, 0.1, mGun, 0, -0.1, -0.22);// stock
   gp(0.03, 0.08, 0.03, mGun, 0, 0.1, -0.05);// sight
 }
-gun.position.set(0.28, 1.28, 0.28);
+gun.position.set(0.3, 1.32, 0.3);
 player.add(gun);
 const muzzle = new THREE.Object3D();
 muzzle.position.set(0, 0.02, 0.88);
@@ -1346,7 +1254,7 @@ const fwd = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vec
 
 /* ================================ INPUT =================================== */
 const keys = {};
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyF') doPunch(); });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); });
 addEventListener('keyup', e => keys[e.code] = false);
 
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -1454,12 +1362,6 @@ if (IS_TOUCH) {
   fireBtn.addEventListener('touchstart', e => {
     e.preventDefault(); e.stopPropagation();
     shoot();
-  }, { passive: false });
-
-  const punchBtn = document.getElementById('punchbtn');
-  punchBtn.addEventListener('touchstart', e => {
-    e.preventDefault(); e.stopPropagation();
-    doPunch();
   }, { passive: false });
 }
 
@@ -1673,27 +1575,8 @@ function tick() {
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
   legL.rotation.x = s; legR.rotation.x = -s;
-  kneeL.rotation.x = Math.max(0, -s) * 1.2; kneeR.rotation.x = Math.max(0, s) * 1.2;
   armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8;
-  elbowL.rotation.x = -0.25 - Math.abs(s) * 0.3; elbowR.rotation.x = -0.25 - Math.abs(s) * 0.3;
-  if (!P.grounded) { legL.rotation.x = 0.35; legR.rotation.x = -0.25; kneeL.rotation.x = 0.5; kneeR.rotation.x = 0.3; armL.rotation.x = -0.5; armR.rotation.x = -0.5; }
-  /* --- punch animation: right arm extends fast, retracts --- */
-  if (P.punchCd > 0) P.punchCd -= dt;
-  if (P.punchT > 0) {
-    P.punchT -= dt;
-    const pt = P.punchT;  // 0.32 -> 0
-    let ext;
-    if (pt > 0.20) ext = 1 - (pt - 0.20) / 0.12;       // extend 0.12s
-    else ext = pt / 0.20;                              // retract 0.20s
-    ext = Math.max(0, Math.min(1, ext));
-    armR.rotation.x = -1.5 * ext;
-    elbowR.rotation.x = -0.1 * ext;
-    armL.rotation.x = -0.5; elbowL.rotation.x = -1.1;   // left guards
-    const clench = 1 + 0.18 * ext;
-    fistR.scale.set(clench, clench, clench); fistL.scale.set(clench, clench, clench);
-    if (!P.punchHit && pt <= 0.20) { P.punchHit = true; punchHitCheck(); }
-    if (P.punchT <= 0) { fistR.scale.set(1,1,1); fistL.scale.set(1,1,1); }
-  }
+  if (!P.grounded) { legL.rotation.x = 0.35; legR.rotation.x = -0.25; armL.rotation.x = -0.5; armR.rotation.x = -0.5; }
   player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob
 
   /* --- over-shoulder camera --- */
