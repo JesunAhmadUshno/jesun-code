@@ -79,6 +79,22 @@
   #jumpbtn { right: 26px; bottom: 110px; }
   #sprintbtn { right: 116px; bottom: 34px; }
   body.touch #help { display: none; }
+
+  /* ---- combat HUD ---- */
+  #combat {
+    position: absolute; top: 16px; right: 18px; color: #c9d2b8; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; text-align: right; line-height: 1.8;
+  }
+  #combat b { color: #ff6b5e; }
+  #combat #kills { color: #d8c84a; }
+  #dmgflash { position: fixed; inset: 0; pointer-events: none; z-index: 14; opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(200,0,0,0) 35%, rgba(210,25,15,.6) 100%); }
+  #toast { position: absolute; top: 32%; left: 50%; transform: translateX(-50%);
+    color: #ff6b5e; font-size: 24px; letter-spacing: 8px; font-weight: bold; opacity: 0;
+    transition: opacity .25s; text-shadow: 0 0 18px rgba(255,60,40,.6); white-space: nowrap; }
+  #firebtn { right: 26px; bottom: 200px; border-color: rgba(216,80,60,.7); color: #ff9d8a; }
+  #firebtn:active { background: rgba(216,60,40,.7); color: #fff; }
 </style>
 </head>
 <body>
@@ -94,13 +110,18 @@
   <div id="cross"><div class="ring"></div><div class="dot"></div></div>
   <div id="help">
     <b>WASD</b> move &nbsp; <b>MOUSE</b> look &nbsp; <b>SHIFT</b> sprint<br>
-    <b>SPACE</b> jump &nbsp; <b>ESC</b> release mouse
+    <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>ESC</b> release mouse
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
+  <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b></div>
+  <div id="toast"></div>
 </div>
+
+<div id="dmgflash"></div>
 
 <div id="touchui">
   <div id="stick"><div id="stickknob"></div></div>
+  <div class="tbtn" id="firebtn">FIRE</div>
   <div class="tbtn" id="jumpbtn">JUMP</div>
   <div class="tbtn" id="sprintbtn">RUN</div>
 </div>
@@ -397,7 +418,8 @@ const birds = [];
 /* ============================ PLAYER CHARACTER ============================ */
 /* Box-built tactical operator. Dark kit, plate carrier, helmet. */
 const player = new THREE.Group();
-const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0 };
+const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0,
+            hp: 100, dead: false, deadT: 0, godT: 0 };
 const MAT = {
   kit:   new THREE.MeshStandardMaterial({ color: 0x23262e, roughness: 0.9 }),
   vest:  new THREE.MeshStandardMaterial({ color: 0x3a3f2e, roughness: 0.95 }),
@@ -431,6 +453,263 @@ part(0.3, 0.32, 0.3, MAT.skin, 0, 1.68, 0);           // head
 part(0.36, 0.2, 0.36, MAT.helm, 0, 1.82, 0);          // helmet
 part(0.37, 0.06, 0.1, MAT.helm, 0, 1.76, 0.18);       // visor brim
 scene.add(player);
+
+/* ============================ COMBAT ==================================== */
+let fireCd = 0, kills = 0, dmgV = 0, toastT = 0;
+const dmgflashEl = document.getElementById('dmgflash');
+const toastEl = document.getElementById('toast');
+const hpfillEl = document.getElementById('hpfill'), hptextEl = document.getElementById('hptext');
+const aliveEl = document.getElementById('alive'), killsEl = document.getElementById('kills');
+function toast(msg) { toastEl.textContent = msg; toastEl.style.opacity = 1; toastT = 1.4; }
+function updateHpHUD() {
+  hpfillEl.style.width = Math.max(0, P.hp) + '%';
+  hptextEl.textContent = Math.max(0, Math.round(P.hp)) + ' / 100';
+}
+function updateCombatHUD() {
+  aliveEl.textContent = enemies.filter(e => e.state !== 'dead').length;
+  killsEl.textContent = kills;
+}
+const playing = () => overlay.classList.contains('hidden');
+
+/* --- procedural WebAudio: gunshot, hit marker, death, hurt (no files) --- */
+let AC = null;
+function ac() {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function sfxShot() {
+  const a = ac(); if (!a) return;
+  const dur = 0.16, n = Math.floor(a.sampleRate * dur);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.2); }
+  const s = a.createBufferSource(); s.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(3800, a.currentTime);
+  f.frequency.exponentialRampToValueAtTime(300, a.currentTime + dur);
+  const g = a.createGain(); g.gain.value = 0.4;
+  s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+  const o = a.createOscillator(); o.type = 'triangle';
+  o.frequency.setValueAtTime(120, a.currentTime);
+  o.frequency.exponentialRampToValueAtTime(45, a.currentTime + 0.12);
+  const g2 = a.createGain();
+  g2.gain.setValueAtTime(0.5, a.currentTime);
+  g2.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.14);
+  o.connect(g2); g2.connect(a.destination); o.start(); o.stop(a.currentTime + 0.15);
+}
+function sfxBlip(freq, dur, type, vol) {
+  const a = ac(); if (!a) return;
+  const o = a.createOscillator(); o.type = type; o.frequency.value = freq;
+  const g = a.createGain();
+  g.gain.setValueAtTime(vol, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + dur + 0.02);
+}
+const sfxHit = () => sfxBlip(1350, 0.07, 'square', 0.18);
+const sfxHurt = () => sfxBlip(95, 0.22, 'sine', 0.6);
+function sfxDie() {
+  const a = ac(); if (!a) return;
+  const o = a.createOscillator(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(320, a.currentTime);
+  o.frequency.exponentialRampToValueAtTime(70, a.currentTime + 0.3);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.3, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.32);
+  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + 0.34);
+}
+
+/* --- rifle: box-built, held at the right side, points where the player faces --- */
+const gun = new THREE.Group();
+{
+  const mGun = new THREE.MeshStandardMaterial({ color: 0x191b1e, roughness: 0.55, metalness: 0.45 });
+  const mGrip = new THREE.MeshStandardMaterial({ color: 0x4a3220, roughness: 0.8 });
+  const gp = (w, h, d, m, x, y, z) => {
+    const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+    q.position.set(x, y, z); q.castShadow = true; gun.add(q);
+  };
+  gp(0.09, 0.13, 0.55, mGun, 0, 0, 0.1);     // receiver
+  gp(0.05, 0.05, 0.5, mGun, 0, 0.02, 0.6);   // barrel
+  gp(0.07, 0.2, 0.12, mGrip, 0, -0.12, 0.05);// grip
+  gp(0.08, 0.16, 0.1, mGun, 0, -0.1, -0.22);// stock
+  gp(0.03, 0.08, 0.03, mGun, 0, 0.1, -0.05);// sight
+}
+gun.position.set(0.3, 1.32, 0.3);
+player.add(gun);
+const muzzle = new THREE.Object3D();
+muzzle.position.set(0, 0.02, 0.88);
+gun.add(muzzle);
+const muzzleFlash = new THREE.PointLight(0xffc36b, 0, 22, 1.8);
+scene.add(muzzleFlash);
+
+/* --- tracer pool: 10 reusable lines --- */
+const tracers = [];
+for (let i = 0; i < 10; i++) {
+  const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  const line = new THREE.Line(geo,
+    new THREE.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0 }));
+  line.frustumCulled = false;
+  scene.add(line);
+  tracers.push({ line, life: 0 });
+}
+function fireTracer(a, b) {
+  let t = tracers.find(t => t.life <= 0) || tracers[0];
+  const p = t.line.geometry.attributes.position;
+  p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, b.x, b.y, b.z);
+  p.needsUpdate = true;
+  t.line.material.opacity = 0.9;
+  t.life = 0.07;
+}
+
+/* --- enemies: box-built hostiles, red/dark, shared geometries --- */
+const EGEO = {
+  torso: new THREE.BoxGeometry(0.52, 0.62, 0.32),
+  vest:  new THREE.BoxGeometry(0.56, 0.4, 0.38),
+  head:  new THREE.BoxGeometry(0.3, 0.32, 0.3),
+  helm:  new THREE.BoxGeometry(0.36, 0.2, 0.36),
+  limb:  new THREE.BoxGeometry(0.2, 0.9, 0.24),
+  arm:   new THREE.BoxGeometry(0.16, 0.62, 0.2),
+  eye:   new THREE.BoxGeometry(0.06, 0.05, 0.02),
+};
+const enemies = [], hitMeshes = [];
+function makeEnemy() {
+  const g = new THREE.Group();
+  const mBody = new THREE.MeshStandardMaterial({ color: 0x6e1f1f, roughness: 0.9 });
+  const mDark = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 });
+  const mHead = new THREE.MeshStandardMaterial({ color: 0x7a5f4c, roughness: 0.85 });
+  const mEye = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+  const pm = (geo, mat, x, y, z, parent) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z); m.castShadow = true;
+    (parent || g).add(m); return m;
+  };
+  const legL = new THREE.Group(), legR = new THREE.Group();
+  legL.position.set(-0.16, 0.9, 0); legR.position.set(0.16, 0.9, 0);
+  pm(EGEO.limb, mDark, 0, -0.45, 0, legL);
+  pm(EGEO.limb, mDark, 0, -0.45, 0, legR);
+  g.add(legL, legR);
+  pm(EGEO.torso, mBody, 0, 1.21, 0);
+  pm(EGEO.vest, mDark, 0, 1.18, 0.01);
+  const armL = new THREE.Group(), armR = new THREE.Group();
+  armL.position.set(-0.36, 1.45, 0); armR.position.set(0.36, 1.45, 0);
+  pm(EGEO.arm, mDark, 0, -0.31, 0, armL);
+  pm(EGEO.arm, mDark, 0, -0.31, 0, armR);
+  g.add(armL, armR);
+  pm(EGEO.head, mHead, 0, 1.68, 0);
+  pm(EGEO.helm, mDark, 0, 1.82, 0);
+  pm(EGEO.eye, mEye, -0.08, 1.7, 0.16);
+  pm(EGEO.eye, mEye, 0.08, 1.7, 0.16);
+  scene.add(g);
+  const e = { group: g, mats: [mBody, mDark, mHead], hp: 3, state: 'wander',
+    target: new THREE.Vector3(), attackCd: 0, deadT: 0, respawnT: 0,
+    walkPhase: Math.random() * 6, speed: 0, hitT: 0, lunge: 0, aggroT: 0,
+    yaw: 0, legL, legR, armL, armR };
+  g.traverse(o => { if (o.isMesh) { o.userData.enemy = e; hitMeshes.push(o); } });
+  return e;
+}
+function pickWander(e) {
+  const g = e.group.position;
+  e.target.set(
+    Math.max(-100, Math.min(100, g.x + (Math.random() - 0.5) * 70)), 0,
+    Math.max(-100, Math.min(100, g.z + (Math.random() - 0.5) * 70)));
+}
+function spawnPos(edge) {
+  const a = Math.random() * Math.PI * 2;
+  const r = edge ? 80 + Math.random() * 15 : 28 + Math.random() * 30;
+  return new THREE.Vector3(
+    Math.max(-100, Math.min(100, Math.cos(a) * r)), 0,
+    Math.max(-100, Math.min(100, Math.sin(a) * r)));
+}
+function placeEnemy(e, v) {
+  const g = e.group;
+  g.position.set(v.x, terrainHeight(v.x, v.z), v.z);
+  g.rotation.set(0, Math.random() * Math.PI * 2, 0);
+  g.visible = true;
+  e.hp = 3; e.state = 'wander'; e.yaw = g.rotation.y;
+  e.attackCd = 0; e.deadT = 0; e.hitT = 0; e.lunge = 0; e.aggroT = 0; e.speed = 0;
+  e.mats.forEach(m => m.emissive.setHex(0x000000));
+  pickWander(e);
+}
+for (let i = 0; i < 5; i++) { const e = makeEnemy(); placeEnemy(e, spawnPos(false)); enemies.push(e); }
+updateCombatHUD();
+
+function damageEnemy(e, d) {
+  if (e.state === 'dead') return;
+  e.hp -= d;
+  e.hitT = 0.09;
+  e.aggroT = 6;   // getting shot makes them hunt you
+  e.mats.forEach(m => m.emissive.setHex(0x7a1010));
+  if (e.hp <= 0) {
+    e.state = 'dead'; e.deadT = 0; e.respawnT = 10;
+    kills++; sfxDie(); updateCombatHUD(); toast('HOSTILE DOWN');
+  } else sfxHit();
+}
+
+const raycaster = new THREE.Raycaster();
+raycaster.far = 90;
+const screenCenter = new THREE.Vector2(0, 0);
+const tmpV2 = new THREE.Vector3(), tmpEnd = new THREE.Vector3();
+function shoot() {
+  if (!playing() || P.dead || fireCd > 0) return;
+  fireCd = 0.13;   // ~8 rounds/sec, infinite ammo
+  sfxShot();
+  muzzleFlash.intensity = 26;
+  muzzle.getWorldPosition(tmpV2);
+  raycaster.setFromCamera(screenCenter, camera);
+  const hits = raycaster.intersectObjects(
+    hitMeshes.filter(m => m.userData.enemy.state !== 'dead'), false);
+  let end;
+  if (hits.length) { end = hits[0].point; damageEnemy(hits[0].object.userData.enemy, 1); }
+  else { end = raycaster.ray.at(90, tmpEnd); }
+  fireTracer(tmpV2, end);
+}
+
+function hurtPlayer(d) {
+  if (P.dead || P.godT > 0) return;
+  P.hp -= d;
+  sfxHurt();
+  dmgV = 0.85;
+  updateHpHUD();
+  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; toast('ELIMINATED'); updateHpHUD(); }
+}
+
+function updateEnemy(e, dt) {
+  const g = e.group;
+  if (e.state === 'dead') {
+    e.deadT += dt;
+    const k = Math.min(1, e.deadT / 0.4);
+    g.rotation.x = -Math.PI / 2 * k * k;   // fall flat
+    if (e.deadT > 1.4) g.visible = false;
+    e.respawnT -= dt;
+    if (e.respawnT <= 0) placeEnemy(e, spawnPos(true));
+    return;
+  }
+  e.attackCd -= dt; e.aggroT -= dt;
+  if (e.hitT > 0) { e.hitT -= dt; if (e.hitT <= 0) e.mats.forEach(m => m.emissive.setHex(0x000000)); }
+  const pp = player.position, gp = g.position;
+  const dx = pp.x - gp.x, dz = pp.z - gp.z;
+  const dist = Math.hypot(dx, dz);
+  let mvx = 0, mvz = 0, spd = 0;
+  if ((dist < 25 || e.aggroT > 0) && !P.dead) {
+    spd = 4.2; mvx = dx / dist; mvz = dz / dist;   // chase (slower than player walk)
+    e.yaw = Math.atan2(dx, dz);
+    if (dist < 1.9 && e.attackCd <= 0) { e.attackCd = 1.2; e.lunge = 0.25; hurtPlayer(10); }
+  } else {
+    const tx = e.target.x - gp.x, tz = e.target.z - gp.z, td = Math.hypot(tx, tz);
+    if (td < 1.5) pickWander(e);
+    else { spd = 2.0; mvx = tx / td; mvz = tz / td; e.yaw = Math.atan2(mvx, mvz); }
+  }
+  e.speed += (spd - e.speed) * Math.min(1, 8 * dt);
+  gp.x = Math.max(-105, Math.min(105, gp.x + mvx * e.speed * dt));
+  gp.z = Math.max(-105, Math.min(105, gp.z + mvz * e.speed * dt));
+  gp.y = terrainHeight(gp.x, gp.z);
+  g.rotation.y = angleLerp(g.rotation.y, e.yaw, 1 - Math.exp(-8 * dt));
+  e.walkPhase += dt * (3 + e.speed * 1.5);
+  const sw = Math.min(1, e.speed / 4) * 0.55, s = Math.sin(e.walkPhase) * sw;
+  e.legL.rotation.x = s; e.legR.rotation.x = -s;
+  let armT = -s * 0.7;
+  if (e.lunge > 0) { e.lunge -= dt; armT = -1.4; }   // strike pose
+  e.armL.rotation.x = armT; e.armR.rotation.x = armT;
+}
 
 /* ============================ CAMERA (OVER-SHOULDER) ====================== */
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 500);
