@@ -1,0 +1,99 @@
+note platform_arcade_data: STACKFALL game data as Jesun.Code tables.
+note Transcribed from GAME-DESIGN.md. Brought in by platform/app.jc
+note BEFORE platform_arcade; the server package reads these tables and
+note the serializer sentences directly at call time.
+note Serializer output is the exact GET /arcade/data JSON shape from
+note SPEC.md, built with the language's own json of (compact, keys in
+note insertion order), so it is byte-identical across interpreters.
+
+arcade_hero is {"hp": 100, "atk": 12, "def": 2, "potions": 3, "potion_heal": 40}
+
+note ---- the seven layers of the Stack ----
+
+arcade_layers is []
+push {"depth": 1, "name": "The Cache", "floor": "#0b0b0d", "wall": "#2a2a2e", "accent": "#ffb347", "warden": {"id": "prefetch", "name": "Prefetch", "hp": 220, "atk": 16, "def": 2, "patterns": ["charge", "summon"]}, "enemies": ["nullpointer", "dangling_thread"], "elite_from": false} to arcade_layers
+push {"depth": 2, "name": "The Heap", "floor": "#0c0f0e", "wall": "#2a3230", "accent": "#2dd4bf", "warden": {"id": "fragmentor", "name": "Fragmentor", "hp": 320, "atk": 20, "def": 3, "patterns": ["slam", "scatter"]}, "enemies": ["nullpointer", "memory_leak", "segfault"], "elite_from": false} to arcade_layers
+push {"depth": 3, "name": "The Bus", "floor": "#100b0b", "wall": "#332a2a", "accent": "#ff3b30", "warden": {"id": "arbiter", "name": "Arbiter", "hp": 420, "atk": 24, "def": 3, "patterns": ["lane_dash", "rotating_shots"]}, "enemies": ["dangling_thread", "race_condition", "nullpointer"], "elite_from": false} to arcade_layers
+push {"depth": 4, "name": "The Registry", "floor": "#0b0e12", "wall": "#2a2f36", "accent": "#5aa9ff", "warden": {"id": "redactor", "name": "Redactor", "hp": 540, "atk": 28, "def": 4, "patterns": ["blackout", "heavy_melee"]}, "enemies": ["race_condition", "deadlock", "bit_rotter"], "elite_from": true} to arcade_layers
+push {"depth": 5, "name": "The Kernel", "floor": "#0e0b12", "wall": "#2f2a36", "accent": "#a855f7", "warden": {"id": "panic", "name": "Panic", "hp": 700, "atk": 34, "def": 5, "patterns": ["enrage", "double_slam"]}, "enemies": ["segfault", "deadlock", "memory_leak"], "elite_from": true} to arcade_layers
+push {"depth": 6, "name": "The Silicon", "floor": "#0d0c08", "wall": "#333026", "accent": "#e8b34b", "warden": {"id": "lithographer", "name": "Lithographer", "hp": 880, "atk": 40, "def": 6, "patterns": ["etch_lines", "adds"]}, "enemies": ["deadlock", "bit_rotter", "race_condition"], "elite_from": true} to arcade_layers
+push {"depth": 7, "name": "The Core", "floor": "#050505", "wall": "#1f1f22", "accent": "#ffffff", "warden": {"id": "watchdog", "name": "THE WATCHDOG", "hp": 1200, "atk": 48, "def": 8, "patterns": ["charge", "slam", "sweep", "all_patterns"]}, "enemies": ["memory_leak", "deadlock", "bit_rotter", "segfault"], "elite_from": true} to arcade_layers
+
+note ---- missions: 7 main (one per layer) + 3 side quests ----
+
+arcade_missions is []
+push {"id": "cold_boot", "layer": 1, "title": "Cold Boot", "brief": "Reach the stairs down.", "objective": {"kind": "reach_stairs"}, "reward": {"gold": 50}} to arcade_missions
+push {"id": "defragment", "layer": 2, "title": "Defragment", "brief": "Destroy 3 corruption nodes.", "objective": {"kind": "destroy", "target": "corruption_node", "count": 3}, "reward": {"weapon": "w_iron"}} to arcade_missions
+push {"id": "clear_bus", "layer": 3, "title": "Clear the Bus", "brief": "Defeat 12 hostiles.", "objective": {"kind": "kill", "target": "hostile", "count": 12}, "reward": {"gold": 120}} to arcade_missions
+push {"id": "redacted", "layer": 4, "title": "Redacted", "brief": "Collect 3 registry keys, then reach the stairs.", "objective": {"kind": "collect", "target": "registry_key", "count": 3, "then": "reach_stairs"}, "reward": {"max_hp": 25}} to arcade_missions
+push {"id": "kernel_panic", "layer": 5, "title": "Kernel Panic", "brief": "Defeat Warden Panic.", "objective": {"kind": "boss", "target": "panic"}, "reward": {"weapon": "w_kernel"}} to arcade_missions
+push {"id": "etched_silicon", "layer": 6, "title": "Etched in Silicon", "brief": "Reboot 4 beacons while waves spawn.", "objective": {"kind": "reboot", "target": "beacon", "count": 4}, "reward": {"armor": "a_warded"}} to arcade_missions
+push {"id": "halt_catch_fire", "layer": 7, "title": "Halt and Catch Fire", "brief": "Defeat THE WATCHDOG.", "objective": {"kind": "boss", "target": "watchdog"}, "reward": {"victory": true}} to arcade_missions
+push {"id": "pest_control", "layer": 0, "title": "Pest Control", "brief": "Kill 8 Null Pointers for Byte.", "objective": {"kind": "kill", "target": "nullpointer", "count": 8}, "reward": {"gold": 80}, "side": true, "giver": "byte"} to arcade_missions
+push {"id": "lost_pages", "layer": 0, "title": "Lost Pages", "brief": "Collect 5 data shards (enemy drops) for Ada.", "objective": {"kind": "collect", "target": "data_shard", "count": 5}, "reward": {"max_hp": 15}, "side": true, "giver": "ada"} to arcade_missions
+push {"id": "field_medicine", "layer": 0, "title": "Field Medicine", "brief": "Bring 3 ichor vials (Segfault drops) to Medic Cache.", "objective": {"kind": "collect", "target": "ichor_vial", "count": 3}, "reward": {"potions": 2, "gold": 60}, "side": true, "giver": "medic"} to arcade_missions
+
+note ---- NPC bots: friendly and neutral ----
+
+arcade_npcs is []
+push {"id": "byte", "kind": "friendly", "name": "Byte", "role": "Merchant", "dialogue": ["Welcome to the last shop before nowhere.", "I find my own stock, thanks. No questions asked.", "Pest problem? Eight Null Pointers, 80 gold. You know where to find me.", "Everything here fell off a truck. A very tall truck."], "shop": [{"id": "potion", "name": "Patch potion", "cost": 25}, {"id": "w_iron", "name": "Iron Dagger", "cost": 150, "atk": 16}, {"id": "w_bus", "name": "Bus Blade", "cost": 320, "atk": 22}, {"id": "a_reinforced", "name": "Reinforced Wrap", "cost": 200, "def": 2}]} to arcade_npcs
+push {"id": "ada", "kind": "friendly", "name": "Ada", "role": "Archivist", "dialogue": ["The old manual said \"down is the only way\" and the manual was right.", "I keep the last library. Bring me five data shards and I will tell you what the Stack used to be.", "The Cache was warm once. Prefetch remembers. Ask it with your blade.", "They say the Watchdog used to be a Runner. That is all I will say."], "shop": []} to arcade_npcs
+push {"id": "medic", "kind": "friendly", "name": "Medic Cache", "role": "Field Medic", "dialogue": ["You look like a crash report with legs. Forty gold and I put you back together.", "Segfaults carry ichor vials. Three of them and I will owe you potions.", "Full repair. No questions, no receipts."], "shop": [{"id": "heal", "name": "Full repair", "cost": 40}, {"id": "hp_up", "name": "Max HP +10", "cost": 120}]} to arcade_npcs
+push {"id": "wanderer", "kind": "neutral", "name": "Wanderer", "role": "Drifter", "dialogue": ["They say the Watchdog used to be a Runner.", "Do not trust the quiet rooms.", "Down is the only direction that still works."], "shop": []} to arcade_npcs
+
+note ---- hostile bots ----
+
+arcade_enemies is []
+push {"id": "nullpointer", "name": "Null Pointer", "hp": 20, "atk": 6, "def": 0, "speed": "slow", "behavior": "chase", "gold": [5, 15]} to arcade_enemies
+push {"id": "dangling_thread", "name": "Dangling Thread", "hp": 14, "atk": 5, "def": 0, "speed": "fast", "behavior": "skirmish", "gold": [4, 12]} to arcade_enemies
+push {"id": "segfault", "name": "Segfault", "hp": 45, "atk": 12, "def": 2, "speed": "slow", "behavior": "charge", "gold": [10, 25]} to arcade_enemies
+push {"id": "race_condition", "name": "Race Condition", "hp": 26, "atk": 10, "def": 0, "speed": "fast", "behavior": "ambush", "gold": [8, 20]} to arcade_enemies
+push {"id": "memory_leak", "name": "Memory Leak", "hp": 30, "atk": 8, "def": 1, "speed": "slow", "behavior": "grow", "gold": [8, 22]} to arcade_enemies
+push {"id": "deadlock", "name": "Deadlock", "hp": 70, "atk": 10, "def": 5, "speed": "very slow", "behavior": "block", "gold": [15, 35]} to arcade_enemies
+push {"id": "bit_rotter", "name": "Bit Rotter", "hp": 24, "atk": 7, "def": 0, "speed": "slow", "behavior": "ranged", "gold": [8, 18]} to arcade_enemies
+
+note ---- loot ----
+
+arcade_weapons is []
+push {"id": "w_stick", "name": "Stick", "atk": 12} to arcade_weapons
+push {"id": "w_iron", "name": "Iron Dagger", "atk": 16} to arcade_weapons
+push {"id": "w_bus", "name": "Bus Blade", "atk": 22} to arcade_weapons
+push {"id": "w_kernel", "name": "Kernel Edge", "atk": 30} to arcade_weapons
+push {"id": "w_fang", "name": "Watchdog Fang", "atk": 40} to arcade_weapons
+
+arcade_armor is []
+push {"id": "a_cloth", "name": "Cloth Wrap", "def": 1} to arcade_armor
+push {"id": "a_reinforced", "name": "Reinforced Wrap", "def": 2} to arcade_armor
+push {"id": "a_warded", "name": "Warded Plating", "def": 3} to arcade_armor
+
+note ---- the story beats ----
+
+arcade_intro_lines is []
+push "They built me from a stack trace and a prayer." to arcade_intro_lines
+push "The machine is eating itself, layer by layer, and the Watchdog has decided the cure is deletion: all of us, clean, at midnight." to arcade_intro_lines
+push "My orders are simple. Go down. Wake the beacons. Find the keys. Put the Kernel back in its chair." to arcade_intro_lines
+push "Then stand in front of the Watchdog and tell it, in person, that we are not done yet." to arcade_intro_lines
+arcade_death_lines is []
+push "The Runner was garbage collected. Another process will try." to arcade_death_lines
+push "Signal lost in the dark between layers." to arcade_death_lines
+push "The stack trace ends here. For now." to arcade_death_lines
+arcade_victory_lines is []
+push "The Watchdog halted. The Stack sleeps instead of dying." to arcade_victory_lines
+push "Clean halt issued. Somewhere, a fan spins down." to arcade_victory_lines
+push "You told it we are not done yet. It listened." to arcade_victory_lines
+arcade_dialogue is {"intro": arcade_intro_lines, "death": arcade_death_lines, "victory": arcade_victory_lines}
+
+note ---- serializers ----
+
+to arcade_data_json
+    note The exact GET /arcade/data shape from SPEC.md. Built with
+    note json of, so it is canonical and byte-identical on both
+    note interpreters.
+    give back json of {"hero": arcade_hero, "layers": arcade_layers, "missions": arcade_missions, "npcs": arcade_npcs, "enemies": arcade_enemies, "loot": {"weapons": arcade_weapons, "armor": arcade_armor}, "dialogue": arcade_dialogue}
+
+to arcade_mission_ids
+    note The valid mission ids, for POST /arcade/run/end validation.
+    ids is []
+    for each m in arcade_missions
+        push m["id"] to ids
+    give back ids

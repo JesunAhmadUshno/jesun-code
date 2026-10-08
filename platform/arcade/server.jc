@@ -1,0 +1,468 @@
+note platform_arcade: STACKFALL arcade module (pages, run APIs, leaderboard).
+note Brought in by platform/app.jc AFTER jweb, sitegen, html, sqlite, time,
+note serve, platform_layout, platform_guards, and platform_arcade_data.
+note Uses their sentences directly and never brings them in again, except
+note the time package, which the walker needs brought in by the using
+note package (the ratelimit precedent).
+note Deviation D1: SPEC.md embeds the engine script; the play page instead
+note references /static/arcade/engine.js as one script tag with zero
+note inline JS. The engine reads its boot config from the canvas data
+note attributes and boots itself on DOMContentLoaded.
+
+bring in "time"
+
+import builtins as bmod
+import random as randmod
+
+arcade_state is {"db": nothing, "hits": {}}
+
+arcade_blob_max is 16384
+arcade_end_max is 10
+arcade_end_window is 60
+arcade_start_max is 30
+arcade_start_window is 60
+arcade_save_max is 60
+arcade_save_window is 60
+arcade_depth_max is 7
+arcade_kills_gold_max is 1000000
+
+to arcade_init with db_path
+    note Call once from app.jc before arcade_routes. Migrations are
+    note additive; re-running on an existing database is a no-op.
+    db is open_database with db_path
+    runs is serve_table with "arcade_runs" and [["user_handle", "text"], ["seed", "number"], ["depth", "number"], ["kills", "number"], ["gold", "number"], ["score", "number"], ["state", "text"], ["victory", "number"], ["started_at", "text"], ["updated_at", "text"]]
+    serve_migrate with db and runs
+    saves is serve_table with "arcade_saves" and [["run_id", "number"], ["depth", "number"], ["hp", "number"], ["gold", "number"], ["kills", "number"], ["blob", "text"], ["updated_at", "text"]]
+    serve_migrate with db and saves
+    missions is serve_table with "arcade_missions_done" and [["run_id", "number"], ["mission_id", "text"], ["done_at", "text"]]
+    serve_migrate with db and missions
+    arcade_state["db"] is db
+    give back nothing
+
+to arcade_db
+    db is arcade_state["db"]
+    if db is nothing then
+        fail with "arcade_init has to run before any arcade route."
+    give back db
+
+note ---- small helpers ----
+
+to arcade_text with value
+    note NULL columns come back as nothing; render them as empty text.
+    if value is nothing then
+        give back ""
+    if kind of value is "text" then
+        give back value
+    give back text of value
+
+to arcade_int with raw
+    note Safe integer parse. JSON numbers pass through only when whole
+    note (1.5 is rejected, 1.0 passes); text has to be an optional minus
+    note followed by digits, else nothing (400).
+    if kind of raw is "number" then
+        whole is bmod.int(raw)
+        if raw is not whole then
+            give back nothing
+        give back whole
+    if kind of raw is not "text" then
+        give back nothing
+    s is trim of raw
+    if s is "" then
+        give back nothing
+    chars is characters of s
+    start is 0
+    if chars[0] is "-" then
+        start is 1
+    if start is 1 and length of chars is 1 then
+        give back nothing
+    digits is "0123456789"
+    k is start
+    repeat while k is less than length of chars
+        if not (digits contains chars[k]) then
+            give back nothing
+        k is k + 1
+    give back bmod.int(s)
+
+to arcade_bool with raw
+    note JSON true/false pass through; form text "true"/"1"/"yes" is true.
+    if kind of raw is "true/false" then
+        give back raw
+    if kind of raw is "text" then
+        s is trim of (lowercase of raw)
+        if s is "true" or s is "1" or s is "yes" then
+            give back true
+    give back false
+
+to arcade_clamp with value and low and high
+    if value is less than low then
+        give back low
+    if value is greater than high then
+        give back high
+    give back value
+
+to arcade_whole with value
+    note "number" columns are SQL REAL, so values read back as floats.
+    note JSON must carry integers (the SPEC contracts show 7, not 7.0),
+    note so normalize at the JSON boundary.
+    if kind of value is "number" then
+        give back bmod.int(value)
+    give back value
+
+to arcade_params with request
+    note JSON in gives the parsed table; anything else gives the form
+    note table, so handlers read fields the same way either way. Bad
+    note JSON gives back nothing and the handler answers 400.
+    headers is request["headers"]
+    ctype is ""
+    if headers contains "content-type" then
+        ctype is headers["content-type"]
+    if ctype contains "application/json" then
+        body is ""
+        if request contains "body" then
+            body is request["body"]
+        if kind of body is not "text" then
+            body is ""
+        parsed is attempt parse json body
+        if parsed["ok"] then
+            v is parsed["value"]
+            if kind of v is "table" then
+                give back v
+        give back nothing
+    give back serve_form with request
+
+to arcade_field with params and name
+    if params contains name then
+        give back params[name]
+    give back ""
+
+to arcade_json with status and payload
+    give back {"status": status, "headers": {"content-type": "application/json"}, "body": json of payload}
+
+to arcade_api_error with status and message
+    give back arcade_json with status and {"ok": false, "error": message}
+
+note ---- run lookups ----
+
+to arcade_live_run with handle
+    db is arcade_db
+    rows is db_query with db and "SELECT * FROM arcade_runs WHERE user_handle = ? AND state = ? ORDER BY id DESC LIMIT 1" and [handle, "live"]
+    if length of rows is 0 then
+        give back nothing
+    give back rows[0]
+
+to arcade_run_by_id with run_id
+    db is arcade_db
+    rows is db_query with db and "SELECT * FROM arcade_runs WHERE id = ?" and [run_id]
+    if length of rows is 0 then
+        give back nothing
+    give back rows[0]
+
+note ---- arcade-local end throttle (10/min/IP, sliding window) ----
+
+to arcade_peer with request
+    if request contains "peer" then
+        give back request["peer"]
+    give back "unknown"
+
+to arcade_hit with bucket and limit and window_secs
+    note Keep the hit timestamps inside the last window_secs seconds.
+    note Allow the hit when fewer than limit are inside, and record it.
+    note Gives back true when allowed, false when throttled. Empty
+    note buckets are never stored, so idle IPs drop out of the table.
+    now is time_stamp
+    hits is arcade_state["hits"]
+    recent is []
+    if hits contains bucket then
+        for each t in hits[bucket]
+            if now - t is less than window_secs then
+                push t to recent
+    if length of recent is less than limit then
+        push now to recent
+        hits[bucket] is recent
+        give back true
+    if length of recent is greater than 0 then
+        hits[bucket] is recent
+    give back false
+
+to arcade_throttle_end with request
+    note 1-arg wrapper so handlers never call the 3-arg arcade_hit
+    note directly in an if (walker quirk, ratelimit precedent).
+    give back arcade_hit with ("arcade_end:" + (arcade_peer with request)) and arcade_end_max and arcade_end_window
+
+to arcade_throttle_start with request
+    note Own bucket for run starts: 30/min/IP.
+    give back arcade_hit with ("arcade_start:" + (arcade_peer with request)) and arcade_start_max and arcade_start_window
+
+to arcade_throttle_save with request
+    note Own bucket for saves: 60/min/IP.
+    give back arcade_hit with ("arcade_save:" + (arcade_peer with request)) and arcade_save_max and arcade_save_window
+
+to arcade_429 with request and message
+    give back {"status": 429, "headers": {"content-type": "application/json", "Retry-After": "60"}, "body": json of {"ok": false, "error": message}}
+
+to arcade_reset_throttle
+    note Test hook: clear the end-throttle state. The test app exposes
+    note this through POST /arcade/test/reset-throttle; the shipped app
+    note has no route to it.
+    arcade_state["hits"] is {}
+    give back nothing
+
+note ---- missions ----
+
+to arcade_record_missions with db and run_id and raw_missions and today
+    note Record the completed mission ids for the run. JSON lists and
+    note comma-separated form text both work; unknown ids are ignored.
+    ids is []
+    if kind of raw_missions is "list" then
+        for each m in raw_missions
+            if kind of m is "text" then
+                push m to ids
+    otherwise
+        if kind of raw_missions is "text" and raw_missions is not "" then
+            for each m in (split of raw_missions by ",")
+                push (trim of m) to ids
+    known is arcade_mission_ids
+    seen is []
+    for each mid in ids
+        if known contains mid and not (seen contains mid) then
+            push mid to seen
+            db_run with db and "INSERT INTO arcade_missions_done (run_id, mission_id, done_at) VALUES (?, ?, ?)" and [run_id, mid, today]
+    give back nothing
+
+note ---- pages ----
+
+to arcade_career with handle
+    db is arcade_db
+    rows is db_query with db and "SELECT COUNT(*) AS runs, MAX(depth) AS depth, MAX(score) AS score FROM arcade_runs WHERE user_handle = ?" and [handle]
+    r is rows[0]
+    if r["runs"] is 0 then
+        give back "<h2>Your career</h2><p>No runs yet. Be the first to descend.</p>"
+    give back "<h2>Your career</h2><p>Runs: " + (arcade_text with r["runs"]) + ". Best depth: " + (arcade_text with r["depth"]) + ". Best score: " + (arcade_text with r["score"]) + ".</p>"
+
+to arcade_landing with request
+    viewer is serve_guard with request
+    lines is arcade_dialogue["intro"]
+    lore is ""
+    for each line in lines
+        lore is lore + "<p>" + (escape_html with line) + "</p>"
+    roster is ""
+    for each n in arcade_npcs
+        dlg is n["dialogue"]
+        opener is ""
+        if length of dlg is greater than 0 then
+            opener is dlg[0]
+        roster is roster + "<li><strong>" + (escape_html with n["name"]) + "</strong> (" + (escape_html with n["role"]) + "): " + (escape_html with opener) + "</li>"
+    db is arcade_db
+    top is db_query with db and "SELECT user_handle, score, depth FROM arcade_runs WHERE state = ? OR state = ? ORDER BY score DESC, id ASC LIMIT 5" and ["dead", "completed"]
+    board is ""
+    for each r in top
+        board is board + "<li>" + (escape_html with (arcade_text with r["user_handle"])) + ": " + (arcade_text with r["score"]) + " (depth " + (arcade_text with r["depth"]) + ")</li>"
+    if board is "" then
+        board is "<p>No runs on the board yet. Be the first to descend.</p>"
+    otherwise
+        board is "<ol>" + board + "</ol>"
+    career is ""
+    if viewer is not nothing then
+        career is arcade_career with viewer["handle"]
+    controls is "<table class=\"controls\"><tr><th>Key</th><th>Action</th></tr><tr><td>WASD or arrows</td><td>Move</td></tr><tr><td>Space or J</td><td>Attack</td></tr><tr><td>E</td><td>Talk, pick up, descend stairs</td></tr><tr><td>Q</td><td>Drink potion</td></tr><tr><td>M</td><td>Mission log</td></tr><tr><td>Esc or P</td><td>Pause</td></tr></table>"
+    body is "<h1>STACKFALL</h1><p class=\"tagline\">Seven layers down. One way back: through.</p>"
+    body is body + "<h2>The story</h2>" + lore
+    body is body + "<h2>How to play</h2>" + controls
+    body is body + "<h2>The bots</h2><ul>" + roster + "</ul>"
+    body is body + "<h2>Top runs</h2>" + board
+    body is body + career
+    body is body + "<p><a href=\"/arcade/play\">Play</a> - <a href=\"/arcade/leaderboard\">Leaderboard</a></p>"
+    give back layout_page_at with "/arcade" and "STACKFALL arcade" and body
+
+to arcade_play_page with request
+    viewer is serve_guard with request
+    logged is "false"
+    login_note is "<p class=\"login-note\"><a href=\"/login\">Log in</a> to start a run. Anonymous viewers get the attract-mode demo dungeon.</p>"
+    if viewer is not nothing then
+        logged is "true"
+        login_note is ""
+    missions is ""
+    for each m in arcade_missions
+        missions is missions + "<li>" + (escape_html with m["title"]) + ": " + (escape_html with m["brief"]) + "</li>"
+    body is "<h1>STACKFALL</h1>" + login_note
+    body is body + "<div class=\"arcade-stage\"><canvas id=\"game\" width=\"960\" height=\"600\" data-data-url=\"/arcade/data\" data-logged-in=\"" + logged + "\"></canvas>"
+    body is body + "<script src=\"/static/arcade/engine.js\"></script></div>"
+    body is body + "<h2>Mission log</h2><ul>" + missions + "</ul>"
+    give back layout_page_at with "/arcade/play" and "Play STACKFALL" and body
+
+to arcade_board_rows with rows
+    out is ""
+    rank is 1
+    for each r in rows
+        mark is ""
+        if r["victory"] is 1 then
+            mark is " (victory)"
+        out is out + "<tr><td>" + (text of rank) + "</td><td>" + (escape_html with (arcade_text with r["user_handle"])) + "</td><td>" + (arcade_text with r["score"]) + "</td><td>" + (arcade_text with r["depth"]) + "</td><td>" + (arcade_text with r["kills"]) + "</td><td>" + (escape_html with (arcade_text with r["started_at"])) + mark + "</td></tr>"
+        rank is rank + 1
+    give back out
+
+to arcade_leaderboard_page with request
+    db is arcade_db
+    rows is db_query with db and "SELECT user_handle, score, depth, kills, victory, started_at FROM arcade_runs WHERE state = ? OR state = ? ORDER BY score DESC, id ASC LIMIT 20" and ["dead", "completed"]
+    body is "<h1>STACKFALL leaderboard</h1><p>Top 20 runs of all time. Death is permanent; the board remembers.</p>"
+    if length of rows is 0 then
+        body is body + "<p>No runs on the board yet. Be the first to descend.</p>"
+    otherwise
+        body is body + "<table class=\"board\"><tr><th>#</th><th>Runner</th><th>Score</th><th>Depth</th><th>Kills</th><th>Date</th></tr>" + (arcade_board_rows with rows) + "</table>"
+    give back layout_page_at with "/arcade/leaderboard" and "STACKFALL leaderboard" and body
+
+to arcade_data_page with request
+    give back {"status": 200, "headers": {"content-type": "application/json"}, "body": arcade_data_json}
+
+note ---- run APIs ----
+
+to arcade_run_start with request
+    user is require_login with request
+    if user contains "denied" then
+        give back user["response"]
+    if not (arcade_throttle_start with request) then
+        give back arcade_429 with request and "too many run starts: wait a minute and try again."
+    handle is user["handle"]
+    db is arcade_db
+    old is arcade_live_run with handle
+    if old is not nothing then
+        note A new start abandons the live run: marked dead, score kept.
+        note The kept score is computed from the last-saved row, the same
+        note formula the end handler uses: depth*1000 + kills*25 + gold.
+        kept is (arcade_whole with old["depth"]) * 1000 + (arcade_whole with old["kills"]) * 25 + (arcade_whole with old["gold"])
+        db_run with db and "UPDATE arcade_runs SET state = ?, score = ?, updated_at = ? WHERE id = ?" and ["dead", kept, time_today, old["id"]]
+        db_run with db and "DELETE FROM arcade_saves WHERE run_id = ?" and [old["id"]]
+    seed is bmod.int(randmod.randrange(1, 2147483647))
+    today is time_today
+    db_run with db and "INSERT INTO arcade_runs (user_handle, seed, depth, kills, gold, score, state, victory, started_at, updated_at) VALUES (?, ?, 1, 0, 0, 0, ?, 0, ?, ?)" and [handle, seed, "live", today, today]
+    fresh is arcade_live_run with handle
+    give back arcade_json with 200 and {"run_id": fresh["id"], "seed": arcade_whole with fresh["seed"]}
+
+to arcade_run_save with request
+    user is require_login with request
+    if user contains "denied" then
+        give back user["response"]
+    if not (arcade_throttle_save with request) then
+        give back arcade_429 with request and "too many saves: wait a minute and try again."
+    params is arcade_params with request
+    if params is nothing then
+        give back arcade_api_error with 400 and "the request body is not valid JSON."
+    run_id is arcade_int with (arcade_field with params and "run_id")
+    if run_id is nothing then
+        give back arcade_api_error with 400 and "run_id has to be a whole number."
+    run is arcade_run_by_id with run_id
+    if run is nothing then
+        give back arcade_api_error with 400 and "no such run."
+    if run["user_handle"] is not user["handle"] then
+        give back arcade_api_error with 403 and "that run belongs to someone else."
+    if run["state"] is not "live" then
+        give back arcade_api_error with 400 and "only a live run accepts saves."
+    depth is arcade_int with (arcade_field with params and "depth")
+    hp is arcade_int with (arcade_field with params and "hp")
+    gold is arcade_int with (arcade_field with params and "gold")
+    kills is arcade_int with (arcade_field with params and "kills")
+    if depth is nothing or hp is nothing or gold is nothing or kills is nothing then
+        give back arcade_api_error with 400 and "depth, hp, gold, and kills have to be whole numbers."
+    if depth is less than 1 or depth is greater than arcade_depth_max then
+        give back arcade_api_error with 400 and "depth has to be between 1 and 7."
+    if hp is less than 0 or gold is less than 0 or kills is less than 0 then
+        give back arcade_api_error with 400 and "hp, gold, and kills cannot be negative."
+    blob is arcade_text with (arcade_field with params and "blob")
+    if length of blob is greater than arcade_blob_max then
+        give back arcade_api_error with 413 and "that save blob is larger than 16 KiB."
+    db is arcade_db
+    db_run with db and "DELETE FROM arcade_saves WHERE run_id = ?" and [run_id]
+    db_run with db and "INSERT INTO arcade_saves (run_id, depth, hp, gold, kills, blob, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)" and [run_id, depth, hp, gold, kills, blob, time_today]
+    db_run with db and "UPDATE arcade_runs SET depth = ?, kills = ?, gold = ?, updated_at = ? WHERE id = ?" and [depth, kills, gold, time_today, run_id]
+    give back arcade_json with 200 and {"ok": true}
+
+to arcade_run_end with request
+    user is require_login with request
+    if user contains "denied" then
+        give back user["response"]
+    if not (arcade_throttle_end with request) then
+        give back arcade_429 with request and "too many run endings: wait a minute and try again."
+    params is arcade_params with request
+    if params is nothing then
+        give back arcade_api_error with 400 and "the request body is not valid JSON."
+    run_id is arcade_int with (arcade_field with params and "run_id")
+    if run_id is nothing then
+        give back arcade_api_error with 400 and "run_id has to be a whole number."
+    run is arcade_run_by_id with run_id
+    if run is nothing then
+        give back arcade_api_error with 400 and "no such run."
+    if run["user_handle"] is not user["handle"] then
+        give back arcade_api_error with 403 and "that run belongs to someone else."
+    if run["state"] is not "live" then
+        give back arcade_api_error with 400 and "only a live run can end."
+    raw_depth is arcade_int with (arcade_field with params and "depth")
+    raw_kills is arcade_int with (arcade_field with params and "kills")
+    raw_gold is arcade_int with (arcade_field with params and "gold")
+    if raw_depth is nothing or raw_kills is nothing or raw_gold is nothing then
+        give back arcade_api_error with 400 and "depth, kills, and gold have to be whole numbers."
+    depth is arcade_clamp with raw_depth and 1 and arcade_depth_max
+    kills is arcade_clamp with raw_kills and 0 and arcade_kills_gold_max
+    gold is arcade_clamp with raw_gold and 0 and arcade_kills_gold_max
+    victory is arcade_bool with (arcade_field with params and "victory")
+    score is depth * 1000 + kills * 25 + gold
+    state is "dead"
+    victory_num is 0
+    if victory then
+        score is score + 5000
+        state is "completed"
+        victory_num is 1
+    db is arcade_db
+    if victory then
+        note A victory claim needs the run saved at depth 7 first: the
+        note engine autosaves on every floor change, so a legitimate
+        note victory always has a depth-7 save row.
+        saved is db_query with db and "SELECT depth FROM arcade_saves WHERE run_id = ?" and [run_id]
+        saved_depth is 0
+        if length of saved is greater than 0 then
+            saved_depth is arcade_whole with saved[0]["depth"]
+        if saved_depth is not 7 then
+            give back arcade_api_error with 400 and "a victory claim needs the run saved at depth 7 first."
+    prev is db_query with db and "SELECT MAX(score) AS best FROM arcade_runs WHERE user_handle = ? AND id != ?" and [user["handle"], run_id]
+    prev_best is 0
+    if prev[0]["best"] is not nothing then
+        prev_best is prev[0]["best"]
+    best is false
+    if score is greater than prev_best then
+        best is true
+    today is time_today
+    db_run with db and "UPDATE arcade_runs SET depth = ?, kills = ?, gold = ?, score = ?, state = ?, victory = ?, updated_at = ? WHERE id = ?" and [depth, kills, gold, score, state, victory_num, today, run_id]
+    db_run with db and "DELETE FROM arcade_saves WHERE run_id = ?" and [run_id]
+    arcade_record_missions with db and run_id and (arcade_field with params and "missions") and today
+    give back arcade_json with 200 and {"score": score, "best": best}
+
+to arcade_run_mine with request
+    user is require_login with request
+    if user contains "denied" then
+        give back user["response"]
+    run is arcade_live_run with user["handle"]
+    if run is nothing then
+        give back arcade_json with 200 and {"run_id": nothing}
+    db is arcade_db
+    rows is db_query with db and "SELECT depth, hp, gold, kills, blob FROM arcade_saves WHERE run_id = ?" and [run["id"]]
+    hp is 100
+    blob is ""
+    if length of rows is greater than 0 then
+        save is rows[0]
+        hp is arcade_whole with save["hp"]
+        blob is arcade_text with save["blob"]
+    give back arcade_json with 200 and {"run_id": run["id"], "seed": arcade_whole with run["seed"], "depth": arcade_whole with run["depth"], "hp": arcade_whole with hp, "gold": arcade_whole with run["gold"], "kills": arcade_whole with run["kills"], "blob": blob}
+
+note ---- route registration ----
+
+to arcade_routes
+    note /arcade/data, /arcade/play, /arcade/leaderboard, and the run
+    note APIs register before GET /arcade: first match wins.
+    serve_route with "GET /arcade/data" and arcade_data_page
+    serve_route with "GET /arcade/play" and arcade_play_page
+    serve_route with "GET /arcade/leaderboard" and arcade_leaderboard_page
+    serve_route with "POST /arcade/run/start" and arcade_run_start
+    serve_route with "POST /arcade/run/save" and arcade_run_save
+    serve_route with "POST /arcade/run/end" and arcade_run_end
+    serve_route with "GET /arcade/run/mine" and arcade_run_mine
+    serve_route with "GET /arcade" and arcade_landing
+    give back nothing
