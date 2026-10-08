@@ -124,7 +124,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261008l';
+var APP_VERSION='20261008m';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -898,16 +898,12 @@ function startRun(){
   try{
     over=false; keyQueue=[];
     var seed=(Date.now()%2000000000);
-    var res=parseRes(startFn(seed, chosenDiff));
+    var tpm=/[?&]tp=(\d+),(\d+)/.exec(location.search);
+    var tpx=tpm?parseInt(tpm[1],10):-1, tpy=tpm?parseInt(tpm[2],10):-1;
+    var res=parseRes(startFn(seed, chosenDiff, tpx, tpy));
     if(!res.ok){ showFatal('Game error: '+res.error); return; }
     render(res.dl); updateHUD(res.hud,res.msgs); playSounds(res.snd);
     playing=true;
-    var tpm=/[?&]tp=(\d+),(\d+)/.exec(location.search);
-    if(tpm){ try{
-      jesun.run_source('G["px"] is '+tpm[1], interp);
-      jesun.run_source('G["py"] is '+tpm[2], interp);
-      jesun.run_source('tick', interp);
-    }catch(e){} }
   }catch(err){ showFatal('Start failed: '+((err&&err.message)||String(err))); }
 }
 var mutebtn=document.getElementById('mutebtn');
@@ -941,10 +937,13 @@ def _snap():
     except Exception as e:
         return json.dumps({'ok': False, 'error': 'snap: ' + str(e)})
 
-def start_game(seed, diff=2):
+def start_game(seed, diff=2, tpx=-1, tpy=-1):
     try:
         jesun.run_source('seed_game with %d' % int(seed), interp)
         jesun.run_source('set_difficulty with %d' % int(diff), interp)
+        if int(tpx) >= 0 and int(tpy) >= 0:
+            jesun.run_source('G["px"] is %d' % int(tpx), interp)
+            jesun.run_source('G["py"] is %d' % int(tpy), interp)
         jesun.run_source('tick', interp)
     except Exception as e:
         return json.dumps({'ok': False, 'error': 'seed: ' + str(e)})
