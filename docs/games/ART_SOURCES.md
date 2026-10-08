@@ -25,5 +25,15 @@ anywhere in this game.
   knight armor for the boss); `well`, `stairs_down`, `stairs_sealed`, `ladder`,
   `shrine_might`, `shrine_vitality` (no matching tiles in the packs, drawn to match).
 
+## 4. Hand-drawn dark character set - CC0 1.0 (drawn for this game, 2026-10-08)
+- File in this repo: `assets/dark.png` (original work, released CC0)
+- Generator script: `goals/arcade-roguelike-playable-online-in-pure-jesun-code/hidden_files/dark_art/make_dark.py`
+- Contents: full 32x32 replacements for every character/enemy sprite in a dark,
+  gritty, mature style: `knight` (horned helm, glowing visor, crimson tabard),
+  `goblin`, `ogre`, `rat`, `bat`, `warden` (boss), `merchant`, `elder`,
+  `villager0`, `villager1`, `wanderer`. Near-black outlines, cold rim light,
+  glowing eyes. Replaces the cartoonish Kenney lookups for these 11 names in
+  `assets/atlas.json`; the Kenney files are untouched.
+
 ## Title-screen credit line
 "Sprite art: Kenney (kenney.nl), public domain (CC0)."

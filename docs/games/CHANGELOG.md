@@ -4,6 +4,30 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-08
 
+### Dark art overhaul: real gamer character set + cache-busting driver fix (indie dev loop)
+- New `assets/dark.png`: 11 hand-drawn 32x32 character/enemy sprites in a dark,
+  gritty, mature style (CC0, original work; generator script kept with the goal
+  files). Knight with horned helm and glowing visor, goblin, ogre, cave rat,
+  gloom bat, Deep Warden boss, merchant, elder, two villagers, wanderer.
+  Near-black outlines, cold rim light, glowing eyes. Replaces the cartoonish
+  Kenney lookups for these names in `assets/atlas.json`.
+- New `sprw_of` routine in Jesun.Code: per-sprite texture width table so the
+  FPP billboard column math samples the full 32px texture (tiles stay 16px).
+  Game logic stays 100% Jesun.Code.
+- Dungeon mood deepened slightly: FPP distance shading now `1 - d/24` with a
+  0.45 floor (was `1 - d/28`, floor 0.5).
+- Cache-busting fix (driver-only): every game asset fetch in `realms.html`
+  now appends `?v=` plus a single `APP_VERSION` constant (bump per ship),
+  covering `jc/jesun.py`, `jc/realms.jc`, `assets/atlas.json`, and all atlas
+  PNG loads. A returning browser can no longer mix new game code with a cached
+  old driver (which silently dropped the new `sslice` ops and left enemies
+  invisible).
+- Verified: CPython 400-tick randomized pump zero exceptions; determinism
+  byte-identical; `sprw_of` unit checks (11 dark names to 32, tiles and
+  unknown names to 16); staged FPP billboard checks for rat/bat/goblin/ogre/
+  warden with exact texture bounds; Node+Pyodide exact bridge flow: FPP
+  61.0ms/tick with dark sprites in view, 44.4ms/tick without (budget 120ms).
+
 ### Audit + red-team hardening pass (founder-ordered)
 - Slop audit of every user-facing string: no placeholders, no garbled text,
   no em dashes, no dead menu options. Fixed the potion message to report the
