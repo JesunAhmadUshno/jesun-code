@@ -4,6 +4,26 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-08
 
+### Dark art phase 2: polish + walk frames (indie dev loop)
+- Polish pass on all 11 dark sprites: deeper multi-stop shading gradient,
+  silhouette edge vignette, ordered dither grain, stronger cold rim light,
+  plus per-sprite texture detail (armor plate seams and rivets, chainmail,
+  goblin warts, ogre mottling and scar, rat fur tufts, bat membrane ribs,
+  warden cape folds and engraved sigil, cloth folds on all robes).
+- Six new second animation frames appended to `assets/dark.png` (base cells
+  never moved): `knight2`, `goblin2`, `ogre2`, `rat2`, `bat2`, `warden2`
+  (walk poses, raised weapons, beating wings).
+- Game logic (100% Jesun.Code): `draw_enemy` and `draw_player` alternate
+  frames on a 4-tick period with a per-enemy offset so packs do not march in
+  lockstep; `fpp_spr_name` uses the same parity so the 3D billboards agree
+  with the top-down view. `sprw_of` covers the 6 new names (32px).
+- Driver: `APP_VERSION` bumped to `20261008d` so the new game code can never
+  mix with a cached old driver.
+- Verified: CPython 400-tick pump zero exceptions (12.5ms/tick), determinism
+  byte-identical, walk-frame unit checks (both frames in top-down and FPP,
+  parity agrees), Node+Pyodide exact bridge flow FPP 63.5ms/tick with sprites
+  in view (budget 120ms). Next: NPC idle frames.
+
 ### Dark art overhaul: real gamer character set + cache-busting driver fix (indie dev loop)
 - New `assets/dark.png`: 11 hand-drawn 32x32 character/enemy sprites in a dark,
   gritty, mature style (CC0, original work; generator script kept with the goal

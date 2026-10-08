@@ -34,6 +34,10 @@ anywhere in this game.
   `villager0`, `villager1`, `wanderer`. Near-black outlines, cold rim light,
   glowing eyes. Replaces the cartoonish Kenney lookups for these 11 names in
   `assets/atlas.json`; the Kenney files are untouched.
+- Phase 2 (2026-10-08): polish pass on all 11 (deeper gradient, edge vignette,
+  ordered dither grain, armor plate seams, fur tufts, cloth folds, stronger
+  rim light) plus second walk/attack frames `knight2`, `goblin2`, `ogre2`,
+  `rat2`, `bat2`, `warden2` appended as new cells (base cells never moved).
 
 ## Title-screen credit line
 "Sprite art: Kenney (kenney.nl), public domain (CC0)."
