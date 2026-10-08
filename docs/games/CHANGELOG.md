@@ -4,6 +4,32 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-08
 
+### REALMS movement hardening: stranded rescue, spawn clearing, NPC soft-lock fix (playtest bugfixes)
+- Root causes addressed for "WASD dead while M works": the water-rescue
+  branch could loop forever when the last-walkable tile was also bad, and
+  the random seed could box the spawn or let the meandering river sever the
+  village path to the cave.
+- `try_move` rescue now falls back to a spiral search (`rescue_spot`) for
+  the nearest walkable tile, so movement can never die while other keys
+  keep working. Verified: a forcibly stranded player is rescued and the
+  next move works.
+- `gen_overworld` paves a walkable ring around the spawn and repairs any
+  water gaps on the village-to-bridge-to-cave route, so the cave mouth is
+  reachable on every seed (30/30 seeds checked, including one seed where
+  the river previously cut the path).
+- NPC soft-lock fixed: `try_move` remembers the blocking NPC
+  (`G["block_npc"]`), and E talks to that NPC even if it wandered a step
+  before the keypress. Elder Marla can no longer block-then-dodge into
+  "Nobody to talk to here."
+- New bridge-level regression test `docs/games/tests/move_regress.mjs`
+  (13 checks, all green): fresh-boot WASD movement, spawn/cave reachability
+  across seeds, rescue recovery, E dialogue, block-then-wander E, M.
+- Driver key mapping verified correct and unchanged (WASD/arrows/M all map
+  to the right tokens in the deployed page); game input handling verified
+  through the exact bridge flow under Node+Pyodide.
+- APP_VERSION 20261008f. FPP-3D scene build 15.8ms/tick (budget 120ms).
+  CPython pump 400 ticks zero exceptions, determinism byte-identical.
+
 ### REALMS 3D phase (d): real WebGL 3D renderer, no sprites in first-person (founder directive)
 - First-person mode is now real 3D geometry. Jesun.Code emits a 3D scene
   (`cam3d` camera, `quad3d` textured dungeon quads, `model3d` entities,
