@@ -163,6 +163,40 @@ function drawSlice(c){
   if(shade<0.99){ ctx.fillStyle='rgba(0,0,0,'+(1-shade).toFixed(2)+')'; ctx.fillRect(dx,dy,1,dh); }
 }
 
+var SHADECACHE={};
+function shadedSprite(name,shade){
+  var a=atlasSprite(name);
+  if(!a) return null;
+  var lvl=Math.max(0,Math.min(15,Math.round(shade*15)));
+  var key=name+'|'+lvl, w=SHADECACHE[key];
+  if(!w){
+    w=document.createElement('canvas'); w.width=a.sw; w.height=a.sh;
+    var wc=w.getContext('2d');
+    wc.imageSmoothingEnabled=false;
+    wc.drawImage(a.img,a.sx,a.sy,a.sw,a.sh,0,0,a.sw,a.sh);
+    if(lvl<15){
+      wc.globalCompositeOperation='source-atop';
+      wc.fillStyle='rgba(0,0,0,'+(1-lvl/15).toFixed(2)+')';
+      wc.fillRect(0,0,a.sw,a.sh);
+    }
+    SHADECACHE[key]=w;
+  }
+  return w;
+}
+
+function drawStrip(c){
+  var t0=c[2], t1=c[3], dx=c[4], dy=c[5], dw=c[6], dh=c[7], shade=c[8];
+  var img=shadedSprite(c[1],shade);
+  if(!img){ ctx.fillStyle='#ff00ff'; ctx.fillRect(dx,dy,dw,dh); return; }
+  if(dw<=0||dh<=0||t0<0) return;
+  var w=t1-t0+1;
+  if(w<=0) return;
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(img,t0,0,w,img.height,dx,dy,dw,dh);
+  ctx.imageSmoothingEnabled=false;
+}
+
 function drawText(c){
   var x=c[1], y=c[2], str=String(c[3]), col=c[4], size=c[5]||8;
   ctx.font=size+'px "Courier New",monospace';
@@ -190,6 +224,7 @@ function render(dl){
       while(true){ px(x0,y0,lc[0],lc[1],lc[2]); if(x0===x1&&y0===y1)break; var e2=2*e; if(e2>-dy){e-=dy;x0+=sx;} if(e2<dx){e+=dx;y0+=sy;} } }
     else if(op==='sprite'){ flush(); drawSprite(c); }
     else if(op==='slice'){ flush(); drawSlice(c); }
+    else if(op==='sslice'){ flush(); drawStrip(c); }
     else if(op==='text'){ flush(); drawText(c); }
   }
   flush();
