@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jesun.Code Games</title>
+<style>
+  body { background: #0a0a0f; color: #e0e0e0; font-family: system-ui, sans-serif; margin: 0; padding: 40px 20px; }
+  h1 { text-align: center; color: #ffd75e; }
+  .games { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-top: 40px; }
+  .game { background: #1a1a24; border: 1px solid #333; border-radius: 12px; padding: 30px; width: 280px; text-align: center; text-decoration: none; color: inherit; transition: transform 0.2s; }
+  .game:hover { transform: translateY(-4px); border-color: #ffd75e; }
+  .game h2 { color: #ffd75e; margin: 0 0 10px; }
+  .game p { color: #999; font-size: 14px; }
+  .tag { display: inline-block; background: #2a2a3a; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<h1>🎮 Jesun.Code Games</h1>
+<div class="games">
+  <a class="game" href="realms3d.html">
+    <h2>REALMS 3D</h2>
+    <p>Third-person open world. GTA-style camera, WASD movement, sprint, jump. Pure Three.js.</p>
+    <span class="tag">Three.js</span> <span class="tag">NEW</span>
+  </a>
+  <a class="game" href="realms.html">
+    <h2>Deepdelve Realms</h2>
+    <p>Roguelike dungeon crawler. Runs 100% in Jesun.Code. 2D overworld, 3D first-person dungeon.</p>
+    <span class="tag">Jesun.Code</span>
+  </a>
+  <a class="game" href="deepdelve.html">
+    <h2>Deepdelve</h2>
+    <p>The original dungeon delver. Pure Jesun.Code.</p>
+    <span class="tag">Jesun.Code</span>
+  </a>
+</div>
+</body>
+</html>
