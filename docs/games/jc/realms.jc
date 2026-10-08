@@ -167,6 +167,7 @@ to sfx with nm
 to seed_game with s
     G["seed"] is s
     G["diff"] is 2
+    G["diffset"] is false
     G["dname"] is "DELVER"
     G["ehp"] is 100
     G["edmg"] is 100
@@ -231,6 +232,10 @@ to set_difficulty with d
     note Called once after seed_game, before the first tick.
     note Rescales the (empty, at seed time) enemy list, sets player stock,
     note and stores the multipliers that mk_enemy and gen_floor use later.
+    note The guard below keeps a second call from compounding enemy scaling.
+    if G["diffset"] then
+        give back nothing
+    G["diffset"] is true
     G["diff"] is d
     if d is 1 then
         G["dname"] is "STORY"
@@ -916,6 +921,11 @@ to press with k
     give back nothing
 
 to tick
+    if G["over"] then
+        note The run is over; the driver shows the overlay. Hold the last frame.
+        rebuild_dl
+        refresh_out
+        give back nothing
     if G["paused"] then
         note Paused: the world clock freezes. Only P unpauses, queued moves are dropped.
         n is 0
@@ -1319,13 +1329,16 @@ to drink_potion
         msg with "Already at full health."
         give back nothing
     G["potions"] is G["potions"] - 1
+    healed is 40
+    if G["hp"] + 40 is greater than G["maxhp"] then
+        healed is G["maxhp"] - G["hp"]
     G["hp"] is G["hp"] + 40
     if G["hp"] is greater than G["maxhp"] then
         G["hp"] is G["maxhp"]
     spawn_part with G["px"] and G["py"] and "8fd6ff" and 6
     spawn_part with G["px"] and G["py"] and "bfe9ff" and 5
     sfx with "potion"
-    msg with "You drink a potion. +40 HP."
+    msg with "You drink a potion. +" + (text of healed) + " HP."
     give back nothing
 
 to adjacent_npc
@@ -1627,8 +1640,27 @@ to rebuild_dl
         render_top with dl
     for each f in G["floaters"]
         rise is ipart with (f["m"] - f["l"]) / 2
-        fy is f["y"] - rise
-        push ["text", f["x"] + G["shx"], fy + G["shy"], f["t"], f["c"], 8] to dl
+        if G["mode"] is "fpp" then
+            note First-person: project the floater into the 3D view, like parts.
+            ox is G["ptx"] + G["pfx"]
+            oy is G["pty"] + G["pfy"]
+            d is sproj with f["x"] + 0.5 and f["y"] + 0.5 and ox and oy and G["fdx"] and G["fdy"]
+            if d is greater than 0.3 and d is less than 12 then
+                rx is 0 - G["fdy"]
+                ry is G["fdx"]
+                lat is ((f["x"] + 0.5) - ox) * rx + ((f["y"] + 0.5) - oy) * ry
+                fx is 96 + lat * 147.83 / d
+                if fx is greater than 0 - 8 and fx is less than 200 then
+                    fy is 56 - rise
+                    push ["text", (ipart with (fx - 8)) + G["shx"], fy + G["shy"], f["t"], f["c"], 8] to dl
+        otherwise
+            note Top-down: tile coords to screen coords through the camera.
+            camx is clamp with G["px"] - 12 and 0 and 36
+            camy is clamp with G["py"] - 8 and 0 and 26
+            if f["x"] is greater than camx - 3 and f["x"] is less than camx + 27 and f["y"] is greater than camy - 3 and f["y"] is less than camy + 19 then
+                sx is (f["x"] - camx) * 8 - 6 + G["shx"]
+                sy is (f["y"] - camy) * 8 - rise + G["shy"]
+                push ["text", sx, sy, f["t"], f["c"], 8] to dl
     hpf is (G["hp"] * 100) / G["maxhp"]
     if hpf is less than 30 then
         note Low-HP warning: red pulsing vignette border.
