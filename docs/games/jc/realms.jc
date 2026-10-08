@@ -234,6 +234,8 @@ to seed_game with s
     G["over"] is false
     G["paused"] is false
     G["pface"] is 1
+    G["pyaw"] is 0
+    note Facing yaw for the 3D overworld knight model: 0 south, 1.5708 east.
     G["patk"] is 0 - 999
     G["pph"] is 0
     G["blessed"] is false
@@ -1290,6 +1292,15 @@ to try_move with dx and dy
                 G["py"] is G["lpy"]
             msg with "You scramble back to solid ground."
             give back nothing
+    note Face the direction of travel for the 3D overworld view.
+    if dx is greater than 0 then
+        G["pyaw"] is 1.5708
+    otherwise if dx is less than 0 then
+        G["pyaw"] is 4.7124
+    otherwise if dy is greater than 0 then
+        G["pyaw"] is 0
+    otherwise if dy is less than 0 then
+        G["pyaw"] is 3.1416
     nx is G["px"] + dx
     ny is G["py"] + dy
     if is_wall with nx and ny then
@@ -1811,13 +1822,23 @@ to rebuild_dl
         otherwise
             render_fpp with dl
     otherwise if G["map"] is "over" then
-        render_over with dl
+        if G["gl3d"] then
+            render_over3d with dl
+        otherwise
+            render_over with dl
     otherwise
         render_top with dl
     for each f in G["floaters"]
         rise is ipart with (f["m"] - f["l"]) / 2
-        if G["mode"] is "fpp" and G["gl3d"] then
-            note WebGL first-person: world-anchored text, the driver projects it.
+        is3d is false
+        if G["gl3d"] then
+            if G["mode"] is "fpp" then
+                is3d is true
+            if G["map"] is "over" then
+                is3d is true
+        if is3d then
+            note WebGL 3D (first-person or overworld): world-anchored text,
+            note the driver projects it.
             push ["text3d", f["x"] + 0.5, 0.9, f["y"] + 0.5, f["t"], f["c"]] to dl
         otherwise if G["mode"] is "fpp" then
             note First-person: project the floater into the 3D view, like parts.
@@ -2116,6 +2137,134 @@ to render_over with dl
         draw_npc with dl and n and camx and camy
     draw_player with dl and camx and camy
     draw_parts_top with dl and camx and camy
+    give back nothing
+
+note ---- overworld in real 3D (roadmap item 1e) ----
+note Oblique third-person camera over Emberhold: textured terrain quads for
+note a 13x13 window, house walls with raised roof planes, tree/well/cave
+note prop models, and the knight/NPC/item models. Game logic is unchanged;
+note the driver draws it with the same WebGL pipeline as first-person 3D.
+
+to over3d_ground with dl and mx and my and tn
+    push ["quad3d", mx, 0, my, mx + 1, 0, my, mx + 1, 0, my + 1, mx, 0, my + 1, tn, 1] to dl
+    give back nothing
+
+to over3d_wall with dl and mx and my
+    note One vertical quad per side whose neighbor is not house (tile 4).
+    if my is greater than 0 then
+        if G["grid"][my - 1][mx] is not 4 then
+            push ["quad3d", mx, 0, my, mx + 1, 0, my, mx + 1, 0.9, my, mx, 0.9, my, "wall", 1] to dl
+    if my is less than 41 then
+        if G["grid"][my + 1][mx] is not 4 then
+            push ["quad3d", mx, 0, my + 1, mx + 1, 0, my + 1, mx + 1, 0.9, my + 1, mx, 0.9, my + 1, "wall", 0.8] to dl
+    if mx is greater than 0 then
+        if G["grid"][my][mx - 1] is not 4 then
+            push ["quad3d", mx, 0, my, mx, 0, my + 1, mx, 0.9, my + 1, mx, 0.9, my, "wall", 0.85] to dl
+    if mx is less than 59 then
+        if G["grid"][my][mx + 1] is not 4 then
+            push ["quad3d", mx + 1, 0, my, mx + 1, 0, my + 1, mx + 1, 0.9, my + 1, mx + 1, 0.9, my, "wall", 0.85] to dl
+    give back nothing
+
+to over3d_inwin with wx and wy and x0 and y0 and x1 and y1
+    if wx is less than x0 - 1 then
+        give back false
+    if wx is greater than x1 + 2 then
+        give back false
+    if wy is less than y0 - 1 then
+        give back false
+    if wy is greater than y1 + 2 then
+        give back false
+    give back true
+
+to render_over3d with dl
+    push ["cam3do", G["px"] + 0.5, G["py"] + 0.5] to dl
+    cx is ipart with G["px"]
+    cy is ipart with G["py"]
+    x0 is cx - 6
+    if x0 is less than 0 then
+        x0 is 0
+    x1 is cx + 6
+    if x1 is greater than 59 then
+        x1 is 59
+    y0 is cy - 6
+    if y0 is less than 0 then
+        y0 is 0
+    y1 is cy + 6
+    if y1 is greater than 41 then
+        y1 is 41
+    note Slow water shimmer: the frame flips about every 16 ticks.
+    wt is "water0"
+    wtick is ipart with (G["tick"] / 16)
+    if wtick % 2 is 0 then
+        wt is "water1"
+    my is y0
+    repeat while my is less than y1 + 1
+        mx is x0
+        repeat while mx is less than x1 + 1
+            c is G["grid"][my][mx]
+            if c is 2 then
+                over3d_ground with dl and mx and my and wt
+            otherwise if c is 3 then
+                over3d_ground with dl and mx and my and "path"
+            otherwise if c is 6 then
+                over3d_ground with dl and mx and my and "flowers"
+            otherwise if c is 1 then
+                over3d_ground with dl and mx and my and "grass"
+                tn is "tree1"
+                if (mx + my) % 2 is 1 then
+                    tn is "tree2"
+                push ["model3d", tn, mx + 0.5, 0, my + 0.5, 0, 0, 1] to dl
+            otherwise if c is 5 then
+                over3d_ground with dl and mx and my and "stone"
+                push ["model3d", "well", mx + 0.5, 0, my + 0.5, 0, 0, 1] to dl
+            otherwise if c is 7 then
+                over3d_ground with dl and mx and my and "dark"
+                push ["model3d", "cave", mx + 0.5, 0, my + 0.5, 0, 0, 1] to dl
+            otherwise if c is 4 then
+                roof is false
+                if my is 0 then
+                    roof is true
+                otherwise if G["grid"][my - 1][mx] is not 4 then
+                    roof is true
+                if roof then
+                    note Raised roof plane, read edge-on from the oblique camera.
+                    push ["quad3d", mx, 0.55, my, mx + 1, 0.55, my, mx + 1, 0.55, my + 1, mx, 0.55, my + 1, "roof", 1] to dl
+                otherwise
+                    over3d_ground with dl and mx and my and "wood"
+                    over3d_wall with dl and mx and my
+            otherwise
+                over3d_ground with dl and mx and my and "grass"
+            mx is mx + 1
+        my is my + 1
+    note The knight, facing the last travel direction, walk pose on step parity.
+    ppose is 0
+    if (G["tick"] + G["pph"]) % 4 is less than 2 then
+        ppose is 1
+    push ["model3d", "knight", G["px"] + 0.5, 0, G["py"] + 0.5, G["pyaw"], ppose, 1] to dl
+    for each n in G["npcs"]
+        wx is n["x"] + 0.5
+        wy is n["y"] + 0.5
+        if over3d_inwin with wx and wy and x0 and y0 and x1 and y1 then
+            yaw is face_yaw with G["px"] - wx and G["py"] - wy
+            npose is 0
+            if (G["tick"] + n["ph"]) % 8 is less than 4 then
+                npose is 1
+            push ["model3d", n["nkind"], wx, 0, wy, yaw, npose, 1] to dl
+    for each it in G["items"]
+        wx is it["x"] + 0.5
+        wy is it["y"] + 0.5
+        if over3d_inwin with wx and wy and x0 and y0 and x1 and y1 then
+            im is "shrine"
+            if it["kind"] is "gold" then
+                im is "gold"
+            otherwise if it["kind"] is "potion" then
+                im is "potion"
+            push ["model3d", im, wx, 0, wy, 0, 0, 1] to dl
+    for each p in G["parts"]
+        wx is p["x"] + 0.5
+        wy is p["y"] + 0.5
+        if over3d_inwin with wx and wy and x0 and y0 and x1 and y1 then
+            push ["model3d", "spark", wx, 0.5, wy, 0, 0, 1] to dl
     give back nothing
 
 note ---- first-person raycaster ----
@@ -2723,6 +2872,9 @@ to refresh_out
     hud["bossmax"] is bbm
     hud["bossname"] is bbn
     hud["mode"] is G["mode"]
+    hud["over3d"] is 0
+    if G["map"] is "over" and G["gl3d"] then
+        hud["over3d"] is 1
     hud["paused"] is G["paused"]
     hud["diff"] is G["dname"]
     if G["map"] is "over" then

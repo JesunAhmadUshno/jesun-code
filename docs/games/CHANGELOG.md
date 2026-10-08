@@ -4,6 +4,36 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-08
 
+### REALMS 3D phase (e): overworld in real 3D, no more top-down sprites (indie dev loop)
+- Emberhold is now real 3D geometry whenever WebGL is available. Jesun.Code
+  emits an oblique third-person scene (`cam3do` camera over the knight):
+  one textured terrain quad per tile in a 13x13 window (grass, flowers,
+  path, two-frame shimmering water, wood, stone, dark cave ground), house
+  walls as vertical quads with raised roof planes, and low-poly prop models
+  for pine/round trees, the well, and the cave mouth.
+- Five new driver models in the dark style (all under 20 boxes): the knight
+  player character (horned helm, glowing visor, walk-cycle limbs, faces the
+  last travel direction via a new `G["pyaw"]` tracked in `try_move`), tree1,
+  tree2, well, cave. NPCs, gold, potions, shrines, and spark particles reuse
+  the existing models, culled to the view window.
+- Driver: atlas expanded to 256x256 with 9 new hand-drawn terrain cells
+  (grass, water x2, path, wood, roof, stone, dark, flowers); `renderGL`
+  handles `cam3do` with a sky-blue clear, sun light at the camera, and light
+  distance fog; damage floaters project as `text3d` in the 3D overworld;
+  HUD view label shows OVERWORLD 3D. 2D top-down stays as the fallback when
+  WebGL is missing (`G["gl3d"]` false).
+- Game logic stays 100% Jesun.Code; deepdelve.jc/deepdelve.html untouched.
+- Driver: `APP_VERSION` bumped to `20261008h`.
+- Verified: CPython unit checks (cam3do/knight/trees/grass, yaw tracks WASD,
+  water frames, 2D fallback intact), 50-tick determinism byte-identical
+  across overworld-3D and dungeon-FPP3D, 400-tick randomized pumps on all
+  three difficulties with gl3d on plus a 2D regression (zero exceptions,
+  ~10ms/tick), Node+Pyodide exact bridge flow 120 ticks avg 14.9ms/tick
+  (budget 120ms), existing `move_regress.mjs` 13/13 green, driver JS syntax
+  checked. New tests: `docs/games/tests/over3d_bridge.mjs`.
+- Browser playtest of the pushed page with screenshots still owed
+  (delegated next).
+
 ### REALMS movement hardening: stranded rescue, spawn clearing, NPC soft-lock fix (playtest bugfixes)
 - Root causes addressed for "WASD dead while M works": the water-rescue
   branch could loop forever when the last-walkable tile was also bad, and

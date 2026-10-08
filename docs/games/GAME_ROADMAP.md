@@ -30,11 +30,20 @@ Phases, one per run:
   18.5ms/tick under Node+Pyodide (budget 120ms). Playtest bug fixes in this
   ship: water rescue, NPCs cannot block cave/ladder/stairs, M reliably
   enters FPP (ladder placement + no false surfacing).
-- (e) Overworld in 3D: the village and wilderness as real 3D terrain.
+- (e) SHIPPED 2026-10-08 (browser screenshot verification delegated next):
+  Overworld in real 3D. Jesun.Code emits an oblique third-person scene
+  (`cam3do` over the knight): textured terrain quads per tile in a 13x13
+  window (grass, flowers, path, two-frame shimmering water, wood, stone,
+  dark), house walls with raised roof planes, tree/well/cave prop models.
+  New knight player model (horned helm, glowing visor, walk pose, faces
+  travel direction via `G["pyaw"]`); NPCs/items/parts reuse existing models.
+  Driver atlas 256x256 with 9 new terrain cells; sky-blue clear, sun light,
+  light fog; HUD shows OVERWORLD 3D. 2D top-down stays as the WebGL-missing
+  fallback. Scene build 14.9ms/tick under Node+Pyodide (budget 120ms).
 Budget guard stays: scene build per tick under ~120ms under Node+Pyodide;
 WebGL draw itself is GPU-cheap.
 
-### 2. UX/UI overhaul program (founder directive 2026-10-08)
+### 2. UX/UI overhaul program (founder directive 2026-10-08) [NEXT]
 Founder: "Get ux ui even better." A full pass over every screen with fresh
 eyes, judged like the videos: sharper than the last build or it does not ship.
 - Title screen: clearer START prompt, difficulty select readability, credit
