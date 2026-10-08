@@ -123,7 +123,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261008h';
+var APP_VERSION='20261008i';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -307,12 +307,12 @@ function glInit(){
   'uniform mat4 uMVP;varying vec2 vUV;varying vec3 vCol;varying vec3 vNrm;varying vec3 vW;varying float vEmi;'+
   'void main(){vUV=aUV;vCol=aCol;vNrm=aNrm;vW=aPos;vEmi=aEmi;gl_Position=uMVP*vec4(aPos,1.0);}';
   var fsrc='precision mediump float;varying vec2 vUV;varying vec3 vCol;varying vec3 vNrm;varying vec3 vW;varying float vEmi;'+
-  'uniform sampler2D uTex;uniform vec3 uLight;uniform vec3 uFog;uniform float uFogD;'+
+  'uniform sampler2D uTex;uniform vec3 uLight;uniform vec3 uFog;uniform float uFogD;uniform float uAmb;'+
   'void main(){vec3 tex=texture2D(uTex,vUV).rgb;vec3 base=tex*vCol;'+
   'vec3 Lv=uLight-vW;float dist=length(Lv);vec3 L=Lv/max(dist,0.001);vec3 N=normalize(vNrm);'+
   'if(dot(N,L)<0.0)N=-N;'+
   'float diff=max(dot(N,L),0.0);float att=1.0/(1.0+0.35*dist*dist);'+
-  'vec3 lit=base*(0.22+1.15*diff*att)+base*vEmi*1.6;'+
+  'vec3 lit=base*(uAmb+1.15*diff*att)+base*vEmi*1.6;'+
   'float f=1.0-exp(-uFogD*uFogD*dist*dist);f=clamp(f,0.0,1.0);'+
   'vec3 col=mix(lit,uFog,f*(1.0-vEmi*0.75));'+
   'gl_FragColor=vec4(col,1.0);}';
@@ -323,7 +323,7 @@ function glInit(){
   var p=gl.createProgram(); gl.attachShader(p,v); gl.attachShader(p,f); gl.linkProgram(p);
   if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ GL_OK=false; return; }
   glProg=p; gl.useProgram(p);
-  var an=['aPos','aUV','aCol','aNrm','aEmi'], un=['uMVP','uTex','uLight','uFog','uFogD'], i;
+  var an=['aPos','aUV','aCol','aNrm','aEmi'], un=['uMVP','uTex','uLight','uFog','uFogD','uAmb'], i;
   for(i=0;i<an.length;i++) GLA[an[i]]=gl.getAttribLocation(p,an[i]);
   for(i=0;i<un.length;i++) GLU[un[i]]=gl.getUniformLocation(p,un[i]);
   glBuf=gl.createBuffer();
@@ -492,13 +492,13 @@ function defModels3D(){
   MODELS3D.spark=B;
   /* ---- overworld 3D models (all under 20 boxes, dark style) ---- */
   B=[];
-  BX(B, -0.09,0.17,0, 0.11,0.34,0.12, 0.10,0.12,0.16,{limb:'legL',px:-0.09,py:0.34,pz:0});
-  BX(B, 0.09,0.17,0, 0.11,0.34,0.12, 0.10,0.12,0.16,{limb:'legR',px:0.09,py:0.34,pz:0});
+  BX(B, -0.09,0.17,0, 0.11,0.34,0.12, 0.17,0.20,0.27,{limb:'legL',px:-0.09,py:0.34,pz:0});
+  BX(B, 0.09,0.17,0, 0.11,0.34,0.12, 0.17,0.20,0.27,{limb:'legR',px:0.09,py:0.34,pz:0});
   BX(B, 0,0.36,0, 0.34,0.06,0.24, 0.30,0.22,0.12);
-  BX(B, 0,0.52,0, 0.32,0.32,0.22, 0.18,0.20,0.26);
-  BX(B, -0.22,0.48,0, 0.10,0.32,0.10, 0.15,0.17,0.22,{limb:'armL',px:-0.17,py:0.62,pz:0});
-  BX(B, 0.22,0.48,0, 0.10,0.32,0.10, 0.15,0.17,0.22,{limb:'armR',px:0.17,py:0.62,pz:0});
-  BX(B, 0,0.78,0, 0.24,0.20,0.24, 0.16,0.18,0.24);
+  BX(B, 0,0.52,0, 0.32,0.32,0.22, 0.30,0.33,0.43);
+  BX(B, -0.22,0.48,0, 0.10,0.32,0.10, 0.25,0.28,0.36,{limb:'armL',px:-0.17,py:0.62,pz:0});
+  BX(B, 0.22,0.48,0, 0.10,0.32,0.10, 0.25,0.28,0.36,{limb:'armR',px:0.17,py:0.62,pz:0});
+  BX(B, 0,0.78,0, 0.24,0.20,0.24, 0.27,0.30,0.39);
   BX(B, -0.15,0.90,0, 0.06,0.14,0.06, 0.55,0.50,0.42);
   BX(B, 0.15,0.90,0, 0.06,0.14,0.06, 0.55,0.50,0.42);
   BX(B, -0.06,0.78,0.125, 0.05,0.04,0.02, 0.4,0.9,1.0,{emi:1});
@@ -657,17 +657,17 @@ function renderGL(dl){
     else if(op==='cam3do'){ cam=c; over=true; }
     else if(op==='sword3d') sword=c[1]; }
   if(!cam) return [];
-  var mvp,light,fogC,fogD,clearC;
+  var mvp,light,fogC,fogD,clearC,amb;
   if(over){
     var opx=cam[1],opy=cam[2];
     mvp=mMul(mPersp(0.9,576/384,0.05,80),
       mLookAt(opx,4.6,opy-3.4, opx,0.25,opy+1.6, 0,1,0));
-    light=[opx,6,opy-2]; fogC=[0.45,0.60,0.85]; fogD=0.025; clearC=[0.45,0.60,0.85];
+    light=[opx,6,opy-2]; fogC=[0.45,0.60,0.85]; fogD=0.025; clearC=[0.45,0.60,0.85]; amb=0.45;
   } else {
     var camx=cam[1],camz=cam[2],fdx=cam[3],fdy=cam[4],ey=0.55;
     mvp=mMul(mPersp(0.817,576/384,0.05,60),
       mLookAt(camx,ey,camz,camx+fdx,ey,camz+fdy,0,1,0));
-    light=[camx,ey,camz]; fogC=[0.02,0.02,0.06]; fogD=0.09; clearC=[0.03,0.03,0.06];
+    light=[camx,ey,camz]; fogC=[0.02,0.02,0.06]; fogD=0.09; clearC=[0.03,0.03,0.06]; amb=0.22;
   }
   GLV.length=0;
   window.DBG3D={quads:0,models:0};
@@ -697,6 +697,7 @@ function renderGL(dl){
   gl.uniform3f(GLU.uLight,light[0],light[1],light[2]);
   gl.uniform3f(GLU.uFog,fogC[0],fogC[1],fogC[2]);
   gl.uniform1f(GLU.uFogD,fogD);
+  gl.uniform1f(GLU.uAmb,amb);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D,glTex);
   gl.uniform1i(GLU.uTex,0);
