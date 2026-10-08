@@ -841,6 +841,10 @@ if (IS_TOUCH) {
 /* === WORLD-PEOPLE-ANCHOR === */
 /* NPC pedestrians code goes here (worker: people). 12 walkers with walk/idle/flee states. */
 
+/* World tickers: workers push (dt, now) => {} functions here. tick() runs them.
+   This keeps world-expansion animation out of the game loop body (no merge conflicts). */
+const worldTickers = [];
+
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
 const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
@@ -990,6 +994,9 @@ function tick() {
     u.lw.rotation.z = flap;
     u.rw.rotation.z = -flap;
   }
+
+  /* --- world expansion tickers (city/nature/people workers) --- */
+  for (const fn of worldTickers) fn(dt, now);
 
   renderer.render(scene, camera);
 }
