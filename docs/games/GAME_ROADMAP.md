@@ -27,34 +27,90 @@ Jesun.Code. Phases, one per run:
 - (e) Overworld depth: raised tiles, drop shadows, 2.5D feel.
 Budget guard stays: FPP tick under ~120ms under Node+Pyodide.
 
-### 2. Enemy separation steering
+### 2. UX/UI overhaul program (founder directive 2026-10-08)
+Founder: "Get ux ui even better." A full pass over every screen with fresh
+eyes, judged like the videos: sharper than the last build or it does not ship.
+- Title screen: clearer START prompt, difficulty select readability, credit
+  line legible on phone.
+- HUD: HP/gold/potions/depth readable at phone size, quest tracker clarity,
+  boss HP bar polish, low-HP vignette tuning, message log shows last 3.
+- Touch controls: bigger hit areas, dpad plus action buttons layout, pressed
+  states, pause button easy to reach.
+- Dialogs: merchant/wanderer/elder text readable, toast timing tuned, no
+  overlapping panels.
+- Onboarding: first-run hints (where the cave is, M for 3D sight, Q drinks a
+  potion), contextual tips on depth 1.
+- Consistency: one visual language across top-down and FPP, one message
+  style, zero slop.
+Verify with phone-viewport browser playtest screenshots before shipping.
+
+### 3. Red Dead style overworld expansion (founder directive 2026-10-08)
+Founder: "completely like Red Dead Redemption style." Turn Emberhold into a
+living frontier. Phases, one per run:
+- Day/night cycle: sun and moon, sky tint by hour, night darkness with a light
+  radius around the player, stars.
+- Campfire: rest point that heals over time, warm light glow, procedural
+  crackle sound through the existing snd channel.
+- Nature: more tree variety, gardens, wood logs, riverbank details, a sea at
+  the map edge.
+- Castle: explorable keep on the overworld with its own encounters and loot.
+- Animals: horses and cows as ambient NPCs (graze, wander, flee); horse
+  riding as a later phase.
+- Player customization: character select screen with face/appearance variants
+  from the atlas, name entry.
+- Player tools: lantern (bigger light radius at night), bedroll/bunk rest.
+Art: hand-drawn CC0 matching sprites where the Kenney packs lack coverage.
+
+### 4. Real-time multiplayer (founder directive 2026-10-08)
+Founder: "It has to be multiplayer. Player can chat each other. In real time.
+Exchange tools potions guns awards with each other."
+Honest boundary: the game is a static site with no server, so multiplayer
+cannot run on GitHub Pages alone. The path is WebRTC peer-to-peer: one player
+hosts the authoritative game (still 100% Jesun.Code), others join with a
+shareable code, inputs go up and game state comes down over a data channel.
+No game server to run, nothing to host.
+Phases, one per run:
+- (a) Connection layer: host/join with code, player names, peer link.
+- (b) Shared overworld: see each other move around Emberhold in real time.
+- (c) Chat: real-time text chat, clean UI, mute/block.
+- (d) Trading: exchange potions, tools, gold, awards with accept/confirm.
+- (e) Co-op dungeon: shared depths, shared enemies, revive.
+- Guns: new ranged player weapon for the frontier (tradable, ties into (d)).
+
+### 5. MCP server for AI agents (founder confirmed 2026-10-08)
+Founder said yes to MCP tools. Reading: an MCP server so AI agents can play
+and control DEEPDELVE REALMS (start_run, press_key, read_state, read_screen),
+running against the CPython harness. Player tools (lantern, bedroll) are
+already covered under item 3. Correct this item if he meant something else.
+
+### 6. Enemy separation steering
 Chasers conga-line behind each other in corridors. Add a cheap sidestep: when
 the target tile is occupied by another enemy, try the perpendicular tile before
 giving up. Keeps per-tick cost O(enemies).
 
-### 3. Ranged enemy: Gloom Spitter (depth 2+)
+### 7. Ranged enemy: Gloom Spitter (depth 2+)
 First ranged threat. Slow projectiles as a small entity list (1 tile per 2
 ticks, die on wall or player hit). Needs one new sprite in `assets/custom.png`
 plus an `atlas.json` entry, drawn in the existing 16x16 style.
 
-### 4. Villager quest log
+### 8. Villager quest log
 One elder quest is the whole quest system. Add three turn-in quests from
 villagers/wanderers (rat pelts x6, gold tithe 50g, deep shard from depth 3+),
 tracked in the quest HUD line, rewarding atk / max HP / potions.
 
-### 5. Second boss: Gloom Matriarch (depth 6)
+### 9. Second boss: Gloom Matriarch (depth 6)
 The Deep Warden is the only boss. A second boss on depth 6 that periodically
 spawns bats, reusing the stairs lock/seal logic and boss HP bar.
 
-### 6. Overworld day/night tint
+### 10. Overworld day/night tint
 Slow palette cycle on overworld top-down tiles driven by tick. Cheap
 atmosphere, zero gameplay cost, no driver change.
 
-### 7. FPP torch flicker lighting
+### 11. FPP torch flicker lighting
 Per-column brightness noise tied to tick in the FPP renderer. Sells the dungeon
 mood; bounded by the existing 48-ray budget.
 
-### 8. Boot progress readout
+### 12. Boot progress readout
 Phone boot (Pyodide + atlas fetch) feels long and silent. Show a % counter on
 the loading overlay while fetching atlas files. Driver-only change.
 
