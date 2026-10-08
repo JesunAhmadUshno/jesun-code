@@ -124,7 +124,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261008k';
+var APP_VERSION='20261008l';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -902,6 +902,12 @@ function startRun(){
     if(!res.ok){ showFatal('Game error: '+res.error); return; }
     render(res.dl); updateHUD(res.hud,res.msgs); playSounds(res.snd);
     playing=true;
+    var tpm=/[?&]tp=(\d+),(\d+)/.exec(location.search);
+    if(tpm){ try{
+      jesun.run_source('G["px"] is '+tpm[1], interp);
+      jesun.run_source('G["py"] is '+tpm[2], interp);
+      jesun.run_source('tick', interp);
+    }catch(e){} }
   }catch(err){ showFatal('Start failed: '+((err&&err.message)||String(err))); }
 }
 var mutebtn=document.getElementById('mutebtn');
