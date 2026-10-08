@@ -129,18 +129,19 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x0d1420, 40, 160);          // distance haze
+scene.fog = new THREE.Fog(0x1a2438, 40, 220);          // distance haze
 
-/* Sky dome: vertical gradient, dark tactical dusk */
+/* Sky dome: vertical gradient, brighter tactical dusk (not pitch black) */
 {
   const c = document.createElement('canvas'); c.width = 2; c.height = 256;
   const g = c.getContext('2d');
   const gr = g.createLinearGradient(0, 0, 0, 256);
-  gr.addColorStop(0.0, '#060a14');
-  gr.addColorStop(0.45, '#0d1626');
-  gr.addColorStop(0.62, '#1a2a40');
-  gr.addColorStop(0.72, '#3a4a5e');
-  gr.addColorStop(1.0, '#0a0d12');
+  gr.addColorStop(0.0, '#0b1226');
+  gr.addColorStop(0.45, '#16263f');
+  gr.addColorStop(0.62, '#2c4468');
+  gr.addColorStop(0.72, '#5e7492');
+  gr.addColorStop(0.85, '#8a7a68');
+  gr.addColorStop(1.0, '#141a24');
   g.fillStyle = gr; g.fillRect(0, 0, 2, 256);
   const tex = new THREE.CanvasTexture(c);
   const sky = new THREE.Mesh(
@@ -150,8 +151,71 @@ scene.fog = new THREE.Fog(0x0d1420, 40, 160);          // distance haze
   scene.add(sky);
 }
 
+/* Visible sun: glowing disc sprite in the sky */
+{
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,240,210,1)');
+  gr.addColorStop(0.25, 'rgba(255,220,160,0.95)');
+  gr.addColorStop(0.6, 'rgba(255,190,120,0.35)');
+  gr.addColorStop(1, 'rgba(255,180,100,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(c), fog: false, depthWrite: false,
+    transparent: true
+  }));
+  sunSpr.scale.set(90, 90, 1);
+  sunSpr.position.set(180, 95, 120);   // matches directional light direction
+  scene.add(sunSpr);
+}
+
+/* Stars: small bright points on the upper sky dome */
+{
+  const N = 400, p = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const th = Math.random() * Math.PI * 2, ph = Math.random() * Math.PI * 0.42;
+    p[i * 3] = Math.cos(th) * Math.cos(ph) * 380;
+    p[i * 3 + 1] = Math.sin(ph) * 380 + 20;
+    p[i * 3 + 2] = Math.sin(th) * Math.cos(ph) * 380;
+  }
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({
+    color: 0xcfd8ff, size: 1.6, sizeAttenuation: false, fog: false,
+    transparent: true, opacity: 0.85
+  })));
+}
+
+/* Drifting clouds: white translucent planes high above the world */
+const clouds = [];
+{
+  const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 14; i++) {
+    const x = 20 + Math.random() * 88, y = 18 + Math.random() * 28, r = 10 + Math.random() * 16;
+    const gr = g.createRadialGradient(x, y, 1, x, y, r);
+    gr.addColorStop(0, 'rgba(255,255,255,0.55)');
+    gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  const cloudTex = new THREE.CanvasTexture(c);
+  const cloudMat = new THREE.MeshBasicMaterial({
+    map: cloudTex, transparent: true, opacity: 0.8, fog: false, depthWrite: false
+  });
+  for (let i = 0; i < 7; i++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(46, 23), cloudMat);
+    const a = (i / 7) * Math.PI * 2 + Math.random() * 0.6;
+    const r = 90 + Math.random() * 110;
+    m.position.set(Math.cos(a) * r, 42 + Math.random() * 22, Math.sin(a) * r);
+    m.userData.speed = 0.4 + Math.random() * 0.7;
+    scene.add(m);
+    clouds.push(m);
+  }
+}
+
 /* ================================ LIGHTING ================================ */
-const sun = new THREE.DirectionalLight(0xffe0b3, 2.2);
+const sun = new THREE.DirectionalLight(0xffe0b3, 2.8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -45; sun.shadow.camera.right = 45;
@@ -160,7 +224,7 @@ sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
 sun.shadow.bias = -0.0004;
 scene.add(sun, sun.target);
 
-scene.add(new THREE.HemisphereLight(0x8fa3c7, 0x1c2416, 0.85));  // sky/ground fill
+scene.add(new THREE.HemisphereLight(0x9db4dd, 0x2a3220, 1.2));  // sky/ground fill
 
 /* ================================ TERRAIN ================================= */
 /* One noise function drives both the mesh and the walk height. */
@@ -264,6 +328,72 @@ function scatter(mesh, count, minR, maxR, sMin, sMax) {
   scatter(new THREE.InstancedMesh(rockG, rockM, 45), 45, 8, 100, 0.4, 1.6);
 }
 
+/* World boundary: a visible ring of large boulders at radius 105 so the
+   player sees the edge long before hitting the invisible wall at +/-104. */
+{
+  const ringG = new THREE.DodecahedronGeometry(1, 0);
+  const ringM = new THREE.MeshStandardMaterial({ color: 0x5c5e5a, roughness: 1 });
+  const NB = 42;
+  const ring = new THREE.InstancedMesh(ringG, ringM, NB);
+  for (let i = 0; i < NB; i++) {
+    const a = (i / NB) * Math.PI * 2;
+    const r = 105 + (Math.random() - 0.5) * 3;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    const s = 2.6 + Math.random() * 3.2;
+    dummy.position.set(x, terrainHeight(x, z) + s * 0.35, z);
+    dummy.rotation.set(Math.random() * 3, Math.random() * 6, Math.random() * 3);
+    dummy.scale.set(s, s * (0.9 + Math.random() * 0.5), s);
+    dummy.updateMatrix();
+    ring.setMatrixAt(i, dummy.matrix);
+  }
+  ring.instanceMatrix.needsUpdate = true;
+  ring.castShadow = ring.receiveShadow = true;
+  scene.add(ring);
+}
+
+/* Distant mountains: big silhouettes outside the playable area, purely visual */
+{
+  const mM = new THREE.MeshBasicMaterial({ color: 0x232c42 });
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + Math.random() * 0.5;
+    const r = 150 + Math.random() * 30;
+    const h = 55 + Math.random() * 45;
+    const m = new THREE.Mesh(new THREE.ConeGeometry(28 + Math.random() * 22, h, 7), mM);
+    m.position.set(Math.cos(a) * r, h * 0.32, Math.sin(a) * r);
+    m.rotation.y = Math.random() * Math.PI;
+    scene.add(m);
+  }
+}
+
+/* Birds: 6 simple two-triangle birds circling high above the world */
+const birds = [];
+{
+  const bM = new THREE.MeshBasicMaterial({ color: 0x1a1d26, side: THREE.DoubleSide, fog: false });
+  for (let i = 0; i < 6; i++) {
+    const bird = new THREE.Group();
+    const wingG = new THREE.BufferGeometry();
+    const v = new Float32Array([0,0,0, 1.6,0,0.35, 1.6,0,-0.35]);  // one triangle
+    wingG.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    wingG.computeVertexNormals();
+    const wl = new THREE.Mesh(wingG, bM);
+    const wr = new THREE.Mesh(wingG, bM);
+    wr.rotation.y = Math.PI;
+    const lw = new THREE.Group(), rw = new THREE.Group();
+    lw.add(wl); rw.add(wr);
+    bird.add(lw, rw);
+    bird.userData = {
+      cx: (Math.random() - 0.5) * 120, cz: (Math.random() - 0.5) * 120,
+      r: 18 + Math.random() * 22, h: 20 + Math.random() * 10,
+      a: Math.random() * Math.PI * 2,
+      spd: 0.25 + Math.random() * 0.25,
+      ph: Math.random() * Math.PI * 2,
+      lw, rw
+    };
+    scene.add(bird);
+    birds.push(bird);
+  }
+}
+
 /* ============================ PLAYER CHARACTER ============================ */
 /* Box-built tactical operator. Dark kit, plate carrier, helmet. */
 const player = new THREE.Group();
@@ -305,7 +435,7 @@ scene.add(player);
 /* ============================ CAMERA (OVER-SHOULDER) ====================== */
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 500);
 let camYaw = Math.PI, camPitch = 0.32;               // start behind player
-const camPos = new THREE.Vector3(0, 4, -6);
+const camPos = new THREE.Vector3(0.85, 4.3, 7.2);
 const camTargetPos = new THREE.Vector3();
 const lookTarget = new THREE.Vector3();
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
@@ -319,8 +449,12 @@ const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
 const overlay = document.getElementById('overlay');
 overlay.addEventListener('click', () => {
+  ac();   // unlock WebAudio on the user gesture
   if (IS_TOUCH) { overlay.classList.add('hidden'); return; }  // no pointer lock on touch
   if (renderer.domElement.requestPointerLock) renderer.domElement.requestPointerLock();
+});
+addEventListener('mousedown', e => {
+  if (e.button === 0 && overlay.classList.contains('hidden')) shoot();
 });
 document.addEventListener('pointerlockchange', () => {
   overlay.classList.toggle('hidden', document.pointerLockElement === renderer.domElement);
@@ -411,6 +545,12 @@ if (IS_TOUCH) {
     touch.sprint = !touch.sprint;
     sprintBtn.classList.toggle('on', touch.sprint);
   }, { passive: false });
+
+  const fireBtn = document.getElementById('firebtn');
+  fireBtn.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation();
+    shoot();
+  }, { passive: false });
 }
 
 /* ============================== GAME LOOP ================================= */
@@ -465,6 +605,10 @@ function tick() {
 
   player.position.addScaledVector(P.vel, dt);
 
+  /* --- world edge: invisible wall at +/-104 (boulder ring shows it) --- */
+  player.position.x = Math.max(-104, Math.min(104, player.position.x));
+  player.position.z = Math.max(-104, Math.min(104, player.position.z));
+
   /* --- face travel direction, smooth turn --- */
   const speed = Math.hypot(P.vel.x, P.vel.z);
   if (speed > 0.6) {
@@ -474,7 +618,7 @@ function tick() {
 
   /* --- jump + gravity, collide with terrain --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if ((keys.Space || touch.jump) && P.grounded) { P.vy = JUMP_V; P.grounded = false; }
+  if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
   P.vy += GRAV * dt;
   player.position.y += P.vy * dt;
   if (player.position.y <= groundY) {
@@ -491,8 +635,8 @@ function tick() {
   player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob
 
   /* --- over-shoulder camera --- */
-  lookTarget.copy(player.position); lookTarget.y += 1.55;
-  const dist = 4.6, cp = Math.cos(camPitch), sp = Math.sin(camPitch);
+  lookTarget.copy(player.position); lookTarget.y += 1.9;
+  const dist = 7.5, cp = Math.cos(camPitch), sp = Math.sin(camPitch);
   camTargetPos.set(
     lookTarget.x - Math.sin(camYaw) * cp * dist - Math.cos(camYaw) * 0.85,
     lookTarget.y + sp * dist,
@@ -515,6 +659,48 @@ function tick() {
     hudTick = 0;
     posEl.textContent = 'X ' + player.position.x.toFixed(1) + '  Z ' + player.position.z.toFixed(1)
       + '  ' + (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE');
+  }
+
+  if (P.dead) wishDir.set(0, 0, 0);   // no moving while eliminated
+
+  /* --- combat systems --- */
+  fireCd -= dt;
+  if (P.godT > 0) P.godT -= dt;
+  if (P.dead) {
+    P.deadT += dt;
+    if (P.deadT > 1.2) {   // redeploy at spawn with full health
+      player.position.set(0, terrainHeight(0, 0), 0);
+      P.vel.set(0, 0, 0); P.vy = 0;
+      P.hp = 100; P.dead = false; P.godT = 2;
+      updateHpHUD(); toast('REDEPLOYED');
+    }
+  }
+  for (const e of enemies) updateEnemy(e, dt);
+  muzzle.getWorldPosition(muzzleFlash.position);
+  muzzleFlash.intensity *= Math.exp(-26 * dt);
+  for (const t of tracers) {
+    if (t.life > 0) { t.life -= dt; t.line.material.opacity = Math.max(0, t.life / 0.07) * 0.9; }
+  }
+  if (toastT > 0) { toastT -= dt; if (toastT <= 0) toastEl.style.opacity = 0; }
+  dmgV *= Math.exp(-5 * dt);
+  dmgflashEl.style.opacity = dmgV.toFixed(2);
+
+  /* --- clouds drift, birds circle and flap --- */
+  const now = performance.now() / 1000;
+  for (const cl of clouds) {
+    cl.position.x += cl.userData.speed * dt;
+    if (cl.position.x > 220) cl.position.x = -220;
+    cl.lookAt(camera.position.x, cl.position.y, camera.position.z);  // face camera
+  }
+  for (const b of birds) {
+    const u = b.userData;
+    u.a += u.spd * dt;
+    b.position.set(u.cx + Math.cos(u.a) * u.r, u.h + Math.sin(now * 0.7 + u.ph) * 1.5,
+                  u.cz + Math.sin(u.a) * u.r);
+    b.rotation.y = -u.a;   // face travel direction
+    const flap = Math.sin(now * 9 + u.ph) * 0.55;
+    u.lw.rotation.z = flap;
+    u.rw.rotation.z = -flap;
   }
 
   renderer.render(scene, camera);
