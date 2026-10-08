@@ -220,8 +220,8 @@ function drawText(c){
    camera, and distance fog. If WebGL is missing, the game falls back to the
    2D raycaster (G["gl3d"] stays false). */
 var glCanvas=document.getElementById('gl');
-var gl=null, GL_OK=false;
-try{ gl=glCanvas.getContext('webgl',{antialias:false,alpha:false})||glCanvas.getContext('experimental-webgl'); GL_OK=!!gl; }catch(e){ GL_OK=false; }
+var gl=null, GL_OK=false, GL_WHY='not attempted';
+try{ gl=glCanvas.getContext('webgl',{antialias:false,alpha:false})||glCanvas.getContext('experimental-webgl'); GL_OK=!!gl; GL_WHY=GL_OK?'context ok':'getContext returned null'; }catch(e){ GL_OK=false; GL_WHY='threw: '+String((e&&e.message)||e); }
 var glProg=null, glBuf=null, glTex=null;
 var GLA={}, GLU={};
 var MODELS3D={};
@@ -669,6 +669,7 @@ function render(dl){
 
 function updateHUD(h, msgs){
   if(window.GLErr && !window.GLErrShown){ window.GLErrShown=true; msgs=msgs.concat(['3D display fault: '+window.GLErr]); }
+  if(!window.GLWhyShown && h && h.mode==='fpp'){ window.GLWhyShown=true; msgs=msgs.concat(['3D status: GL_OK='+window.GL_OK+' ('+window.GL_WHY+')']); }
   document.getElementById('hpfill').style.width=Math.max(0,Math.min(100,h.hp/h.maxhp*100))+'%';
   document.getElementById('hptext').textContent=h.hp+'/'+h.maxhp;
   document.getElementById('depth').textContent=h.depth;
