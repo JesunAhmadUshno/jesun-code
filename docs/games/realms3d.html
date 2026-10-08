@@ -386,6 +386,9 @@ function scatter(mesh, count, minR, maxR, sMin, sMax) {
   }
 }
 
+/* === WORLD-NATURE-ANCHOR === */
+/* Nature zones code goes here (worker: nature & animals). Forest (N), farm (W), ocean (S), deer/horses/cows. */
+
 /* Birds: 6 simple two-triangle birds circling high above the world */
 const birds = [];
 {
@@ -414,6 +417,9 @@ const birds = [];
     birds.push(bird);
   }
 }
+
+/* === WORLD-CITY-ANCHOR === */
+/* City district code goes here (worker: city builder). Zones: x 40..100, z -100..-40. */
 
 /* ============================ PLAYER CHARACTER ============================ */
 /* Box-built tactical operator. Dark kit, plate carrier, helmet. */
@@ -831,6 +837,9 @@ if (IS_TOUCH) {
     shoot();
   }, { passive: false });
 }
+
+/* === WORLD-PEOPLE-ANCHOR === */
+/* NPC pedestrians code goes here (worker: people). 12 walkers with walk/idle/flee states. */
 
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
