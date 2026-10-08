@@ -639,6 +639,7 @@ function render(dl){
     }catch(err){
       glc.style.display='none';
       canvas.style.background='#111';
+      window.GLErr=String((err&&err.message)||err);
     }
     return;
   }
@@ -667,6 +668,7 @@ function render(dl){
 }
 
 function updateHUD(h, msgs){
+  if(window.GLErr && !window.GLErrShown){ window.GLErrShown=true; msgs=msgs.concat(['3D display fault: '+window.GLErr]); }
   document.getElementById('hpfill').style.width=Math.max(0,Math.min(100,h.hp/h.maxhp*100))+'%';
   document.getElementById('hptext').textContent=h.hp+'/'+h.maxhp;
   document.getElementById('depth').textContent=h.depth;
