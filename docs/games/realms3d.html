@@ -421,6 +421,209 @@ const birds = [];
 /* === WORLD-CITY-ANCHOR === */
 /* City district code goes here (worker: city builder). Zones: x 40..100, z -100..-40. */
 
+/* ============================ CITY DISTRICT ============================= */
+/* Zone x 40..100, z -100..-40. Two crossing streets, 16 buildings, lamps. */
+{
+  /* ---- merge helper for indexed geometries (position/normal/uv) ---- */
+  function mergeGeos(list) {
+    let vCount = 0, iCount = 0;
+    for (const g of list) { vCount += g.attributes.position.count; iCount += g.index.count; }
+    const pos = new Float32Array(vCount * 3), nor = new Float32Array(vCount * 3);
+    const uv = new Float32Array(vCount * 2);
+    const idx = new (vCount > 65535 ? Uint32Array : Uint16Array)(iCount);
+    let vo = 0, io = 0;
+    for (const g of list) {
+      const n = g.attributes.position.count;
+      pos.set(g.attributes.position.array, vo * 3);
+      nor.set(g.attributes.normal.array, vo * 3);
+      uv.set(g.attributes.uv.array, vo * 2);
+      const gi = g.index.array;
+      for (let i = 0; i < gi.length; i++) idx[io + i] = gi[i] + vo;
+      vo += n; io += gi.length;
+    }
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    out.setIndex(new THREE.BufferAttribute(idx, 1));
+    return out;
+  }
+
+  /* ---- terrain-conforming ground plane ---- */
+  function groundPlane(w, l, sx, sz, cx, cz, yOff) {
+    const g = new THREE.PlaneGeometry(w, l, sx, sz);
+    g.rotateX(-Math.PI / 2);
+    g.translate(cx, 0, cz);
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setY(i, terrainHeight(p.getX(i), p.getZ(i)) + yOff);
+    g.computeVertexNormals();
+    return g;
+  }
+
+  /* ---- streets: dark asphalt. A along x at z=-70, B along z at x=70 ---- */
+  const asphaltM = new THREE.MeshStandardMaterial({ color: 0x1e2026, roughness: 0.96 });
+  const streetA = new THREE.Mesh(groundPlane(60, 8, 30, 4, 70, -70, 0.06), asphaltM);
+  const streetB = new THREE.Mesh(groundPlane(8, 60, 4, 30, 70, -70, 0.06), asphaltM);
+  streetA.receiveShadow = streetB.receiveShadow = true;
+  scene.add(streetA, streetB);
+
+  /* ---- sidewalks: lighter strips merged into one mesh ---- */
+  const walkM = new THREE.MeshStandardMaterial({ color: 0x62676f, roughness: 0.9 });
+  const walksMesh = new THREE.Mesh(mergeGeos([
+    groundPlane(60, 2.6, 30, 1, 70, -75.3, 0.11),
+    groundPlane(60, 2.6, 30, 1, 70, -64.7, 0.11),
+    groundPlane(2.6, 60, 1, 30, 64.7, -70, 0.11),
+    groundPlane(2.6, 60, 1, 30, 75.3, -70, 0.11),
+  ]), walkM);
+  walksMesh.receiveShadow = true;
+  scene.add(walksMesh);
+
+  /* ---- lane dashes merged into one mesh ---- */
+  const dashes = [];
+  for (let x = 43; x <= 97; x += 4) {
+    if (Math.abs(x - 70) < 6) continue;                       // keep intersection clear
+    const d = new THREE.BoxGeometry(1.4, 0.05, 0.28);
+    d.translate(x, terrainHeight(x, -70) + 0.1, -70);
+    dashes.push(d);
+  }
+  for (let z = -97; z <= -43; z += 4) {
+    if (Math.abs(z + 70) < 6) continue;
+    const d = new THREE.BoxGeometry(0.28, 0.05, 1.4);
+    d.translate(70, terrainHeight(70, z) + 0.1, z);
+    dashes.push(d);
+  }
+  scene.add(new THREE.Mesh(mergeGeos(dashes),
+    new THREE.MeshStandardMaterial({ color: 0xb9bdc4, roughness: 0.8 })));
+
+  /* ---- window texture: dark face with a grid of lit windows ---- */
+  function windowTexture() {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = '#000000'; g.fillRect(0, 0, 128, 256);
+    const cols = 6, rows = 14, cw = 128 / cols, rh = 256 / rows;
+    const warm = ['#ffd98a', '#ffca66', '#fff3cf', '#ffb85e'];
+    for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) {
+      const x = q * cw + cw * 0.22, y = r * rh + rh * 0.26;
+      if (Math.random() < 0.36) {
+        g.fillStyle = warm[(Math.random() * warm.length) | 0];
+        g.globalAlpha = 0.75 + Math.random() * 0.25;
+      } else {
+        g.fillStyle = '#05070b'; g.globalAlpha = 1;
+      }
+      g.fillRect(x, y, cw * 0.56, rh * 0.48);
+    }
+    g.globalAlpha = 1;
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  }
+  const winTex = windowTexture();
+
+  /* ---- buildings: 16 boxes in 4 height bands, one InstancedMesh each ---- */
+  // [x, z, footprintW, height, footprintD]; clear of streets and sidewalks
+  const B = [
+    [48,-81, 9,14,8], [59,-81, 7,20,8], [48,-93, 9,10,8], [59,-93, 7,26,8],
+    [82,-81, 9,18,8], [93,-81, 7,12,8], [82,-93, 9,24,8], [93,-93, 7, 9,8],
+    [48,-58, 9,16,8], [59,-58, 7,22,8], [48,-47, 9,11,9], [59,-47, 7,28,8],
+    [82,-58, 9,13,8], [93,-58, 7,19,8], [82,-47, 9,23,9], [93,-47, 7,15,8],
+  ];
+  const bandOf = h => h < 14 ? 0 : h < 20 ? 1 : h < 25 ? 2 : 3;
+  const bands = [[], [], [], []];
+  for (const b of B) bands[bandOf(b[3])].push(b);
+  const boxG = new THREE.BoxGeometry(1, 1, 1);
+  const bandMats = [];
+  const tint = new THREE.Color();
+  bands.forEach(list => {
+    if (!list.length) return;
+    let aw = 0, ah = 0;
+    for (const b of list) { aw += b[2]; ah += b[3]; }
+    aw /= list.length; ah /= list.length;
+    const tex = winTex.clone(); tex.needsUpdate = true;
+    tex.repeat.set(Math.max(1, Math.round(aw / 12)), Math.max(1, Math.round(ah / 12)));
+    const m = new THREE.MeshStandardMaterial({
+      color: 0x3a3f4a, roughness: 0.92,
+      emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 1.5,
+    });
+    const im = new THREE.InstancedMesh(boxG, m, list.length);
+    list.forEach((b, i) => {
+      const base = terrainHeight(b[0], b[1]);
+      dummy.position.set(b[0], base + b[3] / 2 - 0.6, b[1]);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(b[2], b[3], b[4]);
+      dummy.updateMatrix();
+      im.setMatrixAt(i, dummy.matrix);
+      const v = 0.82 + Math.random() * 0.26;
+      tint.setRGB(v, v * (0.97 + Math.random() * 0.06), v * (1.02 + Math.random() * 0.08));
+      im.setColorAt(i, tint);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = im.receiveShadow = true;
+    scene.add(im);
+    bandMats.push(m);
+  });
+
+  /* ---- street lights: instanced poles + glowing heads ---- */
+  const poleG = new THREE.CylinderGeometry(0.12, 0.17, 7, 6);
+  poleG.translate(0, 3.5, 0);
+  const poleM = new THREE.MeshStandardMaterial({ color: 0x23262d, roughness: 0.7, metalness: 0.5 });
+  const headG = new THREE.SphereGeometry(0.38, 10, 8);
+  const headM = new THREE.MeshStandardMaterial({
+    color: 0x443a22, emissive: 0xffc873, emissiveIntensity: 2.2, roughness: 0.4,
+  });
+  const lampPos = [];
+  for (const x of [45, 60, 90]) lampPos.push([x, -75.3]);       // street A north side
+  for (const x of [52.5, 82.5]) lampPos.push([x, -64.7]);       // street A south side
+  for (const [sx, z] of [[64.7, -95], [75.3, -80], [64.7, -50]]) lampPos.push([sx, z]); // street B
+  const poles = new THREE.InstancedMesh(poleG, poleM, lampPos.length);
+  const heads = new THREE.InstancedMesh(headG, headM, lampPos.length);
+  lampPos.forEach(([x, z], i) => {
+    const base = terrainHeight(x, z) + 0.1;
+    dummy.position.set(x, base, z); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix(); poles.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, base + 7.15, z); dummy.updateMatrix();
+    heads.setMatrixAt(i, dummy.matrix);
+  });
+  poles.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
+  poles.castShadow = true;
+  scene.add(poles, heads);
+
+  /* 4 real point lights at key spots; the rest of the lamps are emissive fakes */
+  for (const [x, z, dy] of [[70,-70,9],[48,-70,8],[92,-70,8],[70,-48,8]]) {
+    const pl = new THREE.PointLight(0xffb45e, 60, 38, 2);
+    pl.position.set(x, terrainHeight(x, z) + dy, z);
+    scene.add(pl);
+  }
+
+  /* ---- rooftop details: AC units + antenna on 3 towers, one merged mesh ---- */
+  const roofBits = [];
+  function roofBox(x, z, h, bw, bh, bd, ox, oz) {
+    const g = new THREE.BoxGeometry(bw, bh, bd);
+    g.translate(x + ox, terrainHeight(x, z) + h - 0.6 + bh / 2, z + oz);
+    roofBits.push(g);
+  }
+  roofBox(59, -47, 28, 2.0, 1.2, 1.6, 1.2, 0.5);    // AC on the 28u SW tower
+  roofBox(82, -47, 23, 1.6, 1.0, 2.0, -1.5, -1.0);  // AC on the 23u SE tower
+  { // antenna on the 24u NE tower
+    const g = new THREE.CylinderGeometry(0.09, 0.12, 7, 6);
+    g.translate(84, terrainHeight(82, -93) + 24 - 0.6 + 3.5, -94);
+    roofBits.push(g);
+  }
+  const roofs = new THREE.Mesh(mergeGeos(roofBits),
+    new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.85 }));
+  roofs.castShadow = true;
+  scene.add(roofs);
+
+  /* ---- cheap animation: lamp glow pulse + subtle window flicker ---- */
+  /* worldTickers is declared later in this module, so register after it exists */
+  queueMicrotask(() => {
+    worldTickers.push((dt, now) => {
+      headM.emissiveIntensity = 2.2 + Math.sin(now * 2.3) * 0.3;
+      if (bandMats[2]) bandMats[2].emissiveIntensity = 1.5 + Math.sin(now * 7.7) * 0.07 + Math.sin(now * 13.3) * 0.05;
+    });
+  });
+}
+
 /* ============================ PLAYER CHARACTER ============================ */
 /* Box-built tactical operator. Dark kit, plate carrier, helmet. */
 const player = new THREE.Group();
