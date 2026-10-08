@@ -124,7 +124,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261008n';
+var APP_VERSION='20261008o';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -662,8 +662,8 @@ function renderGL(dl){
   if(over){
     var opx=cam[1],opy=cam[2];
     mvp=mMul(mPersp(0.9,576/384,0.05,80),
-      mLookAt(opx,4.6,opy-3.4, opx,0.25,opy+1.6, 0,1,0));
-    light=[opx,6,opy-2]; fogC=[0.45,0.60,0.85]; fogD=0.025; clearC=[0.45,0.60,0.85]; amb=0.45;
+      mLookAt(opx,3.2,opy-2.8, opx,0.3,opy+1.2, 0,1,0));
+    light=[opx,5,opy-2]; fogC=[0.04,0.06,0.12]; fogD=0.035; clearC=[0.04,0.06,0.12]; amb=0.28;
   } else {
     var camx=cam[1],camz=cam[2],fdx=cam[3],fdy=cam[4],ey=0.55;
     mvp=mMul(mPersp(0.817,576/384,0.05,60),

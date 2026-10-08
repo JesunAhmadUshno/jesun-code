@@ -1847,10 +1847,12 @@ to rebuild_dl
         otherwise
             render_fpp with dl
     otherwise if G["map"] is "over" then
-        note Overworld 3D pulled back 20261008: the oblique look shipped too
-        note early and read as cheap. Back to the 2D top-down until the
-        note overworld gets a real art pass. Dungeon first-person stays 3D.
-        render_over with dl
+        note Overworld 3D re-enabled 20261008: dark night mode, not the
+        note bright cartoon look. Dungeon stays first-person 3D.
+        if G["gl3d"] then
+            render_over3d with dl
+        otherwise
+            render_over with dl
     otherwise
         render_top with dl
     for each f in G["floaters"]
@@ -2898,8 +2900,9 @@ to refresh_out
     hud["bossname"] is bbn
     hud["mode"] is G["mode"]
     hud["over3d"] is 0
-    note Overworld 3D pulled back 20261008: HUD must match the 2D renderer.
-    note (The old "if gl3d then over3d=1" lied after the revert.)
+    note Overworld 3D re-enabled 20261008 (dark night mode).
+    if G["map"] is "over" and G["gl3d"] then
+        hud["over3d"] is 1
     hud["paused"] is G["paused"]
     hud["diff"] is G["dname"]
     if G["map"] is "over" then
