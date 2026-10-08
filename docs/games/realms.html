@@ -46,6 +46,7 @@
   #btnMode { border-color:#4ae08a !important; color:#9af0c0 !important; }
   #help { width:100%; max-width:768px; margin-top:8px; font-size:12px; color:#77778a; text-align:center; }
   @media (pointer:coarse) { #touch { display:flex; } #help { display:none; } }
+  body.showtouch #touch { display:flex; }
 </style>
 </head>
 <body>
@@ -1044,6 +1045,7 @@ document.querySelectorAll('#diffrow button').forEach(function(b){
 document.getElementById('startBtn').addEventListener('click',startRun);
 document.getElementById('retryBtn').addEventListener('click',startRun);
 document.addEventListener('touchmove',function(e){ e.preventDefault(); },{passive:false});
+if(/touch=1/.test(location.search)) document.body.classList.add('showtouch');
 boot();
 </script>
 </body>
