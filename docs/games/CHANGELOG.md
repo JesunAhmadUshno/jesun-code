@@ -23,7 +23,7 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
   HUD view label shows OVERWORLD 3D. 2D top-down stays as the fallback when
   WebGL is missing (`G["gl3d"]` false).
 - Game logic stays 100% Jesun.Code; deepdelve.jc/deepdelve.html untouched.
-- Driver: `APP_VERSION` bumped to `20261008h`.
+- Driver: `APP_VERSION` bumped to `20261008h` (initial ship).
 - Verified: CPython unit checks (cam3do/knight/trees/grass, yaw tracks WASD,
   water frames, 2D fallback intact), 50-tick determinism byte-identical
   across overworld-3D and dungeon-FPP3D, 400-tick randomized pumps on all
@@ -33,6 +33,17 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
   checked. New tests: `docs/games/tests/over3d_bridge.mjs`.
 - Browser playtest of the pushed page with screenshots still owed
   (delegated next).
+- Playtest follow-up (same run): live playtest confirmed the new build
+  (HUD shows OVERWORLD 3D), 3D terrain/houses/trees/river/knight all render,
+  WASD movement works with the knight facing travel direction, no page
+  errors. Two findings fixed in this ship: the knight rendered as a near-
+  black silhouette, and the whole overworld read too dark. Driver now uses
+  a per-camera ambient uniform (0.45 for the overworld sun-lit camera,
+  0.22 unchanged for the dungeon torch), and the knight's armor colors were
+  brightened (dark style kept, silhouette gone). The "blue roof" note was
+  the river bending behind a house, not a bug. Console could not be
+  inspected in the automation environment; no page-visible errors.
+- Driver: `APP_VERSION` bumped to `20261008i` for the lighting fix.
 
 ### REALMS movement hardening: stranded rescue, spawn clearing, NPC soft-lock fix (playtest bugfixes)
 - Root causes addressed for "WASD dead while M works": the water-rescue
