@@ -7,42 +7,49 @@ unit of risk. One item ships per run, top first. Done items move to CHANGELOG.md
 
 ## Open
 
-### 1. Pause (P key + touch button)
-No way to pause mid-delve. Freeze the tick pump on P / a touch button, draw a
-"PAUSED" text overlay through the display list. Small, high phone value.
-
-### 2. Enemy separation steering
+### 1. Enemy separation steering
 Chasers conga-line behind each other in corridors. Add a cheap sidestep: when
 the target tile is occupied by another enemy, try the perpendicular tile before
 giving up. Keeps per-tick cost O(enemies).
 
-### 3. Ranged enemy: Gloom Spitter (depth 2+)
+### 2. Ranged enemy: Gloom Spitter (depth 2+)
 First ranged threat. Slow projectiles as a small entity list (1 tile per 2
 ticks, die on wall or player hit). Needs one new sprite in `assets/custom.png`
 plus an `atlas.json` entry, drawn in the existing 16x16 style.
 
-### 4. Villager quest log
+### 3. Villager quest log
 One elder quest is the whole quest system. Add three turn-in quests from
 villagers/wanderers (rat pelts x6, gold tithe 50g, deep shard from depth 3+),
 tracked in the quest HUD line, rewarding atk / max HP / potions.
 
-### 5. Second boss: Gloom Matriarch (depth 6)
+### 4. Second boss: Gloom Matriarch (depth 6)
 The Deep Warden is the only boss. A second boss on depth 6 that periodically
 spawns bats, reusing the stairs lock/seal logic and boss HP bar.
 
-### 6. Overworld day/night tint
+### 5. Overworld day/night tint
 Slow palette cycle on overworld top-down tiles driven by tick. Cheap
 atmosphere, zero gameplay cost, no driver change.
 
-### 7. FPP torch flicker lighting
+### 6. FPP torch flicker lighting
 Per-column brightness noise tied to tick in the FPP renderer. Sells the dungeon
 mood; bounded by the existing 48-ray budget.
 
-### 8. Boot progress readout
+### 7. Boot progress readout
 Phone boot (Pyodide + atlas fetch) feels long and silent. Show a % counter on
 the loading overlay while fetching atlas files. Driver-only change.
 
 ## Done
+
+### 2026-10-08: Pause with P key and touch button (roadmap item 1)
+Shipped. `G["paused"]` freezes the tick pump: world clock, enemy AI,
+particles and floaters hold; queued keys are dropped; only P unpauses.
+A gold-bordered PAUSED panel stamps through the display list on the frozen
+frame in top-down and first-person modes. Driver maps the P key and adds a
+II button in the touch dpad. Pure Jesun.Code, no driver logic change.
+Verified: 1200-tick CPython pump zero exceptions, pause unit checks
+(freeze/drop-keys/overlay/resume), determinism byte-identical,
+Node+Pyodide bridge FPP avg 40.1ms/tick (budget 120ms). Next up: Enemy
+separation steering.
 
 ### 2026-10-08: FPP minimap (roadmap item 1)
 Shipped. Top-right 1px-per-tile dungeon overview in first-person mode:
