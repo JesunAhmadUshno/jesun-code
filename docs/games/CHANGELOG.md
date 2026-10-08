@@ -44,6 +44,13 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
   the river bending behind a house, not a bug. Console could not be
   inspected in the automation environment; no page-visible errors.
 - Driver: `APP_VERSION` bumped to `20261008i` for the lighting fix.
+- Visual confirmation of (i) still owed: a follow-up screenshot ~4 minutes
+  after the push showed the old look (knight still black, no brighter
+  scene), consistent with GitHub Pages deploy/CDN propagation lag rather
+  than an ineffective change (the math triples the knight's lit value; the
+  old shader would have had to be served). Next loop run: reload the live
+  page and screenshot-verify the knight reads detailed and the scene
+  brighter before calling phase (e) fully done.
 
 ### REALMS movement hardening: stranded rescue, spawn clearing, NPC soft-lock fix (playtest bugfixes)
 - Root causes addressed for "WASD dead while M works": the water-rescue
