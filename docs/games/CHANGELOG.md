@@ -4,6 +4,32 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-08
 
+### Audit + red-team hardening pass (founder-ordered)
+- Slop audit of every user-facing string: no placeholders, no garbled text,
+  no em dashes, no dead menu options. Fixed the potion message to report the
+  actual HP restored ("+10 HP") instead of always claiming +40.
+- HUD label "Mood" renamed to "Risk" (it shows the difficulty: STORY / DELVER
+  / NIGHTMARE).
+- Fixed floating combat text rendering: damage numbers, crits, and loot text
+  were drawn at raw tile coordinates as screen pixels, so they appeared near
+  the top-left of the canvas instead of over the fight. Floaters are now
+  projected properly: camera-relative in top-down modes (with off-screen
+  culling) and ray-projected into the 3D view in first-person mode.
+- Red-teamed through the CPython harness: 2000-tick random key spam,
+  pause/unpause flapping during combat and hit-stop, difficulty switch
+  mid-run, M-toggle flapping, potion/merchant/elder/wanderer edge cases
+  (0 gold, 0 potions, full HP, exact-change buys, no double bless), seeds 0
+  and huge, idle soaks, stairs/ladder transitions, boss kill plus stairs
+  unlock, enemy wall-clip sweep, pause during death. No crashes, no softlocks,
+  no invalid state (negative gold/HP/potions, enemies in walls).
+- Hardening from the findings: `set_difficulty` now applies once per run
+  (a second call can no longer compound enemy stat scaling); `tick` holds
+  the last frame after death instead of processing keys on a corpse.
+- Verified: CPython 400-tick randomized pump zero exceptions, determinism
+  byte-identical, Node+Pyodide bridge FPP 68.5ms/tick with sprites
+  (49.2ms/tick without), top-down 18.0ms/tick, all under the 120ms budget.
+  Game logic stays 100% Jesun.Code; deepdelve.jc/deepdelve.html untouched.
+
 ### REALMS 3D phase (a): billboarded sprites in FPP (indie dev loop)
 - Every visible enemy, NPC, and item in first-person mode is now a true-3D
   billboarded sprite: projected to camera space, scaled by distance, drawn
