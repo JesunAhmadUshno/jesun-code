@@ -658,6 +658,8 @@ function shoot() {
   if (!playing() || P.dead || fireCd > 0) return;
   fireCd = 0.13;   // ~8 rounds/sec, infinite ammo
   sfxShot();
+  window.__lastShotAt = performance.now();   // NPCs/animals can read this to flee
+  window.__lastShotPos = player.position.clone();
   muzzleFlash.intensity = 26;
   muzzle.getWorldPosition(tmpV2);
   raycaster.setFromCamera(screenCenter, camera);
