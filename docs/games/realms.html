@@ -61,7 +61,7 @@
     <h2>DEEPDELVE REALMS</h2>
     <p>Centuries ago the Deepdelve swallowed a kingdom and its gold. Above it, the village of Emberhold still keeps the lamps lit. Delvers go down. Most do not come back.</p>
     <p>Every tile of this dungeon, every goblin, every gold coin is computed live in <b style="color:#4ae08a">Jesun.Code</b>, running in your browser. Press <b style="color:#ffd75e">M</b> underground for first-person sight.</p>
-    <p><b style="color:#ffd75e">Move:</b> WASD / Arrows &nbsp; <b style="color:#ffd75e">Attack:</b> bump or Space &nbsp; <b style="color:#ffd75e">Talk:</b> E &nbsp; <b style="color:#ffd75e">Potion:</b> Q &nbsp; <b style="color:#ffd75e">View:</b> M</p>
+    <p><b style="color:#ffd75e">Move:</b> WASD / Arrows &nbsp; <b style="color:#ffd75e">Attack:</b> bump or Space &nbsp; <b style="color:#ffd75e">Talk:</b> E &nbsp; <b style="color:#ffd75e">Potion:</b> Q &nbsp; <b style="color:#ffd75e">View:</b> M &nbsp; <b style="color:#ffd75e">Pause:</b> P</p>
     <p style="margin-top:10px">CHOOSE YOUR DELVE:</p>
     <div id="diffrow">
       <button type="button" data-d="1">STORY</button>
@@ -96,7 +96,7 @@
 <div id="log"></div>
 <div id="touch">
   <div id="dpad">
-    <span></span><button data-k="w">&#9650;</button><span></span>
+    <span></span><button data-k="w">&#9650;</button><button data-k="p" title="Pause">II</button>
     <button data-k="a">&#9664;</button><button data-k="s">&#9660;</button><button data-k="d">&#9654;</button>
   </div>
   <div id="acts">
@@ -106,7 +106,7 @@
     <button id="btnMode">3D</button>
   </div>
 </div>
-<div id="help">WASD / Arrows: move (bump to attack) &nbsp;|&nbsp; Space: attack &nbsp;|&nbsp; E: talk / trade &nbsp;|&nbsp; Q: potion &nbsp;|&nbsp; M: top-down / first-person (dungeon)</div>
+<div id="help">WASD / Arrows: move (bump to attack) &nbsp;|&nbsp; Space: attack &nbsp;|&nbsp; E: talk / trade &nbsp;|&nbsp; Q: potion &nbsp;|&nbsp; M: top-down / first-person (dungeon) &nbsp;|&nbsp; P: pause</div>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <script>
 "use strict";
@@ -430,6 +430,7 @@ window.addEventListener('keydown',function(e){
   else if(lk==='e') mapped='e';
   else if(lk==='q') mapped='q';
   else if(lk==='m') mapped='m';
+  else if(lk==='p') mapped='p';
   else if(k===' ') mapped='space';
   else if(k==='Enter'&&!playing&&!over&&document.getElementById('title').classList.contains('hidden')===false) { startRun(); return; }
   if(mapped){ if(keyQueue.length<8) keyQueue.push(mapped); }

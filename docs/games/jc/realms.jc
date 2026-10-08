@@ -184,6 +184,7 @@ to seed_game with s
     G["queue"] is []
     G["log"] is []
     G["over"] is false
+    G["paused"] is false
     G["pface"] is 1
     G["patk"] is 0 - 999
     G["pph"] is 0
@@ -915,6 +916,27 @@ to press with k
     give back nothing
 
 to tick
+    if G["paused"] then
+        note Paused: the world clock freezes. Only P unpauses, queued moves are dropped.
+        n is 0
+        repeat while n is less than 3
+            if length of G["queue"] is 0 then
+                stop
+            k is G["queue"][0]
+            nq is []
+            i is 1
+            repeat while i is less than length of G["queue"]
+                push G["queue"][i] to nq
+                i is i + 1
+            G["queue"] is nq
+            if k is "p" then
+                handle_key with k
+            n is n + 1
+        rebuild_dl
+        if G["paused"] then
+            draw_pause_overlay
+        refresh_out
+        give back nothing
     G["tick"] is G["tick"] + 1
     if G["hitstop"] is greater than 0 then
         note Hit-stop: freeze frames on heavy hits. World holds, particles drift.
@@ -955,6 +977,9 @@ to tick
     tick_parts
     tick_floaters
     rebuild_dl
+    if G["paused"] then
+        note Pause engaged on this tick: stamp the overlay now, not next tick.
+        draw_pause_overlay
     refresh_out
     give back nothing
 
@@ -973,7 +998,21 @@ to toggle_mode
         msg with "Bird's-eye sight."
     give back nothing
 
+to toggle_pause
+    if G["paused"] then
+        G["paused"] is false
+        sfx with "click"
+        msg with "Resumed."
+    otherwise
+        G["paused"] is true
+        sfx with "click"
+        msg with "Paused. Press P to resume."
+    give back nothing
+
 to handle_key with k
+    if k is "p" then
+        toggle_pause
+        give back nothing
     if k is "m" then
         toggle_mode
         give back nothing
@@ -1605,6 +1644,16 @@ to rebuild_dl
     OUT["dl"] is dl
     give back nothing
 
+to draw_pause_overlay
+    note PAUSED stamp on top of the frozen frame, drawn through the display list.
+    dl is OUT["dl"]
+    push ["rect", 54, 46, 84, 36, "0a0a14"] to dl
+    push ["rect", 54, 46, 84, 1, "ffd75e"] to dl
+    push ["rect", 54, 81, 84, 1, "ffd75e"] to dl
+    push ["text", 71, 54, "PAUSED", "ffd75e", 12] to dl
+    push ["text", 75, 70, "press P", "8a8a9a", 8] to dl
+    give back nothing
+
 to draw_parts_top with dl and camx and camy
     for each p in G["parts"]
         vis is on_screen with p["x"] and p["y"] and camx and camy
@@ -2234,6 +2283,7 @@ to refresh_out
     hud["bossmax"] is bbm
     hud["bossname"] is bbn
     hud["mode"] is G["mode"]
+    hud["paused"] is G["paused"]
     hud["diff"] is G["dname"]
     if G["map"] is "over" then
         hud["realm"] is "Emberhold"
