@@ -123,7 +123,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261008g';
+var APP_VERSION='20261008h';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -228,7 +228,7 @@ var MODELS3D={};
 var GLV=[];
 
 function glMakeAtlas(){
-  var c=document.createElement('canvas'); c.width=128; c.height=128;
+  var c=document.createElement('canvas'); c.width=256; c.height=256;
   var g=c.getContext('2d');
   function speckle(x0,y0,n,dark,light){
     var i;
@@ -255,6 +255,49 @@ function glMakeAtlas(){
   speckle(0,64,160,0.3,0.04);
   g.fillStyle='#8a8a8a'; g.fillRect(64,64,64,64);
   speckle(64,64,320,0.18,0.10);
+  /* ---- overworld terrain cells (tex 4-12) ---- */
+  function grassCell(x0,y0){
+    g.fillStyle='#2e5a28'; g.fillRect(x0,y0,64,64);
+    speckle(x0,y0,220,0.35,0.08);
+    g.strokeStyle='rgba(20,60,18,0.7)'; g.lineWidth=1;
+    for(var i=0;i<26;i++){ var bx=x0+(Math.random()*64|0), by=y0+(Math.random()*64|0);
+      g.beginPath(); g.moveTo(bx,by); g.lineTo(bx+1,by-3); g.stroke(); }
+  }
+  grassCell(128,0);
+  function waterCell(x0,y0,base,sh){
+    g.fillStyle=base; g.fillRect(x0,y0,64,64);
+    g.strokeStyle=sh; g.lineWidth=2;
+    for(y=8;y<64;y+=14){ g.beginPath();
+      for(x=0;x<=64;x+=8){ var wy=y0+y+Math.sin((x+y)*0.4)*2; if(x===0) g.moveTo(x0+x,wy); else g.lineTo(x0+x,wy); }
+      g.stroke(); }
+    speckle(x0,y0,80,0.25,0.12);
+  }
+  waterCell(192,0,'#1b4d80','rgba(120,180,230,0.5)');
+  waterCell(128,64,'#2260a0','rgba(140,200,245,0.5)');
+  g.fillStyle='#8a734f'; g.fillRect(192,64,64,64);
+  speckle(192,64,260,0.35,0.08);
+  g.fillStyle='#6a4a2a'; g.fillRect(0,128,64,64);
+  g.strokeStyle='#4a3018'; g.lineWidth=2;
+  for(x=0;x<=64;x+=16){ g.beginPath(); g.moveTo(x,128); g.lineTo(x,192); g.stroke(); }
+  speckle(0,128,140,0.3,0.06);
+  g.fillStyle='#7a2f2f'; g.fillRect(64,128,64,64);
+  g.strokeStyle='#521c1c'; g.lineWidth=2;
+  for(y=128;y<=192;y+=12){ g.beginPath(); g.moveTo(64,y); g.lineTo(128,y); g.stroke();
+    off=((y/12)%2)*16;
+    for(x=64+off;x<=128;x+=32){ g.beginPath(); g.moveTo(x,y); g.lineTo(x,y+12); g.stroke(); } }
+  speckle(64,128,120,0.3,0.06);
+  g.fillStyle='#5a5a62'; g.fillRect(128,128,64,64);
+  g.strokeStyle='#3a3a40'; g.lineWidth=2;
+  for(y=128;y<=192;y+=16){ g.beginPath(); g.moveTo(128,y); g.lineTo(192,y); g.stroke();
+    off=(((y-128)/16)%2)*16;
+    for(x=128+off;x<=192;x+=32){ g.beginPath(); g.moveTo(x,y); g.lineTo(x,y+16); g.stroke(); } }
+  speckle(128,128,140,0.3,0.06);
+  g.fillStyle='#0b0b10'; g.fillRect(192,128,64,64);
+  speckle(192,128,60,0.4,0.05);
+  grassCell(0,192);
+  var cols=['#c03040','#e0c030','#e8e8e8','#c070d0'];
+  for(var fi=0;fi<14;fi++){ g.fillStyle=cols[fi%4];
+    g.fillRect((Math.random()*60|0),192+(Math.random()*60|0),2,2); }
   return c;
 }
 
@@ -447,6 +490,46 @@ function defModels3D(){
   B=[];
   BX(B, 0,0,0, 0.07,0.07,0.07, 1.0,0.85,0.5,{emi:1});
   MODELS3D.spark=B;
+  /* ---- overworld 3D models (all under 20 boxes, dark style) ---- */
+  B=[];
+  BX(B, -0.09,0.17,0, 0.11,0.34,0.12, 0.10,0.12,0.16,{limb:'legL',px:-0.09,py:0.34,pz:0});
+  BX(B, 0.09,0.17,0, 0.11,0.34,0.12, 0.10,0.12,0.16,{limb:'legR',px:0.09,py:0.34,pz:0});
+  BX(B, 0,0.36,0, 0.34,0.06,0.24, 0.30,0.22,0.12);
+  BX(B, 0,0.52,0, 0.32,0.32,0.22, 0.18,0.20,0.26);
+  BX(B, -0.22,0.48,0, 0.10,0.32,0.10, 0.15,0.17,0.22,{limb:'armL',px:-0.17,py:0.62,pz:0});
+  BX(B, 0.22,0.48,0, 0.10,0.32,0.10, 0.15,0.17,0.22,{limb:'armR',px:0.17,py:0.62,pz:0});
+  BX(B, 0,0.78,0, 0.24,0.20,0.24, 0.16,0.18,0.24);
+  BX(B, -0.15,0.90,0, 0.06,0.14,0.06, 0.55,0.50,0.42);
+  BX(B, 0.15,0.90,0, 0.06,0.14,0.06, 0.55,0.50,0.42);
+  BX(B, -0.06,0.78,0.125, 0.05,0.04,0.02, 0.4,0.9,1.0,{emi:1});
+  BX(B, 0.06,0.78,0.125, 0.05,0.04,0.02, 0.4,0.9,1.0,{emi:1});
+  MODELS3D.knight=B;
+  B=[];
+  BX(B, 0,0.25,0, 0.16,0.5,0.16, 0.25,0.17,0.10);
+  BX(B, 0,0.65,0, 0.55,0.4,0.55, 0.10,0.28,0.12);
+  BX(B, 0,0.95,0, 0.42,0.35,0.42, 0.12,0.33,0.14);
+  BX(B, 0,1.20,0, 0.28,0.3,0.28, 0.10,0.28,0.12);
+  MODELS3D.tree1=B;
+  B=[];
+  BX(B, 0,0.2,0, 0.16,0.4,0.16, 0.25,0.17,0.10);
+  BX(B, 0,0.62,0, 0.6,0.45,0.6, 0.12,0.32,0.13);
+  BX(B, 0,0.88,0, 0.4,0.3,0.4, 0.14,0.36,0.15);
+  MODELS3D.tree2=B;
+  B=[];
+  BX(B, -0.25,0.2,0, 0.1,0.4,0.6, 0.35,0.35,0.38);
+  BX(B, 0.25,0.2,0, 0.1,0.4,0.6, 0.35,0.35,0.38);
+  BX(B, 0,0.2,-0.25, 0.6,0.4,0.1, 0.33,0.33,0.36);
+  BX(B, 0,0.2,0.25, 0.6,0.4,0.1, 0.33,0.33,0.36);
+  BX(B, -0.25,0.6,0, 0.08,0.5,0.08, 0.30,0.20,0.12);
+  BX(B, 0.25,0.6,0, 0.08,0.5,0.08, 0.30,0.20,0.12);
+  BX(B, 0,0.88,0, 0.7,0.08,0.7, 0.45,0.15,0.12);
+  MODELS3D.well=B;
+  B=[];
+  BX(B, -0.35,0.4,0, 0.3,0.8,0.5, 0.18,0.18,0.22);
+  BX(B, 0.35,0.4,0, 0.3,0.8,0.5, 0.18,0.18,0.22);
+  BX(B, 0,0.88,0, 1.0,0.3,0.5, 0.20,0.20,0.24);
+  BX(B, 0,0.32,0.03, 0.42,0.6,0.42, 0.01,0.01,0.02);
+  MODELS3D.cave=B;
 }
 
 function glPushBoxLocal(V,b,ang){
@@ -504,7 +587,10 @@ function glPushModel(name,wx,h,wy,yaw,pose){
 }
 
 function glPushQuad(p1,p2,p3,p4,tex,shade){
-  var R=[[0,0.5,0,0.5],[0.5,1,0,0.5],[0,0.5,0.5,1]][tex]||[0.5,1,0.5,1];
+  var R=[[0,0.25,0,0.25],[0.25,0.5,0,0.25],[0,0.25,0.25,0.5],[0.25,0.5,0.25,0.5],
+    [0.5,0.75,0,0.25],[0.75,1,0,0.25],[0.5,0.75,0.25,0.5],[0.75,1,0.25,0.5],
+    [0,0.25,0.5,0.75],[0.25,0.5,0.5,0.75],[0.5,0.75,0.5,0.75],[0.75,1,0.5,0.75],
+    [0,0.25,0.75,1]][tex]||[0.25,0.5,0.25,0.5];
   var e1=[p2[0]-p1[0],p2[1]-p1[1],p2[2]-p1[2]];
   var e2=[p4[0]-p1[0],p4[1]-p1[1],p4[2]-p1[2]];
   var n1=Math.max(1,Math.round(Math.hypot(e1[0],e1[1],e1[2])));
@@ -565,38 +651,56 @@ function glProject(mvp,x,y,z){
 }
 
 function renderGL(dl){
-  var i,c,op,cam=null,sword=0;
+  var i,c,op,cam=null,sword=0,over=false;
   for(i=0;i<dl.length;i++){ c=dl[i]; op=c[0];
-    if(op==='cam3d') cam=c; else if(op==='sword3d') sword=c[1]; }
+    if(op==='cam3d'){ cam=c; over=false; }
+    else if(op==='cam3do'){ cam=c; over=true; }
+    else if(op==='sword3d') sword=c[1]; }
   if(!cam) return [];
-  var camx=cam[1],camz=cam[2],fdx=cam[3],fdy=cam[4],ey=0.55;
-  var mvp=mMul(mPersp(0.817,576/384,0.05,60),
-    mLookAt(camx,ey,camz,camx+fdx,ey,camz+fdy,0,1,0));
+  var mvp,light,fogC,fogD,clearC;
+  if(over){
+    var opx=cam[1],opy=cam[2];
+    mvp=mMul(mPersp(0.9,576/384,0.05,80),
+      mLookAt(opx,4.6,opy-3.4, opx,0.25,opy+1.6, 0,1,0));
+    light=[opx,6,opy-2]; fogC=[0.45,0.60,0.85]; fogD=0.025; clearC=[0.45,0.60,0.85];
+  } else {
+    var camx=cam[1],camz=cam[2],fdx=cam[3],fdy=cam[4],ey=0.55;
+    mvp=mMul(mPersp(0.817,576/384,0.05,60),
+      mLookAt(camx,ey,camz,camx+fdx,ey,camz+fdy,0,1,0));
+    light=[camx,ey,camz]; fogC=[0.02,0.02,0.06]; fogD=0.09; clearC=[0.03,0.03,0.06];
+  }
   GLV.length=0;
   window.DBG3D={quads:0,models:0};
+  function texOf(tn){
+    if(tn==='wall') return 0; if(tn==='floor') return 1; if(tn==='ceil') return 2;
+    if(tn==='grass') return 4; if(tn==='water0') return 5; if(tn==='water1') return 6;
+    if(tn==='path') return 7; if(tn==='wood') return 8; if(tn==='roof') return 9;
+    if(tn==='stone') return 10; if(tn==='dark') return 11; if(tn==='flowers') return 12;
+    return 3;
+  }
   for(i=0;i<dl.length;i++){ c=dl[i]; op=c[0];
     if(op==='quad3d'){
       window.DBG3D.quads++;
-      var tex=c[13]==='floor'?1:(c[13]==='ceil'?2:0);
-      glPushQuad([c[1],c[2],c[3]],[c[4],c[5],c[6]],[c[7],c[8],c[9]],[c[10],c[11],c[12]],tex,c[14]);
+      glPushQuad([c[1],c[2],c[3]],[c[4],c[5],c[6]],[c[7],c[8],c[9]],[c[10],c[11],c[12]],texOf(c[13]),c[14]);
     } else if(op==='model3d'){
       window.DBG3D.models++;
       glPushModel(c[1],c[2],c[3],c[4],c[5],c[6]);
     }
   }
-  glPushSword(camx,ey,camz,fdx,fdy,sword,performance.now());
+  if(!over) glPushSword(cam[1],0.55,cam[2],cam[3],cam[4],sword,performance.now());
   gl.bindBuffer(gl.ARRAY_BUFFER,glBuf);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(GLV),gl.DYNAMIC_DRAW);
   var S=12,FS=Float32Array.BYTES_PER_ELEMENT;
   function attr(n,sz,off){ gl.enableVertexAttribArray(GLA[n]); gl.vertexAttribPointer(GLA[n],sz,gl.FLOAT,false,S*FS,off*FS); }
   attr('aPos',3,0); attr('aUV',2,3); attr('aCol',3,5); attr('aNrm',3,8); attr('aEmi',1,11);
   gl.uniformMatrix4fv(GLU.uMVP,false,new Float32Array(mvp));
-  gl.uniform3f(GLU.uLight,camx,ey,camz);
-  gl.uniform3f(GLU.uFog,0.02,0.02,0.06);
-  gl.uniform1f(GLU.uFogD,0.09);
+  gl.uniform3f(GLU.uLight,light[0],light[1],light[2]);
+  gl.uniform3f(GLU.uFog,fogC[0],fogC[1],fogC[2]);
+  gl.uniform1f(GLU.uFogD,fogD);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D,glTex);
   gl.uniform1i(GLU.uTex,0);
+  gl.clearColor(clearC[0],clearC[1],clearC[2],1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLES,0,GLV.length/12);
   window.DBG3D.verts=GLV.length/12; window.DBG3D.err=gl.getError();
@@ -614,7 +718,7 @@ glInit();
 
 function render(dl){
   var has3d=false, s;
-  if(GL_OK){ for(s=0;s<dl.length;s++){ if(dl[s][0]==='cam3d'){ has3d=true; break; } } }
+  if(GL_OK){ for(s=0;s<dl.length;s++){ var o0=dl[s][0]; if(o0==='cam3d'||o0==='cam3do'){ has3d=true; break; } } }
   var glc=document.getElementById('gl');
   if(has3d){
     glc.style.display='block';
@@ -677,7 +781,7 @@ function updateHUD(h, msgs){
   document.getElementById('potions').textContent=h.potions;
   document.getElementById('kills').textContent=h.kills;
   document.getElementById('score').textContent=h.score;
-  document.getElementById('vmode').textContent=h.mode==='fpp'?'FIRST-PERSON':'TOP-DOWN';
+  document.getElementById('vmode').textContent=h.over3d?'OVERWORLD 3D':(h.mode==='fpp'?'FIRST-PERSON':'TOP-DOWN');
   document.getElementById('realm').textContent=h.realm;
   document.getElementById('diff').textContent=h.diff;
   document.getElementById('mission').textContent='Mission: '+h.mission;
