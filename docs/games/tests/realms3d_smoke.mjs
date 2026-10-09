@@ -586,10 +586,12 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     }
   };
 
-  /* 10a. draw-call budget: the bike adds the single allowed InstancedMesh (46),
-         one render site per tick */
+  /* 10a. draw-call budget: the bike adds the single allowed InstancedMesh
+         (41 after the PERF-2 consolidation: 46 -> 41; flora 7->3 meshes,
+         lootBoxes folded into the shared pickupBoxes mesh), one render
+         site per tick */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('wildlife: exactly one new InstancedMesh vs main (46: the bike body)', imCount === 46, 'count=' + imCount);
+  check('wildlife: exactly one new InstancedMesh vs main (41: the bike body)', imCount === 41, 'count=' + imCount);
   globalThis.__renderCount = 0; frame(30);
   check('wildlife: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
@@ -745,8 +747,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('bike: one shared body InstancedMesh holds all three slots',
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('bike: InstancedMesh count is 45 or 46 (one allowed for the bike)',
-    imCount2 === 45 || imCount2 === 46, 'count=' + imCount2);
+  check('bike: InstancedMesh count is 40 or 41 (one allowed for the bike; 46 -> 41 after PERF-2)',
+    imCount2 === 40 || imCount2 === 41, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
