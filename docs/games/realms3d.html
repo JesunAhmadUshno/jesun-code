@@ -88,6 +88,14 @@
   }
   #combat b { color: #ff6b5e; }
   #combat #kills { color: #d8c84a; }
+
+  /* ---- time-of-day readout (day/night cycle) ---- */
+  #tod {
+    position: absolute; top: 100px; right: 18px; color: #d8c84a; font-size: 13px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 3px; min-width: 92px; text-align: center;
+  }
+  #todicon { margin-right: 10px; }
   #dmgflash { position: fixed; inset: 0; pointer-events: none; z-index: 14; opacity: 0;
     background: radial-gradient(ellipse at center, rgba(200,0,0,0) 35%, rgba(210,25,15,.6) 100%); }
   #toast { position: absolute; top: 32%; left: 50%; transform: translateX(-50%);
@@ -116,6 +124,7 @@
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b></div>
+  <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
   <div id="toast"></div>
 </div>
 
@@ -155,6 +164,10 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x1a2438, 40, 220);          // distance haze
 
+/* Day/night shared refs: populated by the sky/stars/sun/lamp blocks below,
+   consumed by the day/night cycle tick (declared after worldTickers). */
+const DNF = {};
+
 /* Sky dome: vertical gradient, brighter tactical dusk (not pitch black) */
 {
   const c = document.createElement('canvas'); c.width = 2; c.height = 256;
@@ -173,6 +186,7 @@ scene.fog = new THREE.Fog(0x1a2438, 40, 220);          // distance haze
     new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false })
   );
   scene.add(sky);
+  DNF.skyCtx = g; DNF.skyTex = tex;   // repainted by the day/night cycle
 }
 
 /* Visible sun: glowing disc sprite in the sky */
@@ -192,6 +206,7 @@ scene.fog = new THREE.Fog(0x1a2438, 40, 220);          // distance haze
   sunSpr.scale.set(90, 90, 1);
   sunSpr.position.set(180, 95, 120);   // matches directional light direction
   scene.add(sunSpr);
+  DNF.sunSpr = sunSpr;   // follows the sun/moon in the day/night cycle
 }
 
 /* Stars: small bright points on the upper sky dome */
@@ -205,10 +220,12 @@ scene.fog = new THREE.Fog(0x1a2438, 40, 220);          // distance haze
   }
   const sg = new THREE.BufferGeometry();
   sg.setAttribute('position', new THREE.BufferAttribute(p, 3));
-  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({
+  const starMat = new THREE.PointsMaterial({
     color: 0xcfd8ff, size: 1.6, sizeAttenuation: false, fog: false,
     transparent: true, opacity: 0.85
-  })));
+  });
+  scene.add(new THREE.Points(sg, starMat));
+  DNF.starMat = starMat;   // opacity faded by the day/night cycle
 }
 
 /* Drifting clouds: white translucent planes high above the world */
@@ -236,6 +253,7 @@ const clouds = [];
     scene.add(m);
     clouds.push(m);
   }
+  DNF.cloudMat = cloudMat;   // dimmed at night by the day/night cycle
 }
 
 /* ================================ LIGHTING ================================ */
@@ -248,7 +266,9 @@ sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
 sun.shadow.bias = -0.0004;
 scene.add(sun, sun.target);
 
-scene.add(new THREE.HemisphereLight(0x9db4dd, 0x2a3220, 1.2));  // sky/ground fill
+const hemi = new THREE.HemisphereLight(0x9db4dd, 0x2a3220, 1.2);  // sky/ground fill
+scene.add(hemi);
+DNF.hemi = hemi;   // colors driven by the day/night cycle
 
 /* ================================ TERRAIN ================================= */
 /* One noise function drives both the mesh and the walk height. */
@@ -914,11 +934,15 @@ const birds = [];
   scene.add(poles, heads);
 
   /* 4 real point lights at key spots; the rest of the lamps are emissive fakes */
+  const cityLamps = [];
   for (const [x, z, dy] of [[70,-70,9],[48,-70,8],[92,-70,8],[70,-48,8]]) {
     const pl = new THREE.PointLight(0xffb45e, 60, 38, 2);
     pl.position.set(x, terrainHeight(x, z) + dy, z);
     scene.add(pl);
+    cityLamps.push(pl);
   }
+  DNF.cityLamps = cityLamps;      // intensity ramped by the day/night cycle, never toggled
+  DNF.lampHeadMat = headM;        // emissive dimmed by day in the day/night tick
 
   /* ---- rooftop details: AC units + antenna on 3 towers, one merged mesh ---- */
   const roofBits = [];
@@ -1839,6 +1863,9 @@ if (IS_TOUCH) {
   const matLeg = new THREE.MeshStandardMaterial({ color: 0x24262e, roughness: 0.9 });
 
   const npcs = [];
+  /* doorway anchors: NPCs walk here at night and stand until dawn */
+  const HOME_CITY = [[46,-72],[62,-72],[86,-72],[70,-50]];
+  const HOME_SPAWN = [[16,0],[-16,0],[0,16],[0,-16]];
   function makeNPC(shirtIdx, skinIdx, zone, wpList, wpStart) {
     const g = new THREE.Group();
     const body = new THREE.Mesh(geoBody, SHIRTS[shirtIdx % SHIRTS.length]);
@@ -1859,6 +1886,7 @@ if (IS_TOUCH) {
       wi: (wpStart + 1) % wpList.length,
       state: 'WALK', idleT: 0, fleeT: 0,
       fleeDir: new THREE.Vector3(),
+      home: (zone === 'city' ? HOME_CITY : HOME_SPAWN)[npcs.length % 4],
       phase: Math.random() * Math.PI * 2,
     });
   }
@@ -1906,7 +1934,21 @@ if (IS_TOUCH) {
         n.g.rotation.y = Math.atan2(n.fleeDir.x, n.fleeDir.z);
         const sw = Math.sin(now * 14 + n.phase);
         n.legL.rotation.x = sw * 0.8; n.legR.rotation.x = -sw * 0.8;
-        if (n.fleeT <= 0) n.state = 'WALK';
+        if (n.fleeT <= 0) n.state = isNight ? 'SHELTER' : 'WALK';
+      } else if (isNight) {
+        /* night: walk to the doorway anchor, stand there until dawn */
+        n.state = 'SHELTER';
+        tmpDir.set(n.home[0] - p.x, 0, n.home[1] - p.z);
+        if (tmpDir.length() < 0.8) {
+          n.legL.rotation.x = 0; n.legR.rotation.x = 0;
+        } else {
+          tmpDir.normalize();
+          p.x += tmpDir.x * WALK_SPD * dt;
+          p.z += tmpDir.z * WALK_SPD * dt;
+          n.g.rotation.y = Math.atan2(tmpDir.x, tmpDir.z);
+          const sw = Math.sin(now * 7 + n.phase);
+          n.legL.rotation.x = sw * 0.6; n.legR.rotation.x = -sw * 0.6;
+        }
       } else if (n.state === 'IDLE') {
         /* at waypoint: stand 2-5s, slight bob */
         n.idleT -= dt;
@@ -1914,6 +1956,7 @@ if (IS_TOUCH) {
         if (n.idleT <= 0) { n.wi = (n.wi + 1) % n.wps.length; n.state = 'WALK'; }
       } else {
         /* WALK: 1.8 u/s toward next waypoint, legs swing, face direction */
+        if (n.state === 'SHELTER') n.state = 'WALK';   // dawn: back on route
         const wp = n.wps[n.wi];
         tmpDir.set(wp[0] - p.x, 0, wp[1] - p.z);
         const dist = tmpDir.length();
@@ -1948,7 +1991,7 @@ if (IS_TOUCH) {
       }
 
       /* --- ground the NPC, with an idle bob --- */
-      const bob = n.state === 'IDLE' ? Math.abs(Math.sin(now * 2 + n.phase)) * 0.04 : 0;
+      const bob = (n.state === 'IDLE' || n.state === 'SHELTER') ? Math.abs(Math.sin(now * 2 + n.phase)) * 0.04 : 0;
       p.y = terrainHeight(p.x, p.z) + bob;
     }
   }));
@@ -1958,6 +2001,138 @@ if (IS_TOUCH) {
 /* World tickers: workers push (dt, now) => {} functions here. tick() runs them.
    This keeps world-expansion animation out of the game loop body (no merge conflicts). */
 const worldTickers = [];
+
+/* ==================== DAY / NIGHT CYCLE (worker: world builder) ==================== */
+/* 480s full cycle, starts at dusk (matches the shipped "brighter dusk" mood).
+   Drives the existing sun DirectionalLight along an arc; at night the same light
+   becomes the moon (one light for both = zero shader-recompile risk). Lamp
+   PointLights ramp 0 -> 60 by intensity and are NEVER visibility-toggled. */
+let dayPhase = 0.5;    // 0 = dawn, 0.25 = noon, 0.5 = dusk, 0.75 = midnight
+let isNight = false;   // read by the people tick: NPCs shelter at night
+const DAY_LEN = 480;   // seconds per full cycle
+
+/* scratch objects: reused every tick, zero per-frame allocation */
+const _c1 = new THREE.Color(), _c2 = new THREE.Color();
+const _v1 = new THREE.Vector3();
+/* unit vector from the player toward the sun/moon; the shadow follow code in
+   tick() uses it so light direction follows the cycle while the shadow frustum
+   stays glued to the player */
+const sunDir = new THREE.Vector3(45, 70, 28).normalize();
+
+function smooth01(t) { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); }
+
+/* keyframed color track: [{ p: 0..1, c: Color }] sorted by p, last key at p = 1 */
+function keyCol(keys, p, out) {
+  let i = 0;
+  while (i < keys.length - 2 && p >= keys[i + 1].p) i++;
+  const A = keys[i], B = keys[i + 1];
+  out.copy(A.c).lerp(B.c, Math.min(1, Math.max(0, (p - A.p) / (B.p - A.p))));
+}
+/* keyframed number track: [[p, v], ...] sorted by p, last key at p = 1 */
+function keyNum(keys, p) {
+  let i = 0;
+  while (i < keys.length - 2 && p >= keys[i + 1][0]) i++;
+  const A = keys[i], B = keys[i + 1];
+  return A[1] + (B[1] - A[1]) * Math.min(1, Math.max(0, (p - A[0]) / (B[0] - A[0])));
+}
+const KC = (arr) => arr.map(([p, hex]) => ({ p, c: new THREE.Color(hex) }));
+
+const SUN_COL = KC([[0, 0xffb37a], [0.25, 0xfff3e0], [0.5, 0xff9a5e], [0.62, 0x8fa8d8], [0.88, 0x8fa8d8], [1, 0xffb37a]]);
+const SUN_INT = [[0, 2.2], [0.25, 2.8], [0.5, 2.2], [0.62, 0.5], [0.88, 0.5], [1, 2.2]];
+const HEMI_SKY = KC([[0, 0x8a7fb0], [0.25, 0x9db4dd], [0.5, 0x8a9cc8], [0.75, 0x16233f], [1, 0x8a7fb0]]);
+const HEMI_GND = KC([[0, 0x2a2a20], [0.25, 0x2a3220], [0.5, 0x262e1e], [0.75, 0x0d1420], [1, 0x2a2a20]]);
+const HEMI_INT = [[0, 1.0], [0.25, 1.2], [0.5, 1.15], [0.75, 0.55], [1, 1.0]];
+const FOG_COL = KC([[0, 0xa8846c], [0.25, 0x9db8d8], [0.5, 0x1a2438], [0.75, 0x0a1220], [1, 0xa8846c]]);
+
+/* sky-dome gradient stops (canvas is 2x256; offsets match the shipped texture) */
+const SKY_OFFS = [0, 0.45, 0.62, 0.72, 0.85, 1.0];
+const SKY_PAL = [
+  [0.00, ['#232c4a', '#46507a', '#9a6a68', '#e8a06a', '#f5c48a', '#181420']],  // dawn
+  [0.25, ['#3a74c4', '#6fa8dd', '#a5cdea', '#d5e6f2', '#e9f1f5', '#232a20']],  // noon
+  [0.50, ['#0b1226', '#16263f', '#2c4468', '#5e7492', '#8a7a68', '#141a24']],  // dusk (shipped look)
+  [0.75, ['#020409', '#070d1a', '#0d1626', '#16263e', '#1e3049', '#04060b']],  // midnight
+  [1.00, ['#232c4a', '#46507a', '#9a6a68', '#e8a06a', '#f5c48a', '#181420']],  // dawn wraps
+];
+const SKY_STOP_KEYS = SKY_OFFS.map((_, s) => SKY_PAL.map(([p, stops]) => ({ p, c: new THREE.Color(stops[s]) })));
+const _skyCols = SKY_OFFS.map(() => new THREE.Color());
+function paintSky() {
+  for (let s = 0; s < SKY_OFFS.length; s++) keyCol(SKY_STOP_KEYS[s], dayPhase, _skyCols[s]);
+  const g = DNF.skyCtx;
+  const gr = g.createLinearGradient(0, 0, 0, 256);
+  for (let s = 0; s < SKY_OFFS.length; s++) gr.addColorStop(SKY_OFFS[s], '#' + _skyCols[s].getHexString());
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 2, 256);
+  DNF.skyTex.needsUpdate = true;
+}
+
+/* HUD clock refs (script runs at end of body, so the DOM is ready) */
+const todIcon = document.getElementById('todicon');
+const todTime = document.getElementById('todtime');
+let skyAcc = 0, lastMins = -1;
+
+function dayNightTick(dt, now) {
+  dayPhase = (dayPhase + dt / DAY_LEN) % 1;
+  const a = dayPhase * Math.PI * 2;
+  const el = Math.sin(a);                        // sun elevation: 1 noon, 0 dusk/dawn, -1 midnight
+  const dayness = smooth01((el + 0.08) / 0.38);  // 1 full day, 0 full night
+  isNight = el < -0.08;
+
+  /* sun arc by day, moon arc by night; direction only, tick() keeps it on the player */
+  if (el >= -0.03) _v1.set(Math.cos(a) * 170, Math.max(el, 0.03) * 150, 90);
+  else _v1.set(-Math.cos(a) * 170, Math.max(-el, 0.18) * 150, -60);
+  sunDir.copy(_v1.normalize());
+  keyCol(SUN_COL, dayPhase, _c1);
+  sun.color.copy(_c1);
+  sun.intensity = keyNum(SUN_INT, dayPhase);
+
+  /* hemisphere fill: night stays readable, never pitch black */
+  keyCol(HEMI_SKY, dayPhase, _c1); DNF.hemi.color.copy(_c1);
+  keyCol(HEMI_GND, dayPhase, _c1); DNF.hemi.groundColor.copy(_c1);
+  DNF.hemi.intensity = keyNum(HEMI_INT, dayPhase);
+
+  /* fog follows the sky */
+  keyCol(FOG_COL, dayPhase, _c1); scene.fog.color.copy(_c1);
+
+  /* stars fade in at night */
+  DNF.starMat.opacity = 0.9 * (1 - dayness);
+
+  /* sun sprite rides the light dir; fades below the horizon, cools to moon-blue */
+  const spr = DNF.sunSpr;
+  spr.position.copy(player.position).addScaledVector(sunDir, 380);
+  spr.visible = el > -0.06;
+  spr.material.opacity = Math.min(1, Math.max(0, (el + 0.06) / 0.14));
+  _c1.set(0xffffff).lerp(_c2.set(0x9db8ee), 1 - dayness);
+  spr.material.color.copy(_c1);
+
+  /* city lamps ramp 0 -> 60 at night; never toggle .visible (no recompile) */
+  const lampI = 60 * (1 - dayness);
+  const lamps = DNF.cityLamps;
+  for (let i = 0; i < lamps.length; i++) lamps[i].intensity = lampI;
+  if (DNF.lampHeadMat) {
+    DNF.lampHeadMat.emissiveIntensity =
+      (2.2 + Math.sin(now * 2.3) * 0.3) * (0.25 + 0.75 * (1 - dayness));
+  }
+
+  /* clouds dim at night */
+  if (DNF.cloudMat) DNF.cloudMat.opacity = 0.8 * (0.25 + 0.75 * dayness);
+
+  /* birds fly by day, roost at night (mesh visibility is fine) */
+  for (let i = 0; i < birds.length; i++) birds[i].visible = !isNight;
+
+  /* sky gradient repaint, throttled to ~1Hz: no per-frame canvas work */
+  skyAcc += dt;
+  if (skyAcc >= 1) { skyAcc = 0; paintSky(); }
+
+  /* HUD clock: 06:00 dawn, 12:00 noon, 18:00 dusk, 00:00 midnight */
+  const mins = Math.floor(((dayPhase * 24 + 6) % 24) * 60);
+  if (mins !== lastMins) {
+    lastMins = mins;
+    todTime.textContent = String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+    todIcon.textContent = dayness > 0.5 ? '☀' : '☾';
+  }
+}
+paintSky();                       // first frame matches the shipped dusk mood
+worldTickers.push(dayNightTick);  // worldTickers is declared above: no TDZ risk
 
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
@@ -2097,8 +2272,8 @@ function tick() {
   }
   camera.lookAt(lookTarget);
 
-  /* --- sun follows player for crisp shadows --- */
-  sun.position.set(player.position.x + 45, 70, player.position.z + 28);
+  /* --- sun follows player for crisp shadows; direction driven by day/night cycle --- */
+  sun.position.copy(player.position).addScaledVector(sunDir, 130);
   sun.target.position.copy(player.position);
   sun.target.updateMatrixWorld();
 
