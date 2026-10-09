@@ -4,6 +4,20 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-08
 
+### REALMS title screen UX overhaul (roadmap item 2, bullet 1: title screen) (indie dev loop)
+- Title overlay rebuilt for clarity and phones: ENTER THE REALMS button is now
+  a full-width pulsing gold CTA with a "TAP THE BUTTON OR PRESS ENTER" hint
+  line above it; difficulty buttons got 44px+ tap targets, a glowing selected
+  state, and a brighter description line; the credit line moved to a legible
+  12px; the overlay scrolls on short phone screens with a small-viewport
+  media query (reduced padding, type sizes, flex difficulty row).
+- Driver-only change (`realms.html`); game logic untouched, still 100%
+  Jesun.Code; `deepdelve.jc`/`deepdelve.html` untouched.
+- Driver: `APP_VERSION` bumped to `20261008p`.
+- Verified: driver inline JS syntax-checked with node, CPython boot + 60-tick
+  randomized pump zero exceptions; live browser playtest of the pushed page
+  (title screen at phone viewport, difficulty select, START flow).
+
 ### REALMS 3D phase (e): overworld in real 3D, no more top-down sprites (indie dev loop)
 - Emberhold is now real 3D geometry whenever WebGL is available. Jesun.Code
   emits an oblique third-person scene (`cam3do` camera over the knight):

@@ -38,11 +38,13 @@ Phases, one per run:
 Budget guard stays: scene build per tick under ~120ms under Node+Pyodide;
 WebGL draw itself is GPU-cheap.
 
-### 2. UX/UI overhaul program (founder directive 2026-10-08) [NEXT]
+### 2. UX/UI overhaul program (founder directive 2026-10-08) [IN PROGRESS]
 Founder: "Get ux ui even better." A full pass over every screen with fresh
 eyes, judged like the videos: sharper than the last build or it does not ship.
-- Title screen: clearer START prompt, difficulty select readability, credit
-  line legible on phone.
+- [x] Title screen (shipped 2026-10-08, APP_VERSION 20261008p): clearer START
+  prompt (pulsing full-width CTA + tap/Enter hint), difficulty select
+  readability (44px+ tap targets, glowing selected state, brighter
+  description), credit line legible on phone, overlay scrolls on small screens.
 - HUD: HP/gold/potions/depth readable at phone size, quest tracker clarity,
   boss HP bar polish, low-HP vignette tuning, message log shows last 3.
 - Touch controls: bigger hit areas, dpad plus action buttons layout, pressed
