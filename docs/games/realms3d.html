@@ -474,7 +474,41 @@ const WORLD = 220;   // legacy: landmark zones still use fixed coords near origi
    terrain is identical when you revisit. Zero allocation after init: each
    chunk owns one BufferGeometry whose Y/color attributes are rewritten. */
 const CHUNK = 48, GRID = 7, HALFGRID = 3, CSEG = 16;
-const chunkMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+/* --- procedural terrain detail: tileable grayscale grain over the vertex
+   colors. Near-white base so the grass/dirt/rock tint survives the multiply;
+   every blotch and speck is drawn 9x wrapped so the 256px tile is seamless
+   across chunk borders. One shared texture, zero new draw calls. --- */
+function makeTerrainDetailTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, 256, 256);
+  /* soft blotches: per-copy gradients keep each wrapped copy aligned */
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256, r = 10 + Math.random() * 26;
+    const v = 224 + (Math.random() * 28 | 0);
+    for (let ox = -256; ox <= 256; ox += 256) for (let oy = -256; oy <= 256; oy += 256) {
+      const grd = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+      grd.addColorStop(0, 'rgba(' + v + ',' + v + ',' + v + ',0.55)');
+      grd.addColorStop(1, 'rgba(' + v + ',' + v + ',' + v + ',0)');
+      g.fillStyle = grd;
+      g.beginPath(); g.arc(x + ox, y + oy, r, 0, 6.2832); g.fill();
+    }
+  }
+  /* fine speckle grain, wrapped for tileability */
+  for (let i = 0; i < 2400; i++) {
+    const x = Math.random() * 256 | 0, y = Math.random() * 256 | 0;
+    const v = 198 + (Math.random() * 57 | 0);
+    g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')';
+    for (let ox = -256; ox <= 256; ox += 256) for (let oy = -256; oy <= 256; oy += 256)
+      g.fillRect(x + ox, y + oy, 2, 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.repeat.set(24, 24);
+  return t;
+}
+const chunkMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: makeTerrainDetailTex() });
 WX.groundMat = chunkMat;   // weather tick darkens + glosses it when raining
 const _cGrass = new THREE.Color(0x2f4a22), _cGrass2 = new THREE.Color(0x3d5c2a),
       _cDirt = new THREE.Color(0x4a3d28), _cRock = new THREE.Color(0x5a5a58),
@@ -1357,17 +1391,34 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
     const c = document.createElement('canvas'); c.width = 128; c.height = 256;
     const g = c.getContext('2d');
     g.fillStyle = '#000000'; g.fillRect(0, 0, 128, 256);
+    /* facade grain: near-black noise, stays dark as an emissiveMap */
+    for (let i = 0; i < 700; i++) {
+      const v = 4 + (Math.random() * 8 | 0);
+      g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')';
+      g.fillRect(Math.random() * 128 | 0, Math.random() * 256 | 0, 2, 2);
+    }
     const cols = 6, rows = 14, cw = 128 / cols, rh = 256 / rows;
+    /* floor slab seams: faint lines between window rows, read at night */
+    g.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let r = 1; r < rows; r++) g.fillRect(0, r * rh - 1, 128, 2);
     const warm = ['#ffd98a', '#ffca66', '#fff3cf', '#ffb85e'];
     for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) {
-      const x = q * cw + cw * 0.22, y = r * rh + rh * 0.26;
+      const jx = (Math.random() - 0.5) * cw * 0.08, jy = (Math.random() - 0.5) * rh * 0.08;
+      const x = q * cw + cw * 0.22 + jx, y = r * rh + rh * 0.26 + jy;
+      const w = cw * (0.5 + Math.random() * 0.1), h = rh * (0.42 + Math.random() * 0.1);
       if (Math.random() < 0.36) {
         g.fillStyle = warm[(Math.random() * warm.length) | 0];
         g.globalAlpha = 0.75 + Math.random() * 0.25;
+        g.fillRect(x, y, w, h);
+        /* blinds: a dark band across some lit windows */
+        if (Math.random() < 0.4) {
+          g.globalAlpha = 1; g.fillStyle = 'rgba(8,10,14,0.55)';
+          g.fillRect(x, y + h * (0.3 + Math.random() * 0.3), w, h * 0.18);
+        }
       } else {
         g.fillStyle = '#05070b'; g.globalAlpha = 1;
+        g.fillRect(x, y, w, h);
       }
-      g.fillRect(x, y, cw * 0.56, rh * 0.48);
     }
     g.globalAlpha = 1;
     const t = new THREE.CanvasTexture(c);
@@ -1516,10 +1567,29 @@ function makeSkinTex() {
   return t;
 }
 const skinTex = makeSkinTex();
+/* --- procedural fabric weave: near-white 2px plain weave, tileable. The map
+   multiplies the shirt/pants colors, so the base stays bright to keep the
+   tint intact. Shared by MAT.shirt, MAT.pants, and the NPC matBody: one
+   canvas texture, zero extra memory. iOS-safe like makeSkinTex. --- */
+function makeFabricTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+    const over = ((x >> 1) + (y >> 1)) % 2 === 0;
+    const v = (over ? 244 : 224) + (Math.random() * 9 | 0);
+    g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')';
+    g.fillRect(x, y, 1, 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const fabricTex = makeFabricTex();
 const MAT = {
   skin:  new THREE.MeshStandardMaterial({ map: skinTex, roughness: 0.65 }),
-  shirt: new THREE.MeshStandardMaterial({ color: 0x4a5238, roughness: 0.95 }),
-  pants: new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.95 }),
+  shirt: new THREE.MeshStandardMaterial({ color: 0x4a5238, roughness: 0.95, map: fabricTex }),
+  pants: new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.95, map: fabricTex }),
   boots: new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 0.7 }),
   vest:  new THREE.MeshStandardMaterial({ color: 0x3a3f2e, roughness: 0.9 }),
   accent:new THREE.MeshStandardMaterial({ color: 0xc7a23a, roughness: 0.6, emissive: 0x553f00, emissiveIntensity: 0.4 }),
@@ -3663,7 +3733,7 @@ if (IS_TOUCH) {
   geoLeg.translate(0, -0.45, 0);   /* bake the hip-pivot leg offset into the geometry once */
   const SHIRTS = [0x2a4a7a, 0x7a2a2a, 0x2a7a3a, 0x7a6a2a, 0x5a2a7a, 0x2a7a6a, 0x7a4a2a, 0x9a9a9a];
   const SKINS  = [0x8a6f5c, 0xc9a183, 0x6e523e];
-  const matBody = new THREE.MeshStandardMaterial({ roughness: 0.85 });  /* white: instanceColor carries the shirt */
+  const matBody = new THREE.MeshStandardMaterial({ roughness: 0.85, map: fabricTex });  /* white: instanceColor carries the shirt; shared fabric weave */
   const matHead = new THREE.MeshStandardMaterial({ roughness: 0.8 });   /* white: instanceColor carries the skin */
   const matLeg  = new THREE.MeshStandardMaterial({ color: 0x24262e, roughness: 0.9 });
 
