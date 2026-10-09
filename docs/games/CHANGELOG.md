@@ -24,8 +24,17 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 - Verified: driver inline JS node syntax-checked; 1200-tick CPython pumps
   (overworld, FPP toggle, dungeon, all difficulties) zero exceptions;
   50-tick determinism byte-identical; Node+Pyodide exact bridge flow 120 FPP
-  ticks avg 19.8ms/tick (budget 120ms); low-HP and pause paths unit-checked.
-  Live browser playtest of the pushed page (phone viewport) next in this run.
+  ticks avg 19.8ms/tick (budget 120ms); low-HP and pause paths unit-checked;
+  driver DOM id/CSS cross-check all green, no em dashes.
+- Live playtest of the pushed page (build 20261009a confirmed served, no
+  deploy lag): clean boot, no visible page errors, HUD readable, log shows
+  last 3 with newest gold, quest line correctly hidden with no quest.
+  Gaps, stated plainly: the automation could not set a phone viewport, so the
+  520px media query is code-reviewed, not visually verified; the OBJECTIVE
+  chip is code-verified but never appeared in-game because no quest was
+  activated (see roadmap item 13: E-to-talk vs wandering NPCs made Elder
+  Marla unreachable in the session); the cave was not found, so the 3D-FPP
+  vignette and boss bar were not visually verified either.
 
 ## 2026-10-08
 
