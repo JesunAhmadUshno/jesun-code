@@ -758,25 +758,27 @@ const FLORA = {};
   const trunkG = new THREE.CylinderGeometry(0.14, 0.22, 1.6, 7);
   trunkG.translate(0, 0.8, 0);
   const trunkM = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 1 });
-  const NT = 150;
-  const trunks = new THREE.InstancedMesh(trunkG, trunkM, NT);
 
   const folG = new THREE.ConeGeometry(1.5, 3.4, 8);
   folG.translate(0, 3.1, 0);
   const folG2 = new THREE.ConeGeometry(1.05, 2.4, 8);
   folG2.translate(0, 4.6, 0);
-  // merge two cones manually: build one BufferGeometry via groups is overkill;
-  // instead use two instanced meshes sharing transforms
+  /* PERF-2a: the two foliage cones always share a transform, so they merge
+     into one geometry (identical triangles, one draw call instead of two).
+     The forest-landmark pines use the same shapes and materials, so they
+     live in these same two meshes at slots [0, NF): 7 draws become 3. */
+  const folG12 = mergeGeos([folG, folG2]);
   const folM = new THREE.MeshStandardMaterial({ color: 0x1e3a1c, roughness: 1 });
-  const fol1 = new THREE.InstancedMesh(folG, folM, NT);
-  const fol2 = new THREE.InstancedMesh(folG2, folM, NT);
-  for (const m of [trunks, fol1, fol2]) {
+  const NT = 150, NF = 60;
+  const trunks = new THREE.InstancedMesh(trunkG, trunkM, NT + NF);
+  const fol = new THREE.InstancedMesh(folG12, folM, NT + NF);
+  for (const m of [trunks, fol]) {
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     m.castShadow = m.receiveShadow = true;
     m.frustumCulled = false;
     scene.add(m);
   }
-  FLORA.trunks = trunks; FLORA.fol1 = fol1; FLORA.fol2 = fol2; FLORA.nt = NT;
+  FLORA.trunks = trunks; FLORA.fol = fol; FLORA.nt = NT; FLORA.nf = NF;
 
   const rockG = new THREE.DodecahedronGeometry(0.9, 0);
   const rockM = new THREE.MeshStandardMaterial({ color: 0x6a6d68, roughness: 0.95 });
@@ -820,7 +822,7 @@ function redistributeFlora(pcx, pcz) {
   rebuildFloraNoGo(pcx, pcz);
   _treePtsByChunk.clear();
   let ti = 0;
-  const { trunks, fol1, fol2, nt, rocks, nr } = FLORA;
+  const { trunks, fol, nt, nf, rocks, nr } = FLORA;
   for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++) {
     for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
       const rnd = mulberry32(hash2i(gx, gz));
@@ -845,9 +847,8 @@ function redistributeFlora(pcx, pcz) {
         dummy.rotation.y = rnd() * Math.PI * 2;
         dummy.scale.set(s, s, s);
         dummy.updateMatrix();
-        trunks.setMatrixAt(ti, dummy.matrix);
-        fol1.setMatrixAt(ti, dummy.matrix);
-        fol2.setMatrixAt(ti, dummy.matrix);
+        trunks.setMatrixAt(nf + ti, dummy.matrix);
+        fol.setMatrixAt(nf + ti, dummy.matrix);
         coverPts.push([x, z]);
         _treePts.push(x, z);
         ti++;
@@ -855,10 +856,9 @@ function redistributeFlora(pcx, pcz) {
       if (_treePts.length) _treePtsByChunk.set(gx + ',' + gz, _treePts.slice());
     }
   }
-  trunks.count = fol1.count = fol2.count = ti;
+  trunks.count = fol.count = nf + ti;
   trunks.instanceMatrix.needsUpdate = true;
-  fol1.instanceMatrix.needsUpdate = true;
-  fol2.instanceMatrix.needsUpdate = true;
+  fol.instanceMatrix.needsUpdate = true;
   let ri = 0;
   for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++) {
     for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
@@ -941,18 +941,13 @@ const NAT = {
 const FOREST = { x0: -100, x1: -20, z0: -100, z1: -40 };
 const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
 
-/* ---- FOREST (north): 60 extra instanced pines, trunk + 2 cone layers ---- */
+/* ---- FOREST (north): 60 extra instanced pines, trunk + 2 cone layers ----
+   PERF-2a: forest pines share the FLORA meshes (identical shapes/materials);
+   their slots [0, NF) are written once here and never touched by the
+   redistributor. */
 {
-  const trunkG = new THREE.CylinderGeometry(0.14, 0.22, 1.6, 7);
-  trunkG.translate(0, 0.8, 0);
-  const folG = new THREE.ConeGeometry(1.5, 3.4, 8);
-  folG.translate(0, 3.1, 0);
-  const folG2 = new THREE.ConeGeometry(1.05, 2.4, 8);
-  folG2.translate(0, 4.6, 0);
-  const N = 60;
-  const trunks = new THREE.InstancedMesh(trunkG, NAT.trunk, N);
-  const fol1 = new THREE.InstancedMesh(folG, NAT.pine, N);
-  const fol2 = new THREE.InstancedMesh(folG2, NAT.pine, N);
+  const N = FLORA.nf;
+  const trunks = FLORA.trunks, fol = FLORA.fol;
   for (let i = 0; i < N; i++) {
     const x = FOREST.x0 + Math.random() * (FOREST.x1 - FOREST.x0);
     const z = FOREST.z0 + Math.random() * (FOREST.z1 - FOREST.z0);
@@ -963,14 +958,10 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
     dummy.scale.set(s, s, s);
     dummy.updateMatrix();
     trunks.setMatrixAt(i, dummy.matrix);
-    fol1.setMatrixAt(i, dummy.matrix);
-    fol2.setMatrixAt(i, dummy.matrix);
+    fol.setMatrixAt(i, dummy.matrix);
   }
-  for (const m of [trunks, fol1, fol2]) {
-    m.instanceMatrix.needsUpdate = true;
-    m.castShadow = m.receiveShadow = true;
-    scene.add(m);
-  }
+  trunks.instanceMatrix.needsUpdate = true;
+  fol.instanceMatrix.needsUpdate = true;
 }
 
 /* ---- FARM (west): fenced pasture, barn, hay bales ----------------------- */
@@ -1793,12 +1784,16 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
     return g;
   }
 
-  /* ---- streets: dark asphalt. A along x at z=-70, B along z at x=70 ---- */
+  /* ---- streets: dark asphalt. A along x at z=-70, B along z at x=70 ----
+     PERF-2b: both strips share one material and never move, so they merge
+     into a single draw call. Render is identical. */
   const asphaltM = new THREE.MeshStandardMaterial({ color: 0x1e2026, roughness: 0.96 });
-  const streetA = new THREE.Mesh(groundPlane(60, 8, 30, 4, 70, -70, 0.06), asphaltM);
-  const streetB = new THREE.Mesh(groundPlane(8, 60, 4, 30, 70, -70, 0.06), asphaltM);
-  streetA.receiveShadow = streetB.receiveShadow = true;
-  scene.add(streetA, streetB);
+  const streetMesh = new THREE.Mesh(mergeGeos([
+    groundPlane(60, 8, 30, 4, 70, -70, 0.06),
+    groundPlane(8, 60, 4, 30, 70, -70, 0.06),
+  ]), asphaltM);
+  streetMesh.receiveShadow = true;
+  scene.add(streetMesh);
 
   /* ---- sidewalks: lighter strips merged into one mesh ---- */
   const walkM = new THREE.MeshStandardMaterial({ color: 0x62676f, roughness: 0.9 });
@@ -1881,37 +1876,78 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
   const bands = [[], [], [], []];
   for (const b of B) bands[bandOf(b[3])].push(b);
   const boxG = new THREE.BoxGeometry(1, 1, 1);
-  const bandMats = [];
+  /* PERF-2c: bands 0, 1, 3 merge into one static vertex-colored mesh (one
+     draw call). Per-band window repeats bake into the geometry UVs and the
+     per-instance tints bake into vertex colors, so texel sampling and
+     lighting are identical. Band 2 keeps its own InstancedMesh because the
+     night-flicker ticker modulates its material (bandMats[2]). */
+  const bandMats = [null, null, null, null];
   const tint = new THREE.Color();
-  bands.forEach(list => {
+  const _bldM = new THREE.Matrix4();
+  const _bldUV = (g, rx, ry) => {
+    const uv = g.attributes.uv;
+    for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * rx, uv.getY(k) * ry);
+  };
+  const _bldTint = (g, c) => {
+    const n = g.attributes.position.count, carr = new Float32Array(n * 3);
+    for (let k = 0; k < n; k++) { carr[k * 3] = c.r; carr[k * 3 + 1] = c.g; carr[k * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(carr, 3));
+  };
+  const mergedBandGeos = [];
+  bands.forEach((list, bi) => {
     if (!list.length) return;
     let aw = 0, ah = 0;
     for (const b of list) { aw += b[2]; ah += b[3]; }
     aw /= list.length; ah /= list.length;
-    const tex = winTex.clone(); tex.needsUpdate = true;
-    tex.repeat.set(Math.max(1, Math.round(aw / 12)), Math.max(1, Math.round(ah / 12)));
-    const m = new THREE.MeshStandardMaterial({
-      color: 0x3a3f4a, roughness: 0.92,
-      emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 1.5,
-    });
-    const im = new THREE.InstancedMesh(boxG, m, list.length);
-    list.forEach((b, i) => {
+    const repX = Math.max(1, Math.round(aw / 12)), repY = Math.max(1, Math.round(ah / 12));
+    if (bi === 2) {
+      const tex = winTex.clone(); tex.needsUpdate = true;
+      tex.repeat.set(repX, repY);
+      const m = new THREE.MeshStandardMaterial({
+        color: 0x3a3f4a, roughness: 0.92,
+        emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 1.5,
+      });
+      bandMats[bi] = m;
+      const im = new THREE.InstancedMesh(boxG, m, list.length);
+      list.forEach((b, i) => {
+        const base = terrainHeight(b[0], b[1]);
+        dummy.position.set(b[0], base + b[3] / 2 - 0.6, b[1]);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(b[2], b[3], b[4]);
+        dummy.updateMatrix();
+        im.setMatrixAt(i, dummy.matrix);
+        const v = 0.82 + Math.random() * 0.26;
+        tint.setRGB(v, v * (0.97 + Math.random() * 0.06), v * (1.02 + Math.random() * 0.08));
+        im.setColorAt(i, tint);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      im.castShadow = im.receiveShadow = true;
+      scene.add(im);
+      return;
+    }
+    for (const b of list) {
       const base = terrainHeight(b[0], b[1]);
-      dummy.position.set(b[0], base + b[3] / 2 - 0.6, b[1]);
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(b[2], b[3], b[4]);
-      dummy.updateMatrix();
-      im.setMatrixAt(i, dummy.matrix);
+      const g = boxG.clone();
+      _bldUV(g, repX, repY);
       const v = 0.82 + Math.random() * 0.26;
       tint.setRGB(v, v * (0.97 + Math.random() * 0.06), v * (1.02 + Math.random() * 0.08));
-      im.setColorAt(i, tint);
-    });
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-    im.castShadow = im.receiveShadow = true;
-    scene.add(im);
-    bandMats.push(m);
+      _bldTint(g, tint);
+      _bldM.makeScale(b[2], b[3], b[4]);
+      _bldM.setPosition(b[0], base + b[3] / 2 - 0.6, b[1]);
+      g.applyMatrix4(_bldM);
+      mergedBandGeos.push(g);
+    }
   });
+  /* one shared material for the merged static bands; the window repeat is
+     baked per-building into the UVs, so the base texture stays at (1,1) */
+  const mergedBandMat = new THREE.MeshStandardMaterial({
+    color: 0x3a3f4a, roughness: 0.92, vertexColors: true,
+    emissive: 0xffffff, emissiveMap: winTex, emissiveIntensity: 1.5,
+  });
+  const mergedBandMesh = new THREE.Mesh(mergeGeosColor(mergedBandGeos), mergedBandMat);
+  mergedBandMesh.castShadow = mergedBandMesh.receiveShadow = true;
+  scene.add(mergedBandMesh);
 
   /* ---- street lights: instanced poles + glowing heads ---- */
   const poleG = new THREE.CylinderGeometry(0.12, 0.17, 7, 6);
@@ -3732,14 +3768,18 @@ const objIcon = new THREE.Mesh(startIconGeo, new THREE.MeshStandardMaterial({ co
   emissive: 0x903000, roughness: 0.4 }));
 objRing.visible = false; objIcon.visible = false;
 scene.add(objRing); scene.add(objIcon);
-/* crates: one instanced pool for package + supply pickups (1 draw call) */
-const crateGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
-const crateMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
-const crates = new THREE.InstancedMesh(crateGeo, crateMat, 6);
-crates.frustumCulled = false;
+/* crates: one instanced pool for package + supply pickups.
+   PERF-2d: mission crates (0.9m) and loot boxes (0.75m) share identical
+   material params, so one unit-box InstancedMesh holds both: slots 0-5 are
+   mission crates, slots 6-12 are loot boxes. The per-instance scale
+   reproduces the exact vertices of the old BoxGeometry(0.9)/BoxGeometry(0.75). */
+const pickupBoxMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
+const pickupBoxes = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), pickupBoxMat, 13);
+pickupBoxes.frustumCulled = false;
+const LOOTBOX_OFF = 6;
 const C_ORANGE = new THREE.Color(0xff8c2e), C_GREEN = new THREE.Color(0x4ae08a);
-for (let i = 0; i < 6; i++) { crates.setMatrixAt(i, M_HIDE); crates.setColorAt(i, C_GREEN); }
-scene.add(crates);
+for (let i = 0; i < 13; i++) { pickupBoxes.setMatrixAt(i, M_HIDE); pickupBoxes.setColorAt(i, C_GREEN); }
+scene.add(pickupBoxes);
 const crateSpots = [];   // live collect spots for the current phase: {x, z, taken}
 
 function missionAvailable(i) { return i === 0 || MS.done[i - 1]; }
@@ -3767,8 +3807,8 @@ function updateMissionHUD() {
   else setObjectiveText();
 }
 function hideMissionProps() {
-  for (let s = 0; s < 6; s++) crates.setMatrixAt(s, M_HIDE);
-  crates.instanceMatrix.needsUpdate = true;
+  for (let s = 0; s < 6; s++) pickupBoxes.setMatrixAt(s, M_HIDE);
+  pickupBoxes.instanceMatrix.needsUpdate = true;
   crateSpots.length = 0;
   objRing.visible = false; objIcon.visible = false;
   marrowEl.style.display = 'none';
@@ -3782,13 +3822,13 @@ function setupPhase() {
     const sp = o.spots[s];
     crateSpots.push({ x: sp[0], z: sp[1], taken: false });
     _mDummy.position.set(sp[0], terrainHeight(sp[0], sp[1]) + 0.45, sp[1]);
-    _mDummy.rotation.set(0, s * 0.7, 0); _mDummy.scale.set(1, 1, 1);
-    _mDummy.updateMatrix(); crates.setMatrixAt(s, _mDummy.matrix);
-    crates.setColorAt(s, MS.idx === 2 ? C_ORANGE : C_GREEN);
+    _mDummy.rotation.set(0, s * 0.7, 0); _mDummy.scale.set(0.9, 0.9, 0.9);
+    _mDummy.updateMatrix(); pickupBoxes.setMatrixAt(s, _mDummy.matrix);
+    pickupBoxes.setColorAt(s, MS.idx === 2 ? C_ORANGE : C_GREEN);
   }
-  for (let s = nShow; s < 6; s++) crates.setMatrixAt(s, M_HIDE);
-  crates.instanceMatrix.needsUpdate = true;
-  if (crates.instanceColor) crates.instanceColor.needsUpdate = true;
+  for (let s = nShow; s < 6; s++) pickupBoxes.setMatrixAt(s, M_HIDE);
+  pickupBoxes.instanceMatrix.needsUpdate = true;
+  if (pickupBoxes.instanceColor) pickupBoxes.instanceColor.needsUpdate = true;
   setObjectiveText();
 }
 function startMission(i) {
@@ -3894,7 +3934,7 @@ function missionTick(dt) {
       const dx = c.x - px, dz = c.z - pz;
       if (dx * dx + dz * dz < r * r) {
         c.taken = true;
-        crates.setMatrixAt(s, M_HIDE); crates.instanceMatrix.needsUpdate = true;
+        pickupBoxes.setMatrixAt(s, M_HIDE); pickupBoxes.instanceMatrix.needsUpdate = true;
         MS.prog++;
         if (MS.prog >= o.n) phaseComplete(); else setObjectiveText();
         break;
@@ -4025,13 +4065,11 @@ const lootGunGeo = new THREE.BoxGeometry(0.16, 0.3, 1.25);
 const lootGunMat = new THREE.MeshStandardMaterial({ color: 0xffffff,
   emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 0.5 });
 const lootGuns = new THREE.InstancedMesh(lootGunGeo, lootGunMat, 4);
-const lootBoxGeo = new THREE.BoxGeometry(0.75, 0.75, 0.75);
-const lootBoxMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
-const lootBoxes = new THREE.InstancedMesh(lootBoxGeo, lootBoxMat, 7);
+/* PERF-2d: loot boxes live in the shared pickupBoxes mesh (slots 6-12) */
 const lootCrossMat = new THREE.MeshStandardMaterial({ color: 0xeaffea,
   emissive: 0x7dff9a, emissiveIntensity: 0.9, roughness: 0.4 });
 const lootCrosses = new THREE.InstancedMesh(makeCrossGeo(), lootCrossMat, 4);
-for (const m of [lootRings, lootIcons, lootGuns, lootBoxes, lootCrosses])
+for (const m of [lootRings, lootIcons, lootGuns, lootCrosses])
   { m.frustumCulled = false; scene.add(m); }
 
 /* place every loot item once; remember each item's instance slots */
@@ -4053,9 +4091,11 @@ for (let i = 0; i < LOOT.length; i++) {
     lootGuns.setColorAt(L.gunIdx, c);
   } else {
     L.boxIdx = _boxIdx++;
-    _mDummy.position.set(L.x, L.baseY + 0.4, L.z); _mDummy.updateMatrix();
-    lootBoxes.setMatrixAt(L.boxIdx, _mDummy.matrix);
-    lootBoxes.setColorAt(L.boxIdx, c);
+    _mDummy.position.set(L.x, L.baseY + 0.4, L.z);
+    _mDummy.scale.set(0.75, 0.75, 0.75); _mDummy.updateMatrix();
+    _mDummy.scale.set(1, 1, 1);
+    pickupBoxes.setMatrixAt(LOOTBOX_OFF + L.boxIdx, _mDummy.matrix);
+    pickupBoxes.setColorAt(LOOTBOX_OFF + L.boxIdx, c);
     if (L.kind === 'health') {
       L.crossIdx = _crossIdx++;
       _mDummy.position.set(L.x, L.baseY + 0.86, L.z);
@@ -4068,7 +4108,7 @@ for (let i = 0; i < LOOT.length; i++) {
 lootRings.instanceColor.needsUpdate = true;
 lootIcons.instanceColor.needsUpdate = true;
 lootGuns.instanceColor.needsUpdate = true;
-lootBoxes.instanceColor.needsUpdate = true;
+pickupBoxes.instanceColor.needsUpdate = true;
 updateWeaponHUD();
 
 function hideLoot(L) {
@@ -4076,13 +4116,13 @@ function hideLoot(L) {
   lootIcons.setMatrixAt(LOOT.indexOf(L), M_HIDE);
   if (L.kind === 'weapon') lootGuns.setMatrixAt(L.gunIdx, M_HIDE);
   else {
-    lootBoxes.setMatrixAt(L.boxIdx, M_HIDE);
+    pickupBoxes.setMatrixAt(LOOTBOX_OFF + L.boxIdx, M_HIDE);
     if (L.kind === 'health') lootCrosses.setMatrixAt(L.crossIdx, M_HIDE);
   }
   lootRings.instanceMatrix.needsUpdate = true;
   lootIcons.instanceMatrix.needsUpdate = true;
   lootGuns.instanceMatrix.needsUpdate = true;
-  lootBoxes.instanceMatrix.needsUpdate = true;
+  pickupBoxes.instanceMatrix.needsUpdate = true;
   lootCrosses.instanceMatrix.needsUpdate = true;
 }
 function showLoot(L) {
@@ -4096,8 +4136,10 @@ function showLoot(L) {
     _mDummy.position.set(L.x, L.baseY + 1.15, L.z); _mDummy.updateMatrix();
     lootGuns.setMatrixAt(L.gunIdx, _mDummy.matrix);
   } else {
-    _mDummy.position.set(L.x, L.baseY + 0.4, L.z); _mDummy.updateMatrix();
-    lootBoxes.setMatrixAt(L.boxIdx, _mDummy.matrix);
+    _mDummy.position.set(L.x, L.baseY + 0.4, L.z);
+    _mDummy.scale.set(0.75, 0.75, 0.75); _mDummy.updateMatrix();
+    _mDummy.scale.set(1, 1, 1);
+    pickupBoxes.setMatrixAt(LOOTBOX_OFF + L.boxIdx, _mDummy.matrix);
     if (L.kind === 'health') {
       _mDummy.position.set(L.x, L.baseY + 0.86, L.z);
       _mDummy.rotation.set(0, i * 0.9, 0); _mDummy.updateMatrix();
@@ -4108,7 +4150,7 @@ function showLoot(L) {
   lootRings.instanceMatrix.needsUpdate = true;
   lootIcons.instanceMatrix.needsUpdate = true;
   lootGuns.instanceMatrix.needsUpdate = true;
-  lootBoxes.instanceMatrix.needsUpdate = true;
+  pickupBoxes.instanceMatrix.needsUpdate = true;
   lootCrosses.instanceMatrix.needsUpdate = true;
 }
 
