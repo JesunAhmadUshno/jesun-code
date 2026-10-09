@@ -313,7 +313,9 @@ const WX = {};
     new THREE.SphereGeometry(400, 24, 16),
     new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false })
   );
+  sky.frustumCulled = false;
   scene.add(sky);
+  DNF.skyMesh = sky;   // follows the player: the world is infinite
   DNF.skyCtx = g; DNF.skyTex = tex;   // repainted by the day/night cycle
 }
 
@@ -352,8 +354,11 @@ const WX = {};
     color: 0xcfd8ff, size: 1.6, sizeAttenuation: false, fog: false,
     transparent: true, opacity: 0.85
   });
-  scene.add(new THREE.Points(sg, starMat));
+  const starPts = new THREE.Points(sg, starMat);
+  starPts.frustumCulled = false;
+  scene.add(starPts);
   DNF.starMat = starMat;   // opacity faded by the day/night cycle
+  DNF.starPts = starPts;   // follows the player: the world is infinite
 }
 
 /* Drifting clouds: white translucent planes high above the world.
@@ -446,32 +451,87 @@ function terrainHeight(x, z) {
   return h * f * f * (3 - 2 * f);
 }
 
-const WORLD = 220;
-{
-  const geo = new THREE.PlaneGeometry(WORLD, WORLD, 110, 110);
-  geo.rotateX(-Math.PI / 2);
-  const pos = geo.attributes.position;
-  const colors = new Float32Array(pos.count * 3);
-  const cGrass = new THREE.Color(0x2f4a22), cGrass2 = new THREE.Color(0x3d5c2a),
-        cDirt = new THREE.Color(0x4a3d28), cRock = new THREE.Color(0x5a5a58);
-  const tmp = new THREE.Color();
+const WORLD = 220;   // legacy: landmark zones still use fixed coords near origin
+/* ==================== INFINITE CHUNKED TERRAIN ====================
+   The world never ends. A 7x7 grid of 48-unit chunks (336x336 units visible)
+   recycles around the player: far chunks teleport ahead and rebuild their
+   heights from terrainHeight(), which is a pure function of world coords, so
+   terrain is identical when you revisit. Zero allocation after init: each
+   chunk owns one BufferGeometry whose Y/color attributes are rewritten. */
+const CHUNK = 48, GRID = 7, HALFGRID = 3, CSEG = 16;
+const chunkMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+WX.groundMat = chunkMat;   // weather tick darkens + glosses it when raining
+const _cGrass = new THREE.Color(0x2f4a22), _cGrass2 = new THREE.Color(0x3d5c2a),
+      _cDirt = new THREE.Color(0x4a3d28), _cRock = new THREE.Color(0x5a5a58),
+      _cTmp = new THREE.Color();
+/* deterministic 2D hash -> uint, for seeded per-chunk decoration */
+function hash2i(x, z) {
+  let h = (Math.imul(x, 374761393) + Math.imul(z, 668265263)) | 0;
+  h = (h ^ (h >>> 13)) | 0;
+  h = Math.imul(h, 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const chunkPool = [];
+function buildChunk(c) {
+  const geo = c.geo, pos = geo.attributes.position, col = geo.attributes.color;
+  const ox = c.cx * CHUNK, oz = c.cz * CHUNK;
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i);
-    const h = terrainHeight(x, z);
+    const wx = c.lx[i] + ox, wz = c.lz[i] + oz;
+    const h = terrainHeight(wx, wz);
     pos.setY(i, h);
-    const n = Math.sin(x * 0.9 + z * 1.3) * 0.5 + 0.5;   // patch variation
-    tmp.copy(cGrass).lerp(cGrass2, n);
-    if (h > 1.1) tmp.lerp(cRock, Math.min(1, (h - 1.1) * 0.8));  // rocky peaks
-    if (n > 0.86) tmp.lerp(cDirt, 0.5);                          // dirt patches
-    colors[i * 3] = tmp.r; colors[i * 3 + 1] = tmp.g; colors[i * 3 + 2] = tmp.b;
+    const n = Math.sin(wx * 0.9 + wz * 1.3) * 0.5 + 0.5;   // patch variation
+    _cTmp.copy(_cGrass).lerp(_cGrass2, n);
+    if (h > 1.1) _cTmp.lerp(_cRock, Math.min(1, (h - 1.1) * 0.8));
+    if (n > 0.86) _cTmp.lerp(_cDirt, 0.5);
+    col.setXYZ(i, _cTmp.r, _cTmp.g, _cTmp.b);
   }
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  pos.needsUpdate = true; col.needsUpdate = true;
   geo.computeVertexNormals();
-  const ground = new THREE.Mesh(geo,
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
-  ground.receiveShadow = true;
-  scene.add(ground);
-  WX.groundMat = ground.material;   // weather tick darkens + glosses it when raining
+  c.mesh.position.set(ox, 0, oz);
+}
+{
+  for (let gx = -HALFGRID; gx <= HALFGRID; gx++) {
+    for (let gz = -HALFGRID; gz <= HALFGRID; gz++) {
+      const geo = new THREE.PlaneGeometry(CHUNK, CHUNK, CSEG, CSEG);
+      geo.rotateX(-Math.PI / 2);
+      const p = geo.attributes.position, n = p.count;
+      const lx = new Float32Array(n), lz = new Float32Array(n);
+      for (let i = 0; i < n; i++) { lx[i] = p.getX(i); lz[i] = p.getZ(i); }
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      const mesh = new THREE.Mesh(geo, chunkMat);
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = true;
+      scene.add(mesh);
+      const c = { mesh, geo, lx, lz, cx: gx, cz: gz };
+      chunkPool.push(c);
+      buildChunk(c);
+    }
+  }
+}
+let _lastPCX = 1e9, _lastPCZ = 1e9;
+function updateTerrainChunks() {
+  const pcx = Math.floor(player.position.x / CHUNK);
+  const pcz = Math.floor(player.position.z / CHUNK);
+  if (pcx === _lastPCX && pcz === _lastPCZ) return false;
+  _lastPCX = pcx; _lastPCZ = pcz;
+  for (const c of chunkPool) {
+    let nx = c.cx, nz = c.cz;
+    while (nx < pcx - HALFGRID) nx += GRID;
+    while (nx > pcx + HALFGRID) nx -= GRID;
+    while (nz < pcz - HALFGRID) nz += GRID;
+    while (nz > pcz + HALFGRID) nz -= GRID;
+    if (nx !== c.cx || nz !== c.cz) { c.cx = nx; c.cz = nz; buildChunk(c); }
+  }
+  return true;
 }
 
 /* ---- merge helper for indexed geometries (position/normal/uv) ----
@@ -503,6 +563,10 @@ function mergeGeos(list) {
 
 /* ============================ TREES AND ROCKS ============================= */
 const dummy = new THREE.Object3D();
+/* cover points for enemy take-cover AI: tree/rock positions registered here
+   as the world is built. Buildings are excluded (enemies have no building
+   collision and would clip inside them). */
+const coverPts = [];
 function scatter(mesh, count, minR, maxR, sMin, sMax) {
   let placed = 0, guard = 0;
   while (placed < count && guard++ < count * 40) {
@@ -514,6 +578,7 @@ function scatter(mesh, count, minR, maxR, sMin, sMax) {
     dummy.scale.set(s, s * (0.85 + Math.random() * 0.3), s);
     dummy.updateMatrix();
     mesh.setMatrixAt(placed++, dummy.matrix);
+    coverPts.push([x, z]);                          // rock = cover
   }
   mesh.count = placed;
   mesh.instanceMatrix.needsUpdate = true;
@@ -546,6 +611,7 @@ function scatter(mesh, count, minR, maxR, sMin, sMax) {
   }
   spots.forEach(([x, z], i) => {
     const s = 0.8 + Math.random() * 0.9;
+    coverPts.push([x, z]);                          // tree = cover
     dummy.position.set(x, terrainHeight(x, z), z);
     dummy.rotation.y = Math.random() * Math.PI * 2;
     dummy.scale.set(s, s, s);
@@ -565,28 +631,7 @@ function scatter(mesh, count, minR, maxR, sMin, sMax) {
   scatter(new THREE.InstancedMesh(rockG, rockM, 45), 45, 8, 100, 0.4, 1.6);
 }
 
-/* World boundary: a visible ring of large boulders at radius 105 so the
-   player sees the edge long before hitting the invisible wall at +/-104. */
-{
-  const ringG = new THREE.DodecahedronGeometry(1, 0);
-  const ringM = new THREE.MeshStandardMaterial({ color: 0x5c5e5a, roughness: 1 });
-  const NB = 42;
-  const ring = new THREE.InstancedMesh(ringG, ringM, NB);
-  for (let i = 0; i < NB; i++) {
-    const a = (i / NB) * Math.PI * 2;
-    const r = 105 + (Math.random() - 0.5) * 3;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    const s = 2.6 + Math.random() * 3.2;
-    dummy.position.set(x, terrainHeight(x, z) + s * 0.35, z);
-    dummy.rotation.set(Math.random() * 3, Math.random() * 6, Math.random() * 3);
-    dummy.scale.set(s, s * (0.9 + Math.random() * 0.5), s);
-    dummy.updateMatrix();
-    ring.setMatrixAt(i, dummy.matrix);
-  }
-  ring.instanceMatrix.needsUpdate = true;
-  ring.castShadow = ring.receiveShadow = true;
-  scene.add(ring);
-}
+/* World boundary removed: the world is infinite now. Fog hides the distance. */
 
 /* Distant mountains: big silhouettes outside the playable area, purely visual.
    One merged mesh (10 cones -> 1 draw call); per-cone transforms are baked into
@@ -606,7 +651,10 @@ function scatter(mesh, count, minR, maxR, sMin, sMax) {
     g.applyMatrix4(dummy.matrix);
     parts.push(g);
   }
-  scene.add(new THREE.Mesh(mergeGeos(parts), mM));
+  const mtnMesh = new THREE.Mesh(mergeGeos(parts), mM);
+  mtnMesh.frustumCulled = false;
+  scene.add(mtnMesh);
+  DNF.mountains = mtnMesh;   // follows the player: the world is infinite
 }
 
 /* === WORLD-NATURE-ANCHOR === */
@@ -647,6 +695,7 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
     const x = FOREST.x0 + Math.random() * (FOREST.x1 - FOREST.x0);
     const z = FOREST.z0 + Math.random() * (FOREST.z1 - FOREST.z0);
     const s = 0.9 + Math.random() * 1.0;
+    coverPts.push([x, z]);                          // forest pine = cover
     dummy.position.set(x, terrainHeight(x, z) - 0.1, z);
     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
     dummy.scale.set(s, s, s);
@@ -1766,6 +1815,10 @@ const enemyAimLine = new THREE.Line(
   new THREE.LineBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.85 }));
 enemyAimLine.visible = false; enemyAimLine.frustumCulled = false;
 scene.add(enemyAimLine);
+/* one muzzle flash light shared by all shooting enemies (last writer wins,
+   same pattern as the shared aim line; decayed in the main loop) */
+const enemyMuzzle = new THREE.PointLight(0xffa040, 0, 18, 1.8);
+scene.add(enemyMuzzle);
 const enemyRing = (() => {
   const rg = new THREE.RingGeometry(2.0, 2.45, 28);
   rg.rotateX(-Math.PI / 2);
@@ -1864,7 +1917,8 @@ function makeEnemy(type, idx) {
     speed: 0, hitT: 0, aggroT: 0, yaw: 0,
     windT: 0, dashT: 0, poseT: 0, dashDir: new THREE.Vector3(),
     strafeDir: 1, strafeT: 0, lastSwing: 0, lastArm: 0,
-    stagger: 0, reactT: 0, kbX: 0, kbZ: 0, kbT: 0 };   // melee polish: flinch + knockback
+    stagger: 0, reactT: 0, kbX: 0, kbZ: 0, kbT: 0,   // melee polish: flinch + knockback
+    coverT: 0 };                                     // take-cover timer after being shot
 }
 function pickWander(e) {
   const g = e.group.position;
@@ -1893,6 +1947,7 @@ function placeEnemy(e, v) {
   e.attackCd = 0; e.deadT = 0; e.hitT = 0; e.aggroT = 0; e.speed = 0;
   e.windT = 0; e.dashT = 0; e.poseT = 0;
   e.stagger = 0; e.reactT = 0; e.kbX = 0; e.kbZ = 0; e.kbT = 0;   // melee polish reset
+  e.coverT = 0;                                     // cover reset
   e.lastSwing = 0; e.lastArm = -0.5;
   e.strafeDir = Math.random() < 0.5 ? 1 : -1; e.strafeT = 0;
   hideTelegraph(e);
@@ -1923,6 +1978,7 @@ function damageEnemy(e, d) {
   e.hp -= d;
   e.hitT = 0.09;
   e.aggroT = 6;   // getting shot makes them hunt you
+  if (e.type === 'shooter') e.coverT = 2.5;   // shot at: break for the nearest tree/rock
   setEnemyFlash(e, 0xff6a55);
   if (e.hp <= 0) {
     e.state = 'dead'; e.deadT = 0; e.respawnT = 10;
@@ -2004,15 +2060,19 @@ function hurtPlayer(d) {
     curWeapon = 'rifle'; updateWeaponHUD(); updateHpHUD(); }
 }
 
-/* --- shooter fires: tracer from its gun, procedural bang, 55% hit (fair) --- */
+/* --- shooter fires: tracer from its gun, muzzle flash light, procedural
+       bang (lowpass = lower pitch than the player's rifle), 8-12 damage,
+       55% hit so a moving player survives --- */
 function enemyShoot(e) {
   const gp = e.group.position;
   const from = new THREE.Vector3(gp.x, gp.y + 1.5, gp.z);
   const to = new THREE.Vector3(player.position.x, player.position.y + 1.3, player.position.z);
   fireTracer(from, to);
   sfxEnemyShot();
+  enemyMuzzle.position.set(gp.x, gp.y + 1.6, gp.z);
+  enemyMuzzle.intensity = 22;                       // decays in the main loop
   e.poseT = 0.3;                                  // gun-raise recoil pose
-  if (Math.random() < 0.55) hurtPlayer(8);
+  if (Math.random() < 0.55) hurtPlayer(8 + Math.floor(Math.random() * 5));
 }
 /* shared wander used by all types when the player is far away */
 function wanderMove(e, r, dt, walkSpd) {
@@ -2065,8 +2125,24 @@ function rusherAI(e, dt, now, dist, dx, dz) {
   return r;
 }
 
+/* cheap line-of-sight: sample the terrain along the gun->player segment;
+   a hill between the two blocks the shot. Zero allocation, read-only use
+   of terrainHeight (the infinite-terrain worker owns that function). */
+function hasLoS(gp, pp) {
+  const x0 = gp.x, z0 = gp.z, y0 = gp.y + 1.5;
+  const x1 = pp.x, z1 = pp.z, y1 = pp.y + 1.3;
+  for (let i = 1; i < 6; i++) {
+    const t = i / 6;
+    if (terrainHeight(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t) >
+        y0 + (y1 - y0) * t + 0.4) return false;
+  }
+  return true;
+}
+
 /* SHOOTER AI: holds the 10-14 unit pocket, strafes sideways, aim-telegraphs
-   0.6s with a glowing eye + thin aim line, then fires a hitscan tracer. */
+   0.6s with a glowing eye + thin aim line, then fires a hitscan tracer.
+   Shot at by the player -> breaks for the nearest tree/rock (coverT).
+   No line of sight -> sidesteps to find a firing angle. */
 function shooterAI(e, dt, now, dist, dx, dz) {
   const r = { mvx: 0, mvz: 0, spd: 0, armT: -0.5, crouch: 0 };
   const [nx, nz] = safeDir(dist, dx, dz);
@@ -2083,8 +2159,25 @@ function shooterAI(e, dt, now, dist, dx, dz) {
       if (e.windT <= 0) {
         enemyShoot(e);
         hideTelegraph(e);
-        e.state = 'chase'; e.attackCd = 2.6 + Math.random() * 1.4;
+        e.state = 'chase'; e.attackCd = 1.5 + Math.random() * 1.0;   // 1.5-2.5s volleys
       }
+    } else if (e.coverT > 0) {
+      /* --- take cover: put the nearest tree/rock between us and the player --- */
+      e.coverT -= dt;
+      const gp = e.group.position, pp = player.position;
+      let bx = gp.x, bz = gp.z, bd = 1e12;
+      for (let i = 0; i < coverPts.length; i++) {
+        const cx = coverPts[i][0] - gp.x, cz = coverPts[i][1] - gp.z;
+        const d = cx * cx + cz * cz;
+        if (d < bd) { bd = d; bx = coverPts[i][0]; bz = coverPts[i][1]; }
+      }
+      /* destination: far side of the cover point, away from the player */
+      let ox = bx - pp.x, oz = bz - pp.z;
+      const ol = Math.hypot(ox, oz) || 1; ox /= ol; oz /= ol;
+      const mx = (bx + ox * 2.4) - gp.x, mz = (bz + oz * 2.4) - gp.z;
+      const ml = Math.hypot(mx, mz);
+      if (ml > 0.6) { r.spd = e.cfg.chase * 1.2; r.mvx = mx / ml; r.mvz = mz / ml; }
+      e.yaw = Math.atan2(dx, dz);   // eyes on the player while relocating
     } else {
       if (dist > 14) { r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz; }
       else if (dist < 10) { r.spd = e.cfg.chase; r.mvx = -nx; r.mvz = -nz; }
@@ -2098,10 +2191,16 @@ function shooterAI(e, dt, now, dist, dx, dz) {
         r.mvx = -nz * e.strafeDir;
         r.mvz = nx * e.strafeDir;
       }
-      if (e.attackCd <= 0 && dist < 24) {
-        e.state = 'aim'; e.windT = 0.6;           // 0.6s readable telegraph
-        enemyAimLine.visible = true;
-        sfxTelegraph();
+      if (e.attackCd <= 0 && dist < 30) {
+        if (hasLoS(e.group.position, player.position)) {
+          e.state = 'aim'; e.windT = 0.6;         // 0.6s readable telegraph
+          enemyAimLine.visible = true;
+          sfxTelegraph();
+        } else {
+          /* hill between us: sidestep to find a firing angle */
+          r.spd = e.cfg.chase; r.mvx = -nz * e.strafeDir; r.mvz = nx * e.strafeDir;
+          e.strafeT = Math.min(e.strafeT, 0.4);
+        }
       }
     }
   } else {
@@ -2307,7 +2406,7 @@ function makeCop(i) {
     yaw: 0, speed: 0, attackCd: 1, aggroT: 9999,
     deadT: 0, respawnT: 0, walkPhase: Math.random() * 6,
     target: new THREE.Vector3(), strafeDir: 1, strafeT: 0,
-    windT: 0, poseT: 0, dashDir: new THREE.Vector3(),
+    windT: 0, poseT: 0, dashDir: new THREE.Vector3(), coverT: 0,
     eyeMat: copEyeMat, aimLine: copAimLine };
 }
 /* spawn 30-45u from the player, at least 20u out after world clamping */
@@ -2334,7 +2433,7 @@ function spawnCop(c) {
   c.yaw = Math.atan2(player.position.x - sx, player.position.z - sz);
   g.rotation.y = c.yaw;
   c.speed = 0; c.attackCd = 1 + Math.random(); c.aggroT = 9999;
-  c.deadT = 0; c.respawnT = 0; c.poseT = 0; c.windT = 0;
+  c.deadT = 0; c.respawnT = 0; c.poseT = 0; c.windT = 0; c.coverT = 0;
   c.strafeDir = Math.random() < 0.5 ? 1 : -1; c.strafeT = 0;
   c.eyeMat.color.setHex(COP_CFG.eye);
   pickWander(c);
@@ -2404,6 +2503,7 @@ function damageCop(idx, d) {
   if (!c || !c.active || c.state === 'dead') return;
   c.hp -= d;
   c.aggroT = 9999;
+  c.coverT = 2.5;   // shot at: break for the nearest tree/rock
   if (c.hp <= 0) {
     c.state = 'dead'; c.deadT = 0; c.respawnT = 8;
     c.eyeMat.color.setHex(COP_CFG.eye);
@@ -4502,6 +4602,7 @@ function tick() {
   saveTick(dt);
   muzzle.getWorldPosition(muzzleFlash.position);
   muzzleFlash.intensity *= Math.exp(-26 * sdt);
+  enemyMuzzle.intensity *= Math.exp(-26 * sdt);
   for (const t of tracers) {
     if (t.life > 0) {
       t.life -= sdt;
