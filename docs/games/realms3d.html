@@ -694,6 +694,7 @@ function updateTerrainChunks() {
   }
   redistributeFlora(pcx, pcz);
   if (typeof redistributeWildDeer === 'function') redistributeWildDeer(pcx, pcz);
+  if (typeof redistributeWildlife === 'function') redistributeWildlife(pcx, pcz);
   if (typeof redistributeAmenities === 'function') redistributeAmenities(pcx, pcz);
   return true;
 }
@@ -1100,6 +1101,11 @@ const hornG = new THREE.ConeGeometry(0.06, 0.3, 6);
 const COL = {
   deer: 0x6b4a2f, cow: 0x3a2e24, cowPatch: 0xd8d4cc,
   horse: 0x4a3520, mane: 0x17110b, bone: 0xd9cba8,
+  /* Phase 5 wildlife v2: rabbit / pig / wolf / bear palette */
+  rabbit: 0x9a8f7e, rabbitTail: 0xe8e2d6,
+  pig: 0xd8a09a, pigSnout: 0xbb7a76,
+  wolf: 0x77776f, wolfDark: 0x4f4f4a,
+  bear: 0x4a3320, bearDark: 0x2f221a,
 };
 const animalMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
 
@@ -1179,6 +1185,43 @@ const horseBodyParts = [
 ];
 const horseHeadParts = [animalBox(0.28, 0.3, 0.62, COL.horse, 0, 0.05, 0.12)];
 
+/* ---- Phase 5 wildlife v2: rabbit / pig / wolf / bear.
+   Heads are folded INTO the body geometry (one body IM per species, no
+   separate head IM); legs share one IM (AMESH.wildLegs) with per-instance
+   species tint. Body origins sit on the ground: body-box bottoms ~= hipY. */
+const rabbitBodyParts = [
+  animalBox(0.28, 0.3, 0.5, COL.rabbit, 0, 0.43, 0),            // small body
+  animalBox(0.22, 0.22, 0.24, COL.rabbit, 0, 0.56, 0.28),       // head, folded in
+  animalBox(0.06, 0.28, 0.03, COL.rabbit, -0.07, 0.8, 0.26, -0.15, 0, 0),  // long ears
+  animalBox(0.06, 0.28, 0.03, COL.rabbit, 0.07, 0.8, 0.26, -0.15, 0, 0),
+  animalBox(0.1, 0.1, 0.1, COL.rabbitTail, 0, 0.45, -0.28),     // puff tail
+];
+const pigBodyParts = [
+  animalBox(0.5, 0.5, 0.9, COL.pig, 0, 0.75, 0),                // stout body
+  animalBox(0.3, 0.32, 0.3, COL.pig, 0, 0.78, 0.45),            // head, folded in
+  animalBox(0.18, 0.16, 0.18, COL.pigSnout, 0, 0.74, 0.62),     // snout
+  animalBox(0.1, 0.12, 0.04, COL.pig, -0.15, 1.02, 0.4, 0.3, 0, 0),  // ears
+  animalBox(0.1, 0.12, 0.04, COL.pig, 0.15, 1.02, 0.4, 0.3, 0, 0),
+  animalBox(0.05, 0.22, 0.05, COL.pig, 0, 0.82, -0.5, 0.8, 0, 0),    // curly tail
+];
+const wolfBodyParts = [
+  animalBox(0.42, 0.46, 1.1, COL.wolf, 0, 0.85, 0),             // lean body
+  animalBox(0.26, 0.28, 0.42, COL.wolf, 0, 1.0, 0.62),          // head, folded in
+  animalBox(0.15, 0.13, 0.2, COL.wolfDark, 0, 0.94, 0.88),      // snout
+  animalBox(0.08, 0.14, 0.04, COL.wolf, -0.09, 1.2, 0.58),      // ears
+  animalBox(0.08, 0.14, 0.04, COL.wolf, 0.09, 1.2, 0.58),
+  animalBox(0.12, 0.12, 0.55, COL.wolfDark, 0, 0.9, -0.72, 0.55, 0, 0),  // bushy tail
+];
+const bearBodyParts = [
+  animalBox(0.72, 0.72, 1.3, COL.bear, 0, 1.08, 0),             // bulky body
+  animalBox(0.58, 0.4, 0.55, COL.bear, 0, 1.45, 0.32),          // shoulder hump
+  animalBox(0.34, 0.34, 0.4, COL.bear, 0, 1.2, 0.72),           // head, folded in
+  animalBox(0.18, 0.16, 0.16, COL.bearDark, 0, 1.12, 0.94),     // snout
+  animalBox(0.1, 0.1, 0.06, COL.bear, -0.15, 1.4, 0.68),        // round ears
+  animalBox(0.1, 0.1, 0.06, COL.bear, 0.15, 1.4, 0.68),
+  animalBox(0.12, 0.12, 0.12, COL.bear, 0, 1.05, -0.68),        // stub tail
+];
+
 function makeAnimalMesh(geo, count) {
   const im = new THREE.InstancedMesh(geo, animalMat, count);
   im.castShadow = true;
@@ -1188,6 +1231,8 @@ function makeAnimalMesh(geo, count) {
   return im;
 }
 const deerBodyGeo = mergeAnimalParts(deerBodyParts);
+/* Phase 5 wildlife v2: scratch color for per-instance wild-leg tinting */
+const _wildLegTint = new THREE.Color();
 const AMESH = {
   deerMaleBody:   makeAnimalMesh(deerBodyGeo, 10),
   deerMaleHead:   makeAnimalMesh(mergeAnimalParts(deerHeadParts(true)), 10),
@@ -1200,27 +1245,47 @@ const AMESH = {
   horseBody:      makeAnimalMesh(mergeAnimalParts(horseBodyParts), 4),
   horseHead:      makeAnimalMesh(mergeAnimalParts(horseHeadParts), 4),
   horseLegs:      makeAnimalMesh(animalLegGeo(0.4, 0.72, 0.15, COL.horse), 8),
+  /* Phase 5 wildlife v2: 4 body IMs (head folded in) + 1 shared legs IM.
+     Legs are baked white and tinted per instance (species color) via
+     setColorAt in addAnimal; the legs slab is 1m tall and scaled per
+     species by a.legScale in writeAnimalMatrices. castShadow=false:
+     these roam far from the player and read fine without shadow work. */
+  rabbitBody:     makeAnimalMesh(mergeAnimalParts(rabbitBodyParts), 6),
+  pigBody:        makeAnimalMesh(mergeAnimalParts(pigBodyParts), 3),
+  wolfBody:       makeAnimalMesh(mergeAnimalParts(wolfBodyParts), 2),
+  bearBody:       makeAnimalMesh(mergeAnimalParts(bearBodyParts), 1),
+  wildLegs:       makeAnimalMesh(animalLegGeo(0.3, 1.0, 0.12, 0xffffff), 24),
 };
+for (const _wn of ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody', 'wildLegs'])
+  AMESH[_wn].castShadow = false;
+AMESH.wildLegs.setColorAt(0, _wildLegTint.setHex(0xffffff));  // allocate instanceColor
 const ALL_ANIMAL_MESHES = Object.values(AMESH);
 
 /* per-frame CPU matrix write: root, head (pivot * pitch), legs (hip * swing) */
 const _am1 = new THREE.Matrix4(), _am2 = new THREE.Matrix4(), _am3 = new THREE.Matrix4();
+const _am4 = new THREE.Matrix4();   /* Phase 5 wildlife v2: leg-scale scratch */
 const _aq = new THREE.Quaternion(), _ae = new THREE.Euler();
 const _as1 = new THREE.Vector3(1, 1, 1);
+const _pv = new THREE.Vector3();    /* Phase 5 wildlife v2: root-pos scratch (rabbit hop bob) */
 function writeAnimalMatrices(a) {
   _ae.set(0, a.rotY, 0);
-  _am1.compose(a.pos, _aq.setFromEuler(_ae), _as1);            // root
-  _am2.makeTranslation(a.pivotX, a.pivotY, a.pivotZ)
-      .multiply(_am3.makeRotationX(a.headPitch));              // head pivot * pitch
-  _am3.copy(_am1).multiply(_am2);                              // root * pivot * pitch
+  _pv.copy(a.pos); _pv.y += a.bobY;                              // rabbit hop bob
+  _am1.compose(_pv, _aq.setFromEuler(_ae), _as1);                 // root
   a.imBody.setMatrixAt(a.iBody, _am1);
-  a.imHead.setMatrixAt(a.iHead, _am3);
-  _am2.makeTranslation(0, a.hipY, a.legZ)
-      .multiply(_am3.makeRotationX(a.swingF));                 // front leg-pair * swing
+  if (!a.noHead) {                                               // head folded into body: skip
+    _am2.makeTranslation(a.pivotX, a.pivotY, a.pivotZ)
+        .multiply(_am3.makeRotationX(a.headPitch));              // head pivot * pitch
+    _am3.copy(_am1).multiply(_am2);                              // root * pivot * pitch
+    a.imHead.setMatrixAt(a.iHead, _am3);
+  }
+  _am2.makeTranslation(0, a.hipY, a.legZ);
+  if (a.legScale !== 1) _am2.multiply(_am4.makeScale(1, a.legScale, 1));  // shared wild legs
+  _am2.multiply(_am3.makeRotationX(a.swingF));                   // front leg-pair * swing
   _am3.copy(_am1).multiply(_am2);
   a.imLegs.setMatrixAt(a.iLegF, _am3);
-  _am2.makeTranslation(0, a.hipY, -a.legZ)
-      .multiply(_am3.makeRotationX(a.swingB));                // back leg-pair * swing
+  _am2.makeTranslation(0, a.hipY, -a.legZ);
+  if (a.legScale !== 1) _am2.multiply(_am4.makeScale(1, a.legScale, 1));
+  _am2.multiply(_am3.makeRotationX(a.swingB));                  // back leg-pair * swing
   _am3.copy(_am1).multiply(_am2);
   a.imLegs.setMatrixAt(a.iLegB, _am3);
 }
@@ -1239,7 +1304,22 @@ function hideAnimal(a) {
 const DEER_PIVOT = [0, 1.42, 0.62], DEER_HIP = 0.68, DEER_LEGZ = 0.38;
 const COW_PIVOT = [0, 1.28, 0.75], COW_HIP = 0.55, COW_LEGZ = 0.45;
 const HORSE_PIVOT = [0, 1.98, 0.92], HORSE_HIP = 0.72, HORSE_LEGZ = 0.5;
-const _slotN = { deerM: 0, deerF: 0, deerL: 0, cow: 0, cowL: 0, horse: 0, horseL: 0 };
+/* Phase 5 wildlife v2: per-species body params. hip/legZ match the body
+   geometry above (body-box bottom ~= hip); leg scales the shared 1m wild
+   legs slab; legTint is the per-instance color. biome picks the seeded
+   per-chunk home; seed gives each species its own redistribute stream. */
+const WILD_SPP = {
+  rabbit: { hip: 0.28, legZ: 0.18, leg: 0.28, legTint: COL.rabbit,
+            biome: 'forest', seed: 101 },
+  pig:    { hip: 0.50, legZ: 0.30, leg: 0.50, legTint: COL.pig,
+            biome: 'farm',   seed: 202 },
+  wolf:   { hip: 0.62, legZ: 0.36, leg: 0.62, legTint: COL.wolf,
+            biome: 'forest', seed: 303 },
+  bear:   { hip: 0.72, legZ: 0.42, leg: 0.72, legTint: COL.bear,
+            biome: 'forest', seed: 404 },
+};
+const _slotN = { deerM: 0, deerF: 0, deerL: 0, cow: 0, cowL: 0, horse: 0, horseL: 0,
+                 rabbit: 0, pig: 0, wolf: 0, bear: 0, wildLeg: 0 };
 
 const animals = [];
 function addAnimal(kind, male, zone, opts) {
@@ -1259,6 +1339,8 @@ function addAnimal(kind, male, zone, opts) {
     fleeT: 0, fleeFrom: new THREE.Vector3(),
     grazeT: 0, trotT: 0,
     walk: opts.walk, fleeR: opts.fleeR || 0, graze: !!opts.graze,
+    /* Phase 5 wildlife v2: hop bob, shared-leg scale, headless body, wolf prey */
+    bobY: 0, legScale: 1, noHead: false, prey: null, preyCd: 0,
   };
   if (kind === 'deer') {
     const bi = male ? _slotN.deerM++ : _slotN.deerF++;
@@ -1279,6 +1361,22 @@ function addAnimal(kind, male, zone, opts) {
     a.imLegs = AMESH.cowLegs;
     const li = _slotN.cowL++;
     a.iLegF = li * 2; a.iLegB = li * 2 + 1;
+  } else if (kind === 'rabbit' || kind === 'pig' || kind === 'wolf' || kind === 'bear') {
+    /* Phase 5 wildlife v2: head folded into the body geometry (one body IM
+       per species, imHead aliases the body slot and writeAnimalMatrices
+       skips the head write via noHead); legs ride the shared wildLegs IM
+       with a per-instance species tint (wildLegs is baked white). */
+    const bi = _slotN[kind]++;
+    const spp = WILD_SPP[kind];
+    a.imBody = AMESH[kind + 'Body']; a.imHead = AMESH[kind + 'Body'];
+    a.iBody = a.iHead = bi; a.noHead = true;
+    a.hipY = spp.hip; a.legZ = spp.legZ; a.legScale = spp.leg;
+    a.imLegs = AMESH.wildLegs;
+    const li = _slotN.wildLeg++;
+    a.iLegF = li * 2; a.iLegB = li * 2 + 1;
+    _wildLegTint.setHex(spp.legTint);
+    a.imLegs.setColorAt(a.iLegF, _wildLegTint);
+    a.imLegs.setColorAt(a.iLegB, _wildLegTint);
   } else {
     const bi = _slotN.horse++;
     a.imBody = AMESH.horseBody; a.imHead = AMESH.horseHead;
@@ -1330,6 +1428,79 @@ function redistributeWildDeer(pcx, pcz) {
     a.mode = 'idle'; a.t = rnd() * 3;
     a.rotY = rnd() * Math.PI * 2;
     writeAnimalMatrices(a);
+  }
+  for (const m of ALL_ANIMAL_MESHES) m.instanceMatrix.needsUpdate = true;
+}
+/* ---- Phase 5 wildlife v2: MORE ANIMALS. Fixed-size wild herds relocate
+   with chunk recycling (the wild-deer idiom) into deterministic per-chunk
+   biomes. Rabbits bolt (fleeR 14), pigs root on farms, wolves hunt, bears
+   wander. Like wild deer, none of them are persisted. ---- */
+const wildRabbits = [], wildPigs = [], wildWolves = [], wildBears = [];
+const WILD_LIST = { rabbit: wildRabbits, pig: wildPigs, wolf: wildWolves, bear: wildBears };
+for (let i = 0; i < 6; i++) {
+  const a = addAnimal('rabbit', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
+                      { walk: 2.2, fleeR: 14, graze: true });
+  a.wild = true; wildRabbits.push(a);
+}
+for (let i = 0; i < 3; i++) {
+  const a = addAnimal('pig', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
+                      { walk: 0.9, fleeR: 8, graze: true });
+  a.wild = true; wildPigs.push(a);
+}
+for (let i = 0; i < 2; i++) {
+  const a = addAnimal('wolf', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
+                      { walk: 3.0, graze: false });
+  a.wild = true; wildWolves.push(a);
+}
+{
+  const a = addAnimal('bear', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
+                      { walk: 0.7, graze: true });
+  a.wild = true; wildBears.push(a);
+}
+AMESH.wildLegs.instanceColor.needsUpdate = true;   /* per-instance species tints */
+
+/* deterministic per-chunk biome for wildlife-v2 spawns: pure function of
+   chunk coords with a NEW seed xor, so the deer/cow/horse/flora/amenity
+   streams are untouched. The spawn district stays 'plain' (no wild animals
+   underfoot at boot). */
+function chunkBiome(gx, gz) {
+  if (Math.abs(gx) <= 1 && Math.abs(gz) <= 1) return 'plain';
+  const r = (hash2i(gx, gz) ^ 0x51f15e) % 10;
+  return r < 4 ? 'forest' : (r < 6 ? 'farm' : 'plain');
+}
+/* relocate the wild herds into seeded biome-matching chunks around the
+   player (wild-deer idiom). Runs on chunk crossing, never in the hot tick. */
+function redistributeWildlife(pcx, pcz) {
+  for (const kind of ['rabbit', 'pig', 'wolf', 'bear']) {
+    const cfg = WILD_SPP[kind], list = WILD_LIST[kind];
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      if (a === PET.a) continue;   /* pets never relocate */
+      /* NEW seed xor per species: distinct from the wild-deer stream */
+      const rnd = mulberry32((hash2i(pcx * 31 + i * 13 + cfg.seed,
+                                    pcz * 17 + i * 7 + cfg.seed) ^ 0x9e3779) >>> 0);
+      /* linear-probe the visible 7x7 from a seeded start for a biome match */
+      const start = Math.floor(rnd() * 49);
+      for (let k = 0; k < 49; k++) {
+        const kk = (start + k) % 49;
+        const gx = pcx - HALFGRID + (kk % GRID), gz = pcz - HALFGRID + ((kk / GRID) | 0);
+        if (chunkBiome(gx, gz) !== cfg.biome) continue;
+        const x = (gx + 0.15 + rnd() * 0.7) * CHUNK;
+        const z = (gz + 0.15 + rnd() * 0.7) * CHUNK;
+        if (inNoFlora(x, z) || Math.hypot(x, z) < 15) {
+          // keep this animal where it is if the seeded spot is a landmark
+          break;
+        }
+        a.pos.set(x, terrainHeight(x, z), z);
+        a.zone.x0 = x - 20; a.zone.x1 = x + 20;
+        a.zone.z0 = z - 20; a.zone.z1 = z + 20;
+        a.target.set(x, 0, z);
+        a.mode = 'idle'; a.t = rnd() * 3;
+        a.rotY = rnd() * Math.PI * 2;
+        break;
+      }
+      writeAnimalMatrices(a);
+    }
   }
   for (const m of ALL_ANIMAL_MESHES) m.instanceMatrix.needsUpdate = true;
 }
@@ -1404,6 +1575,53 @@ function natureTick(dt, now) {
         }
       }
     }
+    /* Phase 5 wildlife v2: wolves are predators too. A wolf inside 15m bolts
+       any animal except wolves and bears (the pet included); bears ignore
+       wolves, wolves ignore each other. Zero alloc: the herd is 2 wolves. */
+    if (a.fleeT <= 0 && a.kind !== 'wolf' && a.kind !== 'bear') {
+      for (let wi = 0; wi < wildWolves.length; wi++) {
+        const w = wildWolves[wi];
+        if (w === a) continue;
+        const wx = w.pos.x - p.x, wz = w.pos.z - p.z;
+        if (wx * wx + wz * wz < 225) {
+          a.fleeT = 3; a.fleeFrom.set(w.pos.x, 0, w.pos.z);
+          break;
+        }
+      }
+    }
+    /* Phase 5 wildlife v2: wolf hunt. Mirrors the enemy predator/prey loop:
+       with no rest cooldown the wolf runs down the nearest non-pet prey
+       (deer/cow/horse + rabbit/pig) inside 25m; on the catch the prey
+       panic-bolts (animals carry no HP) and the wolf rests. */
+    if (a.kind === 'wolf' && a.fleeT <= 0 && a !== PET.a) {
+      a.preyCd -= dt;
+      let prey = a.prey;
+      if (prey && (prey === PET.a || prey.mountLocked)) { prey = null; a.prey = null; }
+      if (prey) {
+        const pdx = prey.pos.x - p.x, pdz = prey.pos.z - p.z;
+        if (pdx * pdx + pdz * pdz > 900) { prey = null; a.prey = null; }  /* lost it past 30m */
+      }
+      if (!prey && a.preyCd <= 0) {
+        let bestD2 = 625;                /* 25m acquire radius */
+        for (const b of animals) {
+          if (b === a || b === PET.a || b.mountLocked) continue;
+          const k = b.kind;
+          if (k !== 'deer' && k !== 'cow' && k !== 'horse' && k !== 'rabbit' && k !== 'pig') continue;
+          const dx = b.pos.x - p.x, dz = b.pos.z - p.z, d2 = dx * dx + dz * dz;
+          if (d2 < bestD2) { bestD2 = d2; prey = b; }
+        }
+        a.prey = prey;
+      }
+      if (prey) {
+        a.target.set(prey.pos.x, 0, prey.pos.z);
+        a.mode = 'walk';
+        const cdx = prey.pos.x - p.x, cdz = prey.pos.z - p.z;
+        if (cdx * cdx + cdz * cdz < 4) {   /* caught: panic bolt, then rest */
+          prey.fleeT = 4; prey.fleeFrom.set(p.x, 0, p.z);
+          a.prey = null; a.preyCd = 6 + a.rng() * 6; a.mode = 'idle'; a.t = 2;
+        }
+      }
+    }
 
     let moving = false, spd = 0;
     if (a.fleeT > 0) {
@@ -1466,6 +1684,8 @@ function natureTick(dt, now) {
         mx += sx * 0.6; mz += sz * 0.6;
         const ml = Math.hypot(mx, mz) || 1;
         spd = a.walk * (a.trotT > 0 ? 3 : 1);  // horses occasionally trot
+        /* Phase 5 wildlife v2: a hunting wolf runs its prey down at flee speed */
+        if (a.kind === 'wolf' && a.prey) spd = 6;
         if (a.trotT > 0) a.trotT -= dt;
         p.x += (mx / ml) * spd * dt; p.z += (mz / ml) * spd * dt;
         moving = true;
@@ -1478,11 +1698,20 @@ function natureTick(dt, now) {
       a.walkPhase += dt * (3 + spd * 2.2);
       const sw = Math.sin(a.walkPhase) * Math.min(0.7, 0.25 + spd * 0.08);
       a.swingF = sw;
-      a.swingB = -sw;
+      /* Phase 5 wildlife v2: rabbit hop = double-time back legs (phase
+         offset) + body bob (bobY rides the root matrix in
+         writeAnimalMatrices). No new animation system. */
+      if (a.kind === 'rabbit') {
+        a.swingB = Math.sin(a.walkPhase * 2 + 1.2) * Math.min(0.7, 0.25 + spd * 0.08);
+        a.bobY = Math.abs(Math.sin(a.walkPhase * 2)) * 0.15;
+      } else {
+        a.swingB = -sw;
+        a.bobY = 0;
+      }
       a.rotY = angleLerp(a.rotY, Math.atan2(_nv.x, _nv.z),
                          1 - Math.exp(-8 * dt));
     } else {
-      a.swingF *= 0.9; a.swingB *= 0.9;
+      a.swingF *= 0.9; a.swingB *= 0.9; a.bobY = 0;
     }
     /* graze: pitch the head down; otherwise ease back to neutral */
     const headTgt = a.grazeT > 0 ? 0.75 : 0;
@@ -1634,8 +1863,10 @@ function petPromptScan() {
   }
 }
 /* Predator/prey: with no player target, an enemy may hunt the nearest
-   non-pet deer/cow/horse inside 25m. Returns the prey animal or null.
-   The catch is a panic bolt (animals carry no HP); the enemy then rests. */
+   non-pet deer/cow/horse/wolf inside 25m. Returns the prey animal or null.
+   The catch is a panic bolt (animals carry no HP); the enemy then rests.
+   Phase 5 wildlife v2: wolves join the prey list (enemies hunt wolves too),
+   and wolves hunt alongside enemies (see the wolf-hunt block in natureTick). */
 function acquirePrey(e, gp) {
   if (e.preyCd > 0) { e.prey = null; return null; }
   const cur = e.prey;
@@ -1648,7 +1879,7 @@ function acquirePrey(e, gp) {
     const a = animals[i];
     if (a === PET.a || a.mountLocked) continue;
     const k = a.kind;
-    if (k !== 'deer' && k !== 'cow' && k !== 'horse') continue;
+    if (k !== 'deer' && k !== 'cow' && k !== 'horse' && k !== 'wolf') continue;
     const dx = a.pos.x - gp.x, dz = a.pos.z - gp.z;
     const d2 = dx * dx + dz * dz;
     if (d2 < bestD2) { bestD2 = d2; best = a; }

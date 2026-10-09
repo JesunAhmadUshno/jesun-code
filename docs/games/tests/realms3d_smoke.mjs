@@ -78,6 +78,7 @@ globalThis.__R3D = {
   DIFF, diffEval, animals,
   birds, wingL, wingR, PET, tamePet, releasePet, acquirePrey, petRejoin,
   petHintEl, petChipEl, birdFlockTick,
+  AMESH, chunkBiome, redistributeWildlife,   /* Phase 5 wildlife v2 */
   get cash() { return cash; }, set cash(v) { cash = v; },
   get kills() { return kills; }, set kills(v) { kills = v; },
   get curWeapon() { return curWeapon; }, set curWeapon(v) { curWeapon = v; },
@@ -592,9 +593,15 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          (41 after the PERF-2 consolidation: 46 -> 41; flora 7->3 meshes,
          lootBoxes folded into the shared pickupBoxes mesh), then the bicycle
          adds its one (41 -> 42), then the scooter adds its one (42 -> 43);
-         one render site per tick */
+         one render site per tick.
+         Phase 5 wildlife v2: the source-text count stays 43 because the 5
+         new animal meshes (rabbit/pig/wolf/bear bodies + the shared wild
+         legs) are built through the makeAnimalMesh factory; the AMESH site
+         count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   check('wildlife: exactly one new InstancedMesh vs main (43: the bike body + the bicycle body + the scooter body)', imCount === 43, 'count=' + imCount);
+  check('wildlife2: AMESH holds 16 instanced-mesh sites (11 + rabbit/pig/wolf/bear bodies + shared wildLegs)',
+    Object.keys(G.AMESH).length === 16, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
   check('wildlife: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
@@ -620,7 +627,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   let testDeer = null;
   for (const a of G.animals) {
     if (a.kind === 'deer' && !testDeer && !a.mountLocked && a !== G.PET.a) { testDeer = a; continue; }
-    if ((a.kind === 'deer' || a.kind === 'horse') && a !== G.PET.a) {
+    /* Phase 5 wildlife v2: park every other animal (incl. rabbit/pig/wolf/bear)
+       so the predator test isolates to the one test deer */
+    if (a !== testDeer && a !== G.PET.a) {
       a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0;
     }
   }
@@ -655,8 +664,10 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   G.player.position.set(0, groundY(0, 0), 0);
   G.player.rotation.y = Math.PI;
   const horse = G.animals.find(a => a.kind === 'horse' && !a.mountLocked);
+  /* Phase 5 wildlife v2: park everything else (incl. the new species) so the
+     tame prompt isolates to the one test horse */
   for (const a of G.animals) {
-    if (a !== horse && (a.kind === 'deer' || a.kind === 'horse')) {
+    if (a !== horse) {
       a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0;
     }
   }
@@ -715,7 +726,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   oldPet.pos.set(100, groundY(100, 100), 100); oldPet.fleeT = 0;
   const horse2 = G.animals.find(a => a.kind === 'horse' && a !== oldPet && !a.mountLocked);
   for (const a of G.animals) {
-    if (a !== oldPet && a !== horse2 && (a.kind === 'deer' || a.kind === 'horse')) {
+    if (a !== oldPet && a !== horse2) {
       a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0;
     }
   }
@@ -734,6 +745,119 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   for (const a of G.animals) { animalMeshes.add(a.imBody); animalMeshes.add(a.imHead); animalMeshes.add(a.imLegs); }
   check('wildlife: pet can never be hit by player weapons (no animal mesh raycast)',
     !G.enemyMeshes.some(m => animalMeshes.has(m)));
+
+  /* 10k. Phase 5 wildlife v2: rabbits / pigs / wolves / bears */
+  const w2 = G.animals.filter(a => a.kind === 'rabbit' || a.kind === 'pig' ||
+                                   a.kind === 'wolf' || a.kind === 'bear');
+  check('wildlife2: 4 new species spawn (6 rabbits, 3 pigs, 2 wolves, 1 bear)',
+    w2.filter(a => a.kind === 'rabbit').length === 6 &&
+    w2.filter(a => a.kind === 'pig').length === 3 &&
+    w2.filter(a => a.kind === 'wolf').length === 2 &&
+    w2.filter(a => a.kind === 'bear').length === 1,
+    'n=' + w2.length);
+
+  /* seeded per-chunk spawns: moved animals land in biome-matching chunks,
+     and the placement is a pure function of chunk coords */
+  {
+    const biomeAt = (x, z) => G.chunkBiome(Math.floor(x / 48), Math.floor(z / 48));
+    const wantBiome = { rabbit: 'forest', pig: 'farm', wolf: 'forest', bear: 'forest' };
+    const snap = () => w2.map(a => a.kind + ':' + a.pos.x.toFixed(3) + ',' + a.pos.z.toFixed(3)).join('|');
+    const before = new Map(w2.map(a => [a, a.pos.x.toFixed(3) + ',' + a.pos.z.toFixed(3)]));
+    G.redistributeWildlife(3, -2);
+    const s1 = snap();
+    let biomeOk = true;
+    for (const a of w2) {
+      /* the landmark skip keeps the animal at its old spot: only assert
+         the biome contract for animals the placement actually moved */
+      const moved = (a.pos.x.toFixed(3) + ',' + a.pos.z.toFixed(3)) !== before.get(a);
+      if (moved && biomeAt(a.pos.x, a.pos.z) !== wantBiome[a.kind]) biomeOk = false;
+    }
+    check('wildlife2: seeded spawns land in biome-matching chunks', biomeOk);
+    G.redistributeWildlife(3, -2);
+    check('wildlife2: redistribute is a pure function of chunk coords', snap() === s1);
+  }
+
+  /* rabbit hop: body bob is nonzero while moving */
+  parkEnemies(150, 150);
+  G.player.position.set(-100, groundY(-100, -100), -100);
+  for (const a of G.animals) { a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0; }
+  const rab = w2.find(a => a.kind === 'rabbit');
+  rab.pos.set(40, G.terrainHeight(40, 40), 40);
+  rab.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  rab.mode = 'walk'; rab.t = 999; rab.target.set(70, 0, 40);
+  rab.fleeT = 0; rab.grazeT = 0;
+  let bobMax = 0;
+  for (let i = 0; i < 30; i++) {
+    frame(1);
+    if (Math.abs(rab.bobY) > bobMax) bobMax = Math.abs(rab.bobY);
+  }
+  check('wildlife2: rabbit hop bob is nonzero while moving', bobMax > 0.05,
+    'bobMax=' + bobMax.toFixed(3));
+
+  /* wolf hunt: acquires the nearest prey; the catch panic-bolts it and the wolf rests */
+  for (const a of w2) { a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0; }
+  const wolf = w2.find(a => a.kind === 'wolf');
+  const wprey = w2.find(a => a.kind === 'rabbit' && a !== rab);
+  wolf.pos.set(40, G.terrainHeight(40, 40), 40);
+  wolf.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  wolf.mode = 'idle'; wolf.t = 999; wolf.fleeT = 0; wolf.prey = null; wolf.preyCd = 0;
+  wprey.pos.set(46, G.terrainHeight(46, 40), 40);
+  wprey.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  wprey.mode = 'idle'; wprey.t = 999; wprey.fleeT = 0;
+  frame(5);
+  check('wildlife2: wolf hunts the nearest prey', wolf.prey === wprey,
+    'prey=' + (wolf.prey && wolf.prey.kind));
+  wprey.pos.set(wolf.pos.x + 1, G.terrainHeight(wolf.pos.x + 1, wolf.pos.z), wolf.pos.z);
+  wprey.fleeT = 0;
+  frame(2);
+  check('wildlife2: wolf catch panic-bolts the prey and the wolf rests',
+    wprey.fleeT > 3 && wolf.prey === null && wolf.preyCd > 0,
+    'fleeT=' + wprey.fleeT.toFixed(2) + ' preyCd=' + wolf.preyCd.toFixed(2));
+
+  /* bear: wanders, and never enters the tame list (nor do the other new species) */
+  for (const a of w2) { a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0; }
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.player.rotation.y = Math.PI;
+  const bear = w2.find(a => a.kind === 'bear');
+  const pig2 = w2.find(a => a.kind === 'pig');
+  bear.pos.set(2.5, G.terrainHeight(2.5, 0), 0);
+  bear.zone = { x0: -80, x1: 80, z0: -80, z1: 80 };
+  bear.fleeT = 0; bear.mode = 'idle'; bear.t = 999;
+  pig2.pos.set(2.5, G.terrainHeight(2.5, 1), 1);
+  pig2.fleeT = 0; pig2.mode = 'idle'; pig2.t = 999;
+  frame(2);
+  check('wildlife2: tame prompt excludes the new species', G.PET.hintOn === false && G.PET.nearA === null,
+    'hintOn=' + G.PET.hintOn);
+  bear.mode = 'walk'; bear.t = 999; bear.target.set(40, 0, 0);
+  const bx0 = bear.pos.x, bz0 = bear.pos.z;
+  frame(300);
+  const bMoved = Math.hypot(bear.pos.x - bx0, bear.pos.z - bz0);
+  check('wildlife2: bear wanders', bMoved > 2, 'moved=' + bMoved.toFixed(1) + 'm');
+
+  /* one render per tick still holds with the new meshes */
+  globalThis.__renderCount = 0;
+  frame(30);
+  check('wildlife2: exactly one render per tick', globalThis.__renderCount === 30,
+    'renders=' + globalThis.__renderCount);
+
+  /* shared wild legs: per-instance species tint; bodies are real geometry */
+  {
+    const wl = G.AMESH.wildLegs;
+    const ic = wl.instanceColor;
+    let tintVaries = false;
+    if (ic && ic.count === 24) {
+      /* instance 0 = rabbit leg, instance 12 = first pig leg: must differ */
+      const d = Math.abs(ic.array[0] - ic.array[36]) +
+                Math.abs(ic.array[1] - ic.array[37]) +
+                Math.abs(ic.array[2] - ic.array[38]);
+      tintVaries = d > 0.01;
+    }
+    check('wildlife2: shared legs carry per-instance species tints', tintVaries,
+      'count=' + (ic && ic.count));
+    const geoOk = ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody'].every(
+      k => G.AMESH[k].geometry.attributes.position.count > 0);
+    check('wildlife2: all four body geometries are non-empty', geoOk);
+  }
 }
 
 /* ================= 11. MOTORCYCLE (Phase 5) ================= */
