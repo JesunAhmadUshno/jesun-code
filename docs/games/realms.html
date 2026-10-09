@@ -24,16 +24,28 @@
   #bossfill { height:100%; background:linear-gradient(90deg,#c02020,#ff5a5a); width:100%; transition:width .2s; }
   #log { width:100%; max-width:768px; height:84px; overflow:hidden; background:#0d0d13; border:1px solid #3a3a4a; border-radius:6px; margin-top:8px; padding:8px 12px; font-size:13px; line-height:1.5; }
   #log div:last-child { color:#ffd75e; }
-  .overlay { position:absolute; inset:0; background:rgba(5,5,10,.93); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-radius:6px; padding:20px; z-index:10; }
+  .overlay { position:absolute; inset:0; background:rgba(5,5,10,.93); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-radius:6px; padding:20px; z-index:10; overflow-y:auto; }
   .overlay h2 { color:#ffd75e; letter-spacing:3px; margin-bottom:12px; }
   .overlay p { max-width:520px; margin:6px 0; line-height:1.6; font-size:14px; color:#c9c9d6; }
   .overlay button { margin-top:16px; background:#ffd75e; color:#111; border:none; font-family:inherit; font-weight:bold; font-size:16px; padding:12px 32px; border-radius:6px; cursor:pointer; letter-spacing:2px; }
   .overlay button:active { transform:scale(.96); }
   .overlay button:disabled { background:#555; color:#999; cursor:wait; }
   #diffrow { display:flex; gap:10px; margin-top:4px; }
-  #diffrow button { margin-top:8px; padding:10px 18px; font-size:14px; background:#1e1e2a; color:#c9c9d6; border:1px solid #4a4a5e; }
-  #diffrow button.sel { background:#ffd75e; color:#111; border-color:#ffd75e; }
-  #diffdesc { font-size:12px; color:#8a8a9a; min-height:18px; }
+  #diffrow button { margin-top:8px; padding:10px 18px; min-width:104px; min-height:52px; font-size:15px; background:#1e1e2a; color:#c9c9d6; border:1px solid #4a4a5e; }
+  #diffrow button.sel { background:#ffd75e; color:#111; border-color:#ffd75e; box-shadow:0 0 12px rgba(255,215,94,.55); }
+  #diffdesc { font-size:13px; color:#b5b5c8; min-height:20px; }
+  #startBtn { font-size:20px; padding:16px 20px; width:min(320px,92%); margin-top:20px; box-shadow:0 0 18px rgba(255,215,94,.45); animation:startpulse 1.6s ease-in-out infinite; }
+  @keyframes startpulse { 0%,100% { box-shadow:0 0 12px rgba(255,215,94,.35); transform:scale(1); } 50% { box-shadow:0 0 28px rgba(255,215,94,.7); transform:scale(1.03); } }
+  #starthint { font-size:12px !important; letter-spacing:3px; color:#8a8a9a !important; margin:14px 0 0 !important; }
+  #creditline { font-size:12px; color:#a8a8bc; margin-top:12px; }
+  @media (max-width:520px) {
+    .overlay { padding:14px 12px; justify-content:flex-start; }
+    .overlay h2 { font-size:19px; letter-spacing:2px; margin-bottom:8px; }
+    .overlay p { font-size:12.5px; line-height:1.45; }
+    #diffrow { gap:8px; width:100%; justify-content:center; }
+    #diffrow button { min-width:0; flex:1; max-width:120px; min-height:48px; font-size:14px; padding:8px 6px; }
+    #startBtn { font-size:18px; }
+  }
   .hidden { display:none !important; }
   #touch { display:none; width:100%; max-width:768px; margin-top:8px; justify-content:space-between; }
   #dpad { display:grid; grid-template-columns:repeat(3,64px); grid-template-rows:repeat(3,64px); gap:6px; }
@@ -65,15 +77,16 @@
     <p>Centuries ago the Deepdelve swallowed a kingdom and its gold. Above it, the village of Emberhold still keeps the lamps lit. Delvers go down. Most do not come back.</p>
     <p>Every tile of this dungeon, every goblin, every gold coin is computed live in <b style="color:#4ae08a">Jesun.Code</b>, running in your browser. Press <b style="color:#ffd75e">M</b> underground for first-person sight.</p>
     <p><b style="color:#ffd75e">Move:</b> WASD / Arrows &nbsp; <b style="color:#ffd75e">Attack:</b> bump or Space &nbsp; <b style="color:#ffd75e">Talk:</b> E &nbsp; <b style="color:#ffd75e">Potion:</b> Q &nbsp; <b style="color:#ffd75e">View:</b> M &nbsp; <b style="color:#ffd75e">Pause:</b> P</p>
-    <p style="margin-top:10px">CHOOSE YOUR DELVE:</p>
+    <p style="margin-top:10px; letter-spacing:2px; font-size:13px; color:#8fd6ff">CHOOSE YOUR DELVE (TAP ONE):</p>
     <div id="diffrow">
-      <button type="button" data-d="1">STORY</button>
-      <button type="button" data-d="2" class="sel">DELVER</button>
-      <button type="button" data-d="3">NIGHTMARE</button>
+      <button type="button" data-d="1" aria-label="Story difficulty">STORY</button>
+      <button type="button" data-d="2" class="sel" aria-label="Delver difficulty">DELVER</button>
+      <button type="button" data-d="3" aria-label="Nightmare difficulty">NIGHTMARE</button>
     </div>
     <p id="diffdesc">Delver: the intended delve. Full danger, full glory.</p>
+    <p id="starthint">TAP THE BUTTON OR PRESS ENTER</p>
     <button id="startBtn">ENTER THE REALMS</button>
-    <p style="font-size:11px;color:#77778a;margin-top:10px">Sprite art: Kenney (kenney.nl), public domain (CC0).</p>
+    <p id="creditline">Sprite art: Kenney (kenney.nl), public domain (CC0).</p>
   </div>
   <div id="gameover" class="overlay hidden">
     <h2>YOU DIED IN THE DEEP</h2>
@@ -124,7 +137,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261008o';
+var APP_VERSION='20261008p';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
