@@ -81,6 +81,7 @@ globalThis.__R3D = {
   AMESH, chunkBiome, redistributeWildlife,   /* Phase 5 wildlife v2 */
   amenityCenterFor,                          /* Phase 5 wildlife v3: dog placement */
   wildEagles, wildOwls, thermalFor, treeNear, treeWithPartner, redistributeEagles, redistributeOwls,  /* Phase 5 wildlife v4 */
+  wildLions, wildPandas, wildTigers, wildPenguins, pondShore,  /* Phase 5 wildlife v5 */
   get dayPhase() { return dayPhase; }, set dayPhase(v) { dayPhase = v; },  /* v4: owl day/night test */
   get cash() { return cash; }, set cash(v) { cash = v; },
   get kills() { return kills; }, set kills(v) { kills = v; },
@@ -379,6 +380,11 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 
   /* 7f. animal herd separation: two cows pushed together drift apart */
   G.BUS.active = false; G.BUS.speed = 0;         // park the bus: isolate herd steering
+  for (const a of G.animals)   // Phase 5 wildlife v5: park the new predators (tigers hunt cows, lions bolt them)
+    if (a.kind === 'lion' || a.kind === 'tiger') {
+      a.pos.set(250, G.terrainHeight(250, 250), 250);
+      a.fleeT = 0; a.prey = null; a.preyCd = 999;
+    }
   const cows = G.animals.filter(a => a.kind === 'cow');
   const c0 = cows[0], c1 = cows[1];
   c0.pos.set(60, G.terrainHeight(60, 60), 60);
@@ -603,8 +609,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (no new literal new THREE.InstancedMesh call sites)', imCount === 43, 'count=' + imCount);
-  check('wildlife2: AMESH holds 24 instanced-mesh sites (20 + v4 eagle/owl/monkey/chicken bodies)',
-    Object.keys(G.AMESH).length === 24, 'sites=' + Object.keys(G.AMESH).length);
+  check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
+    Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
   check('wildlife: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
@@ -850,20 +856,21 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     const wl = G.AMESH.wildLegs;
     const ic = wl.instanceColor;
     let tintVaries = false;
-    if (ic && ic.count === 72) {
-      /* instance 0 = rabbit leg, instance 54 = first monkey leg: must differ */
-      const d = Math.abs(ic.array[0] - ic.array[162]) +
-                Math.abs(ic.array[1] - ic.array[163]) +
-                Math.abs(ic.array[2] - ic.array[164]);
+    if (ic && ic.count === 94) {
+      /* instance 0 = rabbit leg, instance 72 = first lion leg: must differ */
+      const d = Math.abs(ic.array[0] - ic.array[216]) +
+                Math.abs(ic.array[1] - ic.array[217]) +
+                Math.abs(ic.array[2] - ic.array[218]);
       tintVaries = d > 0.01;
     }
     check('wildlife2: shared legs carry per-instance species tints', tintVaries,
       'count=' + (ic && ic.count));
     const geoOk = ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody',
                    'dogBody', 'catBody', 'foxBody', 'duckBody',
-                   'eagleBody', 'owlBody', 'monkeyBody', 'chickenBody'].every(
+                   'eagleBody', 'owlBody', 'monkeyBody', 'chickenBody',
+                   'lionBody', 'pandaBody', 'tigerBody', 'penguinBody'].every(
       k => G.AMESH[k].geometry.attributes.position.count > 0);
-    check('wildlife2: all twelve body geometries are non-empty', geoOk);
+    check('wildlife2: all sixteen body geometries are non-empty', geoOk);
   }
 }
 
@@ -963,6 +970,11 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   scatterW3();
   for (const a of G.animals)   // park deer/horses far: the tame scan must see only our dog
     if (a.kind === 'deer' || a.kind === 'horse') { a.pos.set(300, G.terrainHeight(300, 300), 300); a.fleeT = 0; }
+  for (const a of G.animals)   // Phase 5 wildlife v5: park the new predators (lions bolt dogs)
+    if (a.kind === 'lion' || a.kind === 'tiger') {
+      a.pos.set(300, G.terrainHeight(300, 300), 300);
+      a.fleeT = 0; a.prey = null; a.preyCd = 999;
+    }
   const dog = w3.find(a => a.kind === 'dog');
   const cat = w3.find(a => a.kind === 'cat');
   const duck = w3.find(a => a.kind === 'duck');
@@ -1371,10 +1383,10 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     w4.filter(a => a.kind === 'monkey').length === 4 &&
     w4.filter(a => a.kind === 'chicken').length === 5,
     'eagles=' + G.wildEagles.length + ' owls=' + G.wildOwls.length + ' ground=' + w4.length);
-  check('wildlife4: AMESH holds 24 instanced-mesh sites (20 + eagle/owl/monkey/chicken bodies)',
-    Object.keys(G.AMESH).length === 24, 'sites=' + Object.keys(G.AMESH).length);
-  check('wildlife4: wildLegs grew to 72 slots with zero new leg sites',
-    G.AMESH.wildLegs.count === 72, 'count=' + G.AMESH.wildLegs.count);
+  check('wildlife4: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
+    Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
+  check('wildlife4: wildLegs grew to 94 slots with zero new leg sites',
+    G.AMESH.wildLegs.count === 94, 'count=' + G.AMESH.wildLegs.count);
 
   /* eagle thermals are a pure function of chunk coords */
   {
@@ -1451,6 +1463,16 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     check('wildlife4: owl geometry carries bright eye dots', bright > 10, 'brightVerts=' + bright);
   }
 
+  /* Phase 5 wildlife v5: park the new predators so the monkey/chicken
+     isolation tests see only their own species (lions/tigers bolt monkeys,
+     lions hunt near chickens). Mirrors the v3 wolf-parking idiom. */
+  for (const a of G.animals) {
+    if (a.kind === 'lion' || a.kind === 'tiger' || a.kind === 'panda' || a.kind === 'penguin') {
+      a.pos.set(250, G.terrainHeight(250, 250), 250);
+      a.fleeT = 0; a.prey = null; a.preyCd = 999; a.panicT = 0;
+    }
+  }
+
   /* monkeys: tree-swing between real trees. Home trees prefer a 12m swing
      partner (10m minimum tree spacing makes bare pairs rare); the (-200,-300)
      region is known pair-rich, so the relocate lands monkeys on partners. */
@@ -1515,6 +1537,239 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   globalThis.__renderCount = 0;
   frame(30);
   check('wildlife4: exactly one render per tick', globalThis.__renderCount === 30,
+    'renders=' + globalThis.__renderCount);
+}
+
+/* ================= 13. PHASE 5 WILDLIFE V5: lions / pandas / tigers / penguins ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
+  const parkEnemies5 = (x, z) => {
+    for (const e of G.enemies) {
+      e.seeT = 0; e.scanT = 0; e.wasSpotted = false; e.live = false;
+      e.aware = false; e.aggroT = 0; e.attackCd = 0; e.state = 'wander';
+      e.prey = null; e.preyCd = 0; e.hp = e.cfg.hp; e.speed = 0;
+      e.group.position.set(x, groundY(x, z), z);
+    }
+  };
+  parkEnemies5(150, 150);
+  const settle5 = (x, z) => {
+    G.player.position.set(x, groundY(x, z), z);
+    G.player.rotation.y = 0;
+    frame(3);   // absorb any chunk crossing
+  };
+  const w5 = G.animals.filter(a => a.kind === 'lion' || a.kind === 'panda' ||
+                                   a.kind === 'tiger' || a.kind === 'penguin');
+  /* park every non-v5 animal so the v5 tests isolate (mirrors the v2/v3 idiom) */
+  const parkOthers5 = () => {
+    for (const a of G.animals) {
+      if (w5.indexOf(a) < 0) {
+        a.pos.set(250, G.terrainHeight(250, 250), 250);
+        a.fleeT = 0; a.prey = null; a.preyCd = 999; a.panicT = 0;
+      }
+    }
+  };
+  /* park all v5 except the named subjects */
+  const parkV5 = (...keep) => {
+    for (const a of w5) {
+      if (keep.indexOf(a) < 0) {
+        a.pos.set(250, G.terrainHeight(250, 250), 250);
+        a.fleeT = 0; a.prey = null; a.preyCd = 999; a.panicT = 0;
+      }
+    }
+  };
+  check('wildlife5: 4 new species spawn (3 lions, 2 pandas, 2 tigers, 4 penguins)',
+    w5.filter(a => a.kind === 'lion').length === 3 &&
+    w5.filter(a => a.kind === 'panda').length === 2 &&
+    w5.filter(a => a.kind === 'tiger').length === 2 &&
+    w5.filter(a => a.kind === 'penguin').length === 4,
+    'n=' + w5.length);
+  {
+    const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
+    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (still 43 literal call sites)',
+      imCount5 === 43, 'count=' + imCount5);
+  }
+  {
+    /* lioness silhouette: instances 1-2 are slimmer than the male */
+    const lions = w5.filter(a => a.kind === 'lion');
+    check('wildlife5: lionesses are slimmer than the male (per-instance root scale)',
+      lions[0].bodySX === 1 && lions[0].bodySZ === 1 &&
+      lions[1].bodySX < 1 && lions[2].bodySX < 1 &&
+      lions[1].bodySZ < 1 && lions[2].bodySZ < 1,
+      'sx=' + lions.map(a => a.bodySX).join(','));
+  }
+
+  /* relocate: seeded per-chunk biomes; a pure function of chunk coords */
+  {
+    const biomeAt = (x, z) => G.chunkBiome(Math.floor(x / 48), Math.floor(z / 48));
+    const wantBiome = { lion: 'plain', panda: 'forest', tiger: 'forest' };
+    const snap = () => w5.map(a => a.kind + ':' + a.pos.x.toFixed(3) + ',' + a.pos.z.toFixed(3)).join('|');
+    const before = new Map(w5.map(a => [a, a.pos.x.toFixed(3) + ',' + a.pos.z.toFixed(3)]));
+    G.redistributeWildlife(3, -2);
+    const s1 = snap();
+    let biomeOk = true, pengOk = true;
+    for (const a of w5) {
+      /* the landmark skip keeps the animal at its old spot: only assert
+         the biome contract for animals the placement actually moved */
+      const moved = (a.pos.x.toFixed(3) + ',' + a.pos.z.toFixed(3)) !== before.get(a);
+      if (a.kind === 'penguin') {
+        /* shore placement: the pond dips below the water plane, the bird
+           stands on land beside it */
+        if (!(G.terrainHeight(a.pondX, a.pondZ) < -0.55)) pengOk = false;
+        if (!(G.terrainHeight(a.pos.x, a.pos.z) >= -0.55)) pengOk = false;
+      } else if (moved && biomeAt(a.pos.x, a.pos.z) !== wantBiome[a.kind]) biomeOk = false;
+    }
+    check('wildlife5: relocated species land in biome-matching chunks', biomeOk);
+    check('wildlife5: relocated penguins sit on shores beside ponds', pengOk);
+    G.redistributeWildlife(3, -2);
+    check('wildlife5: v5 relocate is a pure function of chunk coords', snap() === s1);
+  }
+
+  /* lions: hunt deer/rabbit/pig inside 28m; the catch panic-bolts the prey,
+     roars, and rests LONGER than a wolf (preyCd >= 10) */
+  settle5(-100, -100);
+  parkOthers5();
+  const lions = w5.filter(a => a.kind === 'lion');
+  const lion = lions[0];
+  parkV5(lion);
+  const ldeer = G.animals.find(a => a.kind === 'deer' && !a.mountLocked);
+  lion.pos.set(40, G.terrainHeight(40, 40), 40);
+  lion.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  lion.mode = 'idle'; lion.t = 999; lion.fleeT = 0; lion.prey = null; lion.preyCd = 0;
+  ldeer.pos.set(55, G.terrainHeight(55, 40), 40);   // 15m: inside the 28m acquire
+  ldeer.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  ldeer.mode = 'idle'; ldeer.t = 999; ldeer.fleeT = 0;
+  frame(5);
+  check('wildlife5: lion hunts the deer inside 28m', lion.prey === ldeer,
+    'prey=' + (lion.prey && lion.prey.kind));
+  ldeer.pos.set(lion.pos.x + 1, G.terrainHeight(lion.pos.x + 1, lion.pos.z), lion.pos.z);
+  ldeer.fleeT = 0;
+  frame(1);   // single frame: the catch sets preyCd before any decrement
+  check('wildlife5: lion catch panic-bolts the deer and rests longer than a wolf',
+    ldeer.fleeT > 3 && lion.prey === null && lion.preyCd >= 10,
+    'fleeT=' + ldeer.fleeT.toFixed(2) + ' preyCd=' + lion.preyCd.toFixed(2));
+
+  /* tigers: stealth stalk inside 20m (slow, crouched), sprint pounce under 8m */
+  settle5(-100, -100);
+  parkOthers5();
+  const tigers = w5.filter(a => a.kind === 'tiger');
+  const tiger = tigers[0];
+  parkV5(tiger);
+  const trabbit = G.animals.find(a => a.kind === 'rabbit');
+  tiger.pos.set(40, G.terrainHeight(40, 40), 40);
+  tiger.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  tiger.mode = 'idle'; tiger.t = 999; tiger.fleeT = 0;
+  tiger.prey = null; tiger.preyCd = 0; tiger.pounceT = 0;
+  trabbit.pos.set(55, G.terrainHeight(55, 40), 40);   // 15m: stalk range
+  trabbit.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  trabbit.mode = 'idle'; trabbit.t = 999; trabbit.fleeT = 0;
+  frame(5);
+  check('wildlife5: tiger stealth-stalks the rabbit inside 20m (slow, crouched)',
+    tiger.prey === trabbit && tiger.pounceT <= 0 && tiger.bodyPitch > 0.2,
+    'prey=' + (tiger.prey && tiger.prey.kind) + ' pitch=' + tiger.bodyPitch.toFixed(2));
+  trabbit.pos.set(tiger.pos.x + 6, G.terrainHeight(tiger.pos.x + 6, tiger.pos.z), tiger.pos.z);
+  trabbit.fleeT = 0;
+  frame(1);
+  check('wildlife5: tiger pounces inside 8m (speed burst)', tiger.pounceT > 0,
+    'pounceT=' + tiger.pounceT.toFixed(2));
+  const tp0 = Math.hypot(trabbit.pos.x - tiger.pos.x, trabbit.pos.z - tiger.pos.z);
+  frame(60);
+  const tp1 = Math.hypot(trabbit.pos.x - tiger.pos.x, trabbit.pos.z - tiger.pos.z);
+  check('wildlife5: tiger pounce closes the distance fast (or the catch lands)',
+    tp1 < tp0 - 2 || tiger.prey === null,
+    'd=' + tp0.toFixed(1) + '->' + tp1.toFixed(1));
+
+  /* pandas: sit-and-eat idle loop (body pitches up while idle) */
+  settle5(-100, -100);
+  parkOthers5();
+  const pandas = w5.filter(a => a.kind === 'panda');
+  parkV5(pandas[0]);
+  const panda = pandas[0];
+  panda.pos.set(40, G.terrainHeight(40, 40), 40);   // far from the player: no flee
+  panda.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  panda.fleeT = 0; panda.mode = 'idle'; panda.t = 999;
+  panda.sitT = 0; panda.eatCd = 0.5;
+  let minPitch = 0;
+  for (let i = 0; i < 900; i++) { frame(1); minPitch = Math.min(minPitch, panda.bodyPitch); }
+  check('wildlife5: panda sits up to eat (body pitch dives while idle)', minPitch < -0.5,
+    'minPitch=' + minPitch.toFixed(2));
+
+  /* penguins: waddle on shore, toboggan-slide to water on panic, swim circles.
+     The test pond is REAL water: a deterministic in-chunk search for a
+     terrain dip below the water plane, with the shore inside 18m of the
+     chunk center so the player can walk to the bird without leaving the
+     chunk (no relocate mid-test, the duck-test idiom). */
+  settle5(200, 200);
+  let pcx = 4, pcz = 4, pwx = 0, pwz = 0, psh = null;
+  for (let pr = 0; pr < 4 && pwx === 0; pr++) {
+    for (let ax = 4 - pr; ax <= 4 + pr && pwx === 0; ax++) {
+      for (let az = 4 - pr; az <= 4 + pr && pwx === 0; az++) {
+        if (Math.max(Math.abs(ax - 4), Math.abs(az - 4)) !== pr) continue;
+        const ccx = ax * 48 + 24, ccz = az * 48 + 24;
+        for (let t = 0; t < 200 && pwx === 0; t++) {
+          const x = (ax + ((t * 37) % 48) / 48) * 48, z = (az + ((t * 53) % 48) / 48) * 48;
+          if (G.terrainHeight(x, z) < -0.55) {
+            const sh = G.pondShore(x, z);
+            if (Math.hypot(sh.x - ccx, sh.z - ccz) < 18) { pcx = ax; pcz = az; pwx = x; pwz = z; psh = sh; }
+          }
+        }
+      }
+    }
+  }
+  check('wildlife5: test pond + shore found near the player', pwx !== 0,
+    pwx === 0 ? 'no water found' : 'pond=(' + pwx.toFixed(0) + ',' + pwz.toFixed(0) + ')');
+  settle5(pcx * 48 + 24, pcz * 48 + 24);   // into the water chunk; relocate fires first
+  parkOthers5();
+  const pengs = w5.filter(a => a.kind === 'penguin');
+  parkV5(pengs[0]);
+  const pen = pengs[0];
+  const ccx = pcx * 48 + 24, ccz = pcz * 48 + 24;   // chunk center: the player anchor
+  pen.pondX = pwx; pen.pondZ = pwz; pen.shoreX = psh.x; pen.shoreZ = psh.z;
+  pen.zone = { x0: psh.x - 8, x1: psh.x + 8, z0: psh.z - 8, z1: psh.z + 8 };
+  pen.pos.set(psh.x, G.terrainHeight(psh.x, psh.z), psh.z);
+  pen.fleeT = 0; pen.panicT = 0; pen.inWater = false; pen.slide = false;
+  pen.bodyPitch = 0; pen.bodyRoll = 0;
+  pen.mode = 'walk'; pen.t = 999;
+  pen.target.set(psh.x + 3, 0, psh.z + 2);
+  G.player.position.set(ccx, groundY(ccx, ccz), ccz);   // >10m from the waddler: no panic
+  let maxRoll = 0;
+  for (let i = 0; i < 120; i++) { frame(1); maxRoll = Math.max(maxRoll, Math.abs(pen.bodyRoll)); }
+  check('wildlife5: penguin waddles (side-to-side body roll while walking)', maxRoll > 0.08,
+    'maxRoll=' + maxRoll.toFixed(3));
+  /* walk the player to 4m of the bird, staying in-chunk: toward the center */
+  {
+    const dx = ccx - pen.pos.x, dz = ccz - pen.pos.z, dl = Math.hypot(dx, dz) || 1;
+    const nx = pen.pos.x + (dx / dl) * 4, nz = pen.pos.z + (dz / dl) * 4;
+    G.player.position.set(nx, groundY(nx, nz), nz);
+  }
+  frame(5);
+  check('wildlife5: penguin panics near the player (toboggan slide starts)',
+    pen.panicT > 0 && pen.slide === true && pen.bodyPitch > 1,
+    'panicT=' + pen.panicT.toFixed(2) + ' pitch=' + pen.bodyPitch.toFixed(2));
+  frame(300);
+  check('wildlife5: penguin reaches the water and swims (rides the water plane)',
+    pen.inWater === true && Math.abs(pen.pos.y - (-0.55)) < 0.3,
+    'inWater=' + pen.inWater + ' y=' + pen.pos.y.toFixed(2));
+  pen.panicT = 0.05;                                        // let the panic expire
+  G.player.position.set(ccx, groundY(ccx, ccz), ccz);       // back to center: no re-panic
+  frame(600);
+  check('wildlife5: penguin waddles back to shore when calm', pen.inWater === false,
+    'inWater=' + pen.inWater);
+
+  /* the new species are wild-only: never raise the tame prompt */
+  settle5(0, 0);
+  parkOthers5();
+  parkV5();
+  const tlion = lions[0];
+  tlion.pos.set(2.5, G.terrainHeight(2.5, 0), 0);
+  tlion.fleeT = 0; tlion.mode = 'idle'; tlion.t = 999; tlion.prey = null; tlion.preyCd = 999;
+  frame(2);
+  check('wildlife5: tame prompt excludes the new species',
+    G.PET.hintOn === false && G.PET.nearA === null, 'hintOn=' + G.PET.hintOn);
+
+  /* one render per tick still holds with the new meshes */
+  globalThis.__renderCount = 0;
+  frame(30);
+  check('wildlife5: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
 }
 

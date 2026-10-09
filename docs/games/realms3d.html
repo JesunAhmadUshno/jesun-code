@@ -1118,6 +1118,11 @@ const COL = {
   owl: 0x6b5138, owlWing: 0x4f3d28, owlEye: 0xffe08a,
   monkey: 0x7a5c3e, monkeyFace: 0xc9a97e, monkeyBelly: 0xd9b98e,
   chicken: 0xe8e0d0, chickenBeak: 0xe8932f, chickenComb: 0xd93a2e, chickenLeg: 0xe8932f,
+  /* Phase 5 wildlife v5: lion / panda / tiger / penguin palette */
+  lion: 0xc79a5b, lionMane: 0x5f3d1e, lionSnout: 0x8a6a3e,
+  panda: 0xe8e4da, pandaBlack: 0x232323, bamboo: 0x4a8a3a,
+  tiger: 0xd07a2e, tigerStripe: 0x2a1a10, tigerSnout: 0xe8c898,
+  penguin: 0x2a2e38, penguinBelly: 0xeef0f2, penguinBeak: 0xe8932f, penguinFeet: 0xe8932f,
 };
 const animalMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
 
@@ -1319,6 +1324,66 @@ const chickenBodyParts = [
   animalBox(0.34, 0.05, 0.28, COL.chicken, 0.2, 0.42, 0),
 ];
 
+/* ---- Phase 5 wildlife v5: lion / panda / tiger / penguin.
+   Same idiom as v2+v3+v4: heads folded into the body geometry (one body IM
+   per species, noHead), legs ride the shared wildLegs IM with per-instance
+   species tint. The lion mane is a collar of darker boxes (flattened
+   torus read at this scale) around the neck; the lioness silhouette comes
+   from a per-instance root slim-scale (bodySX/bodySZ), not a second mesh.
+   The panda carries its bamboo stalk baked into the body (zero draw calls);
+   the penguin is upright with flipper wings merged into the body. */
+const lionBodyParts = [
+  animalBox(0.52, 0.56, 1.3, COL.lion, 0, 0.98, 0),             // body
+  animalBox(0.34, 0.34, 0.45, COL.lion, 0, 1.18, 0.72),         // head, folded in
+  animalBox(0.18, 0.14, 0.2, COL.lionSnout, 0, 1.1, 0.98),      // muzzle
+  animalBox(0.09, 0.12, 0.05, COL.lion, -0.13, 1.4, 0.66),      // ears
+  animalBox(0.09, 0.12, 0.05, COL.lion, 0.13, 1.4, 0.66),
+  animalBox(0.5, 0.42, 0.35, COL.lionMane, 0, 0.82, 0.42),      // chest ruff
+  animalBox(0.07, 0.07, 0.75, COL.lion, 0, 1.05, -0.9, 0.45, 0, 0),     // tail
+  animalBox(0.12, 0.12, 0.16, COL.lionMane, 0, 0.88, -1.22),    // tail tuft
+];
+for (let _mi = 0; _mi < 8; _mi++) {   /* mane collar: dark ring around the neck */
+  const _mth = _mi * Math.PI / 4;
+  lionBodyParts.push(animalBox(0.2, 0.36, 0.36, COL.lionMane,
+    0.32 * Math.cos(_mth), 1.08 + 0.32 * Math.sin(_mth), 0.52, 0, 0, _mth));
+}
+const pandaBodyParts = [
+  animalBox(0.56, 0.62, 0.88, COL.panda, 0, 0.76, 0),           // round body
+  animalBox(0.4, 0.38, 0.4, COL.panda, 0, 1.18, 0.46),           // head, folded in
+  animalBox(0.12, 0.12, 0.06, COL.pandaBlack, -0.17, 1.42, 0.4), // ears
+  animalBox(0.12, 0.12, 0.06, COL.pandaBlack, 0.17, 1.42, 0.4),
+  animalBox(0.09, 0.12, 0.04, COL.pandaBlack, -0.11, 1.22, 0.67), // eye dots
+  animalBox(0.09, 0.12, 0.04, COL.pandaBlack, 0.11, 1.22, 0.67),
+  animalBox(0.08, 0.06, 0.05, COL.pandaBlack, 0, 1.14, 0.68),    // nose
+  animalBox(0.58, 0.28, 0.34, COL.pandaBlack, 0, 0.86, 0.28),    // shoulder band
+  animalBox(0.58, 0.24, 0.3, COL.pandaBlack, 0, 0.8, -0.3),      // rump band
+  animalBox(0.05, 0.55, 0.05, COL.bamboo, 0.16, 1.0, 0.8, 0.35, 0, 0.25),  // bamboo stalk
+  animalBox(0.12, 0.12, 0.12, COL.panda, 0, 0.7, -0.48),         // stub tail
+];
+const tigerBodyParts = [
+  animalBox(0.44, 0.48, 1.35, COL.tiger, 0, 0.9, 0),            // sleek long body
+  animalBox(0.3, 0.3, 0.42, COL.tiger, 0, 1.04, 0.75),          // head, folded in
+  animalBox(0.16, 0.13, 0.18, COL.tigerSnout, 0, 0.97, 0.99),   // muzzle
+  animalBox(0.08, 0.11, 0.05, COL.tiger, -0.11, 1.22, 0.7),     // ears
+  animalBox(0.08, 0.11, 0.05, COL.tiger, 0.11, 1.22, 0.7),
+  animalBox(0.46, 0.5, 0.07, COL.tigerStripe, 0, 0.9, 0.45),     // stripes
+  animalBox(0.46, 0.5, 0.07, COL.tigerStripe, 0, 0.9, 0.15),
+  animalBox(0.46, 0.5, 0.07, COL.tigerStripe, 0, 0.9, -0.15),
+  animalBox(0.46, 0.5, 0.07, COL.tigerStripe, 0, 0.9, -0.45),
+  animalBox(0.08, 0.08, 0.95, COL.tiger, 0, 0.95, -1.0, 0.35, 0, 0),     // long tail
+];
+const penguinBodyParts = [
+  animalBox(0.42, 0.78, 0.36, COL.penguin, 0, 0.58, 0),         // upright body
+  animalBox(0.32, 0.62, 0.1, COL.penguinBelly, 0, 0.54, 0.15),  // white belly
+  animalBox(0.3, 0.28, 0.3, COL.penguin, 0, 1.08, 0.02),        // head, folded in
+  animalBox(0.09, 0.06, 0.13, COL.penguinBeak, 0, 1.06, 0.2),   // beak
+  animalBox(0.06, 0.07, 0.03, COL.penguinBelly, -0.09, 1.12, 0.17),  // eyes
+  animalBox(0.06, 0.07, 0.03, COL.penguinBelly, 0.09, 1.12, 0.17),
+  animalBox(0.09, 0.5, 0.15, COL.penguin, -0.27, 0.62, 0, 0, 0, 0.15),   // flipper wings
+  animalBox(0.09, 0.5, 0.15, COL.penguin, 0.27, 0.62, 0, 0, 0, -0.15),
+  animalBox(0.12, 0.18, 0.08, COL.penguin, 0, 0.3, -0.2, 0.4, 0, 0),     // tail nub
+];
+
 function makeAnimalMesh(geo, count) {
   const im = new THREE.InstancedMesh(geo, animalMat, count);
   im.castShadow = true;
@@ -1351,7 +1416,7 @@ const AMESH = {
   pigBody:        makeAnimalMesh(mergeAnimalParts(pigBodyParts), 3),
   wolfBody:       makeAnimalMesh(mergeAnimalParts(wolfBodyParts), 2),
   bearBody:       makeAnimalMesh(mergeAnimalParts(bearBodyParts), 1),
-  wildLegs:       makeAnimalMesh(animalLegGeo(0.3, 1.0, 0.12, 0xffffff), 72),
+  wildLegs:       makeAnimalMesh(animalLegGeo(0.3, 1.0, 0.12, 0xffffff), 94),
   /* Phase 5 wildlife v3: 4 body IMs (head folded in) ride the SAME shared
      wildLegs IM: 12 v2 animals (24 slots) + 15 v3 animals (30 slots) = 54.
      Exactly +4 InstancedMesh sites this tranche (4 bodies + 0 legs). */
@@ -1366,10 +1431,18 @@ const AMESH = {
   owlBody:        makeAnimalMesh(mergeAnimalParts(owlBodyParts), 3),
   monkeyBody:     makeAnimalMesh(mergeAnimalParts(monkeyBodyParts), 4),
   chickenBody:    makeAnimalMesh(mergeAnimalParts(chickenBodyParts), 5),
+  /* Phase 5 wildlife v5: 4 more body IMs (head folded in). All four ride the
+     shared wildLegs IM: 72 v2+v3+v4 slots + 3 lions (6) + 2 pandas (4) +
+     2 tigers (4) + 4 penguins (8) = 94. Exactly +4 sites, zero new leg sites. */
+  lionBody:       makeAnimalMesh(mergeAnimalParts(lionBodyParts), 3),
+  pandaBody:      makeAnimalMesh(mergeAnimalParts(pandaBodyParts), 2),
+  tigerBody:      makeAnimalMesh(mergeAnimalParts(tigerBodyParts), 2),
+  penguinBody:    makeAnimalMesh(mergeAnimalParts(penguinBodyParts), 4),
 };
 for (const _wn of ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody', 'wildLegs',
                    'dogBody', 'catBody', 'foxBody', 'duckBody',
-                   'eagleBody', 'owlBody', 'monkeyBody', 'chickenBody'])
+                   'eagleBody', 'owlBody', 'monkeyBody', 'chickenBody',
+                   'lionBody', 'pandaBody', 'tigerBody', 'penguinBody'])
   AMESH[_wn].castShadow = false;
 AMESH.wildLegs.setColorAt(0, _wildLegTint.setHex(0xffffff));  // allocate instanceColor
 const ALL_ANIMAL_MESHES = Object.values(AMESH);
@@ -1377,12 +1450,19 @@ const ALL_ANIMAL_MESHES = Object.values(AMESH);
 /* per-frame CPU matrix write: root, head (pivot * pitch), legs (hip * swing) */
 const _am1 = new THREE.Matrix4(), _am2 = new THREE.Matrix4(), _am3 = new THREE.Matrix4();
 const _am4 = new THREE.Matrix4();   /* Phase 5 wildlife v2: leg-scale scratch */
-const _aq = new THREE.Quaternion(), _ae = new THREE.Euler();
+const _aq = new THREE.Quaternion(), _ae = new THREE.Euler(0, 0, 0, 'YXZ');
 const _as1 = new THREE.Vector3(1, 1, 1);
 const _pv = new THREE.Vector3();    /* Phase 5 wildlife v2: root-pos scratch (rabbit hop bob) */
 function writeAnimalMatrices(a) {
-  _ae.set(0, a.rotY, 0);
+  /* Phase 5 wildlife v5: per-instance gait retargeting (Planet Zoo / Spore
+     research steal): bodyPitch/bodyRoll morph the shared quadruped pose per
+     species (panda sit-up, tiger stalk crouch, penguin waddle roll + belly
+     slide); bodySX/SY/SZ give the lioness her slimmer silhouette. YXZ order
+     keeps pitch/roll in the yawed frame (the eagle-rig convention); with
+     pitch=roll=0 and unit scale the pose is identical to before. */
+  _ae.set(a.bodyPitch, a.rotY, a.bodyRoll);
   _pv.copy(a.pos); _pv.y += a.bobY;                              // rabbit hop bob
+  _as1.set(a.bodySX, a.bodySY, a.bodySZ);
   _am1.compose(_pv, _aq.setFromEuler(_ae), _as1);                 // root
   a.imBody.setMatrixAt(a.iBody, _am1);
   if (!a.noHead) {                                               // head folded into body: skip
@@ -1450,11 +1530,23 @@ const WILD_SPP = {
             biome: 'forest', seed: 909 },
   chicken:{ hip: 0.25, legZ: 0.14, leg: 0.25, legTint: COL.chickenLeg,
             biome: 'farm',   seed: 1010 },
+  /* Phase 5 wildlife v5: lion (plains pride) / panda (forest) / tiger
+     (forest) / penguin (pond shores: custom 'pengshore' relocate probe).
+     Seeds continue the tranche series with fresh XORs. */
+  lion:   { hip: 0.70, legZ: 0.42, leg: 0.70, legTint: COL.lion,
+            biome: 'plain',     seed: 1111 },
+  panda:  { hip: 0.45, legZ: 0.30, leg: 0.45, legTint: COL.pandaBlack,
+            biome: 'forest',    seed: 1212 },
+  tiger:  { hip: 0.66, legZ: 0.40, leg: 0.66, legTint: COL.tiger,
+            biome: 'forest',    seed: 1313 },
+  penguin:{ hip: 0.19, legZ: 0.11, leg: 0.19, legTint: COL.penguinFeet,
+            biome: 'pengshore', seed: 1414 },
 };
 const _slotN = { deerM: 0, deerF: 0, deerL: 0, cow: 0, cowL: 0, horse: 0, horseL: 0,
                  rabbit: 0, pig: 0, wolf: 0, bear: 0, wildLeg: 0,
                  dog: 0, cat: 0, fox: 0, duck: 0,
-                 monkey: 0, chicken: 0 };
+                 monkey: 0, chicken: 0,
+                 lion: 0, panda: 0, tiger: 0, penguin: 0 };
 
 const animals = [];
 function addAnimal(kind, male, zone, opts) {
@@ -1476,6 +1568,10 @@ function addAnimal(kind, male, zone, opts) {
     walk: opts.walk, fleeR: opts.fleeR || 0, graze: !!opts.graze,
     /* Phase 5 wildlife v2: hop bob, shared-leg scale, headless body, wolf prey */
     bobY: 0, legScale: 1, noHead: false, prey: null, preyCd: 0,
+    /* Phase 5 wildlife v5: gait-retargeting pose params (see
+       writeAnimalMatrices); _lp/_lr/_mv drive the distance-based write skip */
+    bodyPitch: 0, bodyRoll: 0, bodySX: 1, bodySY: 1, bodySZ: 1,
+    _lp: 0, _lr: 0, _mv: false,
   };
   if (kind === 'deer') {
     const bi = male ? _slotN.deerM++ : _slotN.deerF++;
@@ -1498,7 +1594,8 @@ function addAnimal(kind, male, zone, opts) {
     a.iLegF = li * 2; a.iLegB = li * 2 + 1;
   } else if (kind === 'rabbit' || kind === 'pig' || kind === 'wolf' || kind === 'bear' ||
              kind === 'dog' || kind === 'cat' || kind === 'fox' || kind === 'duck' ||
-             kind === 'monkey' || kind === 'chicken') {
+             kind === 'monkey' || kind === 'chicken' ||
+             kind === 'lion' || kind === 'panda' || kind === 'tiger' || kind === 'penguin') {
     /* Phase 5 wildlife v2+v3+v4: head folded into the body geometry (one body IM
        per species, imHead aliases the body slot and writeAnimalMatrices
        skips the head write via noHead); legs ride the shared wildLegs IM
@@ -1583,6 +1680,11 @@ const WILD_LIST = { rabbit: wildRabbits, pig: wildPigs, wolf: wildWolves, bear: 
    herds (forest / farm biomes). */
 const wildMonkeys = [], wildChickens = [];
 WILD_LIST.monkey = wildMonkeys; WILD_LIST.chicken = wildChickens;
+/* Phase 5 wildlife v5: lion / panda / tiger / penguin lists. All four
+   relocate with the wild herds; none are persisted, none are tamable. */
+const wildLions = [], wildPandas = [], wildTigers = [], wildPenguins = [];
+WILD_LIST.lion = wildLions; WILD_LIST.panda = wildPandas;
+WILD_LIST.tiger = wildTigers; WILD_LIST.penguin = wildPenguins;
 for (let i = 0; i < 6; i++) {
   const a = addAnimal('rabbit', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
                       { walk: 2.2, fleeR: 14, graze: true });
@@ -1676,6 +1778,61 @@ for (let i = 0; i < 5; i++) {
   wildChickens.push(a);
 }
 AMESH.wildLegs.instanceColor.needsUpdate = true;   /* v3+v4 per-instance tints */
+
+/* ---- Phase 5 wildlife v5: LIONS / PANDAS / TIGERS / PENGUINS. Same
+   wild-deer idiom as v2+v3+v4: fixed-size herds, seeded placement, never
+   persisted. Lions start near spawn and relocate to plains (the pride);
+   pandas and tigers start near spawn and relocate to forest chunks;
+   penguins start on pond shores near spawn and relocate shore-to-shore. ---- */
+/* nearest shore point to a pond: scans rings around the water point for the
+   first spot at or above the water plane. Boot + relocate only. */
+function pondShore(wx, wz) {
+  for (let k = 0; k < 16; k++) {
+    const an = (k / 16) * Math.PI * 2, r = 4 + (k % 4) * 2;
+    const x = wx + Math.cos(an) * r, z = wz + Math.sin(an) * r;
+    if (terrainHeight(x, z) >= WATER_Y) return { x, z };
+  }
+  return { x: wx + 6, z: wz };
+}
+for (let i = 0; i < 3; i++) {
+  const a = addAnimal('lion', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
+                      { walk: 2.6 });
+  a.wild = true;
+  /* the pride: instance 0 is the male (full mane); 1-2 are lionesses,
+     slimmer via the per-instance root scale (no second mesh). */
+  if (i > 0) { a.bodySX = 0.88; a.bodySZ = 0.9; }
+  a.roarCd = 20 + a.rng() * 20;   /* ambient roar cooldown */
+  wildLions.push(a);
+}
+for (let i = 0; i < 2; i++) {
+  const a = addAnimal('panda', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
+                      { walk: 0.9, fleeR: 6, graze: true });
+  a.wild = true;
+  a.sitT = 0; a.eatCd = 3 + a.rng() * 5;   /* sit-and-eat idle loop */
+  wildPandas.push(a);
+}
+for (let i = 0; i < 2; i++) {
+  const a = addAnimal('tiger', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
+                      { walk: 2.2 });
+  a.wild = true;
+  a.pounceT = 0;   /* sprint-pounce burst timer */
+  wildTigers.push(a);
+}
+for (let i = 0; i < 4; i++) {
+  const w = findPond(i + 40);   /* distinct stream from the duck ponds */
+  const sh = pondShore(w.x, w.z);
+  const a = addAnimal('penguin', false,
+                      { x0: sh.x - 10, x1: sh.x + 10, z0: sh.z - 10, z1: sh.z + 10 },
+                      { walk: 1.0 });
+  a.wild = true;
+  a.pos.set(sh.x, terrainHeight(sh.x, sh.z), sh.z);
+  a.shoreX = sh.x; a.shoreZ = sh.z; a.pondX = w.x; a.pondZ = w.z;
+  a.panicT = 0; a.inWater = false; a.slide = false;
+  a.swimAng = a.rng() * 6.2832;
+  wildPenguins.push(a);
+  writeAnimalMatrices(a);
+}
+AMESH.wildLegs.instanceColor.needsUpdate = true;   /* v5 per-instance tints */
 
 /* ================= PHASE 5 WILDLIFE V4: SKY (eagles + owls) =================
    Flyers, not in `animals`: they pose from their own tick with an explicit
@@ -1903,7 +2060,7 @@ function chunkBiome(gx, gz) {
    player (wild-deer idiom). Runs on chunk crossing, never in the hot tick. */
 function redistributeWildlife(pcx, pcz) {
   for (const kind of ['rabbit', 'pig', 'wolf', 'bear', 'dog', 'fox', 'duck',
-                      'monkey', 'chicken']) {
+                      'monkey', 'chicken', 'lion', 'panda', 'tiger', 'penguin']) {
     const cfg = WILD_SPP[kind], list = WILD_LIST[kind];
     for (let i = 0; i < list.length; i++) {
       const a = list[i];
@@ -1946,6 +2103,29 @@ function redistributeWildlife(pcx, pcz) {
           a.zone.z0 = fz - 8; a.zone.z1 = fz + 8;
           a.target.set(fx, 0, fz);
           a.mode = 'idle'; a.t = rnd() * 3; a.panicT = 0;
+          a.rotY = rnd() * Math.PI * 2;
+          break;
+        }
+        if (cfg.biome === 'pengshore') {
+          /* Phase 5 wildlife v5: penguins need a pond with a shore. Probe
+             the chunk for a terrain dip below the water plane, then take the
+             nearest shore point; the zone recenters on the shore and the
+             pond stays the swim target. Keep the penguin if no water. */
+          let fx = 0, fz = 0, ok = false;
+          for (let t = 0; t < 6; t++) {
+            const x = (gx + rnd()) * CHUNK, z = (gz + rnd()) * CHUNK;
+            if (terrainHeight(x, z) < WATER_Y) { fx = x; fz = z; ok = true; break; }
+          }
+          if (!ok) continue;
+          const sh = pondShore(fx, fz);
+          a.pos.set(sh.x, terrainHeight(sh.x, sh.z), sh.z);
+          a.shoreX = sh.x; a.shoreZ = sh.z; a.pondX = fx; a.pondZ = fz;
+          a.zone.x0 = sh.x - 10; a.zone.x1 = sh.x + 10;
+          a.zone.z0 = sh.z - 10; a.zone.z1 = sh.z + 10;
+          a.target.set(sh.x, 0, sh.z);
+          a.inWater = false; a.slide = false; a.panicT = 0;
+          a.bodyPitch = 0; a.bodyRoll = 0;
+          a.mode = 'idle'; a.t = rnd() * 3;
           a.rotY = rnd() * Math.PI * 2;
           break;
         }
@@ -2053,10 +2233,21 @@ function natureTick(dt, now) {
     }
     /* Phase 5 wildlife v2: wolves are predators too. A wolf inside 15m bolts
        any animal except wolves and bears (the pet included); bears ignore
-       wolves, wolves ignore each other. Zero alloc: the herd is 2 wolves. */
-    if (a.fleeT <= 0 && a.kind !== 'wolf' && a.kind !== 'bear') {
+       wolves, wolves ignore each other. Zero alloc: the herd is 2 wolves.
+       Phase 5 wildlife v5: lions bolt prey the same way (tigers stalk, so a
+       tiger never triggers the bolt: its stealth needs the prey calm). */
+    if (a.fleeT <= 0 && a.kind !== 'wolf' && a.kind !== 'bear' && a.kind !== 'lion') {
       for (let wi = 0; wi < wildWolves.length; wi++) {
         const w = wildWolves[wi];
+        if (w === a) continue;
+        const wx = w.pos.x - p.x, wz = w.pos.z - p.z;
+        if (wx * wx + wz * wz < 225) {
+          a.fleeT = 3; a.fleeFrom.set(w.pos.x, 0, w.pos.z);
+          break;
+        }
+      }
+      if (a.fleeT <= 0) for (let li = 0; li < wildLions.length; li++) {
+        const w = wildLions[li];
         if (w === a) continue;
         const wx = w.pos.x - p.x, wz = w.pos.z - p.z;
         if (wx * wx + wz * wz < 225) {
@@ -2126,6 +2317,89 @@ function natureTick(dt, now) {
           prey.fleeT = 4; prey.fleeFrom.set(p.x, 0, p.z);
           a.prey = null; a.preyCd = 10 + a.rng() * 8; a.mode = 'idle'; a.t = 3;
         }
+      }
+    }
+    /* Phase 5 wildlife v5: lion hunt. Reuses the wolf acquirePrey pattern
+       with pride params: 28m acquire on deer/rabbit/pig only, run-down at
+       chase speed, and a LONGER rest than wolves after the catch
+       (preyCd 10-18). Roar on the catch via the sfxBlip idiom only. */
+    if (a.kind === 'lion' && a.fleeT <= 0 && a !== PET.a) {
+      a.preyCd -= dt;
+      let prey = a.prey;
+      if (prey && (prey === PET.a || prey.mountLocked)) { prey = null; a.prey = null; }
+      if (prey) {
+        const pdx = prey.pos.x - p.x, pdz = prey.pos.z - p.z;
+        if (pdx * pdx + pdz * pdz > 900) { prey = null; a.prey = null; }  /* lost it past 30m */
+      }
+      if (!prey && a.preyCd <= 0) {
+        let bestD2 = 784;                /* 28m acquire radius */
+        for (const b of animals) {
+          if (b === a || b === PET.a || b.mountLocked) continue;
+          const k = b.kind;
+          if (k !== 'deer' && k !== 'rabbit' && k !== 'pig') continue;
+          const dx = b.pos.x - p.x, dz = b.pos.z - p.z, d2 = dx * dx + dz * dz;
+          if (d2 < bestD2) { bestD2 = d2; prey = b; }
+        }
+        a.prey = prey;
+      }
+      if (prey) {
+        a.target.set(prey.pos.x, 0, prey.pos.z);
+        a.mode = 'walk';
+        const cdx = prey.pos.x - p.x, cdz = prey.pos.z - p.z;
+        if (cdx * cdx + cdz * cdz < 4) {   /* caught: panic bolt, roar, long rest */
+          prey.fleeT = 4; prey.fleeFrom.set(p.x, 0, p.z);
+          a.prey = null; a.preyCd = 10 + a.rng() * 8; a.mode = 'idle'; a.t = 3;
+          sfxBlip(85, 0.5, 'sawtooth', 0.28);   /* roar */
+          setTimeout(() => sfxBlip(120, 0.45, 'sawtooth', 0.22), 320);
+        }
+      } else {
+        /* the pride at rest: an ambient roar when the player is near */
+        a.roarCd -= dt;
+        const rdx = px - p.x, rdz = pz - p.z;
+        if (a.roarCd <= 0 && rdx * rdx + rdz * rdz < 2025 && !P.dead) {
+          a.roarCd = 40 + a.rng() * 30;
+          sfxBlip(80, 0.6, 'sawtooth', 0.2);
+          setTimeout(() => sfxBlip(110, 0.5, 'sawtooth', 0.16), 350);
+        }
+      }
+    }
+    /* Phase 5 wildlife v5: tiger hunt. Reuses the wolf acquirePrey pattern
+       with ambush params: 20m acquire, then a slow stealth stalk (1.2 m/s,
+       body pitched into a crouch) and a sprint pounce under 8m (8.5 m/s
+       burst for 1.2s). The catch panic-bolts the prey; the tiger rests. */
+    if (a.kind === 'tiger' && a.fleeT <= 0 && a !== PET.a) {
+      a.preyCd -= dt;
+      if (a.pounceT > 0) a.pounceT -= dt;
+      let prey = a.prey;
+      if (prey && (prey === PET.a || prey.mountLocked)) { prey = null; a.prey = null; }
+      if (prey) {
+        const pdx = prey.pos.x - p.x, pdz = prey.pos.z - p.z;
+        if (pdx * pdx + pdz * pdz > 900) { prey = null; a.prey = null; }  /* lost it past 30m */
+      }
+      if (!prey && a.preyCd <= 0) {
+        let bestD2 = 400;                /* 20m stalk-acquire radius */
+        for (const b of animals) {
+          if (b === a || b === PET.a || b.mountLocked) continue;
+          const k = b.kind;
+          if (k !== 'deer' && k !== 'cow' && k !== 'horse' && k !== 'rabbit' && k !== 'pig') continue;
+          const dx = b.pos.x - p.x, dz = b.pos.z - p.z, d2 = dx * dx + dz * dz;
+          if (d2 < bestD2) { bestD2 = d2; prey = b; }
+        }
+        a.prey = prey;
+      }
+      if (prey) {
+        const cdx = prey.pos.x - p.x, cdz = prey.pos.z - p.z, cd2 = cdx * cdx + cdz * cdz;
+        if (cd2 < 64 && a.pounceT <= 0) a.pounceT = 1.2;   /* under 8m: POUNCE */
+        a.bodyPitch = a.pounceT > 0 ? 0.15 : 0.32;          /* burst flattens, stalk crouches */
+        a.target.set(prey.pos.x, 0, prey.pos.z);
+        a.mode = 'walk';
+        if (cd2 < 4) {   /* caught: panic bolt, then rest */
+          prey.fleeT = 4; prey.fleeFrom.set(p.x, 0, p.z);
+          a.prey = null; a.pounceT = 0; a.preyCd = 8 + a.rng() * 6;
+          a.mode = 'idle'; a.t = 2.5; a.bodyPitch = 0;
+        }
+      } else {
+        a.bodyPitch += (0 - a.bodyPitch) * Math.min(1, dt * 4);
       }
     }
     /* Phase 5 wildlife v3: untamed dogs bark when the player is near (10m).
@@ -2211,6 +2485,70 @@ function natureTick(dt, now) {
       }
     }
 
+    /* Phase 5 wildlife v5: pandas sit-and-eat. While idle the panda
+       periodically sits up (body pitched back on the shared body matrix)
+       and munches its baked bamboo stalk; a scare or movement cancels it. */
+    if (a.kind === 'panda') {
+      if (a.fleeT > 0) { a.sitT = 0; a.bodyPitch = 0; }
+      else if (!a._mv) {   /* last frame's moving: this block runs before the move step */
+        a.eatCd -= dt;
+        if (a.eatCd <= 0) {
+          a.eatCd = 7 + a.rng() * 6; a.sitT = 3 + a.rng() * 2;
+          sfxBlip(300, 0.08, 'sine', 0.08);   /* munch */
+          sfxBlip(380, 0.08, 'sine', 0.06);
+        }
+        if (a.sitT > 0) {
+          a.sitT -= dt;
+          a.bodyPitch += (-0.85 - a.bodyPitch) * Math.min(1, dt * 5);
+          a.bobY = 0.06;
+        } else {
+          a.bodyPitch += (0 - a.bodyPitch) * Math.min(1, dt * 5);
+          a.bobY = 0;
+        }
+      } else { a.sitT = 0; a.bodyPitch += (0 - a.bodyPitch) * Math.min(1, dt * 8); }
+    }
+    /* Phase 5 wildlife v5: penguins. Shore waddle by default; the player
+       inside 8m triggers a panic toboggan-slide (belly flat, fast) to the
+       pond, then slow swim circles until calm, then a waddle back to shore.
+       Ground scares are cancelled for penguins; the slide replaces them. */
+    if (a.kind === 'penguin') {
+      a.fleeT = 0;
+      const qdx = px - p.x, qdz = pz - p.z, qd2 = qdx * qdx + qdz * qdz;
+      if (!a.inWater) {
+        if (a.panicT <= 0 && qd2 < 64 && !P.dead) {
+          a.panicT = 6 + a.rng() * 3;
+          sfxBlip(1500, 0.07, 'square', 0.1);   /* squawk */
+          sfxBlip(1200, 0.09, 'square', 0.08);
+        }
+        if (a.panicT > 0) {
+          a.panicT -= dt;
+          a.slide = true;
+          a.bodyPitch = 1.25; a.bodyRoll = 0;   /* belly flat */
+          a.target.set(a.pondX, 0, a.pondZ);
+          a.mode = 'walk';
+          const sdx = a.pondX - p.x, sdz = a.pondZ - p.z;
+          if (sdx * sdx + sdz * sdz < 16) {
+            a.inWater = true; a.slide = false;
+            a.panicT = 4 + a.rng() * 3; a.swimAng = a.rng() * 6.2832;
+          }
+        } else {
+          a.slide = false;
+          a.bodyPitch += (0 - a.bodyPitch) * Math.min(1, dt * 6);
+        }
+      } else {
+        a.bodyPitch = 0.15;
+        a.swimAng += dt * 0.5;
+        a.target.set(a.pondX + Math.cos(a.swimAng) * 3, 0, a.pondZ + Math.sin(a.swimAng) * 3);
+        a.mode = 'walk';
+        if (a.panicT > 0) a.panicT -= dt;
+        else {
+          a.target.set(a.shoreX, 0, a.shoreZ);
+          const hdx = a.shoreX - p.x, hdz = a.shoreZ - p.z;
+          if (hdx * hdx + hdz * hdz < 4) { a.inWater = false; a.slide = false; }
+        }
+      }
+    }
+
     let moving = false, spd = 0;
     if (a.fleeT > 0) {
       a.fleeT -= dt;
@@ -2283,6 +2621,12 @@ function natureTick(dt, now) {
            panicking duck takes off at flight speed */
         if (a.kind === 'fox' && a.prey) spd = 6.5;
         if (a.kind === 'duck' && a.panicT > 0) spd = 7;
+        /* Phase 5 wildlife v5: lion run-down, tiger stalk/pounce burst,
+           penguin belly-slide and swim speeds */
+        if (a.kind === 'lion' && a.prey) spd = 6.5;
+        if (a.kind === 'tiger' && a.prey) spd = a.pounceT > 0 ? 8.5 : 1.2;
+        if (a.kind === 'penguin' && a.slide) spd = 5;
+        if (a.kind === 'penguin' && a.inWater) spd = 1.4;
         if (a.trotT > 0) a.trotT -= dt;
         p.x += (mx / ml) * spd * dt; p.z += (mz / ml) * spd * dt;
         moving = true;
@@ -2292,6 +2636,8 @@ function natureTick(dt, now) {
 
     p.y = terrainHeight(p.x, p.z);
     if (a.kind === 'duck') p.y = WATER_Y + a.flyY;   /* Phase 5 wildlife v3: ducks ride the water plane, not the terrain */
+    if (a.kind === 'penguin' && (a.inWater || a.slide))   /* Phase 5 wildlife v5: belly rides the water plane */
+      p.y = Math.max(terrainHeight(p.x, p.z), WATER_Y + 0.12);
     if (a.kind === 'monkey' && a.swingT > 0) p.y = a.swingY;   /* Phase 5 wildlife v4: swing arc */
     if (moving) {
       a.walkPhase += dt * (3 + spd * 2.2);
@@ -2307,10 +2653,14 @@ function natureTick(dt, now) {
         a.swingB = -sw;
         a.bobY = 0;
       }
+      /* Phase 5 wildlife v5: penguin waddle = side-to-side roll oscillation
+         on the body matrix + short leg shuffle (belly slide stays flat) */
+      if (a.kind === 'penguin') a.bodyRoll = a.slide ? 0 : Math.sin(a.walkPhase) * 0.18;
       a.rotY = angleLerp(a.rotY, Math.atan2(_nv.x, _nv.z),
                          1 - Math.exp(-8 * dt));
     } else {
       a.swingF *= 0.9; a.swingB *= 0.9; a.bobY = 0;
+      if (a.kind === 'penguin' && !a.slide) a.bodyRoll *= 0.9;   /* Phase 5 wildlife v5: waddle settles */
     }
     /* graze: pitch the head down; otherwise ease back to neutral */
     const headTgt = a.grazeT > 0 ? 0.75 : 0;
@@ -2323,10 +2673,25 @@ function natureTick(dt, now) {
       a.bobY = -Math.abs(Math.sin(a.peckPh)) * 0.1;   /* peck dip */
       a.swingF = Math.sin(a.peckPh * 0.5) * 0.3;      /* scratch */
     }
+    a._mv = moving;   /* Phase 5 wildlife v5: distance-based write skip */
   }
 
-  /* write the per-animal instance matrices once per frame */
-  for (const a of animals) writeAnimalMatrices(a);
+  /* write the per-animal instance matrices once per frame.
+     Phase 5 wildlife v5 (gait-retargeting research): distance-based update
+     skipping for idle behavior. A far (>80m), idle, headless animal whose
+     pose scalars have settled holds its last written pose; zero behavioral
+     change, fewer matrix writes on the hot path. */
+  for (const a of animals) {
+    const _wx = a.pos.x - px, _wz = a.pos.z - pz;
+    if (_wx * _wx + _wz * _wz > 6400 && a.noHead && !a._mv &&
+        Math.abs(a.swingF) < 0.002 && Math.abs(a.swingB) < 0.002 && a.bobY === 0 &&
+        Math.abs(a.bodyPitch - a._lp) < 1e-4 && Math.abs(a.bodyRoll - a._lr) < 1e-4) {
+      a.bodyPitch = a._lp; a.bodyRoll = a._lr;   /* snap converged eases */
+      continue;
+    }
+    a._lp = a.bodyPitch; a._lr = a.bodyRoll;
+    writeAnimalMatrices(a);
+  }
   eagleTick(dt, now); owlTick(dt, now);   /* Phase 5 wildlife v4: sky birds */
   for (const m of ALL_ANIMAL_MESHES) m.instanceMatrix.needsUpdate = true;
   petPromptScan();   /* Phase 5 wildlife: E-tame prompt */
