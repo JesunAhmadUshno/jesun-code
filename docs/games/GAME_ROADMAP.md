@@ -46,8 +46,13 @@ eyes, judged like the videos: sharper than the last build or it does not ship.
   readability (44px+ tap targets, glowing selected state, brighter
   description), credit line legible on phone, overlay scrolls on small screens,
   desktop top-clip fixed with safe center.
-- HUD: HP/gold/potions/depth readable at phone size, quest tracker clarity,
-  boss HP bar polish, low-HP vignette tuning, message log shows last 3.
+- [x] HUD (shipped 2026-10-09, APP_VERSION 20261009a): 520px media query
+  (16px stats, 150x20 HP bar, 17px HP text, bigger SOUND tap target);
+  desktop HP bar 140x16 bold; OBJECTIVE chip label, line hides when empty;
+  boss bar 13px bold name + 12px track, red pulse under 30%; low-HP vignette
+  moved to a driver overlay (pulses in 2D and 3D FPP, HP text goes red);
+  message log renders last 3, sized to fit. Phone-viewport playtest of the
+  pushed page follows in the same run before calling it done.
 - Touch controls: bigger hit areas, dpad plus action buttons layout, pressed
   states, pause button easy to reach.
 - Dialogs: merchant/wanderer/elder text readable, toast timing tuned, no
