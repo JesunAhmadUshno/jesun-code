@@ -4,6 +4,36 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-09
 
+### REALMS touch controls pass (roadmap item 2, bullet 3: touch controls) (indie dev loop)
+- Dpad rebuilt as a proper 3x3 cross (up top-center, left/right mid, down
+  bottom-center, empty center cell) with larger responsive cells
+  (clamp 56px to 76px, 8px gaps) instead of the fixed 64px grid.
+- Action buttons moved to a 2x2 grid of color-coded round buttons (ATK red,
+  E blue, POT purple, 3D green), sized up to 76px, easy to tell apart by
+  thumb.
+- Pause button is now a standalone floating gold-bordered II button pinned to
+  the top-right of the game canvas (56px, z-index above canvas, below
+  overlays), out of the dpad grid where it was cramped and easy to miss.
+- Pressed states strengthened: gold/white glow plus a .93 scale on tap; added
+  `touchcancel` handlers so a button can no longer stick in the pressed
+  state; `touch-action:manipulation` on all buttons; aria labels added.
+- Driver-only change (`realms.html`); game logic untouched, still 100%
+  Jesun.Code; `deepdelve.jc`/`deepdelve.html` untouched.
+- Driver: `APP_VERSION` bumped to `20261009b`.
+- Verified: driver inline JS node syntax-checked, id cross-check all green,
+  zero em dashes; 400-tick CPython pump zero exceptions; 50-tick determinism
+  byte-identical; Node+Pyodide exact bridge flow ALL GREEN, overworld-3D
+  scene build avg 18.1ms/tick, p95 36.0ms (budget 120ms).
+- Live playtest of the pushed page (build 20261009b confirmed served):
+  clean boot, ENTER THE REALMS started a run, cross dpad confirmed, pause
+  button confirmed separate and floating, 2x2 color-coded action grid
+  confirmed, pause tap paused (PAUSED panel + frozen frame) and resumed,
+  dpad-up moved the player and ATK registered, no errors at any point.
+  Gap, stated plainly: tested at desktop width with touch=1 forced on; phone
+  narrow-viewport behavior is CSS-reviewed but not visually verified.
+
+## 2026-10-09
+
 ### REALMS HUD readability overhaul (roadmap item 2, bullet 2: HUD) (indie dev loop)
 - Phone-size readability: new max-width 520px media query for the HUD
   (16px stat text, 150x20px HP bar, 17px bold HP numbers, larger SOUND
