@@ -1542,8 +1542,11 @@ function fireTracer(a, b) {
   t.life = 0.07;
 }
 
-/* --- enemies: 3 types (rusher / shooter / brute) on shared EGEO geometries.
-       Per-enemy accent materials drive hit/telegraph flashes.
+/* --- enemies: 3 types (rusher / shooter / brute), instanced (PERF-1c).
+       Per-type body = ONE merged vertex-colored geometry (torso, head, vest,
+       helm, gun baked in); legs, arms, eyes are InstancedMesh slots posed on
+       the CPU each frame. 5 hostiles in 8 draw calls (was ~60). e.group is
+       bookkeeping only (position + yaw), like the cop system.
        RESEARCH STEAL: every attack has a readable telegraph (wind-up pose,
        eye flash, sound cue) so each type's pattern is learnable. --- */
 const EGEO = {
@@ -1570,93 +1573,145 @@ const ETYPES = {
   shooter: { hp: 3, chase: 3.8, walk: 2.0, aggro: 30, eye: 0xffdd44 },
   brute:   { hp: 8, chase: 2.4, walk: 1.4, aggro: 25, eye: 0xff5511 },
 };
-const enemies = [], hitMeshes = [];
-function makeEnemy(type) {
+const enemies = [];
+const E_SKIN = 0x7a5f4c, E_DARKC = 0x141416;
+const eBodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+const eDarkMat = new THREE.MeshStandardMaterial({ color: E_DARKC, roughness: 0.9 });
+const eEyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+/* merged static parts per type: same offsets as the old per-mesh build */
+const eBodyRus = new THREE.InstancedMesh(mergeAnimalParts([
+  animalBox(0.42, 0.58, 0.26, 0x9e2121, 0, 1.11, 0),   // slim torso, rusher red
+  animalBox(0.3, 0.32, 0.3, E_SKIN, 0, 1.52, 0),        // head
+]), eBodyMat, 2);
+const eBodySho = new THREE.InstancedMesh(mergeAnimalParts([
+  animalBox(0.52, 0.62, 0.32, 0x9a8655, 0, 1.21, 0),   // torso, shooter tan
+  animalBox(0.56, 0.4, 0.38, E_DARKC, 0, 1.18, 0.01),  // vest
+  animalBox(0.3, 0.32, 0.3, E_SKIN, 0, 1.68, 0),       // head
+  animalBox(0.36, 0.2, 0.36, E_DARKC, 0, 1.82, 0),     // helm
+  animalBox(0.08, 0.11, 0.45, E_DARKC, 0.30, 1.15, 0.30),  // held carbine
+  animalBox(0.045, 0.045, 0.4, E_DARKC, 0.30, 1.19, 0.62),
+]), eBodyMat, 2);
+const eBodyBru = new THREE.InstancedMesh(mergeAnimalParts([
+  animalBox(0.84, 0.74, 0.52, 0x5c1414, 0, 1.22, 0),   // brute torso, dark red
+  animalBox(0.9, 0.44, 0.58, E_DARKC, 0, 1.2, 0.01),   // vest
+  animalBox(0.38, 0.38, 0.36, E_SKIN, 0, 1.78, 0),     // head
+  animalBox(0.36, 0.2, 0.36, E_DARKC, 0, 1.98, 0),      // helm
+]), eBodyMat, 1);
+/* limb slots: one shared geometry each, per-type scale baked into the matrix */
+const eLegs = new THREE.InstancedMesh(EGEO.limb, eDarkMat, 10);
+const eArms = new THREE.InstancedMesh(EGEO.arm, eDarkMat, 10);
+const eEyes = new THREE.InstancedMesh(EGEO.eye, eEyeMat, 10);
+const enemyMeshes = [eBodyRus, eBodySho, eBodyBru, eLegs, eArms, eEyes];
+for (const m of enemyMeshes) {
+  m.frustumCulled = false; m.castShadow = true;
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(m);
+}
+/* one aim line shared by both shooters (last writer wins); one ring, brute only */
+const enemyAimLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+  new THREE.LineBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.85 }));
+enemyAimLine.visible = false; enemyAimLine.frustumCulled = false;
+scene.add(enemyAimLine);
+const enemyRing = (() => {
+  const rg = new THREE.RingGeometry(2.0, 2.45, 28);
+  rg.rotateX(-Math.PI / 2);
+  const r = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({
+    color: 0xff3322, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+  r.visible = false;
+  scene.add(r);
+  return r;
+})();
+/* per-type joint offsets, limb half-lengths, limb scales, eye offsets */
+const ESLOT = {
+  rusher:  { body: eBodyRus, n: 0,
+    legJ: 0.13, legY: 0.82, legHalf: 0.41, legS: [0.15/0.2, 0.41/0.45, 0.17/0.24],
+    armJ: 0.29, armY: 1.34, armHalf: 0.29, armS: [0.12/0.16, 0.29/0.31, 0.15/0.2],
+    eyeX: 0.08, eyeY: 1.54, eyeZ: 0.16 },
+  shooter: { body: eBodySho, n: 0,
+    legJ: 0.16, legY: 0.9, legHalf: 0.45, legS: [1, 1, 1],
+    armJ: 0.36, armY: 1.45, armHalf: 0.31, armS: [1, 1, 1],
+    eyeX: 0.08, eyeY: 1.7, eyeZ: 0.16 },
+  brute:   { body: eBodyBru, n: 0,
+    legJ: 0.22, legY: 0.85, legHalf: 0.425, legS: [0.3/0.2, 0.425/0.45, 0.32/0.24],
+    armJ: 0.54, armY: 1.5, armHalf: 0.33, armS: [0.24/0.16, 0.33/0.31, 0.28/0.2],
+    eyeX: 0.1, eyeY: 1.8, eyeZ: 0.2 },
+};
+/* --- matrix temps: zero allocation in the per-frame enemy posing --- */
+const _eM1 = new THREE.Matrix4(), _eM2 = new THREE.Matrix4();
+const _eCol = new THREE.Color();
+const _eParkM = new THREE.Matrix4();
+let eDirty = false;
+function eBodyM(mesh, inst, gx, gy, gz, yaw, fall, ox, oy, oz) {
+  _eM1.makeRotationY(yaw);
+  _eM2.makeRotationX(fall); _eM1.multiply(_eM2);
+  _eM1.setPosition(gx, gy, gz);
+  _eM2.makeTranslation(ox, oy, oz); _eM1.multiply(_eM2);
+  mesh.setMatrixAt(inst, _eM1);
+  eDirty = true;
+}
+function eLimbM(mesh, inst, gx, gy, gz, yaw, fall, jx, jy, jz, swing, half, sx, sy, sz) {
+  _eM1.makeRotationY(yaw);
+  _eM2.makeRotationX(fall); _eM1.multiply(_eM2);
+  _eM1.setPosition(gx, gy, gz);
+  _eM2.makeTranslation(jx, jy, jz); _eM1.multiply(_eM2);
+  _eM2.makeRotationX(swing); _eM1.multiply(_eM2);
+  _eM2.makeTranslation(0, -half, 0); _eM1.multiply(_eM2);
+  _eM2.makeScale(sx, sy, sz); _eM1.multiply(_eM2);
+  mesh.setMatrixAt(inst, _eM1);
+  eDirty = true;
+}
+function setEyeColor(e, hex) {
+  _eCol.setHex(hex);
+  eEyes.setColorAt(e.idx * 2, _eCol);
+  eEyes.setColorAt(e.idx * 2 + 1, _eCol);
+  eEyes.instanceColor.needsUpdate = true;
+}
+/* hit flash: per-instance color on body + limbs (replaces per-mesh emissive) */
+function setEnemyFlash(e, hex) {
+  _eCol.setHex(hex);
+  e.bodyMesh.setColorAt(e.bodyInst, _eCol);
+  eLegs.setColorAt(e.idx * 2, _eCol); eLegs.setColorAt(e.idx * 2 + 1, _eCol);
+  eArms.setColorAt(e.idx * 2, _eCol); eArms.setColorAt(e.idx * 2 + 1, _eCol);
+  e.bodyMesh.instanceColor.needsUpdate = true;
+  eLegs.instanceColor.needsUpdate = true;
+  eArms.instanceColor.needsUpdate = true;
+}
+function poseEnemy(e, fall, swing, armTgt) {
+  const gp = e.group.position, yaw = e.group.rotation.y, gy = gp.y, s = e.slot;
+  eBodyM(e.bodyMesh, e.bodyInst, gp.x, gy, gp.z, yaw, fall, 0, 0, 0);
+  eLimbM(eLegs, e.idx * 2, gp.x, gy, gp.z, yaw, fall,
+    -s.legJ, s.legY, 0, swing, s.legHalf, s.legS[0], s.legS[1], s.legS[2]);
+  eLimbM(eLegs, e.idx * 2 + 1, gp.x, gy, gp.z, yaw, fall,
+    s.legJ, s.legY, 0, -swing, s.legHalf, s.legS[0], s.legS[1], s.legS[2]);
+  eLimbM(eArms, e.idx * 2, gp.x, gy, gp.z, yaw, fall,
+    -s.armJ, s.armY, 0, armTgt, s.armHalf, s.armS[0], s.armS[1], s.armS[2]);
+  eLimbM(eArms, e.idx * 2 + 1, gp.x, gy, gp.z, yaw, fall,
+    s.armJ, s.armY, 0, armTgt, s.armHalf, s.armS[0], s.armS[1], s.armS[2]);
+  eBodyM(eEyes, e.idx * 2, gp.x, gy, gp.z, yaw, fall, -s.eyeX, s.eyeY, s.eyeZ);
+  eBodyM(eEyes, e.idx * 2 + 1, gp.x, gy, gp.z, yaw, fall, s.eyeX, s.eyeY, s.eyeZ);
+}
+function parkEnemy(e) {
+  _eParkM.makeTranslation(0, -60, 0);
+  e.bodyMesh.setMatrixAt(e.bodyInst, _eParkM);
+  eLegs.setMatrixAt(e.idx * 2, _eParkM); eLegs.setMatrixAt(e.idx * 2 + 1, _eParkM);
+  eArms.setMatrixAt(e.idx * 2, _eParkM); eArms.setMatrixAt(e.idx * 2 + 1, _eParkM);
+  eEyes.setMatrixAt(e.idx * 2, _eParkM); eEyes.setMatrixAt(e.idx * 2 + 1, _eParkM);
+  eDirty = true;
+}
+function makeEnemy(type, idx) {
   const cfg = ETYPES[type];
-  const g = new THREE.Group();
-  const mBody = new THREE.MeshStandardMaterial({ roughness: 0.9 });
-  const mDark = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 });
-  const mHead = new THREE.MeshStandardMaterial({ color: 0x7a5f4c, roughness: 0.85 });
-  const mEye = new THREE.MeshBasicMaterial({ color: cfg.eye });
-  const pm = (geo, mat, x, y, z, parent) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(x, y, z); m.castShadow = true;
-    (parent || g).add(m); return m;
-  };
-  const legL = new THREE.Group(), legR = new THREE.Group();
-  const armL = new THREE.Group(), armR = new THREE.Group();
-  let aimLine = null, ring = null;
-  if (type === 'rusher') {
-    /* RUSHER: slim sprinter, red accent. Sprint at you, telegraph a dash
-       (crouch 0.4s + eye flash), then lunge. Low HP: dies in 2 rifle hits. */
-    mBody.color.setHex(0x9e2121);
-    legL.position.set(-0.13, 0.82, 0); legR.position.set(0.13, 0.82, 0);
-    pm(EGEO.slimLimb, mDark, 0, -0.41, 0, legL);
-    pm(EGEO.slimLimb, mDark, 0, -0.41, 0, legR);
-    pm(EGEO.slimTorso, mBody, 0, 1.11, 0);
-    armL.position.set(-0.29, 1.34, 0); armR.position.set(0.29, 1.34, 0);
-    pm(EGEO.slimArm, mDark, 0, -0.29, 0, armL);
-    pm(EGEO.slimArm, mDark, 0, -0.29, 0, armR);
-    pm(EGEO.head, mHead, 0, 1.52, 0);
-    pm(EGEO.eye, mEye, -0.08, 1.54, 0.16);
-    pm(EGEO.eye, mEye, 0.08, 1.54, 0.16);
-  } else if (type === 'shooter') {
-    /* SHOOTER: medium build, tan + dark. Keeps 10-14 range, strafes sideways,
-       telegraphs 0.6s (aim line + glowing eyes), then hitscan tracer. */
-    mBody.color.setHex(0x9a8655);
-    legL.position.set(-0.16, 0.9, 0); legR.position.set(0.16, 0.9, 0);
-    pm(EGEO.limb, mDark, 0, -0.45, 0, legL);
-    pm(EGEO.limb, mDark, 0, -0.45, 0, legR);
-    pm(EGEO.torso, mBody, 0, 1.21, 0);
-    pm(EGEO.vest, mDark, 0, 1.18, 0.01);
-    armL.position.set(-0.36, 1.45, 0); armR.position.set(0.36, 1.45, 0);
-    pm(EGEO.arm, mDark, 0, -0.31, 0, armL);
-    pm(EGEO.arm, mDark, 0, -0.31, 0, armR);
-    pm(EGEO.head, mHead, 0, 1.68, 0);
-    pm(EGEO.helm, mDark, 0, 1.82, 0);
-    pm(EGEO.eye, mEye, -0.08, 1.7, 0.16);
-    pm(EGEO.eye, mEye, 0.08, 1.7, 0.16);
-    pm(EGEO.gunA, mDark, 0.30, 1.15, 0.30);   // held carbine: threat reads at range
-    pm(EGEO.gunB, mDark, 0.30, 1.19, 0.62);
-    const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-    aimLine = new THREE.Line(lg, new THREE.LineBasicMaterial({
-      color: 0xff4444, transparent: true, opacity: 0.85 }));
-    aimLine.visible = false; aimLine.frustumCulled = false;
-    scene.add(aimLine);
-  } else {
-    /* BRUTE: big dark-red bulk. Slow approach, 0.7s telegraph (arms raised +
-       ground ring marker), heavy slam with knockback. Tanky: 8 HP. */
-    mBody.color.setHex(0x5c1414);
-    legL.position.set(-0.22, 0.85, 0); legR.position.set(0.22, 0.85, 0);
-    pm(EGEO.bruteLimb, mDark, 0, -0.425, 0, legL);
-    pm(EGEO.bruteLimb, mDark, 0, -0.425, 0, legR);
-    pm(EGEO.bruteTorso, mBody, 0, 1.22, 0);
-    pm(EGEO.bruteVest, mDark, 0, 1.2, 0.01);
-    armL.position.set(-0.54, 1.5, 0); armR.position.set(0.54, 1.5, 0);
-    pm(EGEO.bruteArm, mDark, 0, -0.33, 0, armL);
-    pm(EGEO.bruteArm, mDark, 0, -0.33, 0, armR);
-    pm(EGEO.bruteHead, mHead, 0, 1.78, 0);
-    pm(EGEO.helm, mDark, 0, 1.98, 0);
-    pm(EGEO.eye, mEye, -0.1, 1.8, 0.2);
-    pm(EGEO.eye, mEye, 0.1, 1.8, 0.2);
-    const rg = new THREE.RingGeometry(2.0, 2.45, 28);
-    rg.rotateX(-Math.PI / 2);
-    ring = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({
-      color: 0xff3322, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
-    ring.visible = false;
-    scene.add(ring);
-  }
-  g.add(legL, legR, armL, armR);
+  const g = new THREE.Group();   // bookkeeping only: position + yaw
   scene.add(g);
-  const e = { type, cfg, group: g, mats: [mBody, mDark, mHead], eyeMat: mEye,
+  const slot = ESLOT[type];
+  return { idx, type, cfg, group: g, slot,
+    bodyMesh: slot.body, bodyInst: slot.n++,
     hp: cfg.hp, state: 'wander', target: new THREE.Vector3(),
     attackCd: 0, deadT: 0, respawnT: 0, walkPhase: Math.random() * 6,
-    speed: 0, hitT: 0, aggroT: 0, yaw: 0, legL, legR, armL, armR,
+    speed: 0, hitT: 0, aggroT: 0, yaw: 0,
     windT: 0, dashT: 0, poseT: 0, dashDir: new THREE.Vector3(),
-    strafeDir: 1, strafeT: 0, aimLine, ring,
+    strafeDir: 1, strafeT: 0, lastSwing: 0, lastArm: 0,
     stagger: 0, reactT: 0, kbX: 0, kbZ: 0, kbT: 0 };   // melee polish: flinch + knockback
-  g.traverse(o => { if (o.isMesh) { o.userData.enemy = e; hitMeshes.push(o); } });
-  return e;
 }
 function pickWander(e) {
   const g = e.group.position;
@@ -1671,32 +1726,43 @@ function spawnPos(edge) {
     Math.max(-100, Math.min(100, Math.cos(a) * r)), 0,
     Math.max(-100, Math.min(100, Math.sin(a) * r)));
 }
-/* hide telegraph visuals (eye color, aim line, ring) without changing state */
+/* hide telegraph visuals (eye color, ring) without changing state.
+   The shared aim line resets every frame in the main loop instead. */
 function hideTelegraph(e) {
-  e.eyeMat.color.setHex(e.cfg.eye);
-  if (e.aimLine) e.aimLine.visible = false;
-  if (e.ring) e.ring.visible = false;
+  setEyeColor(e, e.cfg.eye);
+  enemyRing.visible = false;   // only the brute ever shows it
 }
 function placeEnemy(e, v) {
   const g = e.group;
   g.position.set(v.x, terrainHeight(v.x, v.z), v.z);
   g.rotation.set(0, Math.random() * Math.PI * 2, 0);
-  g.scale.set(1, 1, 1);
-  g.visible = true;
   e.hp = e.cfg.hp; e.state = 'wander'; e.yaw = g.rotation.y;
   e.attackCd = 0; e.deadT = 0; e.hitT = 0; e.aggroT = 0; e.speed = 0;
   e.windT = 0; e.dashT = 0; e.poseT = 0;
   e.stagger = 0; e.reactT = 0; e.kbX = 0; e.kbZ = 0; e.kbT = 0;   // melee polish reset
-  g.rotation.x = 0;
+  e.lastSwing = 0; e.lastArm = -0.5;
   e.strafeDir = Math.random() < 0.5 ? 1 : -1; e.strafeT = 0;
   hideTelegraph(e);
-  e.mats.forEach(m => m.emissive.setHex(0x000000));
+  setEnemyFlash(e, 0xffffff);
   pickWander(e);
+  poseEnemy(e, 0, 0, -0.5);
 }
 /* 5 hostiles, fixed mix: 2 rushers / 2 shooters / 1 brute.
    Respawn keeps each enemy's type, so the mix is preserved forever. */
 const ENEMY_MIX = ['rusher', 'rusher', 'shooter', 'shooter', 'brute'];
-for (const t of ENEMY_MIX) { const e = makeEnemy(t); placeEnemy(e, spawnPos(false)); enemies.push(e); }
+for (let i = 0; i < ENEMY_MIX.length; i++) {
+  const e = makeEnemy(ENEMY_MIX[i], i);
+  placeEnemy(e, spawnPos(false));
+  enemies.push(e);
+}
+/* instanceId -> enemy mapping for hitscan */
+eBodyRus.userData.enemyOf = [enemies[0], enemies[1]];
+eBodySho.userData.enemyOf = [enemies[2], enemies[3]];
+eBodyBru.userData.enemyOf = [enemies[4]];
+for (const m of [eLegs, eArms, eEyes]) {
+  m.userData.enemyOf = [];
+  for (const e of enemies) m.userData.enemyOf.push(e, e);
+}
 updateCombatHUD();
 
 function damageEnemy(e, d) {
@@ -1704,7 +1770,7 @@ function damageEnemy(e, d) {
   e.hp -= d;
   e.hitT = 0.09;
   e.aggroT = 6;   // getting shot makes them hunt you
-  e.mats.forEach(m => m.emissive.setHex(0x7a1010));
+  setEnemyFlash(e, 0xff6a55);
   if (e.hp <= 0) {
     e.state = 'dead'; e.deadT = 0; e.respawnT = 10;
     hideTelegraph(e);
@@ -1733,13 +1799,19 @@ function shoot() {
   muzzleFlash.intensity = curWeapon === 'shotgun' ? 44 : curWeapon === 'smg' ? 18 : 26;
   if (curWeapon !== 'rifle') { w.ammo--; updateWeaponHUD(); }
   muzzle.getWorldPosition(tmpV2);
-  const targets = hitMeshes.filter(m => m.userData.enemy.state !== 'dead');
   for (let p = 0; p < w.pellets; p++) {   // shotgun fans 6 pellets per trigger pull
     if (w.spread > 0) jitterPt.set((Math.random() * 2 - 1) * w.spread,
                                    (Math.random() * 2 - 1) * w.spread);
     else jitterPt.set(0, 0);
     raycaster.setFromCamera(jitterPt, camera);
-    const hits = raycaster.intersectObjects(targets, false);
+    const hits = raycaster.intersectObjects(enemyMeshes, false);
+    /* enemy hits: instanced meshes, first living enemy along the ray wins */
+    let eHit = null;
+    for (let hi = 0; hi < hits.length; hi++) {
+      const h = hits[hi];
+      const ee = h.object.userData.enemyOf[h.instanceId];
+      if (ee && ee.state !== 'dead') { eHit = h; break; }
+    }
     /* cop hits: instanced meshes, first living cop along the ray wins */
     let cHit = null, cIdx = -1;
     if (copAnyActive) {
@@ -1752,10 +1824,10 @@ function shoot() {
       }
     }
     let end;
-    if (cHit && (!hits.length || cHit.distance < hits[0].distance)) {
+    if (cHit && (!eHit || cHit.distance < eHit.distance)) {
       end = cHit.point; damageCop(cIdx, w.dmg);
     }
-    else if (hits.length) { end = hits[0].point; damageEnemy(hits[0].object.userData.enemy, w.dmg); }
+    else if (eHit) { end = eHit.point; damageEnemy(eHit.object.userData.enemyOf[eHit.instanceId], w.dmg); }
     else { end = raycaster.ray.at(90, tmpEnd); }
     fireTracer(tmpV2, end);
   }
@@ -1798,7 +1870,7 @@ function wanderMove(e, r, dt, walkSpd) {
 }
 /* eye blink during a telegraph: alternates between the type color and a hot color */
 function eyeBlink(e, now, hot) {
-  e.eyeMat.color.setHex((Math.floor(now * 12) % 2 === 0) ? hot : e.cfg.eye);
+  setEyeColor(e, (Math.floor(now * 12) % 2 === 0) ? hot : e.cfg.eye);
 }
 function safeDir(dist, dx, dz) {
   const d = Math.max(dist, 0.01);
@@ -1851,7 +1923,7 @@ function shooterAI(e, dt, now, dist, dx, dz) {
       e.windT -= dt;
       eyeBlink(e, now, 0xffff88);
       const gp = e.group.position;
-      const p = e.aimLine.geometry.attributes.position;
+      const p = enemyAimLine.geometry.attributes.position;
       p.setXYZ(0, gp.x, gp.y + 1.5, gp.z);
       p.setXYZ(1, player.position.x, player.position.y + 1.3, player.position.z);
       p.needsUpdate = true;
@@ -1875,7 +1947,7 @@ function shooterAI(e, dt, now, dist, dx, dz) {
       }
       if (e.attackCd <= 0 && dist < 24) {
         e.state = 'aim'; e.windT = 0.6;           // 0.6s readable telegraph
-        e.aimLine.visible = true;
+        enemyAimLine.visible = true;
         sfxTelegraph();
       }
     }
@@ -1898,7 +1970,7 @@ function bruteAI(e, dt, now, dist, dx, dz) {
       r.armT = -2.6;                              // arms raised high
       eyeBlink(e, now, 0xffaa00);
       const gp = e.group.position;
-      e.ring.position.set(gp.x, terrainHeight(gp.x, gp.z) + 0.12, gp.z);
+      enemyRing.position.set(gp.x, terrainHeight(gp.x, gp.z) + 0.12, gp.z);
       if (e.windT <= 0) {
         hideTelegraph(e);
         sfxSlam();
@@ -1912,7 +1984,7 @@ function bruteAI(e, dt, now, dist, dx, dz) {
       r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz;
       if (dist < 2.6 && e.attackCd <= 0) {
         e.state = 'slamwind'; e.windT = 0.7;      // 0.7s readable telegraph
-        e.ring.visible = true;
+        enemyRing.visible = true;
         sfxTelegraph();
       }
     }
@@ -1928,14 +2000,14 @@ function updateEnemy(e, dt, now) {
   if (e.state === 'dead') {
     e.deadT += dt;
     const k = Math.min(1, e.deadT / 0.4);
-    g.rotation.x = -Math.PI / 2 * k * k;   // fall flat
-    if (e.deadT > 1.4) g.visible = false;
+    poseEnemy(e, -Math.PI / 2 * k * k, 0, 0);   // fall flat
+    if (e.deadT > 1.4) parkEnemy(e);
     e.respawnT -= dt;
     if (e.respawnT <= 0) placeEnemy(e, spawnPos(true));   // type preserved
     return;
   }
   e.attackCd -= dt; e.aggroT -= dt;
-  if (e.hitT > 0) { e.hitT -= dt; if (e.hitT <= 0) e.mats.forEach(m => m.emissive.setHex(0x000000)); }
+  if (e.hitT > 0) { e.hitT -= dt; if (e.hitT <= 0) setEnemyFlash(e, 0xffffff); }
   const pp = player.position, gp = g.position;
   const dx = pp.x - gp.x, dz = pp.z - gp.z;
   const dist = Math.hypot(dx, dz);
@@ -1949,15 +2021,19 @@ function updateEnemy(e, dt, now) {
     e.kbX *= kd; e.kbZ *= kd;
   }
   if (e.stagger > 0) {
-    /* flinch: lean back, white eye flash, attacks paused. Timers still decay. */
+    /* flinch: lean back, white eye flash, attacks paused. Timers still decay.
+       Limbs freeze at their last pose; the lean composes into the matrices. */
     e.stagger -= dt;
+    let lean = 0;
     if (e.reactT > 0) {
       e.reactT -= dt;
-      e.eyeMat.color.setHex(0xffffff);
-      g.rotation.x = -0.28 * Math.min(1, e.reactT / 0.15);
-      if (e.reactT <= 0) { g.rotation.x = 0; e.eyeMat.color.setHex(e.cfg.eye); }
+      setEyeColor(e, 0xffffff);
+      lean = -0.28 * Math.min(1, e.reactT / 0.15);
+      if (e.reactT <= 0) { lean = 0; setEyeColor(e, e.cfg.eye); }
     }
     g.position.y = terrainHeight(g.position.x, g.position.z);
+    if (e.type === 'shooter' && e.state === 'aim') enemyAimLine.visible = true;
+    poseEnemy(e, lean, e.lastSwing, e.lastArm);
     return;
   }
   const r = e.type === 'rusher' ? rusherAI(e, dt, now, dist, dx, dz)
@@ -1970,10 +2046,10 @@ function updateEnemy(e, dt, now) {
   g.rotation.y = angleLerp(g.rotation.y, e.yaw, 1 - Math.exp(-8 * dt));
   e.walkPhase += dt * (3 + e.speed * 1.5);
   const sw = Math.min(1, e.speed / 4) * 0.55, s = Math.sin(e.walkPhase) * sw;
-  e.legL.rotation.x = s; e.legR.rotation.x = -s;
   let armTgt = r.armT - s * 0.5;                 // per-type pose + walk counter-swing
   if (e.poseT > 0) { e.poseT -= dt; armTgt = -1.5; }      // shoot recoil pose
-  e.armL.rotation.x = armTgt; e.armR.rotation.x = armTgt;
+  e.lastSwing = s; e.lastArm = armTgt;           // frozen during stagger flinch
+  poseEnemy(e, 0, s, armTgt);
 }
 
 /* ============================ WANTED SYSTEM v1 ============================
@@ -4138,7 +4214,17 @@ function tick() {
       updateHpHUD(); toast('REDEPLOYED'); closeShop();
     }
   }
+  enemyAimLine.visible = false;   // aiming shooters re-assert (last writer wins)
   for (const e of enemies) updateEnemy(e, sdt, performance.now() / 1000);
+  if (eDirty) {
+    eDirty = false;
+    eBodyRus.instanceMatrix.needsUpdate = true;
+    eBodySho.instanceMatrix.needsUpdate = true;
+    eBodyBru.instanceMatrix.needsUpdate = true;
+    eLegs.instanceMatrix.needsUpdate = true;
+    eArms.instanceMatrix.needsUpdate = true;
+    eEyes.instanceMatrix.needsUpdate = true;
+  }
   missionTick(sdt);
   wantedTick(sdt);
   lootTick(sdt);
