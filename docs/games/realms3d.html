@@ -705,20 +705,58 @@ const FLORA = {};
   scene.add(rocks);
   FLORA.rocks = rocks; FLORA.nr = NR;
 }
+/* CLEAN WORLD: amenity clear zones. Rebuilt on every redistribute; the map
+   covers one extra chunk ring so a pad near a chunk edge still clears flora
+   in the neighboring chunk. amenityCenterFor is side-effect free, so the
+   flora pass and the amenity pass always agree. */
+const _floraNoGo = new Map();        // "gx,gz" -> amenity center or null
+const _treePts = [];                 // flat [x,z,...] of accepted trees, current chunk
+const _treePtsByChunk = new Map();   // "gx,gz" -> flat [x,z,...] (tree pass feeds rock pass)
+function rebuildFloraNoGo(pcx, pcz) {
+  _floraNoGo.clear();
+  for (let gx = pcx - HALFGRID - 1; gx <= pcx + HALFGRID + 1; gx++)
+    for (let gz = pcz - HALFGRID - 1; gz <= pcz + HALFGRID + 1; gz++)
+      _floraNoGo.set(gx + ',' + gz, amenityCenterFor(gx, gz));
+}
+/* true when (x,z) is inside the 14m clear zone of any amenity center in the
+   chunk or one of its 8 neighbors */
+function nearAmenityClear(x, z, gx, gz) {
+  for (let ax = gx - 1; ax <= gx + 1; ax++)
+    for (let az = gz - 1; az <= gz + 1; az++) {
+      const c = _floraNoGo.get(ax + ',' + az);
+      if (!c) continue;
+      const dx = x - c.x, dz = z - c.z;
+      if (dx * dx + dz * dz < 196) return true;   // 14m
+    }
+  return false;
+}
 /* redistribute trees + rocks over the visible chunks; deterministic per chunk */
 function redistributeFlora(pcx, pcz) {
   coverPts.length = 0;
   for (const p of coverPtsStatic) coverPts.push(p);
+  rebuildFloraNoGo(pcx, pcz);
+  _treePtsByChunk.clear();
   let ti = 0;
   const { trunks, fol1, fol2, nt, rocks, nr } = FLORA;
   for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++) {
     for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
       const rnd = mulberry32(hash2i(gx, gz));
-      const nT = 2 + Math.floor(rnd() * 3);   // 2-4 trees per chunk
+      _treePts.length = 0;
+      const nT = 1 + Math.floor(rnd() * 2);   // 1-2 trees per chunk
       for (let i = 0; i < nT && ti < nt; i++) {
-        const x = (gx + rnd()) * CHUNK, z = (gz + rnd()) * CHUNK;
-        if (inNoFlora(x, z)) continue;
-        if (terrainHeight(x, z) < -0.4) continue;   // not in water
+        let x = 0, z = 0, placed = false;
+        for (let att = 0; att < 6 && !placed; att++) {   // bounded rejection
+          x = (gx + rnd()) * CHUNK; z = (gz + rnd()) * CHUNK;
+          if (inNoFlora(x, z)) continue;
+          if (terrainHeight(x, z) < -0.4) continue;      // not in water
+          if (nearAmenityClear(x, z, gx, gz)) continue;  // 14m amenity clear zone
+          placed = true;
+          for (let k = 0; k < _treePts.length; k += 2) {
+            const dx = x - _treePts[k], dz = z - _treePts[k + 1];
+            if (dx * dx + dz * dz < 100) { placed = false; break; }  // 10m tree spacing
+          }
+        }
+        if (!placed) continue;
         const s = 0.8 + rnd() * 0.9;
         dummy.position.set(x, terrainHeight(x, z), z);
         dummy.rotation.y = rnd() * Math.PI * 2;
@@ -728,8 +766,10 @@ function redistributeFlora(pcx, pcz) {
         fol1.setMatrixAt(ti, dummy.matrix);
         fol2.setMatrixAt(ti, dummy.matrix);
         coverPts.push([x, z]);
+        _treePts.push(x, z);
         ti++;
       }
+      if (_treePts.length) _treePtsByChunk.set(gx + ',' + gz, _treePts.slice());
     }
   }
   trunks.count = fol1.count = fol2.count = ti;
@@ -740,11 +780,21 @@ function redistributeFlora(pcx, pcz) {
   for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++) {
     for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
       const rnd = mulberry32(hash2i(gx, gz) ^ 0x9e3779b9);
-      const nR = 1 + Math.floor(rnd() * 2);   // 1-2 rocks per chunk
+      const nR = Math.floor(rnd() * 2);   // 0-1 rocks per chunk
       for (let i = 0; i < nR && ri < nr; i++) {
         const x = (gx + rnd()) * CHUNK, z = (gz + rnd()) * CHUNK;
         if (inNoFlora(x, z)) continue;
         if (Math.hypot(x, z) < 8) continue;
+        if (nearAmenityClear(x, z, gx, gz)) continue;  // 14m amenity clear zone
+        const tp = _treePtsByChunk.get(gx + ',' + gz);
+        if (tp) {
+          let crowded = false;
+          for (let k = 0; k < tp.length; k += 2) {
+            const dx = x - tp[k], dz = z - tp[k + 1];
+            if (dx * dx + dz * dz < 36) { crowded = true; break; }  // 6m from trees
+          }
+          if (crowded) continue;
+        }
         const s = 0.4 + rnd() * 1.2;
         dummy.position.set(x, terrainHeight(x, z), z);
         dummy.rotation.y = rnd() * Math.PI * 2;
@@ -3813,6 +3863,35 @@ for (const d of AMEN_DEF_LIST) {
   d.mesh = mesh;
 }
 
+/* ---- zone pads: one instanced ground disc per active amenity (exactly +1
+   draw call). Per-instance muted color marks the zone type, readable from
+   a distance. polygonOffset kills z-fighting with the terrain. */
+const ZONE_PAD_COLORS = {
+  gas:    new THREE.Color(0x9c8f3f),   // muted yellow
+  garage: new THREE.Color(0x6e7278),   // steel gray
+  rest:   new THREE.Color(0x9c4a38),   // warm brick red
+  park:   new THREE.Color(0x3f7a3a),   // park green
+  land:   new THREE.Color(0xb8b4ac),   // off-white
+};
+let ZONE_PADS;
+{
+  const pg = new THREE.CircleGeometry(10, 28);
+  pg.rotateX(-Math.PI / 2);
+  const pm = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const mesh = new THREE.InstancedMesh(pg, pm,
+    AMEN_DEF_LIST.reduce((n, d) => n + d.cap, 0));   // 31: sum of per-type caps
+  mesh.frustumCulled = false;
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.setColorAt(0, ZONE_PAD_COLORS.land);   // allocate the instanceColor buffer
+  mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  mesh.count = 0;
+  scene.add(mesh);
+  ZONE_PADS = mesh;
+}
+
 /* ---- deterministic per-chunk selection ---- */
 const NOGO_RECTS = NOFLORA.concat([{ x0: 36, x1: 104, z0: -104, z1: -36 }]);  // + city district
 function chunkHitsNoGo(gx, gz) {
@@ -3832,17 +3911,31 @@ function amenityTypeFor(gx, gz) {
   if (h % 10 === 6) return 'park';
   return null;
 }
-/* spacing: same type wins only against lower-hash neighbors in a 5x5 window;
-   purely a function of chunk coords, so it is identical on every revisit */
-function amenityAccepted(gx, gz, type) {
+/* spacing: winner-take-all across ALL amenity types in the 3x3 chunk
+   neighborhood. A chunk keeps its amenity only when no other candidate chunk
+   in its 3x3 window has a lower hash2i. Purely a function of chunk coords,
+   so it is identical on every revisit. Fewer, better-spaced POIs. */
+function amenityAccepted(gx, gz) {
   const h = hash2i(gx, gz);
-  for (let ax = gx - 2; ax <= gx + 2; ax++)
-    for (let az = gz - 2; az <= gz + 2; az++) {
+  for (let ax = gx - 1; ax <= gx + 1; ax++)
+    for (let az = gz - 1; az <= gz + 1; az++) {
       if (ax === gx && az === gz) continue;
-      if (amenityTypeFor(ax, az) !== type) continue;
+      if (amenityTypeFor(ax, az) === null) continue;
       if (hash2i(ax, az) < h) return false;
     }
   return true;
+}
+/* pure deterministic amenity center for one chunk, no side effects.
+   Wraps candidate selection + acceptance + placement math. Used by both
+   redistributeAmenities (placement) and redistributeFlora (clear zones),
+   so the two passes always agree. */
+function amenityCenterFor(gx, gz) {
+  const type = amenityTypeFor(gx, gz);
+  if (!type || !amenityAccepted(gx, gz)) return null;
+  const a = placeAmenity(gx, gz, type);
+  if (!a) return null;
+  a.type = type;
+  return a;
 }
 function placeAmenity(gx, gz, type) {
   const rnd = mulberry32(hash2i(gx, gz) ^ 0x51ab3d);
@@ -3868,11 +3961,9 @@ function redistributeAmenities(pcx, pcz) {
   AMEN.colliders.length = 0;
   for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++)
     for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
-      const type = amenityTypeFor(gx, gz);
-      if (!type || !amenityAccepted(gx, gz, type)) continue;
-      const a = placeAmenity(gx, gz, type);
+      const a = amenityCenterFor(gx, gz);   // selection + acceptance + placement
       if (!a) continue;
-      const def = AMEN_DEF[type], arr = AMEN.active[type];
+      const def = AMEN_DEF[a.type], arr = AMEN.active[a.type];
       if (arr.length >= def.cap) continue;
       arr.push(a);
       const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
@@ -3891,6 +3982,30 @@ function redistributeAmenities(pcx, pcz) {
     mesh.count = arr.length;
     mesh.instanceMatrix.needsUpdate = true;
   }
+  /* zone pads: one disc under every active amenity, colored by zone */
+  let pi = 0;
+  for (const k in AMEN.active) {
+    const col = ZONE_PAD_COLORS[k], arr = AMEN.active[k];
+    for (let i = 0; i < arr.length; i++) {
+      const a = arr[i];
+      let py = a.y;   // highest of 5 terrain samples: disc never sinks on slopes
+      for (let s = 0; s < 4; s++) {
+        const sy = terrainHeight(a.x + (s === 0 ? 7 : s === 1 ? -7 : 0),
+                                 a.z + (s === 2 ? 7 : s === 3 ? -7 : 0));
+        if (sy > py) py = sy;
+      }
+      dummy.position.set(a.x, py + 0.05, a.z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      ZONE_PADS.setMatrixAt(pi, dummy.matrix);
+      ZONE_PADS.setColorAt(pi, col);
+      pi++;
+    }
+  }
+  ZONE_PADS.count = pi;
+  ZONE_PADS.instanceMatrix.needsUpdate = true;
+  if (ZONE_PADS.instanceColor) ZONE_PADS.instanceColor.needsUpdate = true;
   restCool.fill(false);
   /* park calm: two day birds circle the first parks (birdsRoost hides them at night) */
   const parks = AMEN.active.park;
