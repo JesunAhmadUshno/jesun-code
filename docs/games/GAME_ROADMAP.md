@@ -51,8 +51,12 @@ eyes, judged like the videos: sharper than the last build or it does not ship.
   desktop HP bar 140x16 bold; OBJECTIVE chip label, line hides when empty;
   boss bar 13px bold name + 12px track, red pulse under 30%; low-HP vignette
   moved to a driver overlay (pulses in 2D and 3D FPP, HP text goes red);
-  message log renders last 3, sized to fit. Phone-viewport playtest of the
-  pushed page follows in the same run before calling it done.
+  message log renders last 3, sized to fit. Playtested 2026-10-09 on the
+  pushed page (build 20261009a, desktop width): boot clean, HUD readable,
+  log last-3 gold-newest correct, quest line hidden with no quest. Gaps:
+  520px media query and the OBJECTIVE chip not visually verified in-game
+  (automation could not set a phone viewport; no quest activated, see
+  roadmap item 13).
 - Touch controls: bigger hit areas, dpad plus action buttons layout, pressed
   states, pause button easy to reach.
 - Dialogs: merchant/wanderer/elder text readable, toast timing tuned, no
@@ -132,6 +136,16 @@ mood; bounded by the existing 48-ray budget.
 ### 12. Boot progress readout
 Phone boot (Pyodide + atlas fetch) feels long and silent. Show a % counter on
 the loading overlay while fetching atlas files. Driver-only change.
+
+### 13. E-to-talk reliability against wandering NPCs (flagged 2026-10-09 playtest)
+Pressing E after bumping an NPC kept reporting "Nobody to talk to here."
+even right after the bump. The `block_npc` memory covers the bump-then-E
+path, but any successful step clears it, and `adjacent_npc` can miss a
+wandered NPC, so talking to Elder Marla (the quest giver) was unreachable in
+practice during the playtest. Decide: widen adjacency, freeze the talked-to
+NPC for a beat, or make E remember the last bumped NPC across one move.
+Pure Jesun.Code; verify with the CPython pump + a scripted adjacent-talk
+unit check.
 
 ## Done
 
