@@ -531,7 +531,17 @@ function updateTerrainChunks() {
     while (nz > pcz + HALFGRID) nz -= GRID;
     if (nx !== c.cx || nz !== c.cz) { c.cx = nx; c.cz = nz; buildChunk(c); }
   }
+  redistributeFlora(pcx, pcz);
+  if (typeof redistributeWildDeer === 'function') redistributeWildDeer(pcx, pcz);
   return true;
+}
+/* sky rig follows the player so the infinite world never shows a void */
+function updateSkyRig() {
+  const px = player.position.x, pz = player.position.z;
+  if (DNF.skyMesh) DNF.skyMesh.position.set(px, 0, pz);
+  if (DNF.starPts) DNF.starPts.position.set(px, 0, pz);
+  if (DNF.mountains) DNF.mountains.position.set(px, 0, pz);
+  ocean.position.set(px, -0.6, pz);
 }
 
 /* ---- merge helper for indexed geometries (position/normal/uv) ----
@@ -567,6 +577,8 @@ const dummy = new THREE.Object3D();
    as the world is built. Buildings are excluded (enemies have no building
    collision and would clip inside them). */
 const coverPts = [];
+/* landmark cover (forest pines etc.) persists; redistributed flora is rebuilt */
+const coverPtsStatic = [];
 function scatter(mesh, count, minR, maxR, sMin, sMax) {
   let placed = 0, guard = 0;
   while (placed < count && guard++ < count * 40) {
@@ -578,19 +590,34 @@ function scatter(mesh, count, minR, maxR, sMin, sMax) {
     dummy.scale.set(s, s * (0.85 + Math.random() * 0.3), s);
     dummy.updateMatrix();
     mesh.setMatrixAt(placed++, dummy.matrix);
-    coverPts.push([x, z]);                          // rock = cover
+    coverPtsStatic.push([x, z]);                     // rock = cover (static)
   }
   mesh.count = placed;
   mesh.instanceMatrix.needsUpdate = true;
   mesh.castShadow = mesh.receiveShadow = true;
   scene.add(mesh);
 }
-/* Pine: trunk + 2 stacked cones, merged into one geometry per part via instancing */
+/* Pine: trunk + 2 stacked cones. INFINITE: 150 slots redistributed across
+   visible chunks with seeded random, so trees never run out. Landmark zones
+   (city, farm, spawn) stay clear. */
+/* landmark rectangles where wild flora never spawns */
+const NOFLORA = [
+  { x0: -12, x1: 12, z0: -12, z1: 12 },       // spawn
+  { x0: 36, x1: 104, z0: -104, z1: -36 },     // city
+  { x0: -100, x1: -40, z0: -20, z1: 40 },     // farm
+  { x0: -100, x1: -20, z0: -100, z1: -40 },   // forest landmark
+];
+function inNoFlora(x, z) {
+  for (const r of NOFLORA) if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) return true;
+  return false;
+}
+const FLORA = {};
 {
   const trunkG = new THREE.CylinderGeometry(0.14, 0.22, 1.6, 7);
   trunkG.translate(0, 0.8, 0);
   const trunkM = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 1 });
-  const trunks = new THREE.InstancedMesh(trunkG, trunkM, 70);
+  const NT = 150;
+  const trunks = new THREE.InstancedMesh(trunkG, trunkM, NT);
 
   const folG = new THREE.ConeGeometry(1.5, 3.4, 8);
   folG.translate(0, 3.1, 0);
@@ -599,36 +626,79 @@ function scatter(mesh, count, minR, maxR, sMin, sMax) {
   // merge two cones manually: build one BufferGeometry via groups is overkill;
   // instead use two instanced meshes sharing transforms
   const folM = new THREE.MeshStandardMaterial({ color: 0x1e3a1c, roughness: 1 });
-  const fol1 = new THREE.InstancedMesh(folG, folM, 70);
-  const fol2 = new THREE.InstancedMesh(folG2, folM, 70);
-
-  const spots = [];
-  let guard = 0;
-  while (spots.length < 70 && guard++ < 4000) {
-    const x = (Math.random() * 2 - 1) * 100, z = (Math.random() * 2 - 1) * 100;
-    if (Math.hypot(x, z) < 10) continue;
-    spots.push([x, z]);
-  }
-  spots.forEach(([x, z], i) => {
-    const s = 0.8 + Math.random() * 0.9;
-    coverPts.push([x, z]);                          // tree = cover
-    dummy.position.set(x, terrainHeight(x, z), z);
-    dummy.rotation.y = Math.random() * Math.PI * 2;
-    dummy.scale.set(s, s, s);
-    dummy.updateMatrix();
-    trunks.setMatrixAt(i, dummy.matrix);
-    fol1.setMatrixAt(i, dummy.matrix);
-    fol2.setMatrixAt(i, dummy.matrix);
-  });
+  const fol1 = new THREE.InstancedMesh(folG, folM, NT);
+  const fol2 = new THREE.InstancedMesh(folG2, folM, NT);
   for (const m of [trunks, fol1, fol2]) {
-    m.instanceMatrix.needsUpdate = true;
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     m.castShadow = m.receiveShadow = true;
+    m.frustumCulled = false;
     scene.add(m);
   }
+  FLORA.trunks = trunks; FLORA.fol1 = fol1; FLORA.fol2 = fol2; FLORA.nt = NT;
 
   const rockG = new THREE.DodecahedronGeometry(0.9, 0);
   const rockM = new THREE.MeshStandardMaterial({ color: 0x6a6d68, roughness: 0.95 });
-  scatter(new THREE.InstancedMesh(rockG, rockM, 45), 45, 8, 100, 0.4, 1.6);
+  const NR = 100;
+  const rocks = new THREE.InstancedMesh(rockG, rockM, NR);
+  rocks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  rocks.castShadow = rocks.receiveShadow = true;
+  rocks.frustumCulled = false;
+  scene.add(rocks);
+  FLORA.rocks = rocks; FLORA.nr = NR;
+}
+/* redistribute trees + rocks over the visible chunks; deterministic per chunk */
+function redistributeFlora(pcx, pcz) {
+  coverPts.length = 0;
+  for (const p of coverPtsStatic) coverPts.push(p);
+  let ti = 0;
+  const { trunks, fol1, fol2, nt, rocks, nr } = FLORA;
+  for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++) {
+    for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
+      const rnd = mulberry32(hash2i(gx, gz));
+      const nT = 2 + Math.floor(rnd() * 3);   // 2-4 trees per chunk
+      for (let i = 0; i < nT && ti < nt; i++) {
+        const x = (gx + rnd()) * CHUNK, z = (gz + rnd()) * CHUNK;
+        if (inNoFlora(x, z)) continue;
+        if (terrainHeight(x, z) < -0.4) continue;   // not in water
+        const s = 0.8 + rnd() * 0.9;
+        dummy.position.set(x, terrainHeight(x, z), z);
+        dummy.rotation.y = rnd() * Math.PI * 2;
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix();
+        trunks.setMatrixAt(ti, dummy.matrix);
+        fol1.setMatrixAt(ti, dummy.matrix);
+        fol2.setMatrixAt(ti, dummy.matrix);
+        coverPts.push([x, z]);
+        ti++;
+      }
+    }
+  }
+  trunks.count = fol1.count = fol2.count = ti;
+  trunks.instanceMatrix.needsUpdate = true;
+  fol1.instanceMatrix.needsUpdate = true;
+  fol2.instanceMatrix.needsUpdate = true;
+  let ri = 0;
+  for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++) {
+    for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
+      const rnd = mulberry32(hash2i(gx, gz) ^ 0x9e3779b9);
+      const nR = 1 + Math.floor(rnd() * 2);   // 1-2 rocks per chunk
+      for (let i = 0; i < nR && ri < nr; i++) {
+        const x = (gx + rnd()) * CHUNK, z = (gz + rnd()) * CHUNK;
+        if (inNoFlora(x, z)) continue;
+        if (Math.hypot(x, z) < 8) continue;
+        const s = 0.4 + rnd() * 1.2;
+        dummy.position.set(x, terrainHeight(x, z), z);
+        dummy.rotation.y = rnd() * Math.PI * 2;
+        dummy.scale.set(s, s * (0.85 + rnd() * 0.3), s);
+        dummy.updateMatrix();
+        rocks.setMatrixAt(ri, dummy.matrix);
+        coverPts.push([x, z]);
+        ri++;
+      }
+    }
+  }
+  rocks.count = ri;
+  rocks.instanceMatrix.needsUpdate = true;
 }
 
 /* World boundary removed: the world is infinite now. Fog hides the distance. */
@@ -695,7 +765,7 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
     const x = FOREST.x0 + Math.random() * (FOREST.x1 - FOREST.x0);
     const z = FOREST.z0 + Math.random() * (FOREST.z1 - FOREST.z0);
     const s = 0.9 + Math.random() * 1.0;
-    coverPts.push([x, z]);                          // forest pine = cover
+    coverPtsStatic.push([x, z]);                   // forest pine = cover
     dummy.position.set(x, terrainHeight(x, z) - 0.1, z);
     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
     dummy.scale.set(s, s, s);
@@ -804,13 +874,15 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
   scene.add(hay);
 }
 
-/* ---- OCEAN (south): z 70..110 water plane, animated waves -------------- */
-const oceanGeo = new THREE.PlaneGeometry(220, 40, 40, 40);
+/* ---- OCEAN: infinite water. A 360x360 plane follows the player at y=-0.6;
+   wherever the terrain dips below, water shows. Animated waves. ----------- */
+const oceanGeo = new THREE.PlaneGeometry(360, 360, 36, 36);
 oceanGeo.rotateX(-Math.PI / 2);
 const oceanBase = oceanGeo.attributes.position.array.slice();
 const ocean = new THREE.Mesh(oceanGeo, NAT.water);
-ocean.position.set(0, -0.5, 90);   // sits below terrain high spots, shows where it dips
+ocean.position.set(0, -0.6, 0);
 ocean.receiveShadow = true;
+ocean.frustumCulled = false;
 scene.add(ocean);
 
 /* ------------------------------ ANIMALS --------------------------------- */
@@ -914,11 +986,11 @@ function makeAnimalMesh(geo, count) {
 }
 const deerBodyGeo = mergeAnimalParts(deerBodyParts);
 const AMESH = {
-  deerMaleBody:   makeAnimalMesh(deerBodyGeo, 4),
-  deerMaleHead:   makeAnimalMesh(mergeAnimalParts(deerHeadParts(true)), 4),
-  deerFemaleBody: makeAnimalMesh(deerBodyGeo, 4),
-  deerFemaleHead: makeAnimalMesh(mergeAnimalParts(deerHeadParts(false)), 4),
-  deerLegs:       makeAnimalMesh(animalLegGeo(0.34, 0.68, 0.14, COL.deer), 16),
+  deerMaleBody:   makeAnimalMesh(deerBodyGeo, 10),
+  deerMaleHead:   makeAnimalMesh(mergeAnimalParts(deerHeadParts(true)), 10),
+  deerFemaleBody: makeAnimalMesh(deerBodyGeo, 10),
+  deerFemaleHead: makeAnimalMesh(mergeAnimalParts(deerHeadParts(false)), 10),
+  deerLegs:       makeAnimalMesh(animalLegGeo(0.34, 0.68, 0.14, COL.deer), 40),
   cowBody:        makeAnimalMesh(mergeAnimalParts(cowBodyParts), 6),
   cowHead:        makeAnimalMesh(mergeAnimalParts(cowHeadParts), 6),
   cowLegs:        makeAnimalMesh(animalLegGeo(0.4, 0.55, 0.16, COL.cow), 12),
@@ -1013,6 +1085,37 @@ function randTarget(a, pad) {
 }
 const FARM_IN = { x0: -97, x1: -43, z0: -17, z1: 37 };  // inside the fence
 for (let i = 0; i < 8; i++) addAnimal('deer', i < 4, FOREST, { walk: 1.2, fleeR: 10 });
+/* WILD DEER: infinite animals. 12 extra deer roam the visible chunks; when the
+   player crosses into new chunks they relocate (seeded) so the wild never ends. */
+const wildDeer = [];
+for (let i = 0; i < 12; i++) {
+  const zone = { x0: -20, x1: 20, z0: -20, z1: 20 };
+  const a = addAnimal('deer', i < 6, zone, { walk: 1.2, fleeR: 10 });
+  a.wild = true;
+  wildDeer.push(a);
+}
+function redistributeWildDeer(pcx, pcz) {
+  for (let i = 0; i < wildDeer.length; i++) {
+    const a = wildDeer[i];
+    const rnd = mulberry32(hash2i(pcx * 31 + i, pcz * 17 + i * 7));
+    const gx = pcx - HALFGRID + Math.floor(rnd() * GRID);
+    const gz = pcz - HALFGRID + Math.floor(rnd() * GRID);
+    const x = (gx + 0.15 + rnd() * 0.7) * CHUNK;
+    const z = (gz + 0.15 + rnd() * 0.7) * CHUNK;
+    if (inNoFlora(x, z) || Math.hypot(x, z) < 15) {
+      // keep this deer where it is if the seeded spot is a landmark
+      continue;
+    }
+    a.pos.set(x, terrainHeight(x, z), z);
+    a.zone.x0 = x - 20; a.zone.x1 = x + 20;
+    a.zone.z0 = z - 20; a.zone.z1 = z + 20;
+    a.target.set(x, 0, z);
+    a.mode = 'idle'; a.t = rnd() * 3;
+    a.rotY = rnd() * Math.PI * 2;
+    writeAnimalMatrices(a);
+  }
+  for (const m of ALL_ANIMAL_MESHES) m.instanceMatrix.needsUpdate = true;
+}
 for (let i = 0; i < 6; i++) addAnimal('cow', false, FARM_IN, { walk: 0.8, graze: true });
 for (let i = 0; i < 4; i++) addAnimal('horse', false, FARM_IN, { walk: 1.4 });
 
@@ -1678,9 +1781,9 @@ function punchConnectFX(step) {
   P.shakeMag = heavy ? 0.22 : 0.12;
   sfxPunchConnect(heavy);
   const fx = Math.sin(player.rotation.y), fz = Math.cos(player.rotation.y);
-  const rec = heavy ? 0.5 : 0.3;        // subtle nudge, clamped to the world
-  player.position.x = Math.max(-104, Math.min(104, player.position.x - fx * rec));
-  player.position.z = Math.max(-104, Math.min(104, player.position.z - fz * rec));
+  const rec = heavy ? 0.5 : 0.3;        // subtle nudge (infinite world: no clamp)
+  player.position.x -= fx * rec;
+  player.position.z -= fz * rec;
 }
 
 /* --- rifle: box-built, held at the right side, points where the player faces --- */
@@ -4199,8 +4302,8 @@ function carExit() {
   CAR.drifting = false; CAR.charge = 0;         // stop any mid-drift skid audio
   exitBtnEl.style.display = 'none';
   const s = Math.sin(CAR.heading), c = Math.cos(CAR.heading);
-  let px = Math.max(-104, Math.min(104, CAR.pos.x + c * 2.1));   // driver side
-  let pz = Math.max(-104, Math.min(104, CAR.pos.z - s * 2.1));
+  let px = CAR.pos.x + c * 2.1;   // driver side (infinite world: no clamp)
+  let pz = CAR.pos.z - s * 2.1;
   player.position.set(px, terrainHeight(px, pz), pz);
   player.rotation.y = CAR.heading;
   player.visible = true;
@@ -4274,8 +4377,7 @@ function carUpdate(sdt, now) {
   CAR.velAng = CAR.heading + CAR.slip;
   CAR.pos.x += Math.sin(CAR.velAng) * CAR.speed * sdt;
   CAR.pos.z += Math.cos(CAR.velAng) * CAR.speed * sdt;
-  CAR.pos.x = Math.max(-104, Math.min(104, CAR.pos.x));
-  CAR.pos.z = Math.max(-104, Math.min(104, CAR.pos.z));
+  // infinite world: no clamp
 
   // ---- terrain follow: average height + pitch/roll from axle samples ----
   const fx = Math.sin(CAR.heading), fz = Math.cos(CAR.heading);
@@ -4433,9 +4535,9 @@ function tick() {
     player.position.addScaledVector(P.vel, sdt);
   }
 
-  /* --- world edge: invisible wall at +/-104 (boulder ring shows it) --- */
-  player.position.x = Math.max(-104, Math.min(104, player.position.x));
-  player.position.z = Math.max(-104, Math.min(104, player.position.z));
+  /* --- infinite world: no walls. Chunks recycle around the player. --- */
+  updateTerrainChunks();
+  updateSkyRig();
 
   /* --- face travel direction, smooth turn --- */
   const speed = Math.hypot(P.vel.x, P.vel.z);
@@ -4564,7 +4666,8 @@ function tick() {
   if ((hudTick += dt) > 0.12) {
     hudTick = 0;
     const mode = CAR.driving ? 'DRIVE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE');
-    posEl.textContent = 'X ' + player.position.x.toFixed(1) + '  Z ' + player.position.z.toFixed(1)
+    posEl.textContent = 'X ' + player.position.x.toFixed(0) + '  Z ' + player.position.z.toFixed(0)
+      + '  [' + Math.floor(player.position.x / CHUNK) + ',' + Math.floor(player.position.z / CHUNK) + ']'
       + '  ' + mode;
   }
 
@@ -4619,13 +4722,15 @@ function tick() {
      PERF-1h: clouds are one InstancedMesh now; bake drift + yaw billboard
      per instance (atan2 gives the same yaw the old lookAt produced). --- */
   const now = performance.now() / 1000;
+  const ppx = player.position.x, ppz = player.position.z;   // infinite world: sky follows
   for (let i = 0; i < clouds.length; i++) {
     const cl = clouds[i];
     cl.x += cl.speed * sdt;
     if (cl.x > 220) cl.x = -220;
-    dummy.position.set(cl.x, cl.y, cl.z);
+    const wx = cl.x + ppx, wz = cl.z + ppz;
+    dummy.position.set(wx, cl.y, wz);
     dummy.rotation.set(0,
-      Math.atan2(camera.position.x - cl.x, camera.position.z - cl.z), 0);
+      Math.atan2(camera.position.x - wx, camera.position.z - wz), 0);
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     cloudIM.setMatrixAt(i, dummy.matrix);
@@ -4633,9 +4738,9 @@ function tick() {
   cloudIM.instanceMatrix.needsUpdate = true;
   for (const u of birds) {
     u.a += u.spd * sdt;
-    u.px = u.cx + Math.cos(u.a) * u.r;
+    u.px = ppx + u.cx + Math.cos(u.a) * u.r;
     u.py = u.h + Math.sin(now * 0.7 + u.ph) * 1.5;
-    u.pz = u.cz + Math.sin(u.a) * u.r;
+    u.pz = ppz + u.cz + Math.sin(u.a) * u.r;
   }
   poseBirds(now);
 
