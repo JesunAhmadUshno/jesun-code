@@ -954,7 +954,10 @@ const birds = [];
    iOS-safe: MeshStandardMaterial only, shared geos/mats, one 64px canvas tex. */
 const player = new THREE.Group();
 const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0,
-            hp: 100, dead: false, deadT: 0, godT: 0, punchT: 0, punchCd: 0, punchHit: false };
+            hp: 100, dead: false, deadT: 0, godT: 0, punchT: 0, punchCd: 0, punchHit: false,
+            punchDur: 0.32, combo: 0, comboWin: 0,       // melee polish: 3-punch chain
+            hitstop: 0,                                 // melee polish: world-freeze timer
+            shakeT: 0, shakeDur: 0.001, shakeMag: 0 };   // melee polish: camera punch
 
 /* --- procedural skin texture: tone variation, pores (64px, iOS-safe) --- */
 function makeSkinTex() {
@@ -1126,6 +1129,38 @@ function sfxPunch() {
   const g = a.createGain(); g.gain.value = 0.5;
   s.connect(f); f.connect(g); g.connect(a.destination); s.start();
 }
+/* --- punch CONNECT thud: fires the exact frame a punch lands (jab/cross),
+       plus a louder crack for the 3rd combo hit. Reuses the noise-buffer idiom. --- */
+function sfxPunchConnect(heavy) {
+  const a = ac(); if (!a) return;
+  const t0 = a.currentTime;
+  // low sine thump
+  const o = a.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(heavy ? 90 : 110, t0);
+  o.frequency.exponentialRampToValueAtTime(38, t0 + 0.14);
+  const g = a.createGain();
+  g.gain.setValueAtTime(heavy ? 0.85 : 0.55, t0);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + (heavy ? 0.22 : 0.15));
+  o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + 0.24);
+  // short noise burst: body thud
+  const dur = 0.09, n = Math.floor(a.sampleRate * dur);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3.5); }
+  const s = a.createBufferSource(); s.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = heavy ? 420 : 300;
+  const g2 = a.createGain(); g2.gain.value = heavy ? 0.9 : 0.6;
+  s.connect(f); f.connect(g2); g2.connect(a.destination); s.start(t0);
+  if (heavy) {
+    // crack: highpassed noise snap layered on the hook
+    const n2 = Math.floor(a.sampleRate * 0.05);
+    const b2 = a.createBuffer(1, n2, a.sampleRate), d2 = b2.getChannelData(0);
+    for (let i = 0; i < n2; i++) { const t = i / n2; d2[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 5); }
+    const s2 = a.createBufferSource(); s2.buffer = b2;
+    const f2 = a.createBiquadFilter(); f2.type = 'highpass'; f2.frequency.value = 2500;
+    const g3 = a.createGain(); g3.gain.value = 0.5;
+    s2.connect(f2); f2.connect(g3); g3.connect(a.destination); s2.start(t0);
+  }
+}
 /* --- enemy audio: telegraph warning chirp, distant enemy gunshot, brute slam (all procedural) --- */
 const sfxTelegraph = () => sfxBlip(520, 0.14, 'square', 0.22);
 function sfxEnemyShot() {
@@ -1157,24 +1192,59 @@ function sfxSlam() {
   g2.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.32);
   o.connect(g2); g2.connect(a.destination); o.start(); o.stop(a.currentTime + 0.34);
 }
-/* --- melee punch: F key / right-click / PUNCH button. Right arm extends,
-       hits hostiles in a 2.4-unit 45-degree frontal cone, 2 dmg --- */
+/* --- melee punch: F key / right-click / PUNCH button. 3-punch chain
+       (jab, cross, hook) inside a 0.6s window, dmg 2/2/4. Usable WHILE MOVING:
+       momentum is untouched, the punch never roots the player. --- */
 function doPunch() {
   if (!playing() || P.dead || P.punchCd > 0) return;
-  P.punchCd = 0.45; P.punchT = 0.32; P.punchHit = false;
-  sfxPunch();
+  P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
+  P.comboWin = 0.6;
+  const heavy = P.combo >= 3;
+  P.punchCd = 0.45;
+  P.punchDur = heavy ? 0.40 : 0.32;
+  P.punchT = P.punchDur; P.punchHit = false;
+  sfxPunch();   // swing whoosh; the connect thud fires on hit via punchHitCheck
 }
 function punchHitCheck() {
   const px = player.position.x, pz = player.position.z;
   const fx = Math.sin(player.rotation.y), fz = Math.cos(player.rotation.y);
+  const step = P.combo || 1;
+  const dmg = step >= 3 ? 4 : 2;
+  let connected = false;
   for (const e of enemies) {
     if (e.state === 'dead') continue;
     const dx = e.group.position.x - px, dz = e.group.position.z - pz;
     const dist = Math.hypot(dx, dz);
     if (dist > 2.4) continue;
     const dot = (dx * fx + dz * fz) / Math.max(dist, 0.001);
-    if (dot > 0.7) damageEnemy(e, 2);
+    if (dot > 0.7) {
+      damageEnemy(e, dmg);
+      punchReact(e, fx, fz, step);
+      connected = true;
+    }
   }
+  if (connected) punchConnectFX(step);   // hit-stop + camera punch + recoil + thud
+  return connected;
+}
+/* --- enemy melee reaction: 150ms flinch (lean-back, white eye flash, attacks
+       paused), plus a knockback impulse along the punch direction. --- */
+function punchReact(e, fx, fz, step) {
+  e.stagger = 0.15; e.reactT = 0.15;
+  const heavy = step >= 3;
+  const pow = e.type === 'brute' ? 1.6 : heavy ? 11 : 6.5;
+  e.kbX = fx * pow; e.kbZ = fz * pow; e.kbT = 0.4;
+}
+/* --- punch connect juice: hit-stop, camera shake, attacker recoil, thud --- */
+function punchConnectFX(step) {
+  const heavy = step >= 3;
+  P.hitstop = heavy ? 0.08 : 0.06;      // world sim freezes; the frame still renders
+  P.shakeDur = P.shakeT = heavy ? 0.12 : 0.08;
+  P.shakeMag = heavy ? 0.22 : 0.12;
+  sfxPunchConnect(heavy);
+  const fx = Math.sin(player.rotation.y), fz = Math.cos(player.rotation.y);
+  const rec = heavy ? 0.5 : 0.3;        // subtle nudge, clamped to the world
+  player.position.x = Math.max(-104, Math.min(104, player.position.x - fx * rec));
+  player.position.z = Math.max(-104, Math.min(104, player.position.z - fz * rec));
 }
 
 /* --- rifle: box-built, held at the right side, points where the player faces --- */
@@ -1330,7 +1400,8 @@ function makeEnemy(type) {
     attackCd: 0, deadT: 0, respawnT: 0, walkPhase: Math.random() * 6,
     speed: 0, hitT: 0, aggroT: 0, yaw: 0, legL, legR, armL, armR,
     windT: 0, dashT: 0, poseT: 0, dashDir: new THREE.Vector3(),
-    strafeDir: 1, strafeT: 0, aimLine, ring };
+    strafeDir: 1, strafeT: 0, aimLine, ring,
+    stagger: 0, reactT: 0, kbX: 0, kbZ: 0, kbT: 0 };   // melee polish: flinch + knockback
   g.traverse(o => { if (o.isMesh) { o.userData.enemy = e; hitMeshes.push(o); } });
   return e;
 }
@@ -1362,6 +1433,8 @@ function placeEnemy(e, v) {
   e.hp = e.cfg.hp; e.state = 'wander'; e.yaw = g.rotation.y;
   e.attackCd = 0; e.deadT = 0; e.hitT = 0; e.aggroT = 0; e.speed = 0;
   e.windT = 0; e.dashT = 0; e.poseT = 0;
+  e.stagger = 0; e.reactT = 0; e.kbX = 0; e.kbZ = 0; e.kbT = 0;   // melee polish reset
+  g.rotation.x = 0;
   e.strafeDir = Math.random() < 0.5 ? 1 : -1; e.strafeT = 0;
   hideTelegraph(e);
   e.mats.forEach(m => m.emissive.setHex(0x000000));
@@ -1576,6 +1649,27 @@ function updateEnemy(e, dt, now) {
   const pp = player.position, gp = g.position;
   const dx = pp.x - gp.x, dz = pp.z - gp.z;
   const dist = Math.hypot(dx, dz);
+  /* --- melee polish: knockback impulse (clamped to the world), then stagger --- */
+  if (e.kbT > 0) {
+    e.kbT -= dt;
+    const gx = Math.max(-105, Math.min(105, g.position.x + e.kbX * dt));
+    const gz = Math.max(-105, Math.min(105, g.position.z + e.kbZ * dt));
+    g.position.set(gx, terrainHeight(gx, gz), gz);
+    const kd = Math.exp(-6 * dt);
+    e.kbX *= kd; e.kbZ *= kd;
+  }
+  if (e.stagger > 0) {
+    /* flinch: lean back, white eye flash, attacks paused. Timers still decay. */
+    e.stagger -= dt;
+    if (e.reactT > 0) {
+      e.reactT -= dt;
+      e.eyeMat.color.setHex(0xffffff);
+      g.rotation.x = -0.28 * Math.min(1, e.reactT / 0.15);
+      if (e.reactT <= 0) { g.rotation.x = 0; e.eyeMat.color.setHex(e.cfg.eye); }
+    }
+    g.position.y = terrainHeight(g.position.x, g.position.z);
+    return;
+  }
   const r = e.type === 'rusher' ? rusherAI(e, dt, now, dist, dx, dz)
           : e.type === 'shooter' ? shooterAI(e, dt, now, dist, dx, dz)
           : bruteAI(e, dt, now, dist, dx, dz);
@@ -1882,6 +1976,11 @@ function angleLerp(a, b, t) {
 function tick() {
   requestAnimationFrame(tick);
   const dt = Math.min(clock.getDelta(), 0.05);
+  /* --- melee hit-stop: freeze the world sim for a beat on a connect.
+         sdt is the world-sim dt (0 while hitstop runs); the frame still renders,
+         and the camera keeps tracking (real dt) so the freeze reads as punch. --- */
+  let sdt = dt;
+  if (P.hitstop > 0) { P.hitstop -= dt; sdt = 0; }
 
   /* --- camera-relative wish direction --- */
   fwd.set(Math.sin(camYaw), 0, Math.cos(camYaw));
@@ -1906,16 +2005,16 @@ function tick() {
   if (wishDir.lengthSq() > 0) {
     wishDir.normalize().multiplyScalar(maxSpeed);
     tmpV.copy(wishDir).sub(P.vel);
-    const maxDelta = ACCEL * dt;
+    const maxDelta = ACCEL * sdt;
     if (tmpV.length() > maxDelta) tmpV.setLength(maxDelta);
     P.vel.add(tmpV);
   } else {
-    const f = Math.max(0, 1 - 10 * dt);   // ground friction
+    const f = Math.max(0, 1 - 10 * sdt);   // ground friction
     P.vel.multiplyScalar(f);
     if (P.vel.lengthSq() < 0.0004) P.vel.set(0, 0, 0);
   }
 
-  player.position.addScaledVector(P.vel, dt);
+  player.position.addScaledVector(P.vel, sdt);
 
   /* --- world edge: invisible wall at +/-104 (boulder ring shows it) --- */
   player.position.x = Math.max(-104, Math.min(104, player.position.x));
@@ -1925,20 +2024,20 @@ function tick() {
   const speed = Math.hypot(P.vel.x, P.vel.z);
   if (speed > 0.6) {
     const targetYaw = Math.atan2(P.vel.x, P.vel.z);
-    player.rotation.y = angleLerp(player.rotation.y, targetYaw, 1 - Math.exp(-12 * dt));
+    player.rotation.y = angleLerp(player.rotation.y, targetYaw, 1 - Math.exp(-12 * sdt));
   }
 
   /* --- jump + gravity, collide with terrain --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
   if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
-  P.vy += GRAV * dt;
-  player.position.y += P.vy * dt;
+  P.vy += GRAV * sdt;
+  player.position.y += P.vy * sdt;
   if (player.position.y <= groundY) {
     player.position.y = groundY; P.vy = 0; P.grounded = true;
   }
 
   /* --- procedural walk cycle --- */
-  P.walkPhase += dt * (4 + speed * 1.6);
+  P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
   legL.rotation.x = s; legR.rotation.x = -s;
@@ -1946,22 +2045,30 @@ function tick() {
   armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8;
   elbowL.rotation.x = -0.25 - Math.abs(s) * 0.3; elbowR.rotation.x = -0.25 - Math.abs(s) * 0.3;
   if (!P.grounded) { legL.rotation.x = 0.35; legR.rotation.x = -0.25; kneeL.rotation.x = 0.5; kneeR.rotation.x = 0.3; armL.rotation.x = -0.5; armR.rotation.x = -0.5; }
-  /* --- punch animation: right arm extends fast, retracts --- */
-  if (P.punchCd > 0) P.punchCd -= dt;
+  /* --- punch animation: arm extends fast, retracts; the 3rd hit (hook)
+         swings visibly bigger with an arc across the body --- */
+  if (P.punchCd > 0) P.punchCd -= sdt;
+  if (P.comboWin > 0) { P.comboWin -= sdt; if (P.comboWin <= 0) P.combo = 0; }
   if (P.punchT > 0) {
-    P.punchT -= dt;
-    const pt = P.punchT;  // 0.32 -> 0
+    P.punchT -= sdt;
+    const pt = P.punchT;  // punchDur -> 0
+    const heavy = P.combo >= 3;
+    const extT = P.punchDur - 0.12;   // retract window: hit fires at extT
     let ext;
-    if (pt > 0.20) ext = 1 - (pt - 0.20) / 0.12;       // extend 0.12s
-    else ext = pt / 0.20;                              // retract 0.20s
+    if (pt > extT) ext = 1 - (pt - extT) / 0.12;       // extend 0.12s
+    else ext = pt / extT;                              // retract
     ext = Math.max(0, Math.min(1, ext));
-    armR.rotation.x = -1.5 * ext;
+    armR.rotation.x = -1.5 * ext * (heavy ? 1.4 : 1);
+    armR.rotation.z = (heavy ? -0.55 : 0) * ext;       // hook arcs across
     elbowR.rotation.x = -0.1 * ext;
     armL.rotation.x = -0.5; elbowL.rotation.x = -1.1;   // left guards
-    const clench = 1 + 0.18 * ext;
+    const clench = 1 + (heavy ? 0.26 : 0.18) * ext;
     fistR.scale.set(clench, clench, clench); fistL.scale.set(clench, clench, clench);
-    if (!P.punchHit && pt <= 0.20) { P.punchHit = true; punchHitCheck(); }
-    if (P.punchT <= 0) { fistR.scale.set(1,1,1); fistL.scale.set(1,1,1); }
+    if (!P.punchHit && pt <= extT) { P.punchHit = true; punchHitCheck(); }
+    if (P.punchT <= 0) {
+      fistR.scale.set(1,1,1); fistL.scale.set(1,1,1);
+      armR.rotation.z = 0;
+    }
   }
   player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob
 
@@ -1978,6 +2085,16 @@ function tick() {
   if (camTargetPos.y < camGround) camTargetPos.y = camGround;
   camPos.lerp(camTargetPos, 1 - Math.exp(-11 * dt));   // smooth follow
   camera.position.copy(camPos);
+  /* --- melee camera punch: tiny shake (2-3 frames) on connect, bigger on the
+         3rd hit. Touches only the camera offset: pointer lock and touch-drag
+         look (camYaw/camPitch) are never disturbed. --- */
+  if (P.shakeT > 0) {
+    P.shakeT -= dt;
+    const m = P.shakeMag * Math.max(0, P.shakeT / Math.max(P.shakeDur, 0.001));
+    camera.position.x += (Math.random() * 2 - 1) * m;
+    camera.position.y += (Math.random() * 2 - 1) * m * 0.6;
+    camera.position.z += (Math.random() * 2 - 1) * m;
+  }
   camera.lookAt(lookTarget);
 
   /* --- sun follows player for crisp shadows --- */
@@ -1995,10 +2112,10 @@ function tick() {
   if (P.dead) wishDir.set(0, 0, 0);   // no moving while eliminated
 
   /* --- combat systems --- */
-  fireCd -= dt;
-  if (P.godT > 0) P.godT -= dt;
+  fireCd -= sdt;
+  if (P.godT > 0) P.godT -= sdt;
   if (P.dead) {
-    P.deadT += dt;
+    P.deadT += sdt;
     if (P.deadT > 1.2) {   // redeploy at spawn with full health
       player.position.set(0, terrainHeight(0, 0), 0);
       P.vel.set(0, 0, 0); P.vy = 0;
@@ -2006,26 +2123,26 @@ function tick() {
       updateHpHUD(); toast('REDEPLOYED');
     }
   }
-  for (const e of enemies) updateEnemy(e, dt, performance.now() / 1000);
+  for (const e of enemies) updateEnemy(e, sdt, performance.now() / 1000);
   muzzle.getWorldPosition(muzzleFlash.position);
-  muzzleFlash.intensity *= Math.exp(-26 * dt);
+  muzzleFlash.intensity *= Math.exp(-26 * sdt);
   for (const t of tracers) {
-    if (t.life > 0) { t.life -= dt; t.line.material.opacity = Math.max(0, t.life / 0.07) * 0.9; }
+    if (t.life > 0) { t.life -= sdt; t.line.material.opacity = Math.max(0, t.life / 0.07) * 0.9; }
   }
-  if (toastT > 0) { toastT -= dt; if (toastT <= 0) toastEl.style.opacity = 0; }
-  dmgV *= Math.exp(-5 * dt);
+  if (toastT > 0) { toastT -= sdt; if (toastT <= 0) toastEl.style.opacity = 0; }
+  dmgV *= Math.exp(-5 * sdt);
   dmgflashEl.style.opacity = dmgV.toFixed(2);
 
   /* --- clouds drift, birds circle and flap --- */
   const now = performance.now() / 1000;
   for (const cl of clouds) {
-    cl.position.x += cl.userData.speed * dt;
+    cl.position.x += cl.userData.speed * sdt;
     if (cl.position.x > 220) cl.position.x = -220;
     cl.lookAt(camera.position.x, cl.position.y, camera.position.z);  // face camera
   }
   for (const b of birds) {
     const u = b.userData;
-    u.a += u.spd * dt;
+    u.a += u.spd * sdt;
     b.position.set(u.cx + Math.cos(u.a) * u.r, u.h + Math.sin(now * 0.7 + u.ph) * 1.5,
                   u.cz + Math.sin(u.a) * u.r);
     b.rotation.y = -u.a;   // face travel direction
@@ -2035,7 +2152,7 @@ function tick() {
   }
 
   /* --- world expansion tickers (city/nature/people workers) --- */
-  for (const fn of worldTickers) fn(dt, now);
+  for (const fn of worldTickers) fn(sdt, now);
 
   renderer.render(scene, camera);
 }
