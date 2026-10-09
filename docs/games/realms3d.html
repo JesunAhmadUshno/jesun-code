@@ -245,6 +245,15 @@
     border: 1px solid rgba(255,211,77,.45); font-size: 12px; letter-spacing: 2px;
     font-weight: bold; padding: 8px 12px; display: none; white-space: nowrap;
   }
+  /* ---- motorcycle HUD (Phase 5): RIDE prompt mirrors the taxi hint pattern.
+         Stacked above the pet hint so live prompts never overlap. DOM only,
+         zero draw calls. ---- */
+  #bikehint {
+    position: absolute; bottom: 284px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #ff6b5e; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
   /* ---- wildlife HUD (Phase 5): TAME prompt mirrors the taxi hint pattern;
          the PET chip reuses the #diffchip chip language, stacked below it.
          DOM only, zero draw calls. ---- */
@@ -332,6 +341,7 @@
   <div id="bushud"></div>
   <div id="txhint"></div>
   <div id="txhud"></div>
+  <div id="bikehint"></div>
   <div id="pethint"></div>
   <div id="petchip">PET</div>
   <div id="emotehint"></div>
@@ -1346,6 +1356,8 @@ function natureTick(dt, now) {
     vtx = TX.pos.x; vtz = TX.pos.z; vtOn = true;
   } else if (CR.active && Math.abs(CR.speed) > 1) {
     vtx = CR.pos.x; vtz = CR.pos.z; vtOn = true;
+  } else if (BIKE.driving) {
+    vtx = BIKE.pos.x; vtz = BIKE.pos.z; vtOn = true;
   } else if (HORSE.riding) { vtx = px; vtz = pz; vtOn = true; }
 
   for (const a of animals) {
@@ -1566,7 +1578,7 @@ function petLoadStr(s) {
 function petSteer(a, dt) {
   const p = a.pos, pp = player.position;
   _petMoving = false; _petSpd = 0;
-  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding;
+  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving;
   const dx = pp.x - p.x, dz = pp.z - p.z;
   /* death, any vehicle mode, or >120m: the pet stops and waits */
   if (P.dead || inVehicle || dx * dx + dz * dz > 14400) { setPetMode('wait'); return; }
@@ -1586,7 +1598,7 @@ function petSteer(a, dt) {
    wins there); tame a horse from 2.2-3m. Runs at the tail of natureTick. */
 function petPromptScan() {
   const onFoot = playing() && !P.dead && !shopOpen &&
-    !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !HORSE.riding;
+    !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !HORSE.riding && !BIKE.driving;
   let best = null, bestD2 = 9;
   if (onFoot) {
     for (const a of animals) {
@@ -2346,7 +2358,7 @@ function emoteCancel() {
 }
 function fireEmote(name) {
   if (!playing() || P.dead || P.godT > 0) return;                 // dead or busted/spawn-protection
-  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding) return;
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding || BIKE.driving) return;
   if (shopOpen) return;
   const E = EMOTES[name];
   if (!E) return;
@@ -2393,6 +2405,7 @@ function doPunch() {
   if (HORSE.riding) return;   // no melee from the saddle: the pose would break
   if (BUS.driving || BUS.riding) return;   // no melee from the bus: seated
   if (TX.riding) return;   // no melee from the taxi: seated
+  if (BIKE.driving) return;   // no melee from the bike: both hands on the bars
   if (!playing() || P.dead || P.punchCd > 0) return;
   P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
   P.comboWin = 0.6;
@@ -3539,6 +3552,7 @@ function busted() {
   if (HORSE.riding) horseExit();   // busted off the saddle too
   if (BUS.driving || BUS.riding) busExit();   // busted off the bus too
   if (TX.riding) taxiExit();   // busted out of the taxi too
+  if (BIKE.driving) bikeExit();   // busted off the bike too
   const seized = Math.floor(cash * 0.25);
   cash -= seized; updateCashHUD();
   setHeat(0, true);
@@ -3599,7 +3613,7 @@ function wantedTick(dt) {
   if (W.tickT < 0.25) return;
   W.tickT = 0;
   const px = player.position.x, pz = player.position.z;
-  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
+  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
   let seen = false, bust = false;
   for (const c of cops) {
     if (!c.active || c.state === 'dead') continue;
@@ -3607,10 +3621,11 @@ function wantedTick(dt) {
     const d2 = dx * dx + dz * dz;
     if (d2 < see2) seen = true;
     if (P.godT > 0) continue;
-    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding) { if (d2 < 6.25) { bust = true; break; } }
+    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving) { if (d2 < 6.25) { bust = true; break; } }
     else if (CAR.driving && d2 < 9 && Math.abs(CAR.speed) < 3) { bust = true; break; }
     else if ((BUS.driving || BUS.riding) && d2 < 9 && Math.abs(BUS.speed) < 3) { bust = true; break; }
     else if (TX.riding && d2 < 9 && Math.abs(TX.speed) < 3) { bust = true; break; }
+    else if (BIKE.driving && d2 < 9 && Math.abs(BIKE.speed) < 3) { bust = true; break; }
   }
   if (bust) { busted(); return; }
   if (W.heat <= 0) return;
@@ -3861,7 +3876,7 @@ function missionTick(dt) {
 
   const px = player.position.x, pz = player.position.z;
   if (MS.state === 'IDLE') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding) ? 6 : 3;   // markers are enterable on foot and while driving
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving) ? 6 : 3;   // markers are enterable on foot and while driving
     for (let i = 0; i < 5; i++) {
       if (MS.done[i] || !missionAvailable(i)) continue;
       const dx = MISSIONS[i].mx - px, dz = MISSIONS[i].mz - pz;
@@ -3872,7 +3887,7 @@ function missionTick(dt) {
   /* ACTIVE: evaluate the current phase */
   const o = MISSIONS[MS.idx].obj[MS.phase];
   if (o.type === 'collect') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding) ? 4.5 : 2.5;
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving) ? 4.5 : 2.5;
     for (let s = 0; s < crateSpots.length; s++) {
       const c = crateSpots[s];
       if (c.taken) continue;
@@ -4151,7 +4166,7 @@ function lootTick(dt) {
       if (L.respawnT <= 0) { L.taken = false; showLoot(L); }
     }
   }
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding) return;   // pickups are on-foot only
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving) return;   // pickups are on-foot only
   lootCheckT += dt;
   if (lootCheckT < 0.15) return;                      // radius checks throttled
   lootCheckT = 0;
@@ -4283,7 +4298,7 @@ function refreshShopPanel() {
   renderShopRows();
 }
 function openShop(i) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || !playing()) return;
   shopOpen = true; shopOpenIdx = i;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;   // Phase 3: panel is shared with diners
   shopNameEl.textContent = SHOPS[i].name;
@@ -4329,7 +4344,7 @@ function shopTick(dt) {
   shopCheckT += dt;
   if (shopCheckT < 0.15) return;           // proximity check throttled
   shopCheckT = 0;
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding) return;
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving) return;
   const px = player.position.x, pz = player.position.z;
   for (let i = 0; i < SHOPS.length; i++) {
     const S = SHOPS[i];
@@ -4768,7 +4783,7 @@ const REST_ITEMS = [
 ];
 let shopRest = false, shopRestSlot = -1, SHOP_LIST = SHOP_ITEMS;
 function openRest(R, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || !playing()) return;
   shopOpen = true; shopRest = true; shopRestSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = REST_ITEMS;
   shopNameEl.textContent = R.name;
@@ -4788,7 +4803,7 @@ function amenTick(dt) {
   amenT += dt;
   if (amenT >= 0.15) {
     amenT = 0;
-    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving) {
       const arr = AMEN.active.rest;
       for (let i = 0; i < arr.length; i++) {
         const R = arr[i];
@@ -4905,7 +4920,7 @@ addEventListener('keydown', e => {
     return;                                           // no weapon select, no car toggle while shopping
   }
   if (e.code === 'KeyE') mountToggle();                                  // horse dismount / car / horse / car
-  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else doPunch(); }
+  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -5843,7 +5858,7 @@ function ensureEngineAudio() {
 }
 
 function carEnter() {
-  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || !playing() || P.dead) return;
+  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || !playing() || P.dead) return;
   emoteCancel();   // no emotes while driving
   const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
   if (dx * dx + dz * dz > 16) return;        // 4u enter radius
@@ -5882,7 +5897,7 @@ function carUpdate(sdt, now) {
   if (!CAR.driving) {
     // parked: show the enter hint inside 4u, nothing else (never while aboard the bus)
     const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
-    const near = dx * dx + dz * dz < 16 && !BUS.driving && !BUS.riding && !TX.riding;
+    const near = dx * dx + dz * dz < 16 && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving;
     if (near !== CAR.hintOn) { CAR.hintOn = near; carHintEl.style.opacity = near ? 1 : 0; }
     if (engGain) engGain.gain.value *= 0.9;
     if (skidGain) skidGain.gain.value *= 0.9;
@@ -6120,7 +6135,7 @@ function ensureHoofAudio() {
 }
 
 function horseEnter() {
-  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || shopOpen) return;
+  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || shopOpen) return;
   emoteCancel();   // no emotes while riding
   const a = HORSE.nearA;
   if (!a || a.mountLocked || a.fleeT > 0) return;
@@ -6170,31 +6185,33 @@ function horseExit() {
   helpEl.innerHTML = HELP_FOOT;
   sfxBlip(392, 0.09, 'square', 0.18);
 }
-/* E key: dismount first, then car, then bus, then taxi, then mount if a prompt
-   is live, else car. While riding the bus, E takes the driver's seat; while
-   riding the taxi, E gets out; F exits (car convention).
-   Phase 5 wildlife: E also tames (pet prompt sits after the vehicle prompts
-   so boarding wins ties; the car fallback stays last). */
+/* E key: dismount first, then car, then bus, then taxi, then bike, then mount
+   if a prompt is live, else car. While riding the bus, E takes the driver's
+   seat; while riding the taxi or the bike, E gets out; F exits (car
+   convention). Phase 5 wildlife: E also tames (pet prompt sits after the
+   vehicle prompts so boarding wins ties; the car fallback stays last). */
 function mountToggle() {
   if (HORSE.riding) horseExit();
   else if (CAR.driving) carExit();
   else if (BUS.driving) busExit();
   else if (BUS.riding) busTakeWheel();
   else if (TX.riding) taxiExit();
+  else if (BIKE.driving) bikeExit();
   else if (HORSE.hintOn && HORSE.nearA) horseEnter();
   else if (BUS.hintOn) busEnter();
   else if (TX.hintOn) taxiEnter();
+  else if (BIKE.hintOn) bikeEnter();
   else if (PET.hintOn && PET.nearA) tamePet(PET.nearA);
   else carEnter();
 }
 /* the touch EXIT button doubles as the dismount button while riding */
-function vehicleExit() { if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); }
+function vehicleExit() { if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); }
 
 /* ---- horse ticker: prompt, controller, procedural gait, audio, HUD ---- */
 function horseUpdate(sdt, now) {
   if (!HORSE.riding) {
     // parked: nearest non-fleeing horse inside 2.2u shows the RIDE prompt
-    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !shopOpen;
+    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !shopOpen;
     let best = null, bestD2 = RIDE_R2;
     if (onFoot) {
       for (const a of animals) {
@@ -6608,7 +6625,7 @@ function busDwellService() {
 }
 
 function busEnter() {
-  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || !playing() || P.dead || shopOpen) return;
+  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || BIKE.driving || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a bus passenger
   if (!BUS.active || BUS.speed > 3) { toast('WAIT FOR THE BUS TO STOP'); return; }
   const door = busDoorWorld();
@@ -6751,7 +6768,7 @@ function busUpdate(sdt, now) {
 
   // ---- board prompt: on foot, near the door, bus stopped ----
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !shopOpen;
   let nearDoor = false;
   if (onFoot && BUS.speed < 3) {
     const door = busDoorWorld();
@@ -7152,7 +7169,7 @@ function txPursuit(sdt) {
   if (TX.speed > 0.05) TX.heading += (TX.speed / TX.wheelbase) * Math.tan(delta) * sdt;
 }
 function taxiEnter() {
-  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding
+  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding || BIKE.driving
       || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a taxi passenger
   if (!TX.active || TX.speed > 3) { toast('WAIT FOR THE TAXI TO STOP'); return; }
@@ -7214,7 +7231,7 @@ function txUpdate(sdt) {
   if (TX.riding) { player.position.copy(TX.pos); player.rotation.y = TX.heading; }
   /* board prompt: on foot, near the door, taxi slow */
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !shopOpen;
   let nearDoor = false;
   if (onFoot && TX.speed < 3) {
     const door = txDoorWorld();
@@ -7244,6 +7261,356 @@ function emUpdate(sdt) {
   emBodyIM.instanceMatrix.needsUpdate = true;
 }
 queueMicrotask(() => worldTickers.push(emUpdate));
+
+/* ================= PHASE 5: MOTORCYCLE =================
+   One new draw call total: bikeBodyIM, a merged vertex-colored motorcycle
+   (MeshStandardMaterial, vertexColors, per-instance tint), 3 parked slots.
+   Design (researched this cycle): arcade lean-steer, NOT literal counter-
+   steer physics (a counter-steer model feels sluggish in arcade games).
+   Forgiving kinematic yaw: steering sets a target yaw rate scaled by speed;
+   the BIKE VISUAL rolls (leans) into turns proportional to yaw rate. Lean
+   is the feel. Faster top speed than the car, twitchier steering, lighter:
+   the fun tradeoff. Wheelie juice (hard throttle from standstill pitches
+   the front up briefly) and stoppie (hard brake pitches forward slightly)
+   are visual pitch only, no state change. Nitro boost on SHIFT/RUN while
+   moving: small speed burst + FOV kick.
+   Engine audio reuses the car's engOsc1/engOsc2/engGain nodes (no new audio
+   nodes, no new lights, no bloom). Wheelie whoosh uses the sfxBlip idiom.
+   CR/TX pattern applies: BIKE is referenced by earlier tickers (wanted
+   sight/bust, animal flight, busted) and declared later; references are live
+   by the time any ticker runs. Zero per-frame allocation in the hot ticks;
+   seeded rng streams only, no Math.random at runtime.
+   v1 simplifications: wheels baked (no spin, em pattern); no hull/armor
+   system (crash = stop/bounce like the car, thud only); slots re-seed on
+   load like the ambulance pad (not persisted in the save). */
+
+/* ---- HUD refs: RIDE prompt mirrors the taxi hint pattern ---- */
+const bikeHintEl = document.getElementById('bikehint');
+const HELP_BIKE = '<b>W/S</b> throttle / brake &nbsp; <b>A/D</b> steer &nbsp; <b>SHIFT</b> nitro boost<br>'
+  + '<b>E</b> exit bike &nbsp; <b>TOUCH</b> stick drives, <b>RUN</b> is boost';
+bikeHintEl.textContent = IS_TOUCH ? 'TAP FOR BIKE' : 'E RIDE BIKE';
+bikeHintEl.addEventListener('click', () => { if (BIKE.hintOn) bikeEnter(); });
+
+/* ---- motorcycle body: one merged vertex-colored geometry, one
+        InstancedMesh, per-instance tint. EXACTLY +1 draw call. ---- */
+const bikeParts = [
+  partGeo(new THREE.BoxGeometry(0.30, 0.30, 1.30), 0xffffff, 0, 0.62, 0),     // frame (tinted)
+  partGeo(new THREE.BoxGeometry(0.36, 0.30, 0.55), 0xffffff, 0, 0.80, 0.18),  // fuel tank (tinted)
+  partGeo(new THREE.BoxGeometry(0.34, 0.14, 0.55), 0x141414, 0, 0.74, -0.48), // seat
+  partGeo(new THREE.BoxGeometry(0.10, 0.72, 0.10), 0x1c1c1c, 0, 0.62, 0.80),  // front fork
+  partGeo(new THREE.BoxGeometry(0.62, 0.07, 0.09), 0x1c1c1c, 0, 1.02, 0.66),  // handlebar
+  partGeo(new THREE.BoxGeometry(0.20, 0.13, 0.07), 0xfff3cf, 0, 0.94, 0.86),  // headlight
+  partGeo(new THREE.BoxGeometry(0.22, 0.09, 0.07), 0xff2a1a, 0, 0.72, -1.06), // taillight
+  partGeo(new THREE.BoxGeometry(0.16, 0.16, 0.55), 0x8a8f96, 0.20, 0.42, -0.55), // exhaust
+];
+for (const wz of [0.92, -0.92]) {
+  const w = new THREE.CylinderGeometry(0.34, 0.34, 0.14, 12);
+  w.rotateZ(Math.PI / 2);
+  bikeParts.push(partGeo(w, 0x161616, 0, 0.34, wz));   // wheels baked (v1: no spin)
+}
+const bikeBodyGeo = mergeGeosColor(bikeParts);
+const bikeBodyIM = new THREE.InstancedMesh(bikeBodyGeo,
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.35 }), 3);
+bikeBodyIM.castShadow = false; bikeBodyIM.frustumCulled = false;
+bikeBodyIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+bikeBodyIM.setColorAt(0, new THREE.Color(0xff3d2e));   // Signal Red
+bikeBodyIM.setColorAt(1, new THREE.Color(0x2e7fff));   // blue
+bikeBodyIM.setColorAt(2, new THREE.Color(0xf0f0f0));   // white
+bikeBodyIM.instanceColor.needsUpdate = true;
+scene.add(bikeBodyIM);
+const _bkM = new THREE.Matrix4(), _bkQ = new THREE.Quaternion(),
+      _bkE = new THREE.Euler(0, 0, 0, 'YXZ'), _bkP = new THREE.Vector3(),
+      _bkS = new THREE.Vector3(1, 1, 1);
+/* park an instance far underground: invisible until its slot activates */
+function bikePark(i) {
+  _bkM.makeScale(0.0001, 0.0001, 0.0001); _bkM.setPosition(0, -60, 0);
+  bikeBodyIM.setMatrixAt(i, _bkM);
+}
+bikePark(0); bikePark(1); bikePark(2);
+bikeBodyIM.instanceMatrix.needsUpdate = true;
+/* pose with lean: Euler YXZ applies roll in the bike frame, then pitch,
+   then yaw. Matches the car carTilt math (rotation.z lean sign). */
+function bikePose(i, px, py, pz, heading, lean, pitch) {
+  _bkE.set(pitch, heading, lean); _bkQ.setFromEuler(_bkE);
+  _bkP.set(px, py, pz); _bkM.compose(_bkP, _bkQ, _bkS);
+  bikeBodyIM.setMatrixAt(i, _bkM);
+}
+
+const BIKE = {
+  // ---- tuning: faster than the car, twitchier, lighter ----
+  topSpeed: 30, reverseSpeed: 6,          // u/s (car: 22)
+  accel: 17, brake: 24, coast: 5, drag: 0.010,
+  steerLow: 0.95, steerHigh: 0.38,       // yaw rate rad/s (car: 0.65/0.22)
+  steerSm: 10, leanMax: 0.42,            // visual roll into turns, rad
+  boostAdd: 10, boostDur: 1.1, boostCdMax: 4,
+  camDist: 8.5, camH: 2.8,               // chase cam distance / height
+  fovDrive: 70, fovBoost: 78,            // wider FOV while driving, kick on boost
+  boardR2: 3.5 * 3.5,                    // enter radius, squared
+  // ---- runtime state (not tuning) ----
+  driving: false, speed: 0, heading: 0, steer: 0, lean: 0,
+  boostT: 0, boostCd: 0, wheelieT: 0, stoppieT: 0, hitCd: 0,
+  fovT: 70,
+  pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1,
+  activeIdx: -1, anchorCx: 1e9, anchorCz: 1e9, key: '',
+  slots: [
+    { x: 0, z: 0, y: 0, yaw: 0, placed: false },
+    { x: 0, z: 0, y: 0, yaw: 0, placed: false },
+    { x: 0, z: 0, y: 0, yaw: 0, placed: false },
+  ],
+};
+const BIKE_SCAN = 4;
+function bikeRebuild(pcx, pcz) {
+  const key = pcx + ',' + pcz;
+  if (key === BIKE.key) return;
+  BIKE.key = key; BIKE.anchorCx = pcx; BIKE.anchorCz = pcz;
+  const cx = (pcx + 0.5) * CHUNK, cz = (pcz + 0.5) * CHUNK;
+  /* 3 nearest amenities to the anchor center: deterministic and
+     player-position independent, so the same anchor rebuilds the same pads. */
+  const found = [];
+  for (let gx = pcx - BIKE_SCAN; gx <= pcx + BIKE_SCAN; gx++)
+    for (let gz = pcz - BIKE_SCAN; gz <= pcz + BIKE_SCAN; gz++) {
+      const a = amenityCenterFor(gx, gz);
+      if (a) found.push(a);
+    }
+  found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
+                     - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
+  for (let i = 0; i < 3; i++) {
+    const s = BIKE.slots[i];
+    if (i === BIKE.activeIdx) continue;   // never yank the ridden bike
+    /* Hysteresis (ambulance pattern): if the player is already at the bike,
+       keep it. Without this the pad would jump every chunk crossing while
+       the player walks up to it; with it, the bike sticks once you are
+       close. */
+    if (s.placed) {
+      const hx = player.position.x - s.x, hz = player.position.z - s.z;
+      if (hx * hx + hz * hz < 400) continue;   // within 20 m: the bike stays
+    }
+    const a = found[i];
+    let ax, az, aa;
+    if (a) {
+      const hh = hash2i(a.gx, a.gz) ^ (0xb1ce ^ (i * 0x9e37));
+      aa = (hh % 628) / 100;
+      ax = a.x + Math.cos(aa) * 13; az = a.z + Math.sin(aa) * 13;
+    } else {   // no amenity in range: 18 m off the anchor center, seeded
+      const hh = hash2i(pcx, pcz) ^ (0xb1ce ^ (i * 0x9e37));
+      aa = (hh % 628) / 100;
+      ax = cx + Math.cos(aa) * 18; az = cz + Math.sin(aa) * 18;
+    }
+    s.x = ax; s.z = az; s.y = terrainHeight(ax, az); s.yaw = aa; s.placed = true;
+    bikePose(i, s.x, s.y, s.z, s.yaw, 0, 0);
+  }
+  bikeBodyIM.instanceMatrix.needsUpdate = true;
+}
+function bikeEnter() {
+  if (BIKE.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding
+      || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  emoteCancel();   // no emotes while riding
+  const i = BIKE.nearIdx;
+  if (i < 0 || i > 2) return;
+  const s = BIKE.slots[i];
+  if (!s.placed) return;
+  const dx = player.position.x - s.x, dz = player.position.z - s.z;
+  if (dx * dx + dz * dz > BIKE.boardR2) return;
+  BIKE.driving = true; BIKE.activeIdx = i;
+  BIKE.pos.set(s.x, s.y, s.z); BIKE.heading = s.yaw; BIKE.speed = 0;
+  BIKE.steer = 0; BIKE.lean = 0; BIKE.fovT = BIKE.fovDrive;
+  BIKE.boostT = 0; BIKE.boostCd = 0; BIKE.wheelieT = 0; BIKE.stoppieT = 0; BIKE.hitCd = 0;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = false;
+  speedoEl.style.display = 'block';
+  drivingTagEl.textContent = 'BIKE';
+  gaitTagEl.style.display = 'none';
+  carcondEl.style.display = 'none';
+  bikeHintEl.style.opacity = 0; BIKE.hintOn = false; BIKE.nearIdx = -1;
+  carHintEl.style.opacity = 0; CAR.hintOn = false;
+  busHintEl.style.opacity = 0; BUS.hintOn = false;
+  txHintEl.style.opacity = 0; TX.hintOn = false;
+  rideHintEl.style.opacity = 0; HORSE.hintOn = false;
+  if (IS_TOUCH) exitBtnEl.style.display = 'flex';
+  helpEl.innerHTML = HELP_BIKE;
+  ensureEngineAudio();
+  toast('MOTORCYCLE');
+  sfxBlip(660, 0.09, 'square', 0.2);
+}
+function bikeExit() {
+  if (!BIKE.driving) return;
+  const i = BIKE.activeIdx;
+  BIKE.driving = false; BIKE.activeIdx = -1;
+  BIKE.boostT = 0; BIKE.wheelieT = 0; BIKE.stoppieT = 0; BIKE.fovT = BIKE.fovDrive;
+  exitBtnEl.style.display = 'none';
+  /* the bike stays where you left it; the slot keeps the pose until a
+     rebuild re-seeds it (hysteresis holds it while you are near). */
+  if (i >= 0 && i < 3) {
+    const s = BIKE.slots[i];
+    s.x = BIKE.pos.x; s.z = BIKE.pos.z; s.y = BIKE.pos.y; s.yaw = BIKE.heading;
+    bikePose(i, s.x, s.y, s.z, s.yaw, 0, 0);
+  }
+  const s2 = Math.sin(BIKE.heading), c2 = Math.cos(BIKE.heading);
+  const px = BIKE.pos.x + c2 * 1.6, pz = BIKE.pos.z - s2 * 1.6;
+  player.position.set(px, terrainHeight(px, pz), pz);
+  player.rotation.y = BIKE.heading;
+  player.visible = true;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  speedoEl.style.display = 'none';
+  drivingTagEl.textContent = 'DRIVING';
+  carcondEl.style.display = '';
+  helpEl.innerHTML = HELP_FOOT;
+  toast('ON FOOT');
+  sfxBlip(440, 0.09, 'square', 0.18);
+}
+/* crash: stop/bounce like the car (no new physics). v1: thud only, the bike
+   has no hull system. */
+function bikeAmenityHit(sdt) {
+  BIKE.hitCd = Math.max(0, BIKE.hitCd - sdt);
+  if (BIKE.hitCd > 0) return;
+  let hitR = 0, hitX = 0, hitZ = 0;
+  for (let i = 0; i < AMEN.colliders.length; i++) {
+    const c = AMEN.colliders[i];
+    const dx = BIKE.pos.x - c.x, dz = BIKE.pos.z - c.z, rr = c.r + 0.9;
+    if (dx * dx + dz * dz < rr * rr) { hitR = rr; hitX = c.x; hitZ = c.z; break; }
+  }
+  if (!hitR) {
+    for (let i = 0; i < coverPts.length; i++) {
+      const cp = coverPts[i];
+      const dx = BIKE.pos.x - cp[0], dz = BIKE.pos.z - cp[1];
+      if (dx * dx + dz * dz < 4.41) { hitR = 2.1; hitX = cp[0]; hitZ = cp[1]; break; }
+    }
+  }
+  if (!hitR) return;
+  const dx = BIKE.pos.x - hitX, dz = BIKE.pos.z - hitZ;
+  const d = Math.hypot(dx, dz);
+  let px = dx, pz = dz;                  // dead-center hit: push along heading
+  if (d < 0.05) { px = Math.sin(BIKE.heading); pz = Math.cos(BIKE.heading); }
+  else { px = dx / d; pz = dz / d; }
+  BIKE.pos.x = hitX + px * hitR;          // push out, never trap
+  BIKE.pos.z = hitZ + pz * hitR;
+  if (Math.abs(BIKE.speed) > 6) sfxBlip(95, 0.22, 'sawtooth', 0.30);
+  BIKE.speed *= 0.35;
+  BIKE.hitCd = 1.0;
+}
+function bikeUpdate(sdt) {
+  const pcx = Math.floor(player.position.x / CHUNK), pcz = Math.floor(player.position.z / CHUNK);
+  if (pcx !== BIKE.anchorCx || pcz !== BIKE.anchorCz) bikeRebuild(pcx, pcz);
+  if (!BIKE.driving) {
+    // parked: nearest slot inside 3.5u shows the RIDE prompt (horse idiom)
+    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
+                && !TX.riding && !HORSE.riding && !shopOpen;
+    let best = -1, bestD2 = BIKE.boardR2;
+    if (onFoot) {
+      for (let i = 0; i < 3; i++) {
+        const s = BIKE.slots[i];
+        if (!s.placed) continue;
+        const dx = player.position.x - s.x, dz = player.position.z - s.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bestD2) { bestD2 = d2; best = i; }
+      }
+    }
+    if ((best >= 0) !== BIKE.hintOn) {
+      BIKE.hintOn = best >= 0;
+      bikeHintEl.style.opacity = BIKE.hintOn ? 1 : 0;
+    }
+    BIKE.nearIdx = best;
+    if (engGain) engGain.gain.value *= 0.9;
+    return;
+  }
+  if (P.dead) { bikeExit(); return; }   // death always ejects: no riding while dead
+
+  // ---- input: WASD/arrows on desktop, joystick on touch, SHIFT/RUN = nitro ----
+  let thr = 0, str = 0;
+  if (keys.KeyW || keys.ArrowUp) thr += 1;
+  if (keys.KeyS || keys.ArrowDown) thr -= 1;
+  if (keys.KeyD || keys.ArrowRight) str += 1;
+  if (keys.KeyA || keys.ArrowLeft) str -= 1;
+  if (IS_TOUCH) { thr += -touch.moveY; str += touch.moveX; }
+  thr = Math.max(-1, Math.min(1, thr));
+  str = Math.max(-1, Math.min(1, str));
+  const boostIn = !!((keys.ShiftLeft || keys.ShiftRight) || (IS_TOUCH && touch.sprint));
+
+  // ---- nitro: small burst + FOV kick while moving, 4 s cooldown ----
+  BIKE.boostCd = Math.max(0, BIKE.boostCd - sdt);
+  if (boostIn && BIKE.boostT <= 0 && BIKE.boostCd <= 0 && BIKE.speed > 2) {
+    BIKE.boostT = BIKE.boostDur; BIKE.boostCd = BIKE.boostCdMax;
+    sfxBlip(180, 0.35, 'sawtooth', 0.22);   // boost whoosh (blip idiom)
+  }
+  const boosting = BIKE.boostT > 0;
+  if (boosting) BIKE.boostT = Math.max(0, BIKE.boostT - sdt);
+  const topNow = BIKE.topSpeed + (boosting ? BIKE.boostAdd : 0);
+  BIKE.fovT = BIKE.fovDrive + (boosting ? (BIKE.fovBoost - BIKE.fovDrive) * (BIKE.boostT / BIKE.boostDur) : 0);
+
+  // ---- longitudinal: throttle, brake, coast ----
+  const sp = BIKE.speed;
+  if (thr > 0) {
+    BIKE.speed = Math.min(topNow, sp + BIKE.accel * (boosting ? 1.6 : 1) * thr * sdt);
+  } else if (thr < 0) {
+    if (sp > 0.5) BIKE.speed = Math.max(0, sp + BIKE.brake * thr * sdt);
+    else BIKE.speed = Math.max(-BIKE.reverseSpeed, sp + BIKE.brake * 0.4 * thr * sdt);
+  } else {
+    const dec = BIKE.coast * sdt + Math.abs(sp) * sp * BIKE.drag * sdt;
+    BIKE.speed = Math.abs(sp) <= dec ? 0 : sp - Math.sign(sp) * dec;
+  }
+
+  // ---- wheelie / stoppie juice: visual pitch only, no state change ----
+  if (thr > 0.9 && BIKE.speed < 3 && BIKE.wheelieT <= 0) {
+    BIKE.wheelieT = 0.7;
+    sfxBlip(300, 0.25, 'sawtooth', 0.15);
+  }
+  if (thr < -0.5 && BIKE.speed > 12 && BIKE.stoppieT <= 0) BIKE.stoppieT = 0.5;
+  BIKE.wheelieT = Math.max(0, BIKE.wheelieT - sdt);
+  BIKE.stoppieT = Math.max(0, BIKE.stoppieT - sdt);
+  const juicePitch = -0.38 * (BIKE.wheelieT / 0.7) + 0.14 * (BIKE.stoppieT / 0.5);
+
+  // ---- lean-steer: forgiving kinematic yaw; the bike rolls into turns.
+  //      Lean is the feel: roll proportional to smoothed yaw rate. ----
+  BIKE.steer += (str - BIKE.steer) * Math.min(1, BIKE.steerSm * sdt);
+  const spdN = Math.min(1, Math.abs(BIKE.speed) / BIKE.topSpeed);
+  const steerMax = BIKE.steerLow + (BIKE.steerHigh - BIKE.steerLow) * spdN;
+  const dir = BIKE.speed >= 0 ? 1 : -1;
+  BIKE.heading += BIKE.steer * steerMax * dir * sdt;
+  const leanTgt = -BIKE.steer * spdN * BIKE.leanMax;
+  BIKE.lean += (leanTgt - BIKE.lean) * Math.min(1, 7 * sdt);
+
+  // ---- integrate; infinite world, no clamp ----
+  BIKE.pos.x += Math.sin(BIKE.heading) * BIKE.speed * sdt;
+  BIKE.pos.z += Math.cos(BIKE.heading) * BIKE.speed * sdt;
+  bikeAmenityHit(sdt);   // crash: stop/bounce like the car, no new physics
+
+  // ---- terrain follow + lean + juice pitch, one Euler (car-tilt math) ----
+  const fx = Math.sin(BIKE.heading), fz = Math.cos(BIKE.heading);
+  const hF = terrainHeight(BIKE.pos.x + fx * 1.0, BIKE.pos.z + fz * 1.0);
+  const hR = terrainHeight(BIKE.pos.x - fx * 1.0, BIKE.pos.z - fz * 1.0);
+  const hRt = terrainHeight(BIKE.pos.x + fz * 0.6, BIKE.pos.z - fx * 0.6);
+  const hL = terrainHeight(BIKE.pos.x - fz * 0.6, BIKE.pos.z + fx * 0.6);
+  BIKE.pos.y = (hF + hR + hRt + hL) * 0.25;
+  const pitch = Math.atan2(hR - hF, 2.0) + juicePitch;
+  const roll = Math.atan2(hRt - hL, 1.2) + BIKE.lean;
+  player.position.copy(BIKE.pos);
+  player.rotation.y = BIKE.heading;
+  const i = BIKE.activeIdx;
+  if (i >= 0) bikePose(i, BIKE.pos.x, BIKE.pos.y, BIKE.pos.z, BIKE.heading, roll, pitch);
+
+  // ---- engine audio: the car's oscillator stack, pitched higher for the bike.
+  //      Nodes are created once by ensureEngineAudio; the tick only retunes. ----
+  if (engGain) {
+    const rpm = Math.min(1.15, Math.abs(BIKE.speed) / BIKE.topSpeed * 0.85 + Math.abs(thr) * 0.15 + (boosting ? 0.15 : 0));
+    if (AC && AC.state === 'running') {
+      engOsc1.frequency.value = 82 + rpm * 230;
+      engOsc2.frequency.value = 41 + rpm * 115;
+      const tgt = 0.040 + rpm * 0.045;
+      engGain.gain.value += (tgt - engGain.gain.value) * Math.min(1, 5 * sdt);
+    } else {
+      engGain.gain.value *= 0.9;
+    }
+  }
+
+  // ---- HUD speedo, throttled like the position readout ----
+  BIKE.hudT += sdt;
+  if (BIKE.hudT > 0.12) {
+    BIKE.hudT = 0;
+    spdNumEl.textContent = Math.round(Math.abs(BIKE.speed) * 3.6);
+  }
+  bikeBodyIM.instanceMatrix.needsUpdate = true;
+}
+queueMicrotask(() => worldTickers.push(bikeUpdate));
 
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
@@ -7331,7 +7698,7 @@ function tick() {
 
   /* --- accelerate / decelerate (no ice-skating, no teleport).
          Skipped while driving or riding: the vehicle ticker owns motion instead. --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving) {
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize().multiplyScalar(maxSpeed);
       tmpV.copy(wishDir).sub(P.vel);
@@ -7353,14 +7720,14 @@ function tick() {
 
   /* --- face travel direction, smooth turn (the rider faces the horse heading) --- */
   const speed = Math.hypot(P.vel.x, P.vel.z);
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && speed > 0.6) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && speed > 0.6) {
     const targetYaw = Math.atan2(P.vel.x, P.vel.z);
     player.rotation.y = angleLerp(player.rotation.y, targetYaw, 1 - Math.exp(-12 * sdt));
   }
 
   /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving) {
     if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -7371,7 +7738,7 @@ function tick() {
 
   /* --- procedural walk cycle (frozen while driving: the driver is seated;
          frozen while riding: the horse ticker poses the rider) --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -7414,7 +7781,7 @@ function tick() {
 
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
   const inBus = BUS.driving || BUS.riding;
-  const inVeh = CAR.driving || HORSE.riding || inBus || TX.riding;
+  const inVeh = CAR.driving || BIKE.driving || HORSE.riding || inBus || TX.riding;
   if (IS_TOUCH) {   // emote button lives only on touch; hide while driving/riding/dead
     const emShow = !inVeh && !P.dead && playing();
     if (emShow !== EMO.btnOn) { EMO.btnOn = emShow; emoteBtnEl.style.display = emShow ? 'flex' : 'none'; }
@@ -7422,12 +7789,12 @@ function tick() {
   if (inVeh) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
     const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
-    const camAng = (CAR.driving ? CAR.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading)))
+    const camAng = (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading))))
       + (CAR.driving ? CAR.slip * driftBlend : 0);
-    const vPos = CAR.driving ? CAR.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos));
-    const vDist = CAR.driving ? CAR.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist));
-    const vH = CAR.driving ? CAR.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH));
-    lookTarget.copy(vPos); lookTarget.y += CAR.driving ? 1.6 : 2.1;
+    const vPos = CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos)));
+    const vDist = CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist)));
+    const vH = CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH)));
+    lookTarget.copy(vPos); lookTarget.y += CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : 2.1);
     camTargetPos.set(
       lookTarget.x - Math.sin(camAng) * vDist,
       lookTarget.y + vH,
@@ -7453,7 +7820,7 @@ function tick() {
   camera.position.copy(camPos);
   }
   /* wider FOV while driving or galloping, eases back to normal after */
-  const fovT = CAR.driving ? CAR.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk)));
+  const fovT = CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk))));
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
@@ -7461,7 +7828,7 @@ function tick() {
   /* --- melee camera punch: tiny shake (2-3 frames) on connect, bigger on the
          3rd hit. Touches only the camera offset: pointer lock and touch-drag
          look (camYaw/camPitch) are never disturbed. --- */
-  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding) {
+  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving) {
     P.shakeT -= dt;
     const m = P.shakeMag * Math.max(0, P.shakeT / Math.max(P.shakeDur, 0.001));
     camera.position.x += (Math.random() * 2 - 1) * m;
@@ -7492,7 +7859,7 @@ function tick() {
   /* --- HUD position readout --- */
   if ((hudTick += dt) > 0.12) {
     hudTick = 0;
-    const mode = CAR.driving ? 'DRIVE' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE')))));
+    const mode = CAR.driving ? 'DRIVE' : (BIKE.driving ? 'BIKE' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE'))))));
     posEl.textContent = 'X ' + player.position.x.toFixed(0) + '  Z ' + player.position.z.toFixed(0)
       + '  [' + Math.floor(player.position.x / CHUNK) + ',' + Math.floor(player.position.z / CHUNK) + ']'
       + '  ' + mode;
@@ -7508,6 +7875,7 @@ function tick() {
     if (HORSE.riding) horseExit(); // ...and no riding while dead either
     if (BUS.driving || BUS.riding) busExit();   // ...and no bus aboard while dead
     if (TX.riding) taxiExit();   // ...and no taxi ride while dead
+    if (BIKE.driving) bikeExit();   // ...and no bike ride while dead
     P.deadT += sdt;
     if (P.deadT > 1.2) {   // redeploy at spawn with full health
       player.position.set(0, terrainHeight(0, 0), 0);
