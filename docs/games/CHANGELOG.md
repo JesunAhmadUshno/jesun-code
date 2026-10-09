@@ -13,10 +13,15 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
   media query (reduced padding, type sizes, flex difficulty row).
 - Driver-only change (`realms.html`); game logic untouched, still 100%
   Jesun.Code; `deepdelve.jc`/`deepdelve.html` untouched.
-- Driver: `APP_VERSION` bumped to `20261008p`.
+- Driver: `APP_VERSION` bumped to `20261008p` (then `20261008q` for the
+  safe-center overlay fix below).
 - Verified: driver inline JS syntax-checked with node, CPython boot + 60-tick
   randomized pump zero exceptions; live browser playtest of the pushed page
   (title screen at phone viewport, difficulty select, START flow).
+- Post-playtest fix: the desktop title overlay used `justify-content:center`
+  with `overflow-y:auto`, which clipped the h2 at the top of tall content in
+  flexbox. Changed to `justify-content:safe center` (phone keeps
+  flex-start). Same ship, no game logic change.
 
 ### REALMS 3D phase (e): overworld in real 3D, no more top-down sprites (indie dev loop)
 - Emberhold is now real 3D geometry whenever WebGL is available. Jesun.Code

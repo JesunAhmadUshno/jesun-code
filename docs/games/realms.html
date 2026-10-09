@@ -24,7 +24,7 @@
   #bossfill { height:100%; background:linear-gradient(90deg,#c02020,#ff5a5a); width:100%; transition:width .2s; }
   #log { width:100%; max-width:768px; height:84px; overflow:hidden; background:#0d0d13; border:1px solid #3a3a4a; border-radius:6px; margin-top:8px; padding:8px 12px; font-size:13px; line-height:1.5; }
   #log div:last-child { color:#ffd75e; }
-  .overlay { position:absolute; inset:0; background:rgba(5,5,10,.93); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-radius:6px; padding:20px; z-index:10; overflow-y:auto; }
+  .overlay { position:absolute; inset:0; background:rgba(5,5,10,.93); display:flex; flex-direction:column; align-items:center; justify-content:safe center; text-align:center; border-radius:6px; padding:20px; z-index:10; overflow-y:auto; }
   .overlay h2 { color:#ffd75e; letter-spacing:3px; margin-bottom:12px; }
   .overlay p { max-width:520px; margin:6px 0; line-height:1.6; font-size:14px; color:#c9c9d6; }
   .overlay button { margin-top:16px; background:#ffd75e; color:#111; border:none; font-family:inherit; font-weight:bold; font-size:16px; padding:12px 32px; border-radius:6px; cursor:pointer; letter-spacing:2px; }
@@ -137,7 +137,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261008p';
+var APP_VERSION='20261008q';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
