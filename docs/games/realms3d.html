@@ -1106,6 +1106,11 @@ const COL = {
   pig: 0xd8a09a, pigSnout: 0xbb7a76,
   wolf: 0x77776f, wolfDark: 0x4f4f4a,
   bear: 0x4a3320, bearDark: 0x2f221a,
+  /* Phase 5 wildlife v3: dog / cat / fox / duck palette */
+  dog: 0x8a6f4d, dogSnout: 0x5f4a36,
+  cat: 0xb98a56,
+  fox: 0xc26a2e, foxSnout: 0x8a4a1e, foxTail: 0xd98a4a,
+  duck: 0x7a8a6a, duckBill: 0xe8932f, duckLeg: 0xe8932f,
 };
 const animalMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
 
@@ -1222,6 +1227,44 @@ const bearBodyParts = [
   animalBox(0.12, 0.12, 0.12, COL.bear, 0, 1.05, -0.68),        // stub tail
 ];
 
+/* ---- Phase 5 wildlife v3: dog / cat / fox / duck.
+   Same idiom as v2: heads folded into the body geometry (one body IM per
+   species, noHead), legs ride the shared wildLegs IM with per-instance
+   species tint. Body origins sit on the ground: body-box bottoms ~= hipY.
+   No box-only Lego look: snouts, ears, tails and wings give each species
+   its silhouette. */
+const dogBodyParts = [
+  animalBox(0.36, 0.42, 0.88, COL.dog, 0, 0.62, 0),             // body
+  animalBox(0.28, 0.3, 0.36, COL.dog, 0, 0.78, 0.5),            // head, folded in
+  animalBox(0.15, 0.13, 0.2, COL.dogSnout, 0, 0.72, 0.72),      // snout
+  animalBox(0.09, 0.16, 0.05, COL.dog, -0.12, 0.98, 0.44, 0, 0, 0.25),  // floppy ears
+  animalBox(0.09, 0.16, 0.05, COL.dog, 0.12, 0.98, 0.44, 0, 0, -0.25),
+  animalBox(0.08, 0.08, 0.4, COL.dog, 0, 0.66, -0.55, 0.5, 0, 0),       // tail
+];
+const catBodyParts = [
+  animalBox(0.26, 0.3, 0.62, COL.cat, 0, 0.45, 0),              // body
+  animalBox(0.22, 0.22, 0.24, COL.cat, 0, 0.58, 0.36),          // head, folded in
+  animalBox(0.07, 0.1, 0.05, COL.cat, -0.08, 0.76, 0.32),       // pointed ears
+  animalBox(0.07, 0.1, 0.05, COL.cat, 0.08, 0.76, 0.32),
+  animalBox(0.06, 0.06, 0.5, COL.cat, 0, 0.5, -0.5, -0.5, 0, 0),        // long tail
+];
+const foxBodyParts = [
+  animalBox(0.34, 0.36, 0.82, COL.fox, 0, 0.6, 0),              // body
+  animalBox(0.24, 0.26, 0.3, COL.fox, 0, 0.74, 0.48),           // head, folded in
+  animalBox(0.12, 0.1, 0.16, COL.foxSnout, 0, 0.68, 0.66),      // pointed snout
+  animalBox(0.08, 0.14, 0.04, COL.fox, -0.09, 0.92, 0.44),      // pointed ears
+  animalBox(0.08, 0.14, 0.04, COL.fox, 0.09, 0.92, 0.44),
+  animalBox(0.14, 0.14, 0.6, COL.foxTail, 0, 0.62, -0.6, 0.35, 0, 0),   // big brush
+];
+const duckBodyParts = [
+  animalBox(0.3, 0.3, 0.48, COL.duck, 0, 0.3, 0),               // body
+  animalBox(0.2, 0.2, 0.24, COL.duck, 0, 0.5, 0.26),            // head, folded in
+  animalBox(0.12, 0.05, 0.14, COL.duckBill, 0, 0.46, 0.42),     // flat bill
+  animalBox(0.34, 0.06, 0.3, COL.duck, -0.2, 0.38, -0.02),      // folded wings
+  animalBox(0.34, 0.06, 0.3, COL.duck, 0.2, 0.38, -0.02),
+  animalBox(0.1, 0.08, 0.14, COL.duck, 0, 0.32, -0.28),         // tail nub
+];
+
 function makeAnimalMesh(geo, count) {
   const im = new THREE.InstancedMesh(geo, animalMat, count);
   im.castShadow = true;
@@ -1254,9 +1297,17 @@ const AMESH = {
   pigBody:        makeAnimalMesh(mergeAnimalParts(pigBodyParts), 3),
   wolfBody:       makeAnimalMesh(mergeAnimalParts(wolfBodyParts), 2),
   bearBody:       makeAnimalMesh(mergeAnimalParts(bearBodyParts), 1),
-  wildLegs:       makeAnimalMesh(animalLegGeo(0.3, 1.0, 0.12, 0xffffff), 24),
+  wildLegs:       makeAnimalMesh(animalLegGeo(0.3, 1.0, 0.12, 0xffffff), 54),
+  /* Phase 5 wildlife v3: 4 body IMs (head folded in) ride the SAME shared
+     wildLegs IM: 12 v2 animals (24 slots) + 15 v3 animals (30 slots) = 54.
+     Exactly +4 InstancedMesh sites this tranche (4 bodies + 0 legs). */
+  dogBody:        makeAnimalMesh(mergeAnimalParts(dogBodyParts), 4),
+  catBody:        makeAnimalMesh(mergeAnimalParts(catBodyParts), 4),
+  foxBody:        makeAnimalMesh(mergeAnimalParts(foxBodyParts), 2),
+  duckBody:       makeAnimalMesh(mergeAnimalParts(duckBodyParts), 5),
 };
-for (const _wn of ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody', 'wildLegs'])
+for (const _wn of ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody', 'wildLegs',
+                   'dogBody', 'catBody', 'foxBody', 'duckBody'])
   AMESH[_wn].castShadow = false;
 AMESH.wildLegs.setColorAt(0, _wildLegTint.setHex(0xffffff));  // allocate instanceColor
 const ALL_ANIMAL_MESHES = Object.values(AMESH);
@@ -1317,9 +1368,22 @@ const WILD_SPP = {
             biome: 'forest', seed: 303 },
   bear:   { hip: 0.72, legZ: 0.42, leg: 0.72, legTint: COL.bear,
             biome: 'forest', seed: 404 },
+  /* Phase 5 wildlife v3: dog / cat / fox / duck. biome drives the relocate
+     probe: dogs park beside real amenity centers ('amenity'), cats keep a
+     fixed city-district zone ('city', never relocated), foxes reuse the
+     forest probe, ducks probe for terrain below the water plane ('water'). */
+  dog:   { hip: 0.42, legZ: 0.28, leg: 0.42, legTint: COL.dog,
+            biome: 'amenity', seed: 505 },
+  cat:   { hip: 0.30, legZ: 0.20, leg: 0.30, legTint: COL.cat,
+            biome: 'city', seed: 606 },
+  fox:   { hip: 0.42, legZ: 0.26, leg: 0.42, legTint: COL.fox,
+            biome: 'forest', seed: 707 },
+  duck:  { hip: 0.15, legZ: 0.12, leg: 0.30, legTint: COL.duckLeg,
+            biome: 'water', seed: 808 },
 };
 const _slotN = { deerM: 0, deerF: 0, deerL: 0, cow: 0, cowL: 0, horse: 0, horseL: 0,
-                 rabbit: 0, pig: 0, wolf: 0, bear: 0, wildLeg: 0 };
+                 rabbit: 0, pig: 0, wolf: 0, bear: 0, wildLeg: 0,
+                 dog: 0, cat: 0, fox: 0, duck: 0 };
 
 const animals = [];
 function addAnimal(kind, male, zone, opts) {
@@ -1361,8 +1425,9 @@ function addAnimal(kind, male, zone, opts) {
     a.imLegs = AMESH.cowLegs;
     const li = _slotN.cowL++;
     a.iLegF = li * 2; a.iLegB = li * 2 + 1;
-  } else if (kind === 'rabbit' || kind === 'pig' || kind === 'wolf' || kind === 'bear') {
-    /* Phase 5 wildlife v2: head folded into the body geometry (one body IM
+  } else if (kind === 'rabbit' || kind === 'pig' || kind === 'wolf' || kind === 'bear' ||
+             kind === 'dog' || kind === 'cat' || kind === 'fox' || kind === 'duck') {
+    /* Phase 5 wildlife v2+v3: head folded into the body geometry (one body IM
        per species, imHead aliases the body slot and writeAnimalMatrices
        skips the head write via noHead); legs ride the shared wildLegs IM
        with a per-instance species tint (wildLegs is baked white). */
@@ -1436,7 +1501,12 @@ function redistributeWildDeer(pcx, pcz) {
    biomes. Rabbits bolt (fleeR 14), pigs root on farms, wolves hunt, bears
    wander. Like wild deer, none of them are persisted. ---- */
 const wildRabbits = [], wildPigs = [], wildWolves = [], wildBears = [];
-const WILD_LIST = { rabbit: wildRabbits, pig: wildPigs, wolf: wildWolves, bear: wildBears };
+/* Phase 5 wildlife v3: dog / cat / fox / duck lists. Cats keep a fixed
+   city-district zone (like the original farm animals) and never relocate,
+   so they are NOT in WILD_LIST. */
+const wildDogs = [], wildCats = [], wildFoxes = [], wildDucks = [];
+const WILD_LIST = { rabbit: wildRabbits, pig: wildPigs, wolf: wildWolves, bear: wildBears,
+                    dog: wildDogs, fox: wildFoxes, duck: wildDucks };
 for (let i = 0; i < 6; i++) {
   const a = addAnimal('rabbit', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
                       { walk: 2.2, fleeR: 14, graze: true });
@@ -1459,6 +1529,54 @@ for (let i = 0; i < 2; i++) {
 }
 AMESH.wildLegs.instanceColor.needsUpdate = true;   /* per-instance species tints */
 
+/* ---- Phase 5 wildlife v3: DOGS / CATS / FOXES / DUCKS. Same wild-deer
+   idiom as v2: fixed-size herds, seeded placement, never persisted.
+   Dogs start in the spawn district and relocate beside amenities; cats keep
+   a fixed city-district zone; foxes start near spawn and relocate to forest
+   chunks; ducks start on seeded ponds near spawn and relocate to ponds. ---- */
+/* seeded pond finder: deterministic water point near spawn for duck boot
+   placement. Terrain dips below the -0.6 ocean plane all over the map. */
+const WATER_Y = -0.55;
+function findPond(i) {
+  const rnd = mulberry32(hash2i(8080 + i, 11));
+  for (let k = 0; k < 200; k++) {
+    const x = (rnd() - 0.5) * 300, z = (rnd() - 0.5) * 300;
+    if (terrainHeight(x, z) < WATER_Y) return { x, z };
+  }
+  return { x: 60, z: 80 };   /* fallback: verified water near spawn */
+}
+for (let i = 0; i < 4; i++) {
+  const a = addAnimal('dog', false, { x0: -30, x1: 30, z0: -30, z1: 30 },
+                      { walk: 1.6 });
+  a.wild = true; a.barkCd = 2 + a.rng() * 4;   /* untamed dogs wander + bark */
+  wildDogs.push(a);
+}
+for (let i = 0; i < 4; i++) {
+  /* city district rect (mirrors the NOGO city rect): fixed zone, no relocate */
+  const a = addAnimal('cat', false, { x0: 36, x1: 104, z0: -104, z1: -36 },
+                      { walk: 1.4 });
+  a.wild = true;
+  wildCats.push(a);
+}
+for (let i = 0; i < 2; i++) {
+  const a = addAnimal('fox', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
+                      { walk: 4.0 });
+  a.wild = true;
+  wildFoxes.push(a);
+}
+for (let i = 0; i < 5; i++) {
+  const w = findPond(i);
+  const a = addAnimal('duck', false, { x0: w.x - 8, x1: w.x + 8, z0: w.z - 8, z1: w.z + 8 },
+                      { walk: 1.5 });
+  a.wild = true;
+  a.pos.set(w.x, WATER_Y, w.z);
+  a.homeX = w.x; a.homeZ = w.z; a.cR = 2.5 + a.rng() * 2;
+  a.duckAng = a.rng() * 6.2832; a.panicT = 0; a.flyY = 0;
+  wildDucks.push(a);
+  writeAnimalMatrices(a);
+}
+AMESH.wildLegs.instanceColor.needsUpdate = true;   /* v3 per-instance tints */
+
 /* deterministic per-chunk biome for wildlife-v2 spawns: pure function of
    chunk coords with a NEW seed xor, so the deer/cow/horse/flora/amenity
    streams are untouched. The spawn district stays 'plain' (no wild animals
@@ -1471,7 +1589,7 @@ function chunkBiome(gx, gz) {
 /* relocate the wild herds into seeded biome-matching chunks around the
    player (wild-deer idiom). Runs on chunk crossing, never in the hot tick. */
 function redistributeWildlife(pcx, pcz) {
-  for (const kind of ['rabbit', 'pig', 'wolf', 'bear']) {
+  for (const kind of ['rabbit', 'pig', 'wolf', 'bear', 'dog', 'fox', 'duck']) {
     const cfg = WILD_SPP[kind], list = WILD_LIST[kind];
     for (let i = 0; i < list.length; i++) {
       const a = list[i];
@@ -1484,6 +1602,39 @@ function redistributeWildlife(pcx, pcz) {
       for (let k = 0; k < 49; k++) {
         const kk = (start + k) % 49;
         const gx = pcx - HALFGRID + (kk % GRID), gz = pcz - HALFGRID + ((kk / GRID) | 0);
+        if (cfg.biome === 'amenity') {
+          /* Phase 5 wildlife v3: dogs live near amenities. Probe chunks for
+             a real amenity center (pure deterministic, same math the amenity
+             pass uses) and park the dog beside it. */
+          const ac = amenityCenterFor(gx, gz);
+          if (!ac) continue;
+          const x = ac.x + (rnd() - 0.5) * 14, z = ac.z + (rnd() - 0.5) * 14;
+          a.pos.set(x, terrainHeight(x, z), z);
+          a.zone.x0 = x - 15; a.zone.x1 = x + 15;
+          a.zone.z0 = z - 15; a.zone.z1 = z + 15;
+          a.target.set(x, 0, z);
+          a.mode = 'idle'; a.t = rnd() * 3;
+          a.rotY = rnd() * Math.PI * 2;
+          break;
+        }
+        if (cfg.biome === 'water') {
+          /* Phase 5 wildlife v3: ducks need a pond. Probe the chunk for a
+             terrain dip below the water plane; keep the duck if none. */
+          let fx = 0, fz = 0, ok = false;
+          for (let t = 0; t < 6; t++) {
+            const x = (gx + rnd()) * CHUNK, z = (gz + rnd()) * CHUNK;
+            if (terrainHeight(x, z) < WATER_Y) { fx = x; fz = z; ok = true; break; }
+          }
+          if (!ok) continue;
+          a.pos.set(fx, WATER_Y, fz);
+          a.homeX = fx; a.homeZ = fz;
+          a.zone.x0 = fx - 8; a.zone.x1 = fx + 8;
+          a.zone.z0 = fz - 8; a.zone.z1 = fz + 8;
+          a.target.set(fx, 0, fz);
+          a.mode = 'idle'; a.t = rnd() * 3; a.panicT = 0;
+          a.rotY = rnd() * Math.PI * 2;
+          break;
+        }
         if (chunkBiome(gx, gz) !== cfg.biome) continue;
         const x = (gx + 0.15 + rnd() * 0.7) * CHUNK;
         const z = (gz + 0.15 + rnd() * 0.7) * CHUNK;
@@ -1622,6 +1773,84 @@ function natureTick(dt, now) {
         }
       }
     }
+    /* Phase 5 wildlife v3: fox hunt. Reuses the wolf acquirePrey pattern:
+       foxes hunt RABBITS only, run them down faster than wolves (6.5), but
+       rest longer after a catch (preyCd 10-18). */
+    if (a.kind === 'fox' && a.fleeT <= 0 && a !== PET.a) {
+      a.preyCd -= dt;
+      let prey = a.prey;
+      if (prey && (prey === PET.a || prey.mountLocked)) { prey = null; a.prey = null; }
+      if (prey) {
+        const pdx = prey.pos.x - p.x, pdz = prey.pos.z - p.z;
+        if (pdx * pdx + pdz * pdz > 900) { prey = null; a.prey = null; }  /* lost it past 30m */
+      }
+      if (!prey && a.preyCd <= 0) {
+        let bestD2 = 625;                /* 25m acquire radius */
+        for (const b of animals) {
+          if (b === a || b === PET.a || b.mountLocked || b.kind !== 'rabbit') continue;
+          const dx = b.pos.x - p.x, dz = b.pos.z - p.z, d2 = dx * dx + dz * dz;
+          if (d2 < bestD2) { bestD2 = d2; prey = b; }
+        }
+        a.prey = prey;
+      }
+      if (prey) {
+        a.target.set(prey.pos.x, 0, prey.pos.z);
+        a.mode = 'walk';
+        const cdx = prey.pos.x - p.x, cdz = prey.pos.z - p.z;
+        if (cdx * cdx + cdz * cdz < 4) {   /* caught: panic bolt, then a long rest */
+          prey.fleeT = 4; prey.fleeFrom.set(p.x, 0, p.z);
+          a.prey = null; a.preyCd = 10 + a.rng() * 8; a.mode = 'idle'; a.t = 3;
+        }
+      }
+    }
+    /* Phase 5 wildlife v3: untamed dogs bark when the player is near (10m).
+       sfxBlip idiom, no new audio nodes; the pet never barks at its owner. */
+    if (a.kind === 'dog' && a !== PET.a) {
+      a.barkCd -= dt;
+      const bdx = px - p.x, bdz = pz - p.z;
+      if (a.barkCd <= 0 && bdx * bdx + bdz * bdz < 100) {
+        a.barkCd = 3 + a.rng() * 4;
+        sfxBlip(920, 0.07, 'square', 0.15);
+        sfxBlip(690, 0.09, 'square', 0.15);
+      }
+    }
+    /* Phase 5 wildlife v3: cats flee dogs and vehicles within 10m. The
+       generic 8m vehicle scare above still covers every other animal. */
+    if (a.kind === 'cat' && a.fleeT <= 0) {
+      let cs = false;
+      for (let di = 0; di < wildDogs.length; di++) {
+        const dg = wildDogs[di];
+        const wx = dg.pos.x - p.x, wz = dg.pos.z - p.z;
+        if (wx * wx + wz * wz < 100) { a.fleeFrom.set(dg.pos.x, 0, dg.pos.z); cs = true; break; }
+      }
+      if (!cs && vtOn) {
+        const vx = vtx - p.x, vz = vtz - p.z;
+        if (vx * vx + vz * vz < 100) { a.fleeFrom.set(vtx, 0, vtz); cs = true; }
+      }
+      if (cs) a.fleeT = 3;
+    }
+    /* Phase 5 wildlife v3: ducks paddle slow circles on their pond. The
+       player inside 6m triggers a panic take-off: climb, circle, land.
+       Ground scares are cancelled for ducks; the take-off replaces them. */
+    if (a.kind === 'duck') {
+      a.fleeT = 0;
+      const qdx = px - p.x, qdz = pz - p.z;
+      if (a.panicT <= 0 && qdx * qdx + qdz * qdz < 36 && !P.dead) {
+        a.panicT = 5 + a.rng() * 3;
+        sfxBlip(420, 0.12, 'sawtooth', 0.12);   /* quack */
+      }
+      if (a.panicT > 0) {
+        a.panicT -= dt;
+        a.flyY = Math.min(a.flyY + dt * 2.5, 4);
+        a.duckAng += dt * 1.8;
+        a.target.set(a.homeX + Math.cos(a.duckAng) * 6, 0, a.homeZ + Math.sin(a.duckAng) * 6);
+      } else {
+        a.flyY = Math.max(a.flyY - dt * 2.5, 0);
+        a.duckAng += dt * 0.35;
+        a.target.set(a.homeX + Math.cos(a.duckAng) * a.cR, 0, a.homeZ + Math.sin(a.duckAng) * a.cR);
+      }
+      a.mode = 'walk';
+    }
 
     let moving = false, spd = 0;
     if (a.fleeT > 0) {
@@ -1686,6 +1915,10 @@ function natureTick(dt, now) {
         spd = a.walk * (a.trotT > 0 ? 3 : 1);  // horses occasionally trot
         /* Phase 5 wildlife v2: a hunting wolf runs its prey down at flee speed */
         if (a.kind === 'wolf' && a.prey) spd = 6;
+        /* Phase 5 wildlife v3: a hunting fox is faster than a wolf; a
+           panicking duck takes off at flight speed */
+        if (a.kind === 'fox' && a.prey) spd = 6.5;
+        if (a.kind === 'duck' && a.panicT > 0) spd = 7;
         if (a.trotT > 0) a.trotT -= dt;
         p.x += (mx / ml) * spd * dt; p.z += (mz / ml) * spd * dt;
         moving = true;
@@ -1694,6 +1927,7 @@ function natureTick(dt, now) {
     }
 
     p.y = terrainHeight(p.x, p.z);
+    if (a.kind === 'duck') p.y = WATER_Y + a.flyY;   /* Phase 5 wildlife v3: ducks ride the water plane, not the terrain */
     if (moving) {
       a.walkPhase += dt * (3 + spd * 2.2);
       const sw = Math.sin(a.walkPhase) * Math.min(0.7, 0.25 + spd * 0.08);
@@ -1753,7 +1987,7 @@ function setPetMode(m) {
   PET.mode = m;
   if (m === 'wait' && PET.a) toast('PET WAITING');   /* toast only on transition */
 }
-/* Tame a deer or horse. Exactly one pet: taming a second releases the first. */
+/* Tame a deer, horse or dog. Exactly one pet: taming a second releases the first. */
 function tamePet(a, silent) {
   if (!a || a === PET.a || a.mountLocked) return;
   if (PET.a) releasePet(true);
@@ -1794,7 +2028,7 @@ function petSaveStr() {
 }
 function petLoadStr(s) {
   if (!s) return;
-  const m = /^(deer|horse):(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/.exec(s);
+  const m = /^(deer|horse|dog):(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/.exec(s);
   if (!m || Math.abs(+m[2]) > 120 || Math.abs(+m[3]) > 120) return;
   const tx = player.position.x + (+m[2]), tz = player.position.z + (+m[3]);
   let best = null, bestD2 = 3600;   /* nearest of the kind inside 60m of the mark */
@@ -1837,7 +2071,7 @@ function petSteer(a, dt) {
   p.x += _nv.x * spd * dt; p.z += _nv.z * spd * dt;
   _petMoving = true; _petSpd = spd;
 }
-/* E-tame prompt: nearest tamable deer/horse inside 3m, on foot, not fleeing.
+/* E-tame prompt: nearest tamable deer/horse/dog inside 3m, on foot, not fleeing.
    Horses inside the 2.2m ride radius keep the RIDE prompt (existing behavior
    wins there); tame a horse from 2.2-3m. Runs at the tail of natureTick. */
 function petPromptScan() {
@@ -1847,7 +2081,9 @@ function petPromptScan() {
   if (onFoot) {
     for (const a of animals) {
       if (a === PET.a || a.mountLocked || a.fleeT > 0) continue;
-      if (a.kind !== 'deer' && a.kind !== 'horse') continue;
+      /* Phase 5 wildlife v3: dogs are tamable (they use the existing pet
+         follow system); cats, foxes and ducks are not. */
+      if (a.kind !== 'deer' && a.kind !== 'horse' && a.kind !== 'dog') continue;
       if (a.kind === 'horse' && HORSE.hintOn && HORSE.nearA === a) continue;
       const dx = player.position.x - a.pos.x, dz = player.position.z - a.pos.z;
       const d2 = dx * dx + dz * dz;
@@ -1858,7 +2094,8 @@ function petPromptScan() {
   const on = best !== null;
   if (on !== PET.hintOn) { PET.hintOn = on; petHintEl.style.opacity = on ? 1 : 0; }
   if (on) {
-    const label = (IS_TOUCH ? 'TAP TO TAME ' : 'E TAME ') + (best.kind === 'deer' ? 'DEER' : 'HORSE');
+    const label = (IS_TOUCH ? 'TAP TO TAME ' : 'E TAME ') +
+      (best.kind === 'deer' ? 'DEER' : (best.kind === 'horse' ? 'HORSE' : 'DOG'));
     if (petHintEl.textContent !== label) petHintEl.textContent = label;
   }
 }
