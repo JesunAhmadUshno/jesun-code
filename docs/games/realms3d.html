@@ -207,6 +207,9 @@
   #firebtn:active { background: rgba(216,60,40,.7); color: #fff; }
   #punchbtn { right: 116px; bottom: 200px; border-color: rgba(216,200,74,.7); }
   #punchbtn:active { background: rgba(216,200,74,.7); color: #0c0e0a; }
+  #exitbtn { left: 26px; bottom: 200px; display: none;
+    border-color: rgba(255,107,94,.7); color: #ff9d8a; }
+  #exitbtn:active { background: rgba(216,60,40,.7); color: #fff; }
 </style>
 </head>
 <body>
@@ -255,6 +258,7 @@
   <div class="tbtn" id="punchbtn">PUNCH</div>
   <div class="tbtn" id="jumpbtn">JUMP</div>
   <div class="tbtn" id="sprintbtn">RUN</div>
+  <div class="tbtn" id="exitbtn">EXIT</div>
 </div>
 
 <div id="overlay">
@@ -4044,11 +4048,15 @@ const HELP_DRIVE = '<b>W/S</b> throttle / brake &nbsp; <b>A/D</b> steer &nbsp; <
   + '<b>E</b> exit car &nbsp; <b>TOUCH</b> stick drives, <b>RUN</b> is handbrake';
 carHintEl.textContent = IS_TOUCH ? 'TAP TO ENTER CAR' : 'E ENTER CAR';
 carHintEl.addEventListener('click', () => { if (!CAR.driving) carEnter(); });
+/* ---- touch EXIT button: the only way out of the car on touch. Hidden by
+        default (CSS) and on desktop; shown while driving on touch. ---- */
+const exitBtnEl = document.getElementById('exitbtn');
+exitBtnEl.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); carExit(); }, { passive: false });
 
 /* ---- procedural engine audio: oscillator stack pitched to RPM.
         Nodes are created once (no per-frame allocation); gain rides RPM
         only while driving and only after the click-to-play audio unlock. ---- */
-let engOsc1 = null, engOsc2 = null, engGain = null;
+let engOsc1 = null, engOsc2 = null, engGain = null, skidGain = null;
 function ensureEngineAudio() {
   const a = ac(); if (!a || engOsc1) return;
   engOsc1 = a.createOscillator(); engOsc1.type = 'sawtooth';
@@ -4059,6 +4067,15 @@ function ensureEngineAudio() {
   lp.connect(engGain); engGain.connect(a.destination);
   engOsc1.frequency.value = 58; engOsc2.frequency.value = 29;
   engOsc1.start(); engOsc2.start();
+  /* skid: one looping noise buffer through a bandpass, gain rides handbrake
+     drift. Nodes created once; the per-frame tick only sets gains. */
+  const nlen = a.sampleRate, nbuf = a.createBuffer(1, nlen, a.sampleRate), nd = nbuf.getChannelData(0);
+  for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
+  const nsrc = a.createBufferSource(); nsrc.buffer = nbuf; nsrc.loop = true;
+  const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1150; bp.Q.value = 1.4;
+  skidGain = a.createGain(); skidGain.gain.value = 0;
+  nsrc.connect(bp); bp.connect(skidGain); skidGain.connect(a.destination);
+  nsrc.start();
 }
 
 function carEnter() {
@@ -4071,6 +4088,7 @@ function carEnter() {
   player.visible = false;                     // driver rides inside
   speedoEl.style.display = 'block';
   carHintEl.style.opacity = 0; CAR.hintOn = false;
+  if (IS_TOUCH) exitBtnEl.style.display = 'flex';   // touch exit path
   helpEl.innerHTML = HELP_DRIVE;
   ensureEngineAudio();
   sfxBlip(660, 0.09, 'square', 0.2);
@@ -4078,6 +4096,8 @@ function carEnter() {
 function carExit() {
   if (!CAR.driving) return;
   CAR.driving = false;
+  CAR.drifting = false; CAR.charge = 0;         // stop any mid-drift skid audio
+  exitBtnEl.style.display = 'none';
   const s = Math.sin(CAR.heading), c = Math.cos(CAR.heading);
   let px = Math.max(-104, Math.min(104, CAR.pos.x + c * 2.1));   // driver side
   let pz = Math.max(-104, Math.min(104, CAR.pos.z - s * 2.1));
@@ -4100,6 +4120,7 @@ function carUpdate(sdt, now) {
     const near = dx * dx + dz * dz < 16;
     if (near !== CAR.hintOn) { CAR.hintOn = near; carHintEl.style.opacity = near ? 1 : 0; }
     if (engGain) engGain.gain.value *= 0.9;
+    if (skidGain) skidGain.gain.value *= 0.9;
     return;
   }
   if (P.dead) { carExit(); return; }   // death always ejects, never soft-locks
@@ -4189,6 +4210,15 @@ function carUpdate(sdt, now) {
       engGain.gain.value += (tgt - engGain.gain.value) * Math.min(1, 5 * sdt);
     } else {
       engGain.gain.value *= 0.9;
+    }
+  }
+  /* ---- skid audio: filtered noise while the handbrake slide is live ---- */
+  if (skidGain) {
+    if (AC && AC.state === 'running') {
+      const tgt = CAR.drifting ? 0.10 + 0.08 * spdN : 0;
+      skidGain.gain.value += (tgt - skidGain.gain.value) * Math.min(1, 6 * sdt);
+    } else {
+      skidGain.gain.value *= 0.9;
     }
   }
 
