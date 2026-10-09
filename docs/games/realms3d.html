@@ -173,6 +173,14 @@
     letter-spacing: 2px; min-width: 92px; text-align: center;
   }
 
+  /* ---- perf HUD: developer draw-call overlay (P toggles), DOM only, zero draw calls ---- */
+  #perfchip {
+    position: fixed; top: 10px; left: 10px; z-index: 30; pointer-events: none;
+    display: none; font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11px; line-height: 1.5; color: #0c0e0a; background: #d8c84a;
+    padding: 8px 10px; white-space: pre; letter-spacing: 0;
+  }
+
   /* ---- vehicle HUD: speedo under the weather block, enter-car hint ---- */
   #speedo {
     position: absolute; top: 254px; right: 18px; color: #c9d2b8; font-size: 12px;
@@ -227,6 +235,7 @@
   <div id="wx"><span>☀</span> CLEAR</div>
   <div id="saved">SAVED --:--</div>
   <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H</div>
+  <div id="perfchip"></div>
   <div id="toast"></div>
   <div id="carhint"></div>
   <div id="shop">
@@ -2929,6 +2938,7 @@ const keys = {};
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
+  if (e.code === 'KeyP') togglePerf();                                // developer perf overlay, hidden by default
   if (shopOpen) {                                     // shop panel captures keys: 1-5 buy, E/Esc close
     if (e.code === 'KeyE' || e.code === 'Escape') closeShop();
     else if (e.code === 'Digit1') buyItem(0);
@@ -3836,6 +3846,20 @@ function angleLerp(a, b, t) {
   return a + d * t;
 }
 
+/* ================= PERF OVERLAY (developer) ================================
+   KeyP toggles a DOM-only HUD chip with live renderer stats: FPS averaged over
+   1 s, renderer.info.render.calls, triangles, and memory geometries/textures.
+   Hidden by default; zero gameplay effect when off. The DOM chip adds no
+   WebGL draw calls. Text updates at most once per second, only while visible;
+   per frame the tick only increments a counter. */
+const perfEl = document.getElementById('perfchip');
+let perfOn = false, perfFrames = 0, perfT0 = 0, perfLastUpd = 0;
+function togglePerf() {
+  perfOn = !perfOn;
+  perfEl.style.display = perfOn ? 'block' : 'none';
+  if (perfOn) { perfFrames = 0; perfT0 = performance.now(); perfLastUpd = perfT0; }
+}
+
 function tick() {
   requestAnimationFrame(tick);
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -4056,6 +4080,22 @@ function tick() {
   for (const fn of worldTickers) fn(sdt, now);
 
   renderer.render(scene, camera);
+
+  /* --- perf overlay sampling: counter only, text at most 1 Hz while visible --- */
+  if (perfOn) {
+    perfFrames++;
+    const pt = performance.now();
+    if (pt - perfLastUpd >= 1000) {
+      const info = renderer.info.render, mem = renderer.info.memory;
+      perfEl.textContent =
+        'FPS ' + Math.round(perfFrames * 1000 / (pt - perfT0)) +
+        '  CALLS ' + info.calls +
+        '  TRIS ' + info.triangles +
+        '\nGEO ' + mem.geometries +
+        '  TEX ' + mem.textures;
+      perfFrames = 0; perfT0 = pt; perfLastUpd = pt;
+    }
+  }
 }
 
 /* ====================== SAVE SYSTEM (Phase 2 save v1) ======================
