@@ -88,6 +88,22 @@
   }
   #combat b { color: #ff6b5e; }
   #combat #kills { color: #d8c84a; }
+  #combat #cash { color: #7dff9a; }
+
+  /* ---- mission HUD: tracker (left, under health) + compass arrow ---- */
+  #mtracker {
+    position: absolute; top: 108px; left: 18px; color: #c9d2b8; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #d8c84a; padding: 8px 12px;
+    letter-spacing: 2px; display: none; max-width: 300px;
+  }
+  #mtitle { color: #d8c84a; font-weight: bold; letter-spacing: 3px; margin-bottom: 4px; }
+  #mobj { color: #eef2e4; font-size: 11px; letter-spacing: 1px; }
+  #marrow {
+    position: absolute; top: 54px; left: 50%; transform: translateX(-50%);
+    text-align: center; color: #ffd24a; display: none; pointer-events: none;
+  }
+  #marr { font-size: 26px; line-height: 1; text-shadow: 0 0 10px rgba(255,180,40,.7); }
+  #mdist { font-size: 11px; letter-spacing: 2px; margin-top: 2px; }
 
   /* ---- time-of-day readout (day/night cycle) ---- */
   #tod {
@@ -151,7 +167,9 @@
     <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>F</b> punch &nbsp; <b>R-CLICK</b> punch &nbsp; <b>ESC</b> release mouse
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
-  <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b></div>
+  <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b></div>
+  <div id="mtracker"><div id="mtitle"></div><div id="mobj"></div></div>
+  <div id="marrow"><div id="marr">▲</div><div id="mdist"></div></div>
   <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
   <div id="wx"><span>☀</span> CLEAR</div>
   <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H</div>
@@ -1518,7 +1536,7 @@ function damageEnemy(e, d) {
   if (e.hp <= 0) {
     e.state = 'dead'; e.deadT = 0; e.respawnT = 10;
     hideTelegraph(e);
-    kills++; sfxDie(); updateCombatHUD(); toast('HOSTILE DOWN');
+    kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type); toast('HOSTILE DOWN');
   } else sfxHit();
 }
 
@@ -1549,7 +1567,7 @@ function hurtPlayer(d) {
   sfxHurt();
   dmgV = 0.85;
   updateHpHUD();
-  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; toast('ELIMINATED'); updateHpHUD(); }
+  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; toast('ELIMINATED'); missionOnDeath(); updateHpHUD(); }
 }
 
 /* --- shooter fires: tracer from its gun, procedural bang, 55% hit (fair) --- */
@@ -1747,6 +1765,290 @@ function updateEnemy(e, dt, now) {
   let armTgt = r.armT - s * 0.5;                 // per-type pose + walk counter-swing
   if (e.poseT > 0) { e.poseT -= dt; armTgt = -1.5; }      // shoot recoil pose
   e.armL.rotation.x = armTgt; e.armR.rotation.x = armTgt;
+}
+
+/* ============================ MISSIONS v1 =================================
+   5 handcrafted GTA-style missions: walk into a glowing ring to start one.
+   IDLE -> ACTIVE -> objective phases -> COMPLETE / FAIL. Player death fails
+   the active mission; every mission is retryable forever (no soft-lock).
+   Kills pay $25, mission rewards run $100 to $500. Draw calls: 5 (2 instanced
+   start-marker meshes, objective ring, objective icon, 1 instanced crate
+   pool). Zero per-frame allocation in missionTick; temp objects are reused. */
+const MISSIONS = [
+  { id: 'm1', name: 'FIRST BLOOD', giver: 'Rook: prove you can fight.',
+    reward: 100, mx: 12, mz: 8,
+    obj: [{ type: 'kill', n: 3, label: 'KILL 3 HOSTILES' }] },
+  { id: 'm2', name: 'GRAND TOUR', giver: 'Rook: learn the land.',
+    reward: 200, mx: 12, mz: -8,
+    obj: [{ type: 'goto', x: 70, z: -70, r: 6, label: 'REACH THE CITY' },
+          { type: 'goto', x: -70, z: 10, r: 6, label: 'REACH THE FARM' },
+          { type: 'goto', x: -60, z: -70, r: 6, label: 'REACH THE FOREST' }] },
+  { id: 'm3', name: 'PACKAGE RUN', giver: 'Maya: grab my crate. No questions.',
+    reward: 300, mx: -12, mz: 8,
+    obj: [{ type: 'collect', n: 1, spots: [[55, -60]], label: 'PICK UP THE PACKAGE' },
+          { type: 'deliver', x: -70, z: 10, r: 6, label: 'DELIVER TO THE FARM' }] },
+  { id: 'm4', name: 'HEAVY HITTERS', giver: 'Rook: the big ones hit back.',
+    reward: 400, mx: -12, mz: -8,
+    obj: [{ type: 'kill', n: 2, of: 'brute', label: 'KILL 2 BRUTES' }] },
+  { id: 'm5', name: 'SUPPLY DROP', giver: 'Maya: grab the drops. Come home.',
+    reward: 500, mx: 0, mz: 16,
+    obj: [{ type: 'collect', n: 4, spots: [[30, 30], [-40, 50], [80, -20], [-50, -50]],
+            label: 'GRAB 4 SUPPLY CRATES' },
+          { type: 'goto', x: 0, z: 0, r: 6, label: 'RETURN TO SPAWN' }] },
+];
+const MS = { state: 'IDLE', idx: -1, phase: 0, prog: 0, giverT: 0,
+             done: [false, false, false, false, false] };
+let cash = 0;
+const cashEl = document.getElementById('cash');
+const mtitleEl = document.getElementById('mtitle'), mobjEl = document.getElementById('mobj');
+const mtrackerEl = document.getElementById('mtracker');
+const marrowEl = document.getElementById('marrow'), marrEl = document.getElementById('marr'),
+      mdistEl = document.getElementById('mdist');
+function updateCashHUD() { cashEl.textContent = cash; }
+
+/* --- mission jingles: procedural WebAudio, same sfxBlip idiom as combat --- */
+function sfxMissionStart() {
+  sfxBlip(392, 0.12, 'square', 0.25);
+  setTimeout(() => sfxBlip(523, 0.12, 'square', 0.25), 110);
+  setTimeout(() => sfxBlip(659, 0.18, 'square', 0.25), 220);
+}
+function sfxMissionObj() {
+  sfxBlip(660, 0.1, 'sine', 0.25);
+  setTimeout(() => sfxBlip(880, 0.14, 'sine', 0.25), 90);
+}
+function sfxMissionWin() {
+  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => sfxBlip(f, 0.16, 'square', 0.22), i * 120));
+}
+function sfxMissionFail() {
+  sfxBlip(220, 0.2, 'sawtooth', 0.25);
+  setTimeout(() => sfxBlip(147, 0.3, 'sawtooth', 0.25), 160);
+}
+
+/* --- markers: shared geometry/material, instanced where repeated --- */
+const _mDummy = new THREE.Object3D();
+const _mB = new THREE.Vector3();
+const _tgt = { x: 0, z: 0 };
+const M_HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
+const startRingGeo = new THREE.RingGeometry(2.2, 3.0, 28);
+startRingGeo.rotateX(-Math.PI / 2);
+const startRingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true,
+  opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+const startRings = new THREE.InstancedMesh(startRingGeo, startRingMat, 5);
+const startIconGeo = new THREE.OctahedronGeometry(0.55);
+const startIconMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4,
+  emissive: 0x222222 });
+const startIcons = new THREE.InstancedMesh(startIconGeo, startIconMat, 5);
+startRings.frustumCulled = false; startIcons.frustumCulled = false;
+const startBaseY = [];
+const M_GOLD = new THREE.Color(0xd8c84a), M_GRAY = new THREE.Color(0x4a4a4a),
+      M_GREEN = new THREE.Color(0x3fae5a);
+for (let i = 0; i < 5; i++) {
+  const m = MISSIONS[i], y = terrainHeight(m.mx, m.mz);
+  startBaseY.push(y);
+  _mDummy.position.set(m.mx, y + 0.06, m.mz);
+  _mDummy.rotation.set(0, 0, 0); _mDummy.scale.set(1, 1, 1);
+  _mDummy.updateMatrix(); startRings.setMatrixAt(i, _mDummy.matrix);
+  _mDummy.position.y = y + 3.0; _mDummy.updateMatrix();
+  startIcons.setMatrixAt(i, _mDummy.matrix);
+  startRings.setColorAt(i, M_GRAY); startIcons.setColorAt(i, M_GRAY);
+}
+scene.add(startRings); scene.add(startIcons);
+/* objective marker: single ring + icon, follows the live target (2 draw calls) */
+const objRing = new THREE.Mesh(startRingGeo, new THREE.MeshStandardMaterial({ color: 0xff7b2e,
+  emissive: 0x903000, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
+const objIcon = new THREE.Mesh(startIconGeo, new THREE.MeshStandardMaterial({ color: 0xff7b2e,
+  emissive: 0x903000, roughness: 0.4 }));
+objRing.visible = false; objIcon.visible = false;
+scene.add(objRing); scene.add(objIcon);
+/* crates: one instanced pool for package + supply pickups (1 draw call) */
+const crateGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+const crateMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
+const crates = new THREE.InstancedMesh(crateGeo, crateMat, 6);
+crates.frustumCulled = false;
+const C_ORANGE = new THREE.Color(0xff8c2e), C_GREEN = new THREE.Color(0x4ae08a);
+for (let i = 0; i < 6; i++) { crates.setMatrixAt(i, M_HIDE); crates.setColorAt(i, C_GREEN); }
+scene.add(crates);
+const crateSpots = [];   // live collect spots for the current phase: {x, z, taken}
+
+function missionAvailable(i) { return i === 0 || MS.done[i - 1]; }
+function refreshMarkerColors() {
+  for (let i = 0; i < 5; i++) {
+    const c = MS.done[i] ? M_GREEN : (missionAvailable(i) ? M_GOLD : M_GRAY);
+    startRings.setColorAt(i, c); startIcons.setColorAt(i, c);
+  }
+  startRings.instanceColor.needsUpdate = true;
+  startIcons.instanceColor.needsUpdate = true;
+}
+refreshMarkerColors();
+
+function setObjectiveText() {
+  const o = MISSIONS[MS.idx].obj[MS.phase];
+  let t = o.label;
+  if (o.type === 'kill' || o.type === 'collect') t += ' (' + MS.prog + '/' + o.n + ')';
+  mobjEl.textContent = t;
+}
+function updateMissionHUD() {
+  if (MS.state !== 'ACTIVE') { mtrackerEl.style.display = 'none'; return; }
+  mtrackerEl.style.display = 'block';
+  mtitleEl.textContent = MISSIONS[MS.idx].name;
+  if (MS.giverT > 0) mobjEl.textContent = MISSIONS[MS.idx].giver;
+  else setObjectiveText();
+}
+function hideMissionProps() {
+  for (let s = 0; s < 6; s++) crates.setMatrixAt(s, M_HIDE);
+  crates.instanceMatrix.needsUpdate = true;
+  crateSpots.length = 0;
+  objRing.visible = false; objIcon.visible = false;
+  marrowEl.style.display = 'none';
+}
+function setupPhase() {
+  const o = MISSIONS[MS.idx].obj[MS.phase];
+  MS.prog = 0;
+  crateSpots.length = 0;
+  const nShow = o.type === 'collect' ? o.spots.length : 0;
+  for (let s = 0; s < nShow; s++) {
+    const sp = o.spots[s];
+    crateSpots.push({ x: sp[0], z: sp[1], taken: false });
+    _mDummy.position.set(sp[0], terrainHeight(sp[0], sp[1]) + 0.45, sp[1]);
+    _mDummy.rotation.set(0, s * 0.7, 0); _mDummy.scale.set(1, 1, 1);
+    _mDummy.updateMatrix(); crates.setMatrixAt(s, _mDummy.matrix);
+    crates.setColorAt(s, MS.idx === 2 ? C_ORANGE : C_GREEN);
+  }
+  for (let s = nShow; s < 6; s++) crates.setMatrixAt(s, M_HIDE);
+  crates.instanceMatrix.needsUpdate = true;
+  if (crates.instanceColor) crates.instanceColor.needsUpdate = true;
+  setObjectiveText();
+}
+function startMission(i) {
+  MS.state = 'ACTIVE'; MS.idx = i; MS.phase = 0; MS.giverT = 2.6;
+  setupPhase();
+  toast('MISSION START'); sfxMissionStart();
+  updateMissionHUD();
+}
+function phaseComplete() {
+  const m = MISSIONS[MS.idx];
+  MS.phase++;
+  if (MS.phase >= m.obj.length) { completeMission(); return; }
+  MS.giverT = 0;
+  setupPhase();
+  toast('OBJECTIVE COMPLETE'); sfxMissionObj();
+  updateMissionHUD();
+}
+function completeMission() {
+  const m = MISSIONS[MS.idx];
+  cash += m.reward; updateCashHUD();
+  MS.done[MS.idx] = true;
+  MS.state = 'IDLE'; MS.idx = -1;
+  hideMissionProps();
+  toast('MISSION COMPLETE'); sfxMissionWin();
+  refreshMarkerColors(); updateMissionHUD();
+}
+/* player death fails the active mission; retry is always available */
+function missionOnDeath() {
+  if (MS.state !== 'ACTIVE') return;
+  MS.state = 'IDLE'; MS.idx = -1;
+  hideMissionProps();
+  toast('MISSION FAILED'); sfxMissionFail();
+  updateMissionHUD();
+}
+/* hooked into the hostile death path: every kill pays $25 and can credit kill objectives */
+function missionOnKill(type) {
+  cash += 25; updateCashHUD();
+  if (MS.state !== 'ACTIVE') return;
+  const o = MISSIONS[MS.idx].obj[MS.phase];
+  if (o.type !== 'kill') return;
+  if (o.of && o.of !== type) return;
+  MS.prog++;
+  if (MS.prog >= o.n) phaseComplete(); else setObjectiveText();
+}
+/* live target for the objective marker + compass arrow; kill phases track
+   the nearest living hostile, so the arrow always points at something real */
+function currentTarget() {
+  const o = MISSIONS[MS.idx].obj[MS.phase];
+  if (o.type === 'goto' || o.type === 'deliver') return o;
+  const px = player.position.x, pz = player.position.z;
+  if (o.type === 'collect') {
+    let best = null, bd = 1e18;
+    for (const c of crateSpots) {
+      if (c.taken) continue;
+      const dx = c.x - px, dz = c.z - pz, d = dx * dx + dz * dz;
+      if (d < bd) { bd = d; best = c; }
+    }
+    return best;
+  }
+  let bd = 1e18, found = false;
+  for (const e of enemies) {
+    if (e.state === 'dead') continue;
+    const dx = e.group.position.x - px, dz = e.group.position.z - pz, d = dx * dx + dz * dz;
+    if (d < bd) { bd = d; _tgt.x = e.group.position.x; _tgt.z = e.group.position.z; found = true; }
+  }
+  return found ? _tgt : null;
+}
+let mArrowT = 0;
+function missionTick(dt) {
+  const now = performance.now() / 1000;
+  /* start-marker icons bob and spin; rings pulse (shared material) */
+  for (let i = 0; i < 5; i++) {
+    const m = MISSIONS[i];
+    _mDummy.position.set(m.mx, startBaseY[i] + 3.0 + Math.sin(now * 2 + i * 1.3) * 0.3, m.mz);
+    _mDummy.rotation.set(0, now * 1.5 + i, 0);
+    _mDummy.scale.set(1, 1, 1);
+    _mDummy.updateMatrix(); startIcons.setMatrixAt(i, _mDummy.matrix);
+  }
+  startIcons.instanceMatrix.needsUpdate = true;
+  startRingMat.opacity = 0.6 + 0.3 * Math.sin(now * 3);
+  if (!playing() || P.dead) return;
+  if (MS.giverT > 0) { MS.giverT -= dt; if (MS.giverT <= 0) setObjectiveText(); }
+
+  const px = player.position.x, pz = player.position.z;
+  if (MS.state === 'IDLE') {
+    const r = CAR.driving ? 6 : 3;   // markers are enterable on foot and while driving
+    for (let i = 0; i < 5; i++) {
+      if (MS.done[i] || !missionAvailable(i)) continue;
+      const dx = MISSIONS[i].mx - px, dz = MISSIONS[i].mz - pz;
+      if (dx * dx + dz * dz < r * r) { startMission(i); break; }
+    }
+    return;
+  }
+  /* ACTIVE: evaluate the current phase */
+  const o = MISSIONS[MS.idx].obj[MS.phase];
+  if (o.type === 'collect') {
+    const r = CAR.driving ? 4.5 : 2.5;
+    for (let s = 0; s < crateSpots.length; s++) {
+      const c = crateSpots[s];
+      if (c.taken) continue;
+      const dx = c.x - px, dz = c.z - pz;
+      if (dx * dx + dz * dz < r * r) {
+        c.taken = true;
+        crates.setMatrixAt(s, M_HIDE); crates.instanceMatrix.needsUpdate = true;
+        MS.prog++;
+        if (MS.prog >= o.n) phaseComplete(); else setObjectiveText();
+        break;
+      }
+    }
+  } else if (o.type === 'goto' || o.type === 'deliver') {
+    const dx = o.x - px, dz = o.z - pz;
+    if (dx * dx + dz * dz < o.r * o.r) phaseComplete();
+  }
+  /* objective marker follows the live target; compass arrow is throttled */
+  const t = currentTarget();
+  if (t) {
+    const ty = terrainHeight(t.x, t.z);
+    objRing.visible = true; objIcon.visible = true;
+    objRing.position.set(t.x, ty + 0.06, t.z);
+    objIcon.position.set(t.x, ty + 3.0 + Math.sin(now * 2.5) * 0.3, t.z);
+    objIcon.rotation.y = now * 1.8;
+  } else { objRing.visible = false; objIcon.visible = false; }
+  mArrowT += dt;
+  if (t && mArrowT > 0.25) {
+    mArrowT = 0;
+    marrowEl.style.display = 'block';
+    camera.getWorldDirection(_mB);
+    const dx = t.x - px, dz = t.z - pz;
+    const deg = -(Math.atan2(dx, dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
+    marrEl.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
+    mdistEl.textContent = Math.round(Math.sqrt(dx * dx + dz * dz)) + 'M';
+  } else if (!t) { marrowEl.style.display = 'none'; mArrowT = 0; }
 }
 
 /* ============================ CAMERA (OVER-SHOULDER) ====================== */
@@ -2831,6 +3133,7 @@ function tick() {
     }
   }
   for (const e of enemies) updateEnemy(e, sdt, performance.now() / 1000);
+  missionTick(sdt);
   muzzle.getWorldPosition(muzzleFlash.position);
   muzzleFlash.intensity *= Math.exp(-26 * sdt);
   for (const t of tracers) {
