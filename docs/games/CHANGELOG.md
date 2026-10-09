@@ -2,6 +2,31 @@
 
 Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
+## 2026-10-09
+
+### REALMS HUD readability overhaul (roadmap item 2, bullet 2: HUD) (indie dev loop)
+- Phone-size readability: new max-width 520px media query for the HUD
+  (16px stat text, 150x20px HP bar, 17px bold HP numbers, larger SOUND
+  toggle tap target); desktop HP bar grew to 140x16px with bold numbers.
+- Quest tracker clarity: the objective line now carries an OBJECTIVE chip
+  label and hides completely when no quest is active (no dead empty row).
+- Boss HP bar polish: 13px bold name, 12px track (14px on phone), name pulses
+  red when the boss drops under 30%.
+- Low-HP vignette tuning: moved out of the game display list into a driver
+  `#vignette` overlay (radial red edge, 1.4s pulse), so it now warns in the
+  3D first-person dungeon too, where the old canvas rects never showed. HP
+  text also turns red under 30%. Game still ships the hp/maxhp numbers; the
+  driver owns presentation.
+- Message log: driver renders only the last 3 messages (game still caps the
+  queue at 5); log box sized to fit exactly 3 lines, newest stays visible.
+- Driver: `APP_VERSION` bumped to `20261009a`. Game logic stays 100%
+  Jesun.Code; `deepdelve.jc`/`deepdelve.html` untouched.
+- Verified: driver inline JS node syntax-checked; 1200-tick CPython pumps
+  (overworld, FPP toggle, dungeon, all difficulties) zero exceptions;
+  50-tick determinism byte-identical; Node+Pyodide exact bridge flow 120 FPP
+  ticks avg 19.8ms/tick (budget 120ms); low-HP and pause paths unit-checked.
+  Live browser playtest of the pushed page (phone viewport) next in this run.
+
 ## 2026-10-08
 
 ### REALMS title screen UX overhaul (roadmap item 2, bullet 1: title screen) (indie dev loop)
