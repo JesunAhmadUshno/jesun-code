@@ -433,6 +433,33 @@ const WORLD = 220;
   WX.groundMat = ground.material;   // weather tick darkens + glosses it when raining
 }
 
+/* ---- merge helper for indexed geometries (position/normal/uv) ----
+   Module level so every static builder (mountains, rails, hay, city) can merge
+   its baked static geometry into one draw call. */
+function mergeGeos(list) {
+  let vCount = 0, iCount = 0;
+  for (const g of list) { vCount += g.attributes.position.count; iCount += g.index.count; }
+  const pos = new Float32Array(vCount * 3), nor = new Float32Array(vCount * 3);
+  const uv = new Float32Array(vCount * 2);
+  const idx = new (vCount > 65535 ? Uint32Array : Uint16Array)(iCount);
+  let vo = 0, io = 0;
+  for (const g of list) {
+    const n = g.attributes.position.count;
+    pos.set(g.attributes.position.array, vo * 3);
+    nor.set(g.attributes.normal.array, vo * 3);
+    uv.set(g.attributes.uv.array, vo * 2);
+    const gi = g.index.array;
+    for (let i = 0; i < gi.length; i++) idx[io + i] = gi[i] + vo;
+    vo += n; io += gi.length;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  out.setIndex(new THREE.BufferAttribute(idx, 1));
+  return out;
+}
+
 /* ============================ TREES AND ROCKS ============================= */
 const dummy = new THREE.Object3D();
 function scatter(mesh, count, minR, maxR, sMin, sMax) {
@@ -520,18 +547,25 @@ function scatter(mesh, count, minR, maxR, sMin, sMax) {
   scene.add(ring);
 }
 
-/* Distant mountains: big silhouettes outside the playable area, purely visual */
+/* Distant mountains: big silhouettes outside the playable area, purely visual.
+   One merged mesh (10 cones -> 1 draw call); per-cone transforms are baked into
+   the geometry, so the render is identical to the old ten-mesh version. */
 {
   const mM = new THREE.MeshBasicMaterial({ color: 0x232c42 });
+  const parts = [];
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2 + Math.random() * 0.5;
     const r = 150 + Math.random() * 30;
     const h = 55 + Math.random() * 45;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(28 + Math.random() * 22, h, 7), mM);
-    m.position.set(Math.cos(a) * r, h * 0.32, Math.sin(a) * r);
-    m.rotation.y = Math.random() * Math.PI;
-    scene.add(m);
+    const g = new THREE.ConeGeometry(28 + Math.random() * 22, h, 7);
+    dummy.position.set(Math.cos(a) * r, h * 0.32, Math.sin(a) * r);
+    dummy.rotation.set(0, Math.random() * Math.PI, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    g.applyMatrix4(dummy.matrix);
+    parts.push(g);
   }
+  scene.add(new THREE.Mesh(mergeGeos(parts), mM));
 }
 
 /* === WORLD-NATURE-ANCHOR === */
@@ -605,20 +639,31 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
   posts.castShadow = posts.receiveShadow = true;
   scene.add(posts);
 
-  function rail(x0, z0, x1, z1, h) {
-    const len = Math.hypot(x1 - x0, z1 - z0);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.09, 0.09), NAT.wood);
-    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
-    m.position.set(mx, terrainHeight(mx, mz) + h, mz);
-    m.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
-    m.castShadow = true;
-    scene.add(m);
-  }
-  for (const h of [0.55, 0.95]) {
-    rail(FARM.x0, FARM.z0, FARM.x1, FARM.z0, h);
-    rail(FARM.x0, FARM.z1, FARM.x1, FARM.z1, h);
-    rail(FARM.x0, FARM.z0, FARM.x0, FARM.z1, h);
-    rail(FARM.x1, FARM.z0, FARM.x1, FARM.z1, h);
+  /* fence rails: 8 wooden rails merged into one mesh (one draw call instead of
+     8). Per-rail transforms are baked into the geometry, so the render and the
+     shadow are identical to the old eight-mesh version. */
+  {
+    const railBits = [];
+    function railGeo(x0, z0, x1, z1, h) {
+      const len = Math.hypot(x1 - x0, z1 - z0);
+      const g = new THREE.BoxGeometry(len, 0.09, 0.09);
+      const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      dummy.position.set(mx, terrainHeight(mx, mz) + h, mz);
+      dummy.rotation.set(0, -Math.atan2(z1 - z0, x1 - x0), 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      g.applyMatrix4(dummy.matrix);
+      railBits.push(g);
+    }
+    for (const h of [0.55, 0.95]) {
+      railGeo(FARM.x0, FARM.z0, FARM.x1, FARM.z0, h);
+      railGeo(FARM.x0, FARM.z1, FARM.x1, FARM.z1, h);
+      railGeo(FARM.x0, FARM.z0, FARM.x0, FARM.z1, h);
+      railGeo(FARM.x1, FARM.z0, FARM.x1, FARM.z1, h);
+    }
+    const rails = new THREE.Mesh(mergeGeos(railBits), NAT.wood);
+    rails.castShadow = true;
+    scene.add(rails);
   }
 
   /* barn: red box + two sloped roof panels + dark door */
@@ -626,29 +671,45 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
   const bx = -82, bz = 18;
   const bBody = new THREE.Mesh(new THREE.BoxGeometry(7, 3.6, 5.5), NAT.barnRed);
   bBody.position.y = 1.8;
-  const roofL = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.18, 6.4), NAT.barnRoof);
-  roofL.position.set(-1.9, 4.5, 0); roofL.rotation.z = 0.524;
-  const roofR = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.18, 6.4), NAT.barnRoof);
-  roofR.position.set(1.9, 4.5, 0); roofR.rotation.z = -0.524;
+  /* barn roof: two sloped panels merged into one mesh (same barnRoof material,
+     transforms baked). One draw call instead of two. */
+  const roofBits = [];
+  for (const [rx, rz] of [[-1.9, 0.524], [1.9, -0.524]]) {
+    const g = new THREE.BoxGeometry(4.6, 0.18, 6.4);
+    dummy.position.set(rx, 4.5, 0);
+    dummy.rotation.set(0, 0, rz);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    g.applyMatrix4(dummy.matrix);
+    roofBits.push(g);
+  }
+  const roofs = new THREE.Mesh(mergeGeos(roofBits), NAT.barnRoof);
   const door = new THREE.Mesh(new THREE.BoxGeometry(2, 2.6, 0.15),
     new THREE.MeshStandardMaterial({ color: 0x2a1d12, roughness: 1 }));
   door.position.set(0, 1.3, 2.78);
-  barn.add(bBody, roofL, roofR, door);
+  barn.add(bBody, roofs, door);
   barn.position.set(bx, terrainHeight(bx, bz), bz);
   barn.rotation.y = 0.35;
   barn.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
   scene.add(barn);
 
-  /* hay bales: cylinders lying on their sides */
+  /* hay bales: cylinders lying on their sides, merged into one mesh (one draw
+     call instead of 4). Per-bale y-rotation is baked into the geometry. */
   const hayG = new THREE.CylinderGeometry(0.9, 0.9, 1.4, 10);
   hayG.rotateZ(Math.PI / 2);
+  const hayBits = [];
   for (const [hx, hz] of [[-70, 26], [-67.5, 24.5], [-72, 22], [-58, 30]]) {
-    const hb = new THREE.Mesh(hayG, NAT.hay);
-    hb.position.set(hx, terrainHeight(hx, hz) + 0.9, hz);
-    hb.rotation.y = Math.random() * Math.PI;
-    hb.castShadow = hb.receiveShadow = true;
-    scene.add(hb);
+    const g = hayG.clone();
+    dummy.position.set(hx, terrainHeight(hx, hz) + 0.9, hz);
+    dummy.rotation.set(0, Math.random() * Math.PI, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    g.applyMatrix4(dummy.matrix);
+    hayBits.push(g);
   }
+  const hay = new THREE.Mesh(mergeGeos(hayBits), NAT.hay);
+  hay.castShadow = hay.receiveShadow = true;
+  scene.add(hay);
 }
 
 /* ---- OCEAN (south): z 70..110 water plane, animated waves -------------- */
@@ -954,34 +1015,68 @@ function natureTick(dt, now) {
 setTimeout(() => worldTickers.push(natureTick), 0);
 /* Nature zones code goes here (worker: nature & animals). Forest (N), farm (W), ocean (S), deer/horses/cows. */
 
-/* Birds: 6 simple two-triangle birds circling high above the world */
+/* Birds: 6 simple two-triangle birds circling high above the world.
+   Wings are two InstancedMeshes (6 left + 6 right): 2 draw calls instead of 12.
+   The right-wing geometry mirrors the left at build time. Per-frame posing
+   composes the root and flap matrices with module-level temps (zero
+   allocation), following the NPC instancing precedent. Night roost (see
+   dayNightTick) poses every instance at zero scale. */
+const BIRD_N = 6;
 const birds = [];
+let birdsRoost = false;   /* set by dayNightTick: birds fly by day, roost at night */
+const _bM1 = new THREE.Matrix4(), _bM2 = new THREE.Matrix4(), _bM3 = new THREE.Matrix4();
+const birdMat = new THREE.MeshBasicMaterial({ color: 0x1a1d26, side: THREE.DoubleSide, fog: false });
+const _wingG = new THREE.BufferGeometry();
 {
-  const bM = new THREE.MeshBasicMaterial({ color: 0x1a1d26, side: THREE.DoubleSide, fog: false });
-  for (let i = 0; i < 6; i++) {
-    const bird = new THREE.Group();
-    const wingG = new THREE.BufferGeometry();
-    const v = new Float32Array([0,0,0, 1.6,0,0.35, 1.6,0,-0.35]);  // one triangle
-    wingG.setAttribute('position', new THREE.BufferAttribute(v, 3));
-    wingG.computeVertexNormals();
-    const wl = new THREE.Mesh(wingG, bM);
-    const wr = new THREE.Mesh(wingG, bM);
-    wr.rotation.y = Math.PI;
-    const lw = new THREE.Group(), rw = new THREE.Group();
-    lw.add(wl); rw.add(wr);
-    bird.add(lw, rw);
-    bird.userData = {
-      cx: (Math.random() - 0.5) * 120, cz: (Math.random() - 0.5) * 120,
-      r: 18 + Math.random() * 22, h: 20 + Math.random() * 10,
-      a: Math.random() * Math.PI * 2,
-      spd: 0.25 + Math.random() * 0.25,
-      ph: Math.random() * Math.PI * 2,
-      lw, rw
-    };
-    scene.add(bird);
-    birds.push(bird);
-  }
+  const v = new Float32Array([0,0,0, 1.6,0,0.35, 1.6,0,-0.35]);  // one triangle
+  _wingG.setAttribute('position', new THREE.BufferAttribute(v, 3));
+  _wingG.computeVertexNormals();
 }
+const _wingGR = _wingG.clone();
+_wingGR.rotateY(Math.PI);   /* right wing mirrors the left */
+const wingL = new THREE.InstancedMesh(_wingG, birdMat, BIRD_N);
+const wingR = new THREE.InstancedMesh(_wingGR, birdMat, BIRD_N);
+for (const im of [wingL, wingR]) {
+  im.frustumCulled = false;
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(im);
+}
+for (let i = 0; i < BIRD_N; i++) {
+  birds.push({
+    cx: (Math.random() - 0.5) * 120, cz: (Math.random() - 0.5) * 120,
+    r: 18 + Math.random() * 22, h: 20 + Math.random() * 10,
+    a: Math.random() * Math.PI * 2,
+    spd: 0.25 + Math.random() * 0.25,
+    ph: Math.random() * Math.PI * 2,
+    px: 0, py: 0, pz: 0,   /* bookkeeping position, written by the tick */
+  });
+}
+/* pose every wing instance from the bookkeeping state.
+   root = T(pos) * Ry(-a); left = root * Rz(flap); right = root * Rz(-flap).
+   Matches the old group hierarchy exactly (wr had a baked y=PI mirror). */
+function poseBirds(now) {
+  for (let i = 0; i < birds.length; i++) {
+    const u = birds[i];
+    if (birdsRoost) {
+      _bM3.makeScale(0, 0, 0);
+      wingL.setMatrixAt(i, _bM3);
+      wingR.setMatrixAt(i, _bM3);
+      continue;
+    }
+    _bM1.makeRotationY(-u.a);
+    _bM1.setPosition(u.px, u.py, u.pz);
+    const flap = Math.sin(now * 9 + u.ph) * 0.55;
+    _bM2.makeRotationZ(flap);
+    _bM3.multiplyMatrices(_bM1, _bM2);
+    wingL.setMatrixAt(i, _bM3);
+    _bM2.makeRotationZ(-flap);
+    _bM3.multiplyMatrices(_bM1, _bM2);
+    wingR.setMatrixAt(i, _bM3);
+  }
+  wingL.instanceMatrix.needsUpdate = true;
+  wingR.instanceMatrix.needsUpdate = true;
+}
+poseBirds(0);   /* pose once before the first tick so no instance sits at the origin */
 
 /* === WORLD-CITY-ANCHOR === */
 /* City district code goes here (worker: city builder). Zones: x 40..100, z -100..-40. */
@@ -989,31 +1084,6 @@ const birds = [];
 /* ============================ CITY DISTRICT ============================= */
 /* Zone x 40..100, z -100..-40. Two crossing streets, 16 buildings, lamps. */
 {
-  /* ---- merge helper for indexed geometries (position/normal/uv) ---- */
-  function mergeGeos(list) {
-    let vCount = 0, iCount = 0;
-    for (const g of list) { vCount += g.attributes.position.count; iCount += g.index.count; }
-    const pos = new Float32Array(vCount * 3), nor = new Float32Array(vCount * 3);
-    const uv = new Float32Array(vCount * 2);
-    const idx = new (vCount > 65535 ? Uint32Array : Uint16Array)(iCount);
-    let vo = 0, io = 0;
-    for (const g of list) {
-      const n = g.attributes.position.count;
-      pos.set(g.attributes.position.array, vo * 3);
-      nor.set(g.attributes.normal.array, vo * 3);
-      uv.set(g.attributes.uv.array, vo * 2);
-      const gi = g.index.array;
-      for (let i = 0; i < gi.length; i++) idx[io + i] = gi[i] + vo;
-      vo += n; io += gi.length;
-    }
-    const out = new THREE.BufferGeometry();
-    out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-    out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    out.setIndex(new THREE.BufferAttribute(idx, 1));
-    return out;
-  }
-
   /* ---- terrain-conforming ground plane ---- */
   function groundPlane(w, l, sx, sz, cx, cz, yOff) {
     const g = new THREE.PlaneGeometry(w, l, sx, sz);
@@ -3774,8 +3844,8 @@ function dayNightTick(dt, now) {
   /* clouds dim at night */
   if (DNF.cloudMat) DNF.cloudMat.opacity = 0.8 * (0.25 + 0.75 * dayness);
 
-  /* birds fly by day, roost at night (mesh visibility is fine) */
-  for (let i = 0; i < birds.length; i++) birds[i].visible = !isNight;
+  /* birds fly by day, roost at night: wings pose at zero scale */
+  birdsRoost = isNight;
 
   /* sky gradient repaint, throttled to ~1Hz: no per-frame canvas work */
   skyAcc += dt;
@@ -4289,16 +4359,13 @@ function tick() {
     if (cl.position.x > 220) cl.position.x = -220;
     cl.lookAt(camera.position.x, cl.position.y, camera.position.z);  // face camera
   }
-  for (const b of birds) {
-    const u = b.userData;
+  for (const u of birds) {
     u.a += u.spd * sdt;
-    b.position.set(u.cx + Math.cos(u.a) * u.r, u.h + Math.sin(now * 0.7 + u.ph) * 1.5,
-                  u.cz + Math.sin(u.a) * u.r);
-    b.rotation.y = -u.a;   // face travel direction
-    const flap = Math.sin(now * 9 + u.ph) * 0.55;
-    u.lw.rotation.z = flap;
-    u.rw.rotation.z = -flap;
+    u.px = u.cx + Math.cos(u.a) * u.r;
+    u.py = u.h + Math.sin(now * 0.7 + u.ph) * 1.5;
+    u.pz = u.cz + Math.sin(u.a) * u.r;
   }
+  poseBirds(now);
 
   /* --- world expansion tickers (city/nature/people workers) --- */
   for (const fn of worldTickers) fn(sdt, now);
