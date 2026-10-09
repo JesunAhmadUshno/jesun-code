@@ -17,3 +17,28 @@ if the bridge changes.
 
 Run: `npm i pyodide` once in this directory (or anywhere on the module
 path), then `node move_regress.mjs`. All checks must print PASS.
+
+## REALMS 3D headless smoke tests (QA-GAP-1)
+
+`realms3d_smoke.mjs` boots the real `realms3d.html` module script in Node
+against vendored `three@0.160.0` (`vendor/three.module.js`, npm dist, no
+network) with browser globals stubbed by `realms3d_stub.mjs`
+(document/canvas/localStorage/AudioContext/requestAnimationFrame/performance/
+pointer lock; WebGLRenderer replaced by a no-op stub). The module is extracted
+from a COPY of the HTML; `realms3d.html` itself is never modified. It drives
+the real entry points and asserts, each printing PASS/FAIL, non-zero exit on
+any FAIL:
+
+- static: 0 TODO/FIXME, 0 em dashes, single allowed CDN URL
+- boot: module imports and runs to tick() with zero console errors/warnings
+- mission: startMission(0) activates, objective marker shows, 3 kills via
+  damageEnemy complete it and land $100 + $85 kill pay
+- car: carEnter within the 4u radius, 120 frames of throttle move the car,
+  carExit puts the player back on foot
+- shop: proximity opens the panel, cheapest gun buys for exactly $300,
+  a $500 buy at $10 cash is refused with cash unchanged
+- save/load: position/cash/kills round-trip exactly through localStorage
+- tracer: rifle shot at a ray-placed brute spawns a tracer, kills it,
+  credits exactly $60
+
+Run: `node realms3d_smoke.mjs`. All checks must print PASS.
