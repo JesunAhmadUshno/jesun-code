@@ -118,6 +118,13 @@
     letter-spacing: 2px; display: none; pointer-events: none;
   }
   #landarr { display: inline-block; color: #ffd24a; font-size: 14px; }
+  /* ---- rural buildings HUD: general-store bearing chip (Phase 5) ---- */
+  #storechip {
+    position: absolute; top: 190px; left: 18px; color: #cfe8d8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #3a6a4a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #storearr { display: inline-block; color: #7dff9a; font-size: 14px; }
 
   /* ---- wanted HUD: heat stars under #combat. Solid while seen,
          flashing (.evading) while the cops lose your trail, hidden at 0. ---- */
@@ -372,6 +379,7 @@
     <div class="shint">[1-5] BUY &nbsp; [E] / [ESC] CLOSE &nbsp; TAP ROW ON TOUCH</div>
   </div>
   <div id="landchip"><span id="landarr">^</span> <span id="landtxt"></span></div>
+  <div id="storechip"><span id="storearr">^</span> <span id="storetxt"></span></div>
 </div>
 
 <div id="dmgflash"></div>
@@ -698,6 +706,7 @@ function updateTerrainChunks() {
   if (typeof redistributeEagles === 'function') redistributeEagles(pcx, pcz);
   if (typeof redistributeOwls === 'function') redistributeOwls(pcx, pcz);
   if (typeof redistributeAmenities === 'function') redistributeAmenities(pcx, pcz);
+  if (typeof redistributeBuildings === 'function') redistributeBuildings(pcx, pcz);
   return true;
 }
 /* sky rig follows the player so the infinite world never shows a void */
@@ -817,14 +826,14 @@ const FLORA = {};
    covers one extra chunk ring so a pad near a chunk edge still clears flora
    in the neighboring chunk. amenityCenterFor is side-effect free, so the
    flora pass and the amenity pass always agree. */
-const _floraNoGo = new Map();        // "gx,gz" -> amenity center or null
+const _floraNoGo = new Map();        // "gx,gz" -> amenity/building center or null
 const _treePts = [];                 // flat [x,z,...] of accepted trees, current chunk
 const _treePtsByChunk = new Map();   // "gx,gz" -> flat [x,z,...] (tree pass feeds rock pass)
 function rebuildFloraNoGo(pcx, pcz) {
   _floraNoGo.clear();
   for (let gx = pcx - HALFGRID - 1; gx <= pcx + HALFGRID + 1; gx++)
     for (let gz = pcz - HALFGRID - 1; gz <= pcz + HALFGRID + 1; gz++)
-      _floraNoGo.set(gx + ',' + gz, amenityCenterFor(gx, gz));
+      _floraNoGo.set(gx + ',' + gz, amenityCenterFor(gx, gz) || bldgCenterFor(gx, gz));
 }
 /* true when (x,z) is inside the 14m clear zone of any amenity center in the
    chunk or one of its 8 neighbors */
@@ -4099,8 +4108,17 @@ function shoot() {
         if (cc && cc.active && cc.state !== 'dead') { cHit = h; cIdx = idx; break; }
       }
     }
+    /* rural buildings stop bullets: a nearer building hit ends the tracer
+       at the wall with a soft thud, so shots never pass through houses */
+    let bHit = null;
+    const bHits = raycaster.intersectObjects(bldgMeshes, false);
+    if (bHits.length) bHit = bHits[0];
     let end;
-    if (cHit && (!eHit || cHit.distance < eHit.distance)) {
+    if (bHit && (!cHit || bHit.distance < cHit.distance) && (!eHit || bHit.distance < eHit.distance)) {
+      end = bHit.point;
+      sfxBlip(190, 0.07, 'triangle', 0.14);
+    }
+    else if (cHit && (!eHit || cHit.distance < eHit.distance)) {
       end = cHit.point; damageCop(cIdx, w.dmg);
     }
     else if (eHit) { end = eHit.point; damageEnemy(eHit.object.userData.enemyOf[eHit.instanceId], w.dmg); }
@@ -5587,8 +5605,10 @@ function openShop(i) {
 }
 function closeShop() {
   if (!shopOpen) return;
-  if (shopRest && shopRestSlot >= 0) restCool[shopRestSlot] = true;  // Phase 3: diner re-arm
+  if (shopBldg && shopBldgSlot >= 0) storeCool[shopBldgSlot] = true;  // rural store re-arm
+  else if (shopRest && shopRestSlot >= 0) restCool[shopRestSlot] = true;  // Phase 3: diner re-arm
   else if (shopOpenIdx >= 0) shopCool[shopOpenIdx] = true;           // must walk out to reopen
+  shopBldg = false; shopBldgSlot = -1;
   shopRest = false; shopRestSlot = -1;
   shopOpen = false; shopOpenIdx = -1;
   shopEl.style.display = 'none';
@@ -6172,6 +6192,336 @@ function carAmenityRepair(sdt, now) {
       updateCarCondHUD();
       break;
     }
+  }
+}
+
+/* ==================== PHASE 5: RURAL BUILDINGS ======================
+   Scattered rural buildings for the infinite world. Founder order is
+   explicit: NO cities, so this is rural only. Three building types:
+   - house: one merged geometry, 3 size variants via per-instance scale
+     (0 cottage 0.8x, 1 house 1.0x, 2 farmhouse 1.3x), seeded per chunk
+   - barn: red barn with white trim, farm-biome chunks only
+   - store: general store, walk-in shop reusing the SHOP_ITEMS panel
+     (guns + health for cash). No new economy code.
+   Placement honors the CLEAN WORLD rules: seeded per-chunk rarity, the
+   same cross-type winner-take-all 3x3 spacing as amenities, chunks that
+   already won an amenity keep it, 14m clear of amenity centers, and pure
+   deterministic functions (same chunk coords give the same building on
+   every revisit). Buildings also clear flora around themselves (yards).
+   Render: 3 new InstancedMesh sites (one merged geometry per type).
+   Night windows are a baked emissiveMap ramped by the day/night hook:
+   zero new lights. Colliders: circles pushed into the shared
+   AMEN.colliders (cars, bikes, scooters already resolve there) plus a
+   foot-only list so the player cannot walk through walls. */
+const STORE_NAMES = ['GENERAL STORE', 'MILE 9 TRADING POST', 'THE FEED AND SEED', 'HOLLOW CREEK SUPPLY'];
+const HOUSE_SCALE = [0.8, 1.0, 1.3];   // cottage, house, farmhouse
+const STORE_R2 = 7 * 7;                // walk-in radius: porch, not the wall
+const STORE_REOPEN_R2 = 9.5 * 9.5;     // must leave this far to re-open
+
+/* window-glow texture: black field, one warm rect. Window quads sample the
+   rect (glow at night); every other part samples black (never glows). The
+   rect sits clear of the sign-text band so signs never glow. */
+const WIN_GLOW_TEX = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#000000'; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#ffc873'; g.fillRect(4, 36, 24, 24);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+function amenGlowUV(g) {
+  const uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.25, 0.25);
+  return g;
+}
+/* glowing window quad: dark glass by day, warm light by night (emissiveMap) */
+function bldgWindow(parts, w, h, x, y, z, ry) {
+  const g = new THREE.PlaneGeometry(w, h);
+  if (ry) g.rotateY(ry);
+  g.translate(x, y, z);
+  amenGlowUV(g); amenPaint(g, 0x2a3540);
+  parts.push(g);
+}
+/* pitched roof: 4-sided cone with the base squared up, stretched to plan */
+function bldgRoof(parts, w, h, d, x, y, z, hex) {
+  const g = new THREE.ConeGeometry(1, h, 4);
+  g.rotateY(Math.PI / 4);
+  g.scale(w / 1.4142, 1, d / 1.4142);
+  g.translate(x, y, z);
+  amenUV(g, 0.8, 0.8); amenPaint(g, hex);
+  parts.push(g);
+}
+function buildHouseGeo() {
+  const parts = [];
+  const STONE = 0x6b6f75, CREAM = 0xd9cfae, ROOF = 0x8a4a3a, WOOD = 0x5a3a22;
+  amenPart(parts, 3, 8.2, 0, 0, 0, 0.02, 0, STONE);              // yard slab
+  amenPart(parts, 0, 7.6, 0.5, 6.1, 0, 0.25, 0, STONE);          // foundation
+  amenPart(parts, 0, 7, 3, 5.5, 0, 2.0, 0, CREAM);               // walls (0.5..3.5)
+  bldgRoof(parts, 7.8, 2.4, 6.3, 0, 4.7, 0, ROOF);               // pitched roof
+  bldgWindow(parts, 1.1, 1.0, -1.8, 2.1, 2.79, 0);               // front windows
+  bldgWindow(parts, 1.1, 1.0, 1.8, 2.1, 2.79, 0);
+  bldgWindow(parts, 1.1, 1.0, 0, 2.1, -2.79, Math.PI);           // back window
+  bldgWindow(parts, 1.1, 1.0, 3.54, 2.1, 0, Math.PI / 2);        // side windows
+  bldgWindow(parts, 1.1, 1.0, -3.54, 2.1, 0, -Math.PI / 2);
+  amenPart(parts, 0, 1.1, 2.2, 0.14, 0, 1.6, 2.79, WOOD);        // door
+  amenPart(parts, 0, 0.7, 1.7, 0.7, 2.2, 5.3, -1.2, 0x9a5a4a);   // chimney
+  amenPart(parts, 0, 0.9, 0.16, 0.9, 2.2, 6.2, -1.2, STONE);     // chimney cap
+  return mergeAmenGeos(parts);
+}
+function buildBarnGeo() {
+  const parts = [];
+  const STONE = 0x6b6f75, RED = 0xa8322a, DRED = 0x7e241e, TRIM = 0xe8e2d4;
+  amenPart(parts, 3, 9.6, 0, 0, 0, 0.02, 0, 0x4a4d52);           // yard slab
+  amenPart(parts, 0, 9, 0.5, 7, 0, 0.25, 0, STONE);              // foundation
+  amenPart(parts, 0, 8.4, 3.4, 6.4, 0, 2.2, 0, RED);             // walls (0.5..3.9)
+  bldgRoof(parts, 9.2, 2.8, 7.2, 0, 5.3, 0, DRED);               // tall roof
+  amenPart(parts, 0, 2.6, 2.9, 0.16, 0, 1.95, 3.24, 0x6a4a2e);   // big door
+  for (const s of [1, -1]) {                                    // white X brace
+    const g = new THREE.BoxGeometry(0.22, 3.1, 0.06);
+    g.rotateZ(s * 0.7);
+    g.translate(0, 1.95, 3.34);
+    amenUV(g, 0.8, 0.8); amenPaint(g, TRIM);
+    parts.push(g);
+  }
+  amenPart(parts, 0, 2.8, 0.18, 0.2, 0, 3.5, 3.26, TRIM);        // door header
+  bldgWindow(parts, 0.9, 0.9, 0, 3.3, 3.24, 0);                  // loft window
+  bldgWindow(parts, 0.9, 0.9, -2.8, 2.2, 3.24, 0);
+  bldgWindow(parts, 0.9, 0.9, 2.8, 2.2, 3.24, 0);
+  bldgWindow(parts, 0.9, 0.9, 4.24, 2.2, 0, Math.PI / 2);
+  bldgWindow(parts, 0.9, 0.9, -4.24, 2.2, 0, -Math.PI / 2);
+  return mergeAmenGeos(parts);
+}
+function buildStoreGeo() {
+  const parts = [];
+  const STONE = 0x6b6f75, WOOD = 0xb08d5a, DWOOD = 0x8a6a42, GREEN = 0x3f6b4f;
+  amenPart(parts, 3, 9, 0, 0, 0, 0.02, 0, 0x4a4d52);             // yard slab
+  amenPart(parts, 0, 8, 0.5, 6.6, 0, 0.25, 0, STONE);            // foundation
+  amenPart(parts, 0, 7.4, 3.4, 6, 0, 2.2, 0, WOOD);              // main box
+  amenPart(parts, 0, 7.4, 1.5, 0.35, 0, 4.65, 2.9, DWOOD);       // false front
+  amenPart(parts, 0, 7.8, 0.3, 6.4, 0, 4.05, 0, DWOOD);          // roof slab
+  const aw = new THREE.BoxGeometry(7.4, 0.12, 2.4);             // awning
+  aw.rotateX(-0.32);
+  aw.translate(0, 3.1, 4.0);
+  amenUV(aw, 0.8, 0.8); amenPaint(aw, GREEN);
+  parts.push(aw);
+  for (const px of [-3.2, 3.2])
+    amenPart(parts, 1, 0.09, 0.11, 2.6, px, 1.8, 4.6, 0x4a3a28); // porch posts
+  bldgWindow(parts, 1.6, 1.2, -2.2, 2.1, 3.04, 0);               // storefront glass
+  bldgWindow(parts, 1.6, 1.2, 2.2, 2.1, 3.04, 0);
+  amenPart(parts, 0, 1.2, 2.3, 0.14, 0, 1.65, 3.04, 0x3a2c1c);   // door
+  bldgWindow(parts, 1.2, 1.0, 3.74, 2.1, 0, Math.PI / 2);        // side windows
+  bldgWindow(parts, 1.2, 1.0, -3.74, 2.1, 0, -Math.PI / 2);
+  amenPart(parts, 4, 2.4, 3.0, 0, 0, 0.06, 5.4, 0x35e0c8);       // walk-in ring
+  const ss = vertCount(parts);
+  amenPart(parts, 5, 5.6, 1.3, 0, 0, 4.7, 3.1, 0xffffff, 0);     // sign
+  const geo = mergeAmenGeos(parts);
+  amenSignUV(geo, ss);
+  return geo;
+}
+
+/* ---- instanced meshes: one per type, one draw call each (3 new sites) ---- */
+const BLDG = { foot: [], active: { house: [], barn: [], store: [] } };
+const BLDG_WIN_MATS = [];
+const BLDG_DEF_LIST = [
+  { key: 'house', cap: 14, tex: makePlainTex, build: buildHouseGeo,
+    colliders: [[0, 0, 4.6]] },
+  { key: 'barn', cap: 10, tex: makePlainTex, build: buildBarnGeo,
+    colliders: [[0, 0, 5.5]] },
+  { key: 'store', cap: 8, tex: () => makeSignTex('GENERAL STORE', '#2e6b4f'), build: buildStoreGeo,
+    colliders: [[0, 0, 4.9]] },
+];
+const BLDG_DEF = {};
+const bldgMeshes = [];
+for (const d of BLDG_DEF_LIST) {
+  BLDG_DEF[d.key] = d;
+  const mat = new THREE.MeshStandardMaterial({ map: d.tex(), emissiveMap: WIN_GLOW_TEX,
+    emissive: 0xffc873, emissiveIntensity: 0, vertexColors: true, roughness: 0.85,
+    side: THREE.DoubleSide });
+  const mesh = new THREE.InstancedMesh(d.build(), mat, d.cap);
+  mesh.frustumCulled = false;
+  mesh.castShadow = false;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.count = 0;
+  scene.add(mesh);
+  d.mesh = mesh;
+  BLDG_WIN_MATS.push(mat);
+  bldgMeshes.push(mesh);
+}
+
+/* ---- deterministic per-chunk selection (CLEAN WORLD rules) ---- */
+function bldgTypeFor(gx, gz) {
+  if (Math.abs(gx) <= 1 && Math.abs(gz) <= 1) return null;   // spawn district
+  if (chunkHitsNoGo(gx, gz)) return null;
+  if (amenityCenterFor(gx, gz)) return null;                // amenity chunks stay amenity chunks
+  const h = hash2i(gx, gz);
+  if (chunkBiome(gx, gz) === 'farm' && h % 6 === 2) return 'barn';
+  if (h % 7 === 1) return 'store';
+  if (h % 8 === 2) return 'house';
+  return null;
+}
+/* winner-take-all across ALL building types in the 3x3 chunk neighborhood,
+   same rule as amenities: a chunk keeps its building only when no other
+   candidate chunk in its 3x3 window has a lower hash2i */
+function bldgAccepted(gx, gz) {
+  const h = hash2i(gx, gz);
+  for (let ax = gx - 1; ax <= gx + 1; ax++)
+    for (let az = gz - 1; az <= gz + 1; az++) {
+      if (ax === gx && az === gz) continue;
+      if (bldgTypeFor(ax, az) === null) continue;
+      if (hash2i(ax, az) < h) return false;
+    }
+  return true;
+}
+/* 14m clear of amenity centers: buildings never crowd an amenity pad */
+function nearBldgAmenityClear(x, z) {
+  const gx = Math.floor(x / CHUNK), gz = Math.floor(z / CHUNK);
+  for (let ax = gx - 1; ax <= gx + 1; ax++)
+    for (let az = gz - 1; az <= gz + 1; az++) {
+      const a = amenityCenterFor(ax, az);
+      if (!a) continue;
+      const dx = x - a.x, dz = z - a.z;
+      if (dx * dx + dz * dz < 256) return true;
+    }
+  return false;
+}
+function placeBldg(gx, gz, type) {
+  const rnd = mulberry32(hash2i(gx, gz) ^ 0xb1d6e5);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const x = (gx + 0.25 + rnd() * 0.5) * CHUNK;
+    const z = (gz + 0.25 + rnd() * 0.5) * CHUNK;
+    const y = terrainHeight(x, z);
+    if (y < -0.4) continue;                                        // water
+    if (Math.abs(terrainHeight(x + 9, z) - y) > 3) continue;        // too steep
+    if (Math.abs(terrainHeight(x, z + 9) - y) > 3) continue;
+    if (inNoFlora(x, z)) continue;
+    if (nearBldgAmenityClear(x, z)) continue;
+    const variant = type === 'house' ? (hash2i(gx, gz) >>> 7) % 3 : 0;
+    return { x, z, y, yaw: rnd() * Math.PI * 2, gx, gz, variant,
+             scale: type === 'house' ? HOUSE_SCALE[variant] : 1,
+             name: type === 'store' ? STORE_NAMES[hash2i(gx, gz) % STORE_NAMES.length] : null };
+  }
+  return null;
+}
+/* pure deterministic building center for one chunk: selection + acceptance
+   + placement, no side effects, identical on every revisit */
+function bldgCenterFor(gx, gz) {
+  const type = bldgTypeFor(gx, gz);
+  if (!type || !bldgAccepted(gx, gz)) return null;
+  const b = placeBldg(gx, gz, type);
+  if (!b) return null;
+  b.type = type;
+  return b;
+}
+const storeCool = new Array(8).fill(false);   // walk-out re-arm per store slot
+function redistributeBuildings(pcx, pcz) {
+  for (const k in BLDG.active) BLDG.active[k].length = 0;
+  BLDG.foot.length = 0;
+  for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++)
+    for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
+      const b = bldgCenterFor(gx, gz);   // selection + acceptance + placement
+      if (!b) continue;
+      const def = BLDG_DEF[b.type], arr = BLDG.active[b.type];
+      if (arr.length >= def.cap) continue;
+      arr.push(b);
+      const c = Math.cos(b.yaw), s = Math.sin(b.yaw);
+      for (const [ox, oz, r] of def.colliders) {
+        const wx = b.x + ox * c + oz * s, wz = b.z - ox * s + oz * c;
+        const wr = r * b.scale;
+        AMEN.colliders.push({ x: wx, z: wz, r: wr });   // cars/bikes/scooters resolve here
+        BLDG.foot.push({ x: wx, z: wz, r: wr });        // player foot collision
+      }
+    }
+  for (const key in BLDG.active) {
+    const def = BLDG_DEF[key], mesh = def.mesh, arr = BLDG.active[key];
+    for (let i = 0; i < arr.length; i++) {
+      const b = arr[i];
+      _aE.set(0, b.yaw, 0); _aQ.setFromEuler(_aE);
+      _aP.set(b.x, b.y, b.z); _aS.set(b.scale, b.scale, b.scale);
+      _aM.compose(_aP, _aQ, _aS);
+      mesh.setMatrixAt(i, _aM);
+    }
+    mesh.count = arr.length;
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+  storeCool.fill(false);
+}
+
+/* ---- general store: walk-in shop reusing the SHOP_ITEMS panel ----
+   Same mechanics as the origin shops: walk in on foot, buy guns and
+   health with cash, walk out to re-arm. No new economy code. */
+let shopBldg = false, shopBldgSlot = -1;
+function openBldgStore(S, slot) {
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || !playing()) return;
+  shopOpen = true; shopBldg = true; shopBldgSlot = slot; shopOpenIdx = -1;
+  SHOP_LIST = SHOP_ITEMS; shopRest = false;
+  shopNameEl.textContent = S.name;
+  refreshShopPanel();
+  shopEl.style.display = 'block';
+  sfxShopOpen();
+}
+
+/* ---- general-store HUD: bearing chip (landmark-chip pattern) ---- */
+let bldgT = 0, storeT = 0;
+const storeChipEl = document.getElementById('storechip');
+const storeTxtEl = document.getElementById('storetxt');
+const storeArrEl = document.getElementById('storearr');
+function bldgTick(dt) {
+  if (!playing() || P.dead) { storeChipEl.style.display = 'none'; return; }
+  const px = player.position.x, pz = player.position.z;
+  bldgT += dt;
+  if (bldgT >= 0.15) {
+    bldgT = 0;
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving) {
+      const arr = BLDG.active.store;
+      for (let i = 0; i < arr.length; i++) {
+        const S = arr[i];
+        const dx = S.x - px, dz = S.z - pz, d2 = dx * dx + dz * dz;
+        if (d2 < STORE_R2) { if (!storeCool[i]) openBldgStore(S, i); }
+        else if (d2 > STORE_REOPEN_R2) storeCool[i] = false;
+      }
+    }
+  }
+  storeT += dt;
+  if (storeT >= 0.25) {
+    storeT = 0;
+    let best = null, bd = 1e18;
+    for (const S of BLDG.active.store) {
+      const dx = S.x - px, dz = S.z - pz, d2 = dx * dx + dz * dz;
+      if (d2 < bd) { bd = d2; best = S; }
+    }
+    if (best) {
+      storeChipEl.style.display = 'block';
+      camera.getWorldDirection(_mB);
+      const dx = best.x - px, dz = best.z - pz;
+      const deg = -(Math.atan2(dx, dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
+      storeArrEl.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
+      storeTxtEl.textContent = 'STORE ' + Math.round(Math.sqrt(bd)) + 'M';
+    } else storeChipEl.style.display = 'none';
+  }
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(bldgTick));
+
+/* ---- foot collision: the player cannot walk through buildings.
+        Circle push-out, zero allocation, runs only on foot. ---- */
+function resolveBldgFoot() {
+  for (let i = 0; i < BLDG.foot.length; i++) {
+    const c = BLDG.foot[i];
+    const dx = player.position.x - c.x, dz = player.position.z - c.z;
+    const rr = c.r + 0.45;
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= rr * rr) continue;
+    const d = Math.sqrt(d2);
+    if (d < 0.001) {
+      /* dead center: step straight out to the wall edge, never divide by ~0 */
+      player.position.x = c.x + rr;
+      player.position.z = c.z;
+      continue;
+    }
+    const push = (rr - d) / d;
+    player.position.x += dx * push;
+    player.position.z += dz * push;
   }
 }
 
@@ -6980,6 +7330,11 @@ function dayNightTick(dt, now) {
     DNF.lampHeadMat.emissiveIntensity =
       (2.2 + Math.sin(now * 2.3) * 0.3) * (0.25 + 0.75 * (1 - dayness));
   }
+
+  /* rural buildings: baked window glow ramps up at night (emissiveMap only,
+     zero new lights) */
+  const winI = 2.2 * (1 - dayness);
+  for (let i = 0; i < BLDG_WIN_MATS.length; i++) BLDG_WIN_MATS[i].emissiveIntensity = winI;
 
   /* clouds dim at night */
   if (DNF.cloudMat) DNF.cloudMat.opacity = 0.8 * (0.25 + 0.75 * dayness);
@@ -9738,6 +10093,7 @@ function tick() {
     }
 
     player.position.addScaledVector(P.vel, sdt);
+    resolveBldgFoot();   // rural buildings block the player on foot
   }
 
   /* --- infinite world: no walls. Chunks recycle around the player. --- */

@@ -90,6 +90,10 @@ globalThis.__R3D = {
   get shopOpen() { return shopOpen; },
   fireEmote, emoteCancel, doPunch, hurtPlayer, EMOTES, EMOTE_ORDER, EMO,
   eyeMesh, pupMesh, mouthMesh, armL, armR, elbowL, elbowR,
+  bldgCenterFor, bldgTypeFor, bldgAccepted, redistributeBuildings,  /* Phase 5 rural buildings */
+  BLDG, BLDG_DEF, bldgMeshes, BLDG_WIN_MATS, HOUSE_SCALE,
+  openBldgStore, storeCool, carAmenityHit, resolveBldgFoot, STORE_R2,
+  get shopBldg() { return shopBldg; },
 };
 `;
 writeFileSync(BOOT, src);
@@ -608,7 +612,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          legs) are built through the makeAnimalMesh factory; the AMESH site
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (no new literal new THREE.InstancedMesh call sites)', imCount === 43, 'count=' + imCount);
+  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (44 literals: 43 + 1 rural-buildings loop)', imCount === 44, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1068,8 +1072,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('bike: one shared body InstancedMesh holds all three slots',
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('bike: InstancedMesh count is 42 or 43 (one allowed for the bike, one for the bicycle, one for the scooter; 46 -> 41 after PERF-2)',
-    imCount2 === 42 || imCount2 === 43, 'count=' + imCount2);
+  check('bike: InstancedMesh count is 44 (43 + 1 rural-buildings loop literal)',
+    imCount2 === 44, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1168,8 +1172,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('bicycle: one shared body InstancedMesh holds all three slots',
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('bicycle: InstancedMesh count is 43 (one allowed for the bicycle: 41 -> 42; the scooter makes 43)',
-    imCount3 === 43, 'count=' + imCount3);
+  check('bicycle: InstancedMesh count is 44 (43 + 1 rural-buildings loop literal)',
+    imCount3 === 44, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1269,8 +1273,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('scooter: one shared body InstancedMesh holds all three slots',
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('scooter: InstancedMesh count is 43 (one allowed for the scooter: 42 -> 43)',
-    imCount4 === 43, 'count=' + imCount4);
+  check('scooter: InstancedMesh count is 44 (43 + 1 rural-buildings loop literal)',
+    imCount4 === 44, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1585,8 +1589,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     'n=' + w5.length);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (still 43 literal call sites)',
-      imCount5 === 43, 'count=' + imCount5);
+    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (44 literals: 43 + 1 rural-buildings loop)',
+      imCount5 === 44, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -1770,6 +1774,177 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   globalThis.__renderCount = 0;
   frame(30);
   check('wildlife5: exactly one render per tick', globalThis.__renderCount === 30,
+    'renders=' + globalThis.__renderCount);
+}
+
+/* ================= 14. PHASE 5 RURAL BUILDINGS: houses / barns / stores ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
+  const settleB = (x, z) => {
+    G.player.position.set(x, groundY(x, z), z);
+    G.player.rotation.y = 0;
+    frame(3);   // absorb any chunk crossing -> redistributeBuildings runs
+  };
+  /* pure-function probe: no player move needed, works on any chunk */
+  const findBldg = (type) => {
+    for (let r = 2; r < 60; r++)
+      for (let gx = -r; gx <= r; gx++)
+        for (let gz = -r; gz <= r; gz++) {
+          if (Math.max(Math.abs(gx), Math.abs(gz)) !== r) continue;
+          const b = G.bldgCenterFor(gx, gz);
+          if (b && b.type === type) return b;
+        }
+    return null;
+  };
+  settleB(0, 0);
+
+  /* seeded determinism: same chunk coords, same building, every time.
+     Probe a chunk known to hold a building (pure search, no player move). */
+  {
+    let gx = 0, gz = 0, found = false;
+    for (let r = 2; r < 60 && !found; r++)
+      for (let ax = -r; ax <= r && !found; ax++)
+        for (let az = -r; az <= r && !found; az++) {
+          if (Math.max(Math.abs(ax), Math.abs(az)) !== r) continue;
+          const b = G.bldgCenterFor(ax, az);
+          if (b) { gx = ax; gz = az; found = true; }
+        }
+    check('bldg: a building exists to test determinism', found, 'chunk ' + gx + ',' + gz);
+    const a = G.bldgCenterFor(gx, gz), b = G.bldgCenterFor(gx, gz);
+    check('bldg: placement is a pure function of chunk coords',
+      !!a && !!b && a.x === b.x && a.z === b.z && a.type === b.type && a.variant === b.variant,
+      a ? a.type + ' v' + a.variant + ' @' + a.x.toFixed(1) + ',' + a.z.toFixed(1) : 'null');
+    settleB(500, -500);
+    const c = G.bldgCenterFor(gx, gz);
+    check('bldg: placement is stable across redistributes',
+      !!a && !!c && a.x === c.x && a.z === c.z && a.type === c.type, '');
+  }
+
+  /* spawn district never gets buildings */
+  {
+    let any = false;
+    for (let gx = -1; gx <= 1 && !any; gx++)
+      for (let gz = -1; gz <= 1 && !any; gz++)
+        if (G.bldgTypeFor(gx, gz) !== null) any = true;
+    check('bldg: spawn district (|gx|,|gz| <= 1) has no buildings', !any);
+  }
+
+  /* one building per chunk at most; all three types place in the wild */
+  {
+    settleB(0, 0);
+    const seen = new Set(), all = [];
+    for (const k of ['house', 'barn', 'store'])
+      for (const b of G.BLDG.active[k]) { seen.add(b.gx + ',' + b.gz); all.push(b); }
+    check('bldg: at most one building per chunk', seen.size === all.length,
+      'active=' + all.length);
+    const house = findBldg('house'), barn = findBldg('barn'), store = findBldg('store');
+    check('bldg: houses, barns and stores all place in the wild',
+      !!house && !!barn && !!store,
+      'house@(' + (house && house.gx) + ',' + (house && house.gz) + ')' +
+      ' barn@(' + (barn && barn.gx) + ',' + (barn && barn.gz) + ')' +
+      ' store@(' + (store && store.gx) + ',' + (store && store.gz) + ')');
+    check('bldg: house has 3 seeded size variants', G.HOUSE_SCALE.length === 3 &&
+      G.HOUSE_SCALE[0] === 0.8 && G.HOUSE_SCALE[2] === 1.3, G.HOUSE_SCALE.join(','));
+  }
+
+  /* no building near the player spawn */
+  {
+    settleB(0, 0);
+    let minD = 1e9;
+    for (const k of ['house', 'barn', 'store'])
+      for (const b of G.BLDG.active[k])
+        minD = Math.min(minD, Math.hypot(b.x, b.z));
+    check('bldg: no building near the player spawn', minD > 48, 'minD=' + minD.toFixed(1));
+  }
+
+  /* player foot collision: cannot walk through a house */
+  {
+    const h = findBldg('house');
+    if (h) {
+      G.player.position.set(h.x + 0.5, groundY(h.x, h.z), h.z);
+      G.P.vel.set(0, 0, 0);
+      frame(3);
+      const d = Math.hypot(G.player.position.x - h.x, G.player.position.z - h.z);
+      const minD = h.scale * 4.6 + 0.45 - 0.01;
+      check('bldg: player cannot walk through a house (pushed out of the wall)',
+        d >= minD, 'd=' + d.toFixed(2) + ' min=' + minD.toFixed(2));
+    } else check('bldg: player cannot walk through a house (pushed out of the wall)', false, 'no house found');
+  }
+
+  /* vehicle collision: the car is pushed out of a house via AMEN.colliders */
+  {
+    const h = findBldg('house');
+    if (h) {
+      G.CAR.pos.set(h.x, groundY(h.x, h.z), h.z);
+      G.CAR.hitCd = 0; G.CAR.speed = 0; G.CAR.hp = 100; G.CAR.armor = 0;
+      G.carAmenityHit(0.016);
+      const d = Math.hypot(G.CAR.pos.x - h.x, G.CAR.pos.z - h.z);
+      check('bldg: car cannot drive through a house', d >= h.scale * 4.6 - 0.01,
+        'd=' + d.toFixed(2));
+    } else check('bldg: car cannot drive through a house', false, 'no house found');
+  }
+
+  /* general store: walk-in reuses the shared gun/health shop panel */
+  {
+    const st = findBldg('store');
+    check('bldg: a general store exists in the wild', !!st, st ? st.name : 'none found');
+    if (st) {
+      settleB(st.x, st.z);   // teleported onto the porch ring: inside the 7m trigger
+      let opened = false;
+      for (let i = 0; i < 40 && !opened; i++) { frame(1); opened = G.shopOpen; }
+      check('bldg: walking into the store opens the shop panel', opened);
+      check('bldg: store panel is the shared gun/health shop', G.shopBldg === true);
+      G.cash = 1000; G.P.hp = 50;
+      G.buyItem(3);   // FIELD PATCH +50 HP, $50: repeatable economy path
+      check('bldg: store sells health for cash (no new economy code)',
+        G.cash === 950 && G.P.hp === 100, 'cash=' + G.cash + ' hp=' + G.P.hp);
+      G.closeShop();
+      check('bldg: closing the store re-arms on walk-out', G.shopOpen === false);
+    }
+  }
+
+  /* night window glow: baked emissiveMap ramp, zero new lights */
+  {
+    G.dayPhase = 0.75;   // midnight
+    frame(5);
+    const lit = G.BLDG_WIN_MATS.every(m => m.emissiveIntensity > 1);
+    check('bldg: windows glow at night (emissiveMap ramp, no new lights)', lit,
+      G.BLDG_WIN_MATS.map(m => m.emissiveIntensity.toFixed(2)).join(','));
+    G.dayPhase = 0.25;   // noon
+    frame(5);
+    const dark = G.BLDG_WIN_MATS.every(m => m.emissiveIntensity < 0.01);
+    check('bldg: windows dark by day',
+      dark, G.BLDG_WIN_MATS.map(m => m.emissiveIntensity.toFixed(2)).join(','));
+  }
+
+  /* bullets collide: the hitscan raycast stops at building walls */
+  {
+    const h = findBldg('house');
+    if (h) {
+      settleB(h.x + 30, h.z);   // keep the house inside the live chunk grid
+      frame(2);
+      const rc = new THREE.Raycaster();
+      rc.set(new THREE.Vector3(h.x + 25, h.y + 2, h.z), new THREE.Vector3(-1, 0, 0));
+      rc.far = 60;
+      const hits = rc.intersectObjects(G.bldgMeshes, false);
+      check('bldg: raycast hits the house wall (bullets collide with buildings)',
+        hits.length > 0 && hits[0].distance < 25,
+        hits.length ? 'd=' + hits[0].distance.toFixed(1) : 'no hit');
+    } else check('bldg: raycast hits the house wall (bullets collide with buildings)', false, 'no house found');
+  }
+
+  /* one literal `new THREE.InstancedMesh` site in the building loop (43 -> 44),
+     backing 3 runtime meshes: house, barn, store. One draw call each. */
+  {
+    const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
+    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes',
+      n === 44 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+  }
+
+  /* one render per tick still holds with the new meshes */
+  globalThis.__renderCount = 0;
+  frame(30);
+  check('bldg: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
 }
 
