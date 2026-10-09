@@ -1604,7 +1604,10 @@ function damageEnemy(e, d) {
   if (e.hp <= 0) {
     e.state = 'dead'; e.deadT = 0; e.respawnT = 10;
     hideTelegraph(e);
-    kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type, 25); toast('HOSTILE DOWN'); addHeat(1);
+    /* enemy variety reward: brutes pay best, shooters mid, rushers base */
+    const pay = e.type === 'brute' ? 60 : e.type === 'shooter' ? 35 : 25;
+    kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type, pay);
+    toast('HOSTILE DOWN +$' + pay); addHeat(1);
   } else sfxHit();
 }
 
