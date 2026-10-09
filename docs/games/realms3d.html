@@ -166,6 +166,13 @@
   }
   #wx span { margin-right: 8px; }
 
+  /* ---- save HUD: tiny last-save chip under the weather block ---- */
+  #saved {
+    position: absolute; top: 244px; right: 18px; color: #8a927c; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 6px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center;
+  }
+
   /* ---- vehicle HUD: speedo under the weather block, enter-car hint ---- */
   #speedo {
     position: absolute; top: 254px; right: 18px; color: #c9d2b8; font-size: 12px;
@@ -208,7 +215,7 @@
   <div id="help">
     <b>WASD</b> move &nbsp; <b>MOUSE</b> look &nbsp; <b>SHIFT</b> sprint<br>
     <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>F</b> punch &nbsp; <b>R-CLICK</b> punch &nbsp; <b>ESC</b> release mouse<br>
-    <b>1/2/3</b> weapons
+    <b>1/2/3</b> weapons &nbsp; <b>N</b> NEW GAME
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b><br><span id="armorchip">ARMOR <b id="armor">100</b></span></div>
@@ -218,6 +225,7 @@
   <div id="marrow"><div id="marr">▲</div><div id="mdist"></div></div>
   <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
   <div id="wx"><span>☀</span> CLEAR</div>
+  <div id="saved">SAVED --:--</div>
   <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H</div>
   <div id="toast"></div>
   <div id="carhint"></div>
@@ -2364,6 +2372,7 @@ function completeMission() {
   MS.state = 'IDLE'; MS.idx = -1;
   hideMissionProps();
   toast('MISSION COMPLETE'); sfxMissionWin();
+  saveGame();                                              // safe-point save
   refreshMarkerColors(); updateMissionHUD();
 }
 /* player death fails the active mission; retry is always available */
@@ -2870,6 +2879,7 @@ function buyItem(i) {
   it.buy();
   sfxBuy();
   toast('PURCHASED ' + it.label());
+  saveGame();                                              // safe-point save
   refreshShopPanel();
 }
 
@@ -2930,6 +2940,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
+  if (e.code === 'KeyN') newGame();                                   // wipe save, start fresh
 });
 addEventListener('keyup', e => keys[e.code] = false);
 
@@ -4010,6 +4021,7 @@ function tick() {
   wantedTick(sdt);
   lootTick(sdt);
   shopTick(sdt);
+  saveTick(dt);
   muzzle.getWorldPosition(muzzleFlash.position);
   muzzleFlash.intensity *= Math.exp(-26 * sdt);
   for (const t of tracers) {
@@ -4043,6 +4055,168 @@ function tick() {
   renderer.render(scene, camera);
 }
 
+/* ====================== SAVE SYSTEM (Phase 2 save v1) ======================
+   localStorage persistence: position, cash, kills, weapons + ammo, health,
+   mission progress. Versioned envelope, atomic journal write, backup of the
+   last good save. Live enemies, cops and loot re-simulate on load; they are
+   never persisted. Autosave every 30 s (skipped while dead or wanted) plus
+   safe-point saves on mission complete and shop purchase. Key N starts a new
+   game. Zero per-frame allocation: the tick only moves scalars and updates
+   one HUD string once per second. */
+const SAVE_KEY = 'realms3d_save_v1', SAVE_JOURNAL = 'realms3d_save_journal',
+      SAVE_BAK = 'realms3d_save_bak', SAVE_VERSION = 1;
+const SAVE_WORLD_R = 120;                 // validation: |x|,|z| stay inside the world
+const savedEl = document.getElementById('saved');
+let lastSaveAt = 0, saveBootToast = false, saveAutoT = 0, saveChipT = 0;
+
+/* forward-only migrations: v1 is the identity step; future versions add N->N+1 */
+const SAVE_MIGRATIONS = { 1: d => d };
+function migrateSave(env) {
+  let v = env.version | 0, d = env.data;
+  while (v < SAVE_VERSION) {
+    const step = SAVE_MIGRATIONS[v];
+    if (!step || !d || typeof d !== 'object') return null;
+    d = step(d); v++;
+  }
+  return d;
+}
+
+/* compact payload, under 300 bytes JSON. sg/sm: -1 = not owned, else ammo. */
+function collectSave() {
+  const r2 = v => Math.round(v * 100) / 100;
+  return {
+    x: r2(player.position.x), z: r2(player.position.z),
+    cash: cash | 0, kills: kills | 0,
+    sg: WEAPONS.shotgun.owned ? (WEAPONS.shotgun.ammo | 0) : -1,
+    sm: WEAPONS.smg.owned ? (WEAPONS.smg.ammo | 0) : -1,
+    cw: (curWeapon !== 'rifle' && WEAPONS[curWeapon] && WEAPONS[curWeapon].owned) ? curWeapon : 'rifle',
+    hp: Math.round(P.hp),
+    am: (MS.state === 'ACTIVE' && MS.idx >= 0) ? MS.idx : -1,
+    done: MS.done.map(b => b ? 1 : 0).join(''),
+    heat: 0                                        // never persist wanted heat
+  };
+}
+
+/* the stored value is untrusted input: validate every field before use */
+function validSave(d) {
+  if (!d || typeof d !== 'object') return false;
+  const n = v => typeof v === 'number' && isFinite(v);
+  const i = (v, lo, hi) => n(v) && Math.floor(v) === v && v >= lo && v <= hi;
+  if (!n(d.x) || Math.abs(d.x) > SAVE_WORLD_R) return false;
+  if (!n(d.z) || Math.abs(d.z) > SAVE_WORLD_R) return false;
+  if (!i(d.cash, 0, 99999999)) return false;
+  if (!i(d.kills, 0, 999999)) return false;
+  if (!i(d.sg, -1, 24) || !i(d.sm, -1, 240)) return false;   // shotgun max 24, smg max 240
+  if (d.cw !== 'rifle' && d.cw !== 'shotgun' && d.cw !== 'smg') return false;
+  if (!i(d.hp, 1, 100)) return false;
+  if (!i(d.am, -1, MISSIONS.length - 1)) return false;
+  if (typeof d.done !== 'string' || d.done.length !== MISSIONS.length ||
+      !/^[01]+$/.test(d.done)) return false;
+  if (d.heat !== 0) return false;
+  return true;
+}
+
+function applySave(d) {
+  player.position.set(d.x, terrainHeight(d.x, d.z), d.z);
+  player.rotation.y = Math.PI;
+  P.vel.set(0, 0, 0); P.vy = 0; P.hp = d.hp; P.dead = false; P.godT = 0;
+  cash = d.cash; kills = d.kills;
+  WEAPONS.shotgun.owned = d.sg >= 0; WEAPONS.shotgun.ammo = d.sg >= 0 ? d.sg : 8;
+  WEAPONS.smg.owned = d.sm >= 0;     WEAPONS.smg.ammo = d.sm >= 0 ? d.sm : 120;
+  curWeapon = (d.cw === 'shotgun' || d.cw === 'smg') && WEAPONS[d.cw].owned ? d.cw : 'rifle';
+  for (let i = 0; i < MS.done.length; i++) MS.done[i] = d.done[i] === '1';
+  if (d.am >= 0 && !MS.done[d.am] && MS.state !== 'ACTIVE') {
+    /* quiet resume of the saved mission at phase 0: no toast, no jingle at boot */
+    MS.state = 'ACTIVE'; MS.idx = d.am; MS.phase = 0; MS.giverT = 2.6;
+    setupPhase();
+  }
+  refreshMarkerColors(); updateMissionHUD();
+  setHeat(0, true); W.evading = false; updateHeatHUD();
+  updateCashHUD(); updateCombatHUD(); updateWeaponHUD(); updateHpHUD();
+}
+
+/* atomic write: journal first, back up the last good save, then commit.
+   Private mode or quota failures stay silent: play never blocks. */
+function saveGame() {
+  try {
+    const env = JSON.stringify({ version: SAVE_VERSION, savedAt: Date.now(), data: collectSave() });
+    localStorage.setItem(SAVE_JOURNAL, env);
+    const prev = localStorage.getItem(SAVE_KEY);
+    if (prev !== null) localStorage.setItem(SAVE_BAK, prev);
+    localStorage.setItem(SAVE_KEY, env);
+  } catch (e) { return; }
+  lastSaveAt = performance.now() / 1000;
+  updateSavedChip();
+}
+
+function loadSave() {
+  let raw = null;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return; }
+  if (!raw) return;
+  let env = null;
+  try { env = JSON.parse(raw); } catch (e) { return; }
+  if (!env || typeof env !== 'object') return;
+  if ((env.version | 0) !== SAVE_VERSION) return;   // unknown or newer schema: ignore silently
+  const d = migrateSave(env);
+  if (!validSave(d)) return;                        // corrupt or tampered: start fresh
+  applySave(d);
+  lastSaveAt = performance.now() / 1000;
+  updateSavedChip();
+  saveBootToast = true;                             // toast fires when play starts
+}
+
+/* wipe everything and restart at the spawn point. One toast, no other noise. */
+function newGame() {
+  if (!playing()) return;
+  try {
+    localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(SAVE_JOURNAL);
+    localStorage.removeItem(SAVE_BAK);
+  } catch (e) {}
+  closeShop();
+  if (MS.state === 'ACTIVE') hideMissionProps();
+  MS.state = 'IDLE'; MS.idx = -1; MS.phase = 0; MS.prog = 0; MS.giverT = 0;
+  for (let i = 0; i < MS.done.length; i++) MS.done[i] = false;
+  cash = 0; kills = 0;
+  WEAPONS.shotgun.owned = false; WEAPONS.shotgun.ammo = 8;
+  WEAPONS.smg.owned = false;     WEAPONS.smg.ammo = 120;
+  curWeapon = 'rifle';
+  P.hp = 100; P.dead = false; P.godT = 0;
+  shopArmor = 0; updateArmorHUD();
+  setHeat(0, true); W.evading = false; updateHeatHUD();
+  player.position.set(0, terrainHeight(0, 0), 0);
+  player.rotation.y = Math.PI;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  refreshMarkerColors(); updateMissionHUD();
+  updateCashHUD(); updateCombatHUD(); updateWeaponHUD(); updateHpHUD();
+  saveAutoT = 0;
+  saveGame();                                       // fresh baseline on disk
+  toast('NEW GAME STARTED');
+}
+
+function fmtElapsed(s) {
+  s = Math.max(0, Math.floor(s));
+  const m = Math.floor(s / 60), ss = s % 60;
+  return (m < 10 ? '0' + m : '' + m) + ':' + (ss < 10 ? '0' + ss : '' + ss);
+}
+function updateSavedChip() {
+  savedEl.textContent = lastSaveAt > 0
+    ? 'SAVED ' + fmtElapsed(performance.now() / 1000 - lastSaveAt)
+    : 'SAVED --:--';
+}
+/* autosave every 30 s; never while dead, never while wanted; boot toast waits
+   until the player dismisses the title overlay so it is actually seen. */
+function saveTick(dt) {
+  if (saveBootToast && playing()) { saveBootToast = false; toast('SAVE LOADED'); }
+  saveChipT += dt;
+  if (saveChipT >= 1) { saveChipT = 0; updateSavedChip(); }
+  saveAutoT += dt;
+  if (saveAutoT >= 30) {
+    saveAutoT = 0;
+    if (playing() && !P.dead && W.heat <= 0) saveGame();
+  }
+}
+
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -4051,6 +4225,7 @@ addEventListener('resize', () => {
 
 player.position.set(0, terrainHeight(0, 0), 0);
 player.rotation.y = Math.PI;   // face away from the starting camera
+loadSave();                    // restore persisted state; defers its toast until play starts
 tick();
 </script>
 </body>
