@@ -695,6 +695,8 @@ function updateTerrainChunks() {
   redistributeFlora(pcx, pcz);
   if (typeof redistributeWildDeer === 'function') redistributeWildDeer(pcx, pcz);
   if (typeof redistributeWildlife === 'function') redistributeWildlife(pcx, pcz);
+  if (typeof redistributeEagles === 'function') redistributeEagles(pcx, pcz);
+  if (typeof redistributeOwls === 'function') redistributeOwls(pcx, pcz);
   if (typeof redistributeAmenities === 'function') redistributeAmenities(pcx, pcz);
   return true;
 }
@@ -1111,6 +1113,11 @@ const COL = {
   cat: 0xb98a56,
   fox: 0xc26a2e, foxSnout: 0x8a4a1e, foxTail: 0xd98a4a,
   duck: 0x7a8a6a, duckBill: 0xe8932f, duckLeg: 0xe8932f,
+  /* Phase 5 wildlife v4: eagle / owl / monkey / chicken palette */
+  eagle: 0x4a3220, eagleWing: 0x2e2013, eagleBeak: 0xe8b23a,
+  owl: 0x6b5138, owlWing: 0x4f3d28, owlEye: 0xffe08a,
+  monkey: 0x7a5c3e, monkeyFace: 0xc9a97e, monkeyBelly: 0xd9b98e,
+  chicken: 0xe8e0d0, chickenBeak: 0xe8932f, chickenComb: 0xd93a2e, chickenLeg: 0xe8932f,
 };
 const animalMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
 
@@ -1265,6 +1272,53 @@ const duckBodyParts = [
   animalBox(0.1, 0.08, 0.14, COL.duck, 0, 0.32, -0.28),         // tail nub
 ];
 
+/* ---- Phase 5 wildlife v4: eagle / owl / monkey / chicken.
+   Same idiom as v2+v3: heads folded into the body geometry (one body IM
+   per species, noHead), monkey + chicken legs ride the shared wildLegs IM
+   with per-instance species tint. Eagles and owls are flyers: no legs,
+   they pose from their own sky tick (banked turns, explicit up-vector).
+   Eagle wings are broad flat slabs (merged, static); the flap is a
+   per-instance roll oscillation on the instance matrix. Owl eyes are
+   bright baked boxes (day-perch readable). */
+const eagleBodyParts = [
+  animalBox(0.5, 0.42, 1.1, COL.eagle, 0, 0, 0.1),                 // body
+  animalBox(0.34, 0.3, 0.4, COL.eagle, 0, 0.08, 0.72),             // head, folded in
+  animalBox(0.12, 0.12, 0.22, COL.eagleBeak, 0, 0.02, 0.95),       // hooked beak
+  animalBox(0.1, 0.06, 0.12, COL.eagleBeak, 0, -0.06, 1.02),       // beak hook tip
+  animalBox(2.6, 0.08, 0.75, COL.eagleWing, -1.45, 0.05, 0, 0, 0, 0.06),   // broad flat left wing
+  animalBox(2.6, 0.08, 0.75, COL.eagleWing, 1.45, 0.05, 0, 0, 0, -0.06),  // broad flat right wing
+  animalBox(0.5, 0.07, 0.5, COL.eagleWing, 0, 0.02, -0.7),         // tail fan
+];
+const owlBodyParts = [
+  animalBox(0.42, 0.5, 0.4, COL.owl, 0, 0, 0),                    // round body
+  animalBox(0.36, 0.3, 0.3, COL.owl, 0, 0.32, 0.1),               // head, folded in
+  animalBox(0.11, 0.11, 0.04, COL.owlEye, -0.11, 0.36, 0.26),     // big round eyes
+  animalBox(0.11, 0.11, 0.04, COL.owlEye, 0.11, 0.36, 0.26),
+  animalBox(0.07, 0.14, 0.04, COL.owl, -0.14, 0.52, 0.08),        // ear tufts
+  animalBox(0.07, 0.14, 0.04, COL.owl, 0.14, 0.52, 0.08),
+  animalBox(0.14, 0.4, 0.3, COL.owlWing, -0.26, 0, -0.02),        // folded wings
+  animalBox(0.14, 0.4, 0.3, COL.owlWing, 0.26, 0, -0.02),
+  animalBox(0.16, 0.22, 0.1, COL.owlWing, 0, -0.05, -0.24),      // tail
+];
+const monkeyBodyParts = [
+  animalBox(0.36, 0.5, 0.4, COL.monkey, 0, 0.55, 0),             // torso
+  animalBox(0.28, 0.3, 0.3, COL.monkey, 0, 0.92, 0.08),          // head, folded in
+  animalBox(0.2, 0.18, 0.06, COL.monkeyFace, 0, 0.9, 0.24),       // face patch
+  animalBox(0.07, 0.07, 0.05, COL.monkeyFace, -0.08, 0.98, 0.2),  // ears
+  animalBox(0.07, 0.07, 0.05, COL.monkeyFace, 0.08, 0.98, 0.2),
+  animalBox(0.24, 0.3, 0.06, COL.monkeyBelly, 0, 0.5, 0.2),       // light belly
+  animalBox(0.08, 0.08, 0.7, COL.monkey, 0, 0.6, -0.5, 0.9, 0, 0),// long curled tail
+];
+const chickenBodyParts = [
+  animalBox(0.3, 0.34, 0.44, COL.chicken, 0, 0.4, 0),            // body
+  animalBox(0.2, 0.22, 0.22, COL.chicken, 0, 0.62, 0.24),        // head, folded in
+  animalBox(0.08, 0.08, 0.12, COL.chickenBeak, 0, 0.6, 0.4),     // beak
+  animalBox(0.06, 0.12, 0.1, COL.chickenComb, 0, 0.78, 0.24),    // comb
+  animalBox(0.1, 0.26, 0.3, COL.chicken, 0, 0.5, -0.28, -0.5, 0, 0), // tail feathers
+  animalBox(0.34, 0.05, 0.28, COL.chicken, -0.2, 0.42, 0),       // folded wings
+  animalBox(0.34, 0.05, 0.28, COL.chicken, 0.2, 0.42, 0),
+];
+
 function makeAnimalMesh(geo, count) {
   const im = new THREE.InstancedMesh(geo, animalMat, count);
   im.castShadow = true;
@@ -1297,7 +1351,7 @@ const AMESH = {
   pigBody:        makeAnimalMesh(mergeAnimalParts(pigBodyParts), 3),
   wolfBody:       makeAnimalMesh(mergeAnimalParts(wolfBodyParts), 2),
   bearBody:       makeAnimalMesh(mergeAnimalParts(bearBodyParts), 1),
-  wildLegs:       makeAnimalMesh(animalLegGeo(0.3, 1.0, 0.12, 0xffffff), 54),
+  wildLegs:       makeAnimalMesh(animalLegGeo(0.3, 1.0, 0.12, 0xffffff), 72),
   /* Phase 5 wildlife v3: 4 body IMs (head folded in) ride the SAME shared
      wildLegs IM: 12 v2 animals (24 slots) + 15 v3 animals (30 slots) = 54.
      Exactly +4 InstancedMesh sites this tranche (4 bodies + 0 legs). */
@@ -1305,9 +1359,17 @@ const AMESH = {
   catBody:        makeAnimalMesh(mergeAnimalParts(catBodyParts), 4),
   foxBody:        makeAnimalMesh(mergeAnimalParts(foxBodyParts), 2),
   duckBody:       makeAnimalMesh(mergeAnimalParts(duckBodyParts), 5),
+  /* Phase 5 wildlife v4: 4 more body IMs (head folded in). Monkey + chicken
+     ride the shared wildLegs IM: 54 v2+v3 slots + 4 monkeys (8) + 5 chickens
+     (10) = 72. Eagles + owls are flyers (no legs). Exactly +4 sites. */
+  eagleBody:      makeAnimalMesh(mergeAnimalParts(eagleBodyParts), 3),
+  owlBody:        makeAnimalMesh(mergeAnimalParts(owlBodyParts), 3),
+  monkeyBody:     makeAnimalMesh(mergeAnimalParts(monkeyBodyParts), 4),
+  chickenBody:    makeAnimalMesh(mergeAnimalParts(chickenBodyParts), 5),
 };
 for (const _wn of ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody', 'wildLegs',
-                   'dogBody', 'catBody', 'foxBody', 'duckBody'])
+                   'dogBody', 'catBody', 'foxBody', 'duckBody',
+                   'eagleBody', 'owlBody', 'monkeyBody', 'chickenBody'])
   AMESH[_wn].castShadow = false;
 AMESH.wildLegs.setColorAt(0, _wildLegTint.setHex(0xffffff));  // allocate instanceColor
 const ALL_ANIMAL_MESHES = Object.values(AMESH);
@@ -1380,10 +1442,19 @@ const WILD_SPP = {
             biome: 'forest', seed: 707 },
   duck:  { hip: 0.15, legZ: 0.12, leg: 0.30, legTint: COL.duckLeg,
             biome: 'water', seed: 808 },
+  /* Phase 5 wildlife v4: monkey / chicken. Monkeys relocate to forest
+     chunks and swing between real trees (home tree re-seeded per chunk);
+     chickens relocate to farm chunks. Eagles + owls are sky species with
+     their own tick (see below), not in WILD_SPP. */
+  monkey: { hip: 0.35, legZ: 0.20, leg: 0.35, legTint: COL.monkey,
+            biome: 'forest', seed: 909 },
+  chicken:{ hip: 0.25, legZ: 0.14, leg: 0.25, legTint: COL.chickenLeg,
+            biome: 'farm',   seed: 1010 },
 };
 const _slotN = { deerM: 0, deerF: 0, deerL: 0, cow: 0, cowL: 0, horse: 0, horseL: 0,
                  rabbit: 0, pig: 0, wolf: 0, bear: 0, wildLeg: 0,
-                 dog: 0, cat: 0, fox: 0, duck: 0 };
+                 dog: 0, cat: 0, fox: 0, duck: 0,
+                 monkey: 0, chicken: 0 };
 
 const animals = [];
 function addAnimal(kind, male, zone, opts) {
@@ -1426,8 +1497,9 @@ function addAnimal(kind, male, zone, opts) {
     const li = _slotN.cowL++;
     a.iLegF = li * 2; a.iLegB = li * 2 + 1;
   } else if (kind === 'rabbit' || kind === 'pig' || kind === 'wolf' || kind === 'bear' ||
-             kind === 'dog' || kind === 'cat' || kind === 'fox' || kind === 'duck') {
-    /* Phase 5 wildlife v2+v3: head folded into the body geometry (one body IM
+             kind === 'dog' || kind === 'cat' || kind === 'fox' || kind === 'duck' ||
+             kind === 'monkey' || kind === 'chicken') {
+    /* Phase 5 wildlife v2+v3+v4: head folded into the body geometry (one body IM
        per species, imHead aliases the body slot and writeAnimalMatrices
        skips the head write via noHead); legs ride the shared wildLegs IM
        with a per-instance species tint (wildLegs is baked white). */
@@ -1507,6 +1579,10 @@ const wildRabbits = [], wildPigs = [], wildWolves = [], wildBears = [];
 const wildDogs = [], wildCats = [], wildFoxes = [], wildDucks = [];
 const WILD_LIST = { rabbit: wildRabbits, pig: wildPigs, wolf: wildWolves, bear: wildBears,
                     dog: wildDogs, fox: wildFoxes, duck: wildDucks };
+/* Phase 5 wildlife v4: monkey / chicken lists. Both relocate with the wild
+   herds (forest / farm biomes). */
+const wildMonkeys = [], wildChickens = [];
+WILD_LIST.monkey = wildMonkeys; WILD_LIST.chicken = wildChickens;
 for (let i = 0; i < 6; i++) {
   const a = addAnimal('rabbit', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
                       { walk: 2.2, fleeR: 14, graze: true });
@@ -1575,7 +1651,244 @@ for (let i = 0; i < 5; i++) {
   wildDucks.push(a);
   writeAnimalMatrices(a);
 }
-AMESH.wildLegs.instanceColor.needsUpdate = true;   /* v3 per-instance tints */
+/* ---- Phase 5 wildlife v4: MONKEYS / CHICKENS. Same wild-deer idiom as
+   v2+v3: fixed-size herds, seeded placement, never persisted. Monkeys start
+   near spawn and relocate to forest chunks (home tree re-seeded per chunk);
+   chickens start on the farm and relocate to farm chunks. ---- */
+for (let i = 0; i < 4; i++) {
+  const a = addAnimal('monkey', false, { x0: -20, x1: 20, z0: -20, z1: 20 },
+                      { walk: 1.8 });
+  a.wild = true;
+  /* home tree: nearest real tree with a 12m swing partner (else the nearest
+     tree, else the spawn point; self-heals on the first swing;
+     redistributeWildlife re-seeds it per chunk). */
+  const _mht = treeWithPartner(a.pos.x, a.pos.z, 40) || treeNear(a.pos.x, a.pos.z, 40);
+  a.homeTX = _mht ? _mht.x : a.pos.x; a.homeTZ = _mht ? _mht.z : a.pos.z;
+  a.swingT = 0; a.swingDur = 1; a.swingCd = 2 + a.rng() * 4; a.swingY = 0;
+  a.swX0 = 0; a.swZ0 = 0; a.swX1 = 0; a.swZ1 = 0;
+  wildMonkeys.push(a);
+}
+for (let i = 0; i < 5; i++) {
+  const a = addAnimal('chicken', false, { x0: -97, x1: -43, z0: -17, z1: 37 },
+                      { walk: 2.0, fleeR: 8, graze: true });
+  a.wild = true;
+  a.peckPh = a.rng() * 6.2832;
+  wildChickens.push(a);
+}
+AMESH.wildLegs.instanceColor.needsUpdate = true;   /* v3+v4 per-instance tints */
+
+/* ================= PHASE 5 WILDLIFE V4: SKY (eagles + owls) =================
+   Flyers, not in `animals`: they pose from their own tick with an explicit
+   up-vector (Euler YXZ, |roll| <= 0.38, |pitch| <= 0.3: instances can never
+   flip upside-down, SideFX instancing-thread steal). Zero new draw calls
+   beyond the 2 body IMs counted in the tranche budget. Seeded rng only;
+   zero per-frame allocation in the hot ticks. */
+const _skyM1 = new THREE.Matrix4();
+const _skyQ = new THREE.Quaternion();
+const _skyE = new THREE.Euler(0, 0, 0, 'YXZ');   /* yaw, pitch, roll: bank stays in the yawed frame */
+const _skyP = new THREE.Vector3(), _skyS1 = new THREE.Vector3(1, 1, 1);
+/* nearest real tree within maxD of (x,z); null when the flora pass has no
+   trees there yet. Scans the current chunk + 8 neighbors, zero allocation
+   (returns a shared scratch). */
+const _tnHit = { x: 0, z: 0 };
+function treeNear(x, z, maxD) {
+  const gx = Math.floor(x / CHUNK), gz = Math.floor(z / CHUNK);
+  let bx = 0, bz = 0, bd2 = maxD * maxD, found = false;
+  for (let ax = gx - 1; ax <= gx + 1; ax++) for (let az = gz - 1; az <= gz + 1; az++) {
+    const tp = _treePtsByChunk.get(ax + ',' + az);
+    if (!tp) continue;
+    for (let k = 0; k < tp.length; k += 2) {
+      const dx = tp[k] - x, dz = tp[k + 1] - z, d2 = dx * dx + dz * dz;
+      if (d2 < bd2 && d2 > 4) { bd2 = d2; bx = tp[k]; bz = tp[k + 1]; found = true; }
+    }
+  }
+  if (!found) return null;
+  _tnHit.x = bx; _tnHit.z = bz;
+  return _tnHit;
+}
+/* nearest tree within maxD of (x,z) that itself has a neighbor tree within
+   12m, so the monkey swing can actually trigger (10m minimum tree spacing
+   makes bare 12m pairs rare). Falls back to null; the caller then uses
+   treeNear. Runs at relocate/boot only, never in the hot tick. */
+function treeWithPartner(x, z, maxD) {
+  const gx = Math.floor(x / CHUNK), gz = Math.floor(z / CHUNK);
+  const pts = [];
+  for (let ax = gx - 1; ax <= gx + 1; ax++) for (let az = gz - 1; az <= gz + 1; az++) {
+    const tp = _treePtsByChunk.get(ax + ',' + az);
+    if (tp) for (let k = 0; k < tp.length; k += 2) pts.push(tp[k], tp[k + 1]);
+  }
+  let bx = 0, bz = 0, bd2 = maxD * maxD, found = false;
+  for (let i = 0; i < pts.length; i += 2) {
+    const dx = pts[i] - x, dz = pts[i + 1] - z, d2 = dx * dx + dz * dz;
+    if (d2 >= bd2 || d2 <= 4) continue;
+    let partner = false;
+    for (let j = 0; j < pts.length && !partner; j += 2) {
+      if (j === i) continue;
+      const ex = pts[j] - pts[i], ez = pts[j + 1] - pts[i + 1], ed2 = ex * ex + ez * ez;
+      if (ed2 <= 144 && ed2 > 4) partner = true;
+    }
+    if (partner) { bd2 = d2; bx = pts[i]; bz = pts[i + 1]; found = true; }
+  }
+  return found ? { x: bx, z: bz } : null;
+}
+/* vulture-thermal research steal: a thermal is a fixed point per chunk (pure
+   function of chunk coords); the bird circles it banked into the turn and
+   only flaps when gliding between thermals. */
+function thermalFor(gx, gz) {
+  const r = mulberry32((hash2i(gx, gz) ^ 0x7ea61e) >>> 0);
+  return { x: (gx + 0.2 + r() * 0.6) * CHUNK, z: (gz + 0.2 + r() * 0.6) * CHUNK };
+}
+/* owl perch: seeded point per chunk, snapped to a real tree when one is
+   close (else the seeded point at canopy height). */
+function owlPerchFor(gx, gz) {
+  const r = mulberry32((hash2i(gx, gz) ^ 0x0be1c) >>> 0);
+  const x = (gx + 0.2 + r() * 0.6) * CHUNK, z = (gz + 0.2 + r() * 0.6) * CHUNK;
+  const t = treeNear(x, z, 30);
+  return t ? { x: t.x, z: t.z } : { x, z };
+}
+const wildEagles = [], wildOwls = [];
+const _EAGLE_CHUNK_OFF = [[0, 0], [2, 1], [-1, 2]];
+const _OWL_CHUNK_OFF = [[1, 0], [-1, 1], [0, -2]];
+for (let i = 0; i < 3; i++) {
+  const rng = mulberry32((hash2i(7100 + i, 21) ^ 0xea61e) >>> 0);
+  const th = thermalFor(_EAGLE_CHUNK_OFF[i][0], _EAGLE_CHUNK_OFF[i][1]);
+  const gy = terrainHeight(th.x, th.z);
+  const e = {
+    iBody: i, im: AMESH.eagleBody,
+    cx: th.x, cz: th.z, groundY: gy,
+    r: 12 + rng() * 20, baseH: 25 + rng() * 15, h: 0,
+    ang: rng() * 6.2832, spd: 9 + rng() * 4, windA: rng() * 6.2832,
+    ph: rng() * 6.2832, state: 'soar', stateT: 6 + rng() * 10,
+    swoopT: 0, swoopDur: 4 + rng() * 2,
+    transT: 0, transDur: 1, fromX: 0, fromZ: 0,
+    pos: new THREE.Vector3(), yaw: 0, pitch: 0, roll: 0.38,
+    rng,
+  };
+  e.h = e.baseH;
+  e.pos.set(e.cx + Math.cos(e.ang) * e.r, gy + e.h, e.cz + Math.sin(e.ang) * e.r);
+  wildEagles.push(e);
+  /* pose once before the first tick so no instance sits at the origin */
+  poseSkyBird(e.im, e.iBody, e.pos, 0, 0, 0.38);
+}
+for (let i = 0; i < 3; i++) {
+  const rng = mulberry32((hash2i(7200 + i, 23) ^ 0x0be1) >>> 0);
+  const pp = owlPerchFor(_OWL_CHUNK_OFF[i][0], _OWL_CHUNK_OFF[i][1]);
+  const py = terrainHeight(pp.x, pp.z) + 5.5;
+  const o = {
+    iBody: i, im: AMESH.owlBody,
+    perch: pp, perchY: py,
+    pos: new THREE.Vector3(pp.x, py, pp.z),
+    yaw: rng() * 6.2832, pitch: 0, roll: 0,
+    ang: rng() * 6.2832, ph: rng() * 6.2832,
+    huntR: 8 + rng() * 6, huntH: 3 + rng() * 2,
+    state: 'perch',   /* owlTick corrects to 'hunt' on its first night tick */
+    rng,
+  };
+  wildOwls.push(o);
+  poseSkyBird(o.im, o.iBody, o.pos, o.yaw, 0, 0);
+}
+/* pose one sky bird: explicit up-vector via bounded Euler YXZ. */
+function poseSkyBird(im, idx, p, yaw, pitch, roll) {
+  _skyE.set(pitch, yaw, roll);
+  _skyQ.setFromEuler(_skyE);
+  _skyM1.compose(p, _skyQ, _skyS1);
+  im.setMatrixAt(idx, _skyM1);
+}
+function eagleTick(dt, now) {
+  for (let i = 0; i < wildEagles.length; i++) {
+    const e = wildEagles[i];
+    if (e.state === 'trans') {
+      /* glide to the new thermal: wings flap (roll oscillation reads as
+         flap at 30m), then settle back into the soar */
+      e.transT += dt;
+      e.ph += dt * 9;
+      const t = Math.min(e.transT / e.transDur, 1);
+      const ex = e.fromX + (e.cx - e.fromX) * t, ez = e.fromZ + (e.cz - e.fromZ) * t;
+      e.pos.set(ex, e.groundY + e.h + Math.sin(e.ph * 0.5) * 1.5, ez);
+      e.yaw = Math.atan2(e.cx - e.fromX, e.cz - e.fromZ);
+      e.pitch = 0.05;
+      e.roll = 0.15 + Math.sin(e.ph) * 0.22;
+      if (t >= 1) { e.state = 'soar'; e.stateT = 8 + e.rng() * 12; e.ang = e.rng() * 6.2832; }
+    } else if (e.state === 'swoop') {
+      /* occasional slow swoop dive + climb-back (vulture pattern) */
+      e.swoopT -= dt;
+      e.ph += dt * 2.2;
+      const pr = 1 - Math.max(e.swoopT, 0) / e.swoopDur;
+      e.h = Math.max(e.baseH - Math.sin(Math.PI * pr) * 16, 6);
+      e.ang += dt * e.spd / e.r * 1.4;
+      const rr = e.r * (1 - 0.12 * Math.cos(e.ang - e.windA));
+      e.pos.set(e.cx + Math.cos(e.ang) * rr, e.groundY + e.h, e.cz + Math.sin(e.ang) * rr);
+      e.yaw = Math.atan2(-Math.sin(e.ang), Math.cos(e.ang));
+      e.pitch = pr < 0.5 ? 0.3 : -0.2;   /* nose down on the dive, up on the climb */
+      e.roll = 0.38;
+      if (e.swoopT <= 0) { e.state = 'soar'; e.h = e.baseH; e.stateT = 8 + e.rng() * 12; }
+    } else {
+      /* soar: fixed wings, banked circle around the thermal */
+      e.ang += dt * e.spd / e.r;
+      e.ph += dt * 2.2;
+      e.stateT -= dt;
+      if (e.stateT <= 0) { e.state = 'swoop'; e.swoopT = e.swoopDur; }
+      const rr = e.r * (1 - 0.12 * Math.cos(e.ang - e.windA));   /* windward leg tightens */
+      e.pos.set(e.cx + Math.cos(e.ang) * rr,
+                e.groundY + e.h + Math.sin(now * 0.6 + e.ph) * 1.2,
+                e.cz + Math.sin(e.ang) * rr);
+      e.yaw = Math.atan2(-Math.sin(e.ang), Math.cos(e.ang));
+      e.pitch = 0;
+      e.roll = 0.38;   /* banked into the turn */
+    }
+    poseSkyBird(e.im, e.iBody, e.pos, e.yaw, e.pitch, e.roll);
+  }
+}
+function owlTick(dt, now) {
+  for (let i = 0; i < wildOwls.length; i++) {
+    const o = wildOwls[i];
+    /* day/night hook: perch folded by day, hunt low circles by night */
+    if (isNight && o.state !== 'hunt') { o.state = 'hunt'; o.ang = o.rng() * 6.2832; }
+    else if (!isNight && o.state !== 'perch') { o.state = 'perch'; }
+    if (o.state === 'hunt') {
+      o.ang += dt * 0.9;
+      o.ph += dt * 3.5;   /* slow silent flap: no sfx by design */
+      const hx = o.perch.x + Math.cos(o.ang) * o.huntR;
+      const hz = o.perch.z + Math.sin(o.ang) * o.huntR;
+      o.pos.set(hx, terrainHeight(hx, hz) + o.huntH + Math.sin(now * 0.8 + o.ph) * 0.5, hz);
+      o.yaw = Math.atan2(-Math.sin(o.ang), Math.cos(o.ang));
+      o.roll = 0.3 + Math.sin(o.ph) * 0.12;
+      o.pitch = 0;
+    } else {
+      /* perch: glide home, wings folded (roll/pitch ease to 0) */
+      const k = Math.min(1, dt * 2);
+      o.pos.x += (o.perch.x - o.pos.x) * k;
+      o.pos.z += (o.perch.z - o.pos.z) * k;
+      o.pos.y += (o.perchY - o.pos.y) * k;
+      o.roll *= 1 - k; o.pitch *= 1 - k;
+      o.ph += dt;
+    }
+    poseSkyBird(o.im, o.iBody, o.pos, o.yaw, o.pitch, o.roll);
+  }
+}
+/* chunk-crossing hooks: re-anchor the sky to the player's neighborhood.
+   Called beside redistributeWildlife/redistributeWildDeer (never in the
+   hot tick). Eagles glide to their new thermal; owls get a new perch. */
+function redistributeEagles(pcx, pcz) {
+  for (let i = 0; i < wildEagles.length; i++) {
+    const e = wildEagles[i];
+    const th = thermalFor(pcx + _EAGLE_CHUNK_OFF[i][0], pcz + _EAGLE_CHUNK_OFF[i][1]);
+    const dx = th.x - e.cx, dz = th.z - e.cz;
+    if (dx * dx + dz * dz < 1) continue;
+    e.fromX = e.pos.x; e.fromZ = e.pos.z;
+    e.cx = th.x; e.cz = th.z; e.groundY = terrainHeight(th.x, th.z);
+    e.transT = 0; e.transDur = Math.max(Math.hypot(dx, dz) / 18, 2);
+    e.state = 'trans';
+  }
+}
+function redistributeOwls(pcx, pcz) {
+  for (let i = 0; i < wildOwls.length; i++) {
+    const o = wildOwls[i];
+    const pp = owlPerchFor(pcx + _OWL_CHUNK_OFF[i][0], pcz + _OWL_CHUNK_OFF[i][1]);
+    o.perch = pp; o.perchY = terrainHeight(pp.x, pp.z) + 5.5;
+    if (o.state === 'perch') o.pos.set(pp.x, o.perchY, pp.z);
+  }
+}
 
 /* deterministic per-chunk biome for wildlife-v2 spawns: pure function of
    chunk coords with a NEW seed xor, so the deer/cow/horse/flora/amenity
@@ -1589,7 +1902,8 @@ function chunkBiome(gx, gz) {
 /* relocate the wild herds into seeded biome-matching chunks around the
    player (wild-deer idiom). Runs on chunk crossing, never in the hot tick. */
 function redistributeWildlife(pcx, pcz) {
-  for (const kind of ['rabbit', 'pig', 'wolf', 'bear', 'dog', 'fox', 'duck']) {
+  for (const kind of ['rabbit', 'pig', 'wolf', 'bear', 'dog', 'fox', 'duck',
+                      'monkey', 'chicken']) {
     const cfg = WILD_SPP[kind], list = WILD_LIST[kind];
     for (let i = 0; i < list.length; i++) {
       const a = list[i];
@@ -1648,6 +1962,17 @@ function redistributeWildlife(pcx, pcz) {
         a.target.set(x, 0, z);
         a.mode = 'idle'; a.t = rnd() * 3;
         a.rotY = rnd() * Math.PI * 2;
+        if (kind === 'monkey') {
+          /* Phase 5 wildlife v4: the home tree is the nearest real tree to
+             the seeded spot, preferring one with a 12m swing partner (else
+             the swing could never trigger); the zone recenters on it. */
+          const mt = treeWithPartner(x, z, 30) || treeNear(x, z, 30);
+          a.homeTX = mt ? mt.x : x; a.homeTZ = mt ? mt.z : z;
+          a.swingT = 0; a.swingCd = 1 + rnd() * 3;
+          a.zone.x0 = a.homeTX - 10; a.zone.x1 = a.homeTX + 10;
+          a.zone.z0 = a.homeTZ - 10; a.zone.z1 = a.homeTZ + 10;
+          a.target.set(a.homeTX, 0, a.homeTZ);
+        }
         break;
       }
       writeAnimalMatrices(a);
@@ -1851,6 +2176,40 @@ function natureTick(dt, now) {
       }
       a.mode = 'walk';
     }
+    /* Phase 5 wildlife v4: monkeys swing tree-to-tree. swingT > 0 arcs from
+       the swing start to a neighbor tree (<= 12m); between swings the monkey
+       idles and forages near its home tree. Chatter on landing (sfxBlip
+       idiom, no new audio nodes). */
+    if (a.kind === 'monkey') {
+      if (a.fleeT > 0) a.swingT = 0;   /* a scare cancels the swing */
+      if (a.swingT > 0) {
+        a.swingT -= dt;
+        const st = 1 - Math.max(a.swingT, 0) / a.swingDur;
+        p.x = a.swX0 + (a.swX1 - a.swX0) * st;
+        p.z = a.swZ0 + (a.swZ1 - a.swZ0) * st;
+        const gy = terrainHeight(a.swX0, a.swZ0) +
+                   (terrainHeight(a.swX1, a.swZ1) - terrainHeight(a.swX0, a.swZ0)) * st;
+        a.swingY = gy + 3.8 + Math.sin(Math.PI * st) * 2.2;
+        if (a.swingT <= 0) {
+          a.homeTX = a.swX1; a.homeTZ = a.swZ1;
+          a.zone.x0 = a.swX1 - 10; a.zone.x1 = a.swX1 + 10;
+          a.zone.z0 = a.swZ1 - 10; a.zone.z1 = a.swZ1 + 10;
+          a.mode = 'idle'; a.t = 2 + a.rng() * 3;
+          sfxBlip(1100 + a.rng() * 700, 0.06, 'square', 0.07);   /* chatter */
+          sfxBlip(1400 + a.rng() * 500, 0.05, 'square', 0.06);
+        }
+      } else if (a.fleeT <= 0) {
+        a.swingCd -= dt;
+        if (a.swingCd <= 0) {
+          const nt = treeNear(a.homeTX, a.homeTZ, 12);
+          if (nt) {
+            a.swX0 = p.x; a.swZ0 = p.z; a.swX1 = nt.x; a.swZ1 = nt.z;
+            a.swingDur = 1.1 + a.rng() * 0.6; a.swingT = a.swingDur;
+            a.swingCd = 5 + a.rng() * 6; a.mode = 'idle'; a.t = 99;
+          } else a.swingCd = 4;
+        }
+      }
+    }
 
     let moving = false, spd = 0;
     if (a.fleeT > 0) {
@@ -1866,6 +2225,11 @@ function natureTick(dt, now) {
         p.z = Math.max(a.zone.z0, Math.min(a.zone.z1, p.z));
       }
       a.mode = 'idle'; a.t = 0.5;
+    } else if (a.kind === 'monkey' && a.swingT > 0) {
+      /* Phase 5 wildlife v4: mid-swing. Position advanced in the kind block
+         above; here just drive the walk phase so the legs kick. */
+      _nv.set(a.swX1 - a.swX0, 0, a.swZ1 - a.swZ0);
+      moving = true; spd = 5;
     } else if (a === PET.a) {
       /* Phase 5 wildlife: the pet follows instead of wandering/grazing.
          Flee (above) still wins: the pet bolts from vehicles, gunshots,
@@ -1928,6 +2292,7 @@ function natureTick(dt, now) {
 
     p.y = terrainHeight(p.x, p.z);
     if (a.kind === 'duck') p.y = WATER_Y + a.flyY;   /* Phase 5 wildlife v3: ducks ride the water plane, not the terrain */
+    if (a.kind === 'monkey' && a.swingT > 0) p.y = a.swingY;   /* Phase 5 wildlife v4: swing arc */
     if (moving) {
       a.walkPhase += dt * (3 + spd * 2.2);
       const sw = Math.sin(a.walkPhase) * Math.min(0.7, 0.25 + spd * 0.08);
@@ -1950,10 +2315,19 @@ function natureTick(dt, now) {
     /* graze: pitch the head down; otherwise ease back to neutral */
     const headTgt = a.grazeT > 0 ? 0.75 : 0;
     a.headPitch += (headTgt - a.headPitch) * Math.min(1, dt * 4);
+    /* Phase 5 wildlife v4: chicken peck/scratch while idle. Body dip via
+       bobY (rides the root matrix in writeAnimalMatrices); the head is
+       folded in, so headPitch stays neutral. */
+    if (a.kind === 'chicken' && a.fleeT <= 0 && !moving) {
+      a.peckPh += dt * 9;
+      a.bobY = -Math.abs(Math.sin(a.peckPh)) * 0.1;   /* peck dip */
+      a.swingF = Math.sin(a.peckPh * 0.5) * 0.3;      /* scratch */
+    }
   }
 
   /* write the per-animal instance matrices once per frame */
   for (const a of animals) writeAnimalMatrices(a);
+  eagleTick(dt, now); owlTick(dt, now);   /* Phase 5 wildlife v4: sky birds */
   for (const m of ALL_ANIMAL_MESHES) m.instanceMatrix.needsUpdate = true;
   petPromptScan();   /* Phase 5 wildlife: E-tame prompt */
 }
