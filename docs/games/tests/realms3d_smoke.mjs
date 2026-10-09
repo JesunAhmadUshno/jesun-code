@@ -612,7 +612,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          legs) are built through the makeAnimalMesh factory; the AMESH site
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (44 literals: 43 + 1 rural-buildings loop)', imCount === 44, 'count=' + imCount);
+  /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
+  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (45 literals: 44 + 1 farming crops)', imCount === 45, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1072,8 +1073,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('bike: one shared body InstancedMesh holds all three slots',
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('bike: InstancedMesh count is 44 (43 + 1 rural-buildings loop literal)',
-    imCount2 === 44, 'count=' + imCount2);
+  /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
+  check('bike: InstancedMesh count is 45 (44 + 1 farming crops literal)',
+    imCount2 === 45, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1172,8 +1174,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('bicycle: one shared body InstancedMesh holds all three slots',
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('bicycle: InstancedMesh count is 44 (43 + 1 rural-buildings loop literal)',
-    imCount3 === 44, 'count=' + imCount3);
+  /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
+  check('bicycle: InstancedMesh count is 45 (44 + 1 farming crops literal)',
+    imCount3 === 45, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1273,8 +1276,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('scooter: one shared body InstancedMesh holds all three slots',
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('scooter: InstancedMesh count is 44 (43 + 1 rural-buildings loop literal)',
-    imCount4 === 44, 'count=' + imCount4);
+  /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
+  check('scooter: InstancedMesh count is 45 (44 + 1 farming crops literal)',
+    imCount4 === 45, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1589,8 +1593,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     'n=' + w5.length);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (44 literals: 43 + 1 rural-buildings loop)',
-      imCount5 === 44, 'count=' + imCount5);
+    /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
+    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (45 literals: 44 + 1 farming crops)',
+      imCount5 === 45, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -1937,8 +1942,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
      backing 3 runtime meshes: house, barn, store. One draw call each. */
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes',
-      n === 44 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
+    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (45 literals after farming)',
+      n === 45 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
