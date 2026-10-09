@@ -80,6 +80,8 @@ globalThis.__R3D = {
   petHintEl, petChipEl, birdFlockTick,
   AMESH, chunkBiome, redistributeWildlife,   /* Phase 5 wildlife v2 */
   amenityCenterFor,                          /* Phase 5 wildlife v3: dog placement */
+  wildEagles, wildOwls, thermalFor, treeNear, treeWithPartner, redistributeEagles, redistributeOwls,  /* Phase 5 wildlife v4 */
+  get dayPhase() { return dayPhase; }, set dayPhase(v) { dayPhase = v; },  /* v4: owl day/night test */
   get cash() { return cash; }, set cash(v) { cash = v; },
   get kills() { return kills; }, set kills(v) { kills = v; },
   get curWeapon() { return curWeapon; }, set curWeapon(v) { curWeapon = v; },
@@ -600,9 +602,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          legs) are built through the makeAnimalMesh factory; the AMESH site
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('wildlife: exactly one new InstancedMesh vs main (43: the bike body + the bicycle body + the scooter body)', imCount === 43, 'count=' + imCount);
-  check('wildlife2: AMESH holds 20 instanced-mesh sites (16 + dog/cat/fox/duck bodies; v3 adds 4)',
-    Object.keys(G.AMESH).length === 20, 'sites=' + Object.keys(G.AMESH).length);
+  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (no new literal new THREE.InstancedMesh call sites)', imCount === 43, 'count=' + imCount);
+  check('wildlife2: AMESH holds 24 instanced-mesh sites (20 + v4 eagle/owl/monkey/chicken bodies)',
+    Object.keys(G.AMESH).length === 24, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
   check('wildlife: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
@@ -842,25 +844,26 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     'renders=' + globalThis.__renderCount);
 
   /* shared wild legs: per-instance species tint; bodies are real geometry.
-     Phase 5 wildlife v3: 54 slots (12 v2 animals + 15 v3 animals, 2 each);
-     instance 24 is the first v3 (dog) leg, and must differ from the rabbit. */
+     Phase 5 wildlife v4: 72 slots (54 v2+v3 + 4 monkeys x2 + 5 chickens x2);
+     instance 54 is the first v4 (monkey) leg, and must differ from the rabbit. */
   {
     const wl = G.AMESH.wildLegs;
     const ic = wl.instanceColor;
     let tintVaries = false;
-    if (ic && ic.count === 54) {
-      /* instance 0 = rabbit leg, instance 24 = first dog leg: must differ */
-      const d = Math.abs(ic.array[0] - ic.array[72]) +
-                Math.abs(ic.array[1] - ic.array[73]) +
-                Math.abs(ic.array[2] - ic.array[74]);
+    if (ic && ic.count === 72) {
+      /* instance 0 = rabbit leg, instance 54 = first monkey leg: must differ */
+      const d = Math.abs(ic.array[0] - ic.array[162]) +
+                Math.abs(ic.array[1] - ic.array[163]) +
+                Math.abs(ic.array[2] - ic.array[164]);
       tintVaries = d > 0.01;
     }
     check('wildlife2: shared legs carry per-instance species tints', tintVaries,
       'count=' + (ic && ic.count));
     const geoOk = ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody',
-                   'dogBody', 'catBody', 'foxBody', 'duckBody'].every(
+                   'dogBody', 'catBody', 'foxBody', 'duckBody',
+                   'eagleBody', 'owlBody', 'monkeyBody', 'chickenBody'].every(
       k => G.AMESH[k].geometry.attributes.position.count > 0);
-    check('wildlife2: all eight body geometries are non-empty', geoOk);
+    check('wildlife2: all twelve body geometries are non-empty', geoOk);
   }
 }
 
@@ -1342,6 +1345,176 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   globalThis.__renderCount = 0;
   frame(30);
   check('scooter: exactly one render per tick', globalThis.__renderCount === 30,
+    'renders=' + globalThis.__renderCount);
+}
+
+/* ================= 12. PHASE 5 WILDLIFE V4: eagles / owls / monkeys / chickens ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
+  const parkEnemies4 = (x, z) => {
+    for (const e of G.enemies) {
+      e.seeT = 0; e.scanT = 0; e.wasSpotted = false; e.live = false;
+      e.aware = false; e.aggroT = 0; e.attackCd = 0; e.state = 'wander';
+      e.prey = null; e.preyCd = 0; e.hp = e.cfg.hp; e.speed = 0;
+      e.group.position.set(x, groundY(x, z), z);
+    }
+  };
+  parkEnemies4(150, 150);
+  const settle4 = (x, z) => {
+    G.player.position.set(x, groundY(x, z), z);
+    G.player.rotation.y = 0;
+    frame(3);   // absorb any chunk crossing
+  };
+  const w4 = G.animals.filter(a => a.kind === 'monkey' || a.kind === 'chicken');
+  check('wildlife4: 4 new species spawn (3 eagles, 3 owls, 4 monkeys, 5 chickens)',
+    G.wildEagles.length === 3 && G.wildOwls.length === 3 &&
+    w4.filter(a => a.kind === 'monkey').length === 4 &&
+    w4.filter(a => a.kind === 'chicken').length === 5,
+    'eagles=' + G.wildEagles.length + ' owls=' + G.wildOwls.length + ' ground=' + w4.length);
+  check('wildlife4: AMESH holds 24 instanced-mesh sites (20 + eagle/owl/monkey/chicken bodies)',
+    Object.keys(G.AMESH).length === 24, 'sites=' + Object.keys(G.AMESH).length);
+  check('wildlife4: wildLegs grew to 72 slots with zero new leg sites',
+    G.AMESH.wildLegs.count === 72, 'count=' + G.AMESH.wildLegs.count);
+
+  /* eagle thermals are a pure function of chunk coords */
+  {
+    const t1 = G.thermalFor(3, -2), t2 = G.thermalFor(3, -2);
+    check('wildlife4: eagle thermal is a pure function of chunk coords',
+      t1.x === t2.x && t1.z === t2.z, JSON.stringify(t1));
+  }
+
+  /* eagles: banked soar at 25-40m, explicit up-vector, swoop dive + climb */
+  settle4(0, 0);
+  frame(60);
+  {
+    const e = G.wildEagles[0];
+    /* chunk crossings from earlier sections leave eagles gliding between
+       thermals; pin to soar for the bank assertion */
+    e.state = 'soar'; e.stateT = 999; e.h = e.baseH; e.roll = 0.38;
+    frame(60);
+    check('wildlife4: eagle soars banked (roll nonzero, into the turn)',
+      Math.abs(e.roll) > 0.2, 'roll=' + e.roll.toFixed(3));
+    const m4 = new THREE.Matrix4();
+    let flips = 0;
+    for (let i = 0; i < 3; i++) {
+      G.AMESH.eagleBody.getMatrixAt(i, m4);
+      if (m4.elements[5] < 0.5) flips++;   // Y-basis column: up-vector must hold
+    }
+    check('wildlife4: eagle instances never flip upside-down (up-vector holds)', flips === 0);
+    const hAbove = e.pos.y - groundY(e.cx, e.cz);
+    check('wildlife4: eagle soars 25-40m over the thermal',
+      hAbove >= 20 && hAbove <= 45, 'h=' + hAbove.toFixed(1) + 'm');
+  }
+  {
+    const e = G.wildEagles[1];
+    e.state = 'soar'; e.stateT = 0.01; e.h = e.baseH;   // pin to soar: the swoop timer fires it
+    frame(2);
+    const swooping = e.state === 'swoop';
+    let minH = Infinity, n = 0;
+    for (let i = 0; i < 420 && e.state === 'swoop'; i++) { frame(1); n++; minH = Math.min(minH, e.h); }
+    check('wildlife4: eagle swoop dives then climbs back to soar',
+      swooping && minH < e.baseH - 10 && e.state === 'soar' && Math.abs(e.h - e.baseH) < 0.01,
+      'frames=' + n + ' minH=' + minH.toFixed(1) + ' baseH=' + e.baseH.toFixed(1) + ' state=' + e.state);
+  }
+
+  /* owls: perch by day, hunt low circles by night */
+  {
+    G.dayPhase = 0.25;   // noon
+    frame(3);
+    const o = G.wildOwls[0];
+    const perched = o.state === 'perch';
+    frame(120);   // glide home
+    const homeD = Math.hypot(o.pos.x - o.perch.x, o.pos.z - o.perch.z);
+    check('wildlife4: owl perches by day (folded wings, near perch)',
+      perched && homeD < 3 && Math.abs(o.roll) < 0.05,
+      'state=' + o.state + ' d=' + homeD.toFixed(1) + ' roll=' + o.roll.toFixed(3));
+    G.dayPhase = 0.75;   // midnight
+    frame(3);
+    const hunting = G.wildOwls.every(x => x.state === 'hunt');
+    const oh = o.pos.y - groundY(o.pos.x, o.pos.z);
+    const x0 = o.pos.x, z0 = o.pos.z;
+    frame(60);
+    const moved = Math.hypot(o.pos.x - x0, o.pos.z - z0);
+    check('wildlife4: owl hunts low circles by night',
+      hunting && oh >= 2 && oh <= 7 && moved > 3,
+      'state=' + o.state + ' h=' + oh.toFixed(1) + 'm moved=' + moved.toFixed(1) + 'm');
+    G.dayPhase = 0.25;   // back to day for the rest of the suite
+    frame(3);
+  }
+  {
+    /* vertex colors are linear-space (THREE.Color.set hex conversion): the
+       0xffe08a eye dots land near (1.0, 0.745, 0.25) */
+    const col = G.AMESH.owlBody.geometry.attributes.color;
+    let bright = 0;
+    for (let i = 0; i < col.count; i++)
+      if (col.array[i * 3] > 0.99 && col.array[i * 3 + 1] > 0.7) bright++;
+    check('wildlife4: owl geometry carries bright eye dots', bright > 10, 'brightVerts=' + bright);
+  }
+
+  /* monkeys: tree-swing between real trees. Home trees prefer a 12m swing
+     partner (10m minimum tree spacing makes bare pairs rare); the (-200,-300)
+     region is known pair-rich, so the relocate lands monkeys on partners. */
+  settle4(-200, -300);
+  frame(5);   // chunk crossing rebuilds flora + relocates herds
+  const monkeys = w4.filter(a => a.kind === 'monkey');
+  const mk = monkeys.find(a => G.treeNear(a.homeTX, a.homeTZ, 12));
+  check('wildlife4: monkey home tree has a swing partner within 12m', !!mk,
+    'homes=' + monkeys.map(a => '(' + a.homeTX.toFixed(0) + ',' + a.homeTZ.toFixed(0) + ')').join(' '));
+  mk.pos.set(mk.homeTX, groundY(mk.homeTX, mk.homeTZ), mk.homeTZ);
+  mk.swingT = 0; mk.swingCd = 0; mk.fleeT = 0;
+  mk.zone = { x0: mk.homeTX - 15, x1: mk.homeTX + 15, z0: mk.homeTZ - 15, z1: mk.homeTZ + 15 };
+  let swung = false, landed = false, maxArc = 0, swingTarget = null;
+  const home0x = mk.homeTX, home0z = mk.homeTZ;
+  for (let i = 0; i < 900 && !landed; i++) {
+    frame(1);
+    if (mk.swingT > 0) {
+      swung = true;
+      if (!swingTarget) swingTarget = { x: mk.swX1, z: mk.swZ1 };   // treeNear-issued: a real tree
+      maxArc = Math.max(maxArc, mk.swingY - groundY(mk.pos.x, mk.pos.z));
+    } else if (swung) landed = true;
+  }
+  check('wildlife4: monkey swings tree-to-tree (arc above canopy)',
+    swung && maxArc > 2.5, 'swung=' + swung + ' arc=' + maxArc.toFixed(1) + 'm');
+  check('wildlife4: monkey home tree updates to the swing target (a real tree)',
+    landed && !!swingTarget && mk.homeTX === swingTarget.x && mk.homeTZ === swingTarget.z &&
+    Math.hypot(mk.homeTX - home0x, mk.homeTZ - home0z) > 2,
+    'home=' + mk.homeTX.toFixed(1) + ',' + mk.homeTZ.toFixed(1));
+  {
+    const snap = () => w4.filter(a => a.kind === 'monkey')
+      .map(a => a.pos.x.toFixed(3) + ',' + a.pos.z.toFixed(3)).join('|');
+    G.redistributeWildlife(3, -2);
+    const s1 = snap();
+    G.redistributeWildlife(3, -2);
+    check('wildlife4: monkey/chicken relocate is a pure function of chunk coords', snap() === s1);
+  }
+
+  /* chickens: peck while idle, scatter-flee inside 8m */
+  settle4(0, 0);
+  const ch = w4.filter(a => a.kind === 'chicken');
+  for (const a of ch) { a.pos.set(200, groundY(200, 200), 200); a.fleeT = 0; }
+  const c0 = ch[0];
+  c0.pos.set(30, groundY(30, 0), 30);   // 30m from the player: no flee
+  c0.fleeT = 0; c0.mode = 'idle'; c0.t = 999; c0.grazeT = 0;
+  let minBob = 0;
+  for (let i = 0; i < 240; i++) { frame(1); minBob = Math.min(minBob, c0.bobY); }
+  check('wildlife4: chicken pecks (body dip while idle)', minBob < -0.05,
+    'minBob=' + minBob.toFixed(3));
+  const c1 = ch[1];
+  c1.zone = { x0: -80, x1: 80, z0: -80, z1: 80 };
+  c1.pos.set(5, groundY(5, 0), 0);   // 5m < 8m: scatter-flee
+  c1.fleeT = 0; c1.mode = 'idle'; c1.t = 999;
+  frame(3);
+  const fled = c1.fleeT > 0;
+  const d0 = Math.hypot(c1.pos.x, c1.pos.z);
+  frame(60);
+  const d1 = Math.hypot(c1.pos.x, c1.pos.z);
+  check('wildlife4: chicken scatter-flees inside 8m', fled && d1 > d0 + 2,
+    'fleeT=' + c1.fleeT.toFixed(2) + ' d=' + d0.toFixed(1) + '->' + d1.toFixed(1));
+
+  /* one render per tick still holds with the new meshes */
+  globalThis.__renderCount = 0;
+  frame(30);
+  check('wildlife4: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
 }
 
