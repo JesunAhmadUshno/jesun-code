@@ -107,6 +107,21 @@
   }
   #wx span { margin-right: 8px; }
 
+  /* ---- vehicle HUD: speedo under the weather block, enter-car hint ---- */
+  #speedo {
+    position: absolute; top: 196px; right: 18px; color: #c9d2b8; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+  }
+  #speedo #spdnum { color: #ff3d2e; font-size: 22px; font-weight: bold; }
+  #drivingtag { color: #ff6b5e; font-size: 10px; letter-spacing: 4px; margin-bottom: 4px; }
+  #carhint {
+    position: absolute; bottom: 108px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #d8c84a; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+
   /* ---- lightning flash: DOM layer above the canvas only, capped under 0.18
          opacity, pointer-events none, no layout impact ---- */
   #boltflash { position: fixed; inset: 0; pointer-events: none; z-index: 9;
@@ -139,7 +154,9 @@
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b></div>
   <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
   <div id="wx"><span>☀</span> CLEAR</div>
+  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H</div>
   <div id="toast"></div>
+  <div id="carhint"></div>
 </div>
 
 <div id="dmgflash"></div>
@@ -1241,6 +1258,7 @@ function sfxSlam() {
        (jab, cross, hook) inside a 0.6s window, dmg 2/2/4. Usable WHILE MOVING:
        momentum is untouched, the punch never roots the player. --- */
 function doPunch() {
+  if (CAR.driving) return;   // no melee from the driver's seat
   if (!playing() || P.dead || P.punchCd > 0) return;
   P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
   P.comboWin = 0.6;
@@ -1741,7 +1759,12 @@ const fwd = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vec
 
 /* ================================ INPUT =================================== */
 const keys = {};
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyF') doPunch(); });
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
+  if (e.code === 'KeyE') carToggle();                                   // enter / exit the car
+  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else doPunch(); } // F exits while driving
+});
 addEventListener('keyup', e => keys[e.code] = false);
 
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -2357,6 +2380,260 @@ function dayNightTick(dt, now) {
 paintSky();                       // first frame matches the shipped dusk mood
 worldTickers.push(dayNightTick);  // worldTickers is declared above: no TDZ risk
 
+/* ==================== VEHICLES PHASE 1: DRIVABLE CAR ======================
+   Arcade car, first Phase 2 vehicle. One parked car near spawn (marked spot).
+   CAR is the single tuning table: every feel number lives here, all mutable.
+   Declared before the car ticker push below; weather/day-night tick ordering
+   is untouched. Model: ~10 meshes, shared materials, MeshStandardMaterial
+   only, no external assets. Physics: zero per-frame allocation. */
+const CAR = {
+  // ---- tuning table ----
+  topSpeed: 22, reverseSpeed: 8,          // u/s
+  accel: 14, reverseAccel: 9, brake: 26,  // u/s^2
+  coast: 6, drag: 0.012,                 // friction when coasting
+  steerLow: 0.65, steerHigh: 0.22,       // yaw rate rad/s: max at low speed
+  steerSm: 8,                            // steering input smoothing rate
+  driftMin: 6, driftCharge: 0.6,         // handbrake charge before sustained slide
+  slipMax: 0.61, slipRate: 4.5,          // slip angle cap ~35 deg, approach rate
+  turnBoost: 1.9, gripRecover: 3.2,      // extra yaw while drifting, grip return
+  camDist: 9.6, camH: 3.0,               // chase cam distance / height
+  fovDrive: 70, fovWalk: 62,             // wider FOV while driving
+  wheelR: 0.42, parkX: 9, parkZ: 7,       // wheel radius, parking spot near spawn
+  // ---- runtime state (not tuning) ----
+  driving: false, speed: 0, heading: 0, slip: 0,
+  steer: 0, charge: 0, drifting: false, velAng: 0,
+  pos: new THREE.Vector3(), hudT: 0, hintOn: false,
+};
+
+/* ---- car model: tapered body, cabin, 4 wheels (front pair steers),
+        emissive headlight quads + taillight bar (no real lights: draw calls) ---- */
+const carPaint = new THREE.MeshStandardMaterial({ color: 0xFF3D2E, roughness: 0.35, metalness: 0.55 });  // Signal Red
+const carGlass = new THREE.MeshStandardMaterial({ color: 0x10161c, roughness: 0.18, metalness: 0.5 });
+const carWheelM = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
+const carLightM = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xfff2c0, emissiveIntensity: 2.6 });
+const carTailM = new THREE.MeshStandardMaterial({ color: 0x220000, emissive: 0xff2211, emissiveIntensity: 1.8 });
+
+const carGroup = new THREE.Group();
+const carTilt = new THREE.Group();       // terrain pitch/roll + arcade body lean
+carGroup.add(carTilt);
+{
+  const bodyGeo = new THREE.BoxGeometry(1.9, 0.5, 4.3, 1, 1, 4);
+  const bp = bodyGeo.attributes.position;                 // taper the nose
+  for (let i = 0; i < bp.count; i++) {
+    const z = bp.getZ(i);
+    if (z > 0.8) bp.setX(i, bp.getX(i) * (1 - 0.30 * Math.min(1, (z - 0.8) / 1.35)));
+  }
+  bodyGeo.computeVertexNormals();
+  const body = new THREE.Mesh(bodyGeo, carPaint);
+  body.position.y = 0.72; body.castShadow = true; carTilt.add(body);
+
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.42, 1.9), carGlass);
+  cabin.position.set(0, 1.16, -0.3); cabin.castShadow = true; carTilt.add(cabin);
+
+  const hlGeo = new THREE.PlaneGeometry(0.44, 0.16);
+  for (const sx of [-0.55, 0.55]) {
+    const hl = new THREE.Mesh(hlGeo, carLightM);
+    hl.position.set(sx, 0.78, 2.16); carTilt.add(hl);
+  }
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 0.06), carTailM);
+  tail.position.set(0, 0.78, -2.16); carTilt.add(tail);
+}
+const wheelGeo = new THREE.CylinderGeometry(CAR.wheelR, CAR.wheelR, 0.34, 14);
+wheelGeo.rotateZ(Math.PI / 2);           // axle along X; spin via rotation.x
+const wheels = [], steerPivots = [];
+for (const [sx, sz, steer] of [[-1, 1.35, 1], [1, 1.35, 1], [-1, -1.35, 0], [1, -1.35, 0]]) {
+  const pivot = new THREE.Group();
+  pivot.position.set(sx * 0.98, CAR.wheelR, sz);
+  const w = new THREE.Mesh(wheelGeo, carWheelM);
+  w.castShadow = true;
+  pivot.add(w); carTilt.add(pivot);
+  wheels.push(w); if (steer) steerPivots.push(pivot);
+}
+CAR.heading = Math.PI * 0.75;
+carGroup.position.set(CAR.parkX, terrainHeight(CAR.parkX, CAR.parkZ), CAR.parkZ);
+carGroup.rotation.y = CAR.heading;
+CAR.pos.copy(carGroup.position);
+scene.add(carGroup);
+
+/* ---- marked parking spot: one flat painted rectangle under the car ---- */
+{
+  const marker = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.9, 5.4),
+    new THREE.MeshStandardMaterial({ color: 0xd8c84a, roughness: 0.8, transparent: true, opacity: 0.38 })
+  );
+  marker.rotation.x = -Math.PI / 2;
+  marker.rotation.z = CAR.heading;   // in-plane spin (Euler XYZ applies Z before X)
+  marker.position.set(CAR.parkX, terrainHeight(CAR.parkX, CAR.parkZ) + 0.04, CAR.parkZ);
+  scene.add(marker);
+}
+
+/* ---- HUD refs: speedo under the #wx block, enter-car hint, help footer ---- */
+const speedoEl = document.getElementById('speedo');
+const spdNumEl = document.getElementById('spdnum');
+const carHintEl = document.getElementById('carhint');
+const helpEl = document.getElementById('help');
+const HELP_FOOT = helpEl.innerHTML;
+const HELP_DRIVE = '<b>W/S</b> throttle / brake &nbsp; <b>A/D</b> steer &nbsp; <b>SPACE</b> handbrake<br>'
+  + '<b>E</b> exit car &nbsp; <b>TOUCH</b> stick drives, <b>RUN</b> is handbrake';
+carHintEl.textContent = IS_TOUCH ? 'TAP TO ENTER CAR' : 'E ENTER CAR';
+carHintEl.addEventListener('click', () => { if (!CAR.driving) carEnter(); });
+
+/* ---- procedural engine audio: oscillator stack pitched to RPM.
+        Nodes are created once (no per-frame allocation); gain rides RPM
+        only while driving and only after the click-to-play audio unlock. ---- */
+let engOsc1 = null, engOsc2 = null, engGain = null;
+function ensureEngineAudio() {
+  const a = ac(); if (!a || engOsc1) return;
+  engOsc1 = a.createOscillator(); engOsc1.type = 'sawtooth';
+  engOsc2 = a.createOscillator(); engOsc2.type = 'square';
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 480; lp.Q.value = 0.8;
+  engGain = a.createGain(); engGain.gain.value = 0;
+  engOsc1.connect(lp); engOsc2.connect(lp);
+  lp.connect(engGain); engGain.connect(a.destination);
+  engOsc1.frequency.value = 58; engOsc2.frequency.value = 29;
+  engOsc1.start(); engOsc2.start();
+}
+
+function carEnter() {
+  if (CAR.driving || !playing() || P.dead) return;
+  const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
+  if (dx * dx + dz * dz > 16) return;        // 4u enter radius
+  CAR.driving = true;
+  CAR.pos.copy(carGroup.position);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = false;                     // driver rides inside
+  speedoEl.style.display = 'block';
+  carHintEl.style.opacity = 0; CAR.hintOn = false;
+  helpEl.innerHTML = HELP_DRIVE;
+  ensureEngineAudio();
+  sfxBlip(660, 0.09, 'square', 0.2);
+}
+function carExit() {
+  if (!CAR.driving) return;
+  CAR.driving = false;
+  const s = Math.sin(CAR.heading), c = Math.cos(CAR.heading);
+  let px = Math.max(-104, Math.min(104, CAR.pos.x + c * 2.1));   // driver side
+  let pz = Math.max(-104, Math.min(104, CAR.pos.z - s * 2.1));
+  player.position.set(px, terrainHeight(px, pz), pz);
+  player.rotation.y = CAR.heading;
+  player.visible = true;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  speedoEl.style.display = 'none';
+  helpEl.innerHTML = HELP_FOOT;
+  sfxBlip(440, 0.09, 'square', 0.18);
+}
+function carToggle() { if (CAR.driving) carExit(); else carEnter(); }
+
+/* ---- car ticker: physics, visuals, audio, HUD. World sim keeps running
+        around it (combat, respawn, day/night, weather tickers untouched). ---- */
+function carUpdate(sdt, now) {
+  if (!CAR.driving) {
+    // parked: show the enter hint inside 4u, nothing else
+    const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
+    const near = dx * dx + dz * dz < 16;
+    if (near !== CAR.hintOn) { CAR.hintOn = near; carHintEl.style.opacity = near ? 1 : 0; }
+    if (engGain) engGain.gain.value *= 0.9;
+    return;
+  }
+  if (P.dead) { carExit(); return; }   // death always ejects, never soft-locks
+
+  // ---- input: WASD/arrows on desktop, joystick on touch, RUN = handbrake ----
+  let thr = 0, str = 0;
+  if (keys.KeyW || keys.ArrowUp) thr += 1;
+  if (keys.KeyS || keys.ArrowDown) thr -= 1;
+  if (keys.KeyD || keys.ArrowRight) str += 1;
+  if (keys.KeyA || keys.ArrowLeft) str -= 1;
+  if (IS_TOUCH) { thr += -touch.moveY; str += touch.moveX; }   // stick Y = throttle/brake
+  thr = Math.max(-1, Math.min(1, thr));
+  str = Math.max(-1, Math.min(1, str));
+  const hb = !!(keys.Space || (IS_TOUCH && touch.sprint));
+
+  // ---- longitudinal: throttle, brake (input opposing motion), coast ----
+  const sp = CAR.speed;
+  if (thr > 0) {
+    CAR.speed = Math.min(CAR.topSpeed, sp + CAR.accel * thr * sdt);
+  } else if (thr < 0) {
+    if (sp > 0.5) CAR.speed = Math.max(0, sp + CAR.brake * thr * sdt);
+    else CAR.speed = Math.max(-CAR.reverseSpeed, sp + CAR.reverseAccel * thr * sdt);
+  } else {
+    const dec = CAR.coast * sdt + Math.abs(sp) * sp * CAR.drag * sdt;
+    CAR.speed = Math.abs(sp) <= dec ? 0 : sp - Math.sign(sp) * dec;
+  }
+
+  // ---- steering: smoothed, speed-sensitive (max angle low, tamed high) ----
+  CAR.steer += (str - CAR.steer) * Math.min(1, CAR.steerSm * sdt);
+  const spdN = Math.min(1, Math.abs(CAR.speed) / CAR.topSpeed);
+  const steerMax = CAR.steerLow + (CAR.steerHigh - CAR.steerLow) * spdN;
+
+  // ---- handbrake drift: charge ~0.6s, then a sustained slide sculpted by
+  //      steering (into = deeper, counter = recover), slip capped ~35 deg ----
+  if (hb && Math.abs(CAR.speed) > CAR.driftMin) CAR.charge = Math.min(2, CAR.charge + sdt);
+  else CAR.charge = Math.max(0, CAR.charge - 3 * sdt);
+  CAR.drifting = hb && CAR.charge >= CAR.driftCharge;
+  if (CAR.drifting) {
+    const depth = 0.7 + 0.3 * Math.min(1, CAR.charge);
+    const slipTgt = CAR.steer * CAR.slipMax * depth;
+    CAR.slip += (slipTgt - CAR.slip) * Math.min(1, CAR.slipRate * sdt);
+  } else {
+    CAR.slip += (0 - CAR.slip) * Math.min(1, CAR.gripRecover * sdt);
+  }
+
+  // ---- heading: velocity lags the nose by the slip angle while drifting ----
+  const dir = CAR.speed >= 0 ? 1 : -1;
+  CAR.heading += CAR.steer * steerMax * (CAR.drifting ? CAR.turnBoost : 1) * dir * sdt;
+
+  // ---- integrate along the velocity direction, clamp to the world ----
+  CAR.velAng = CAR.heading + CAR.slip;
+  CAR.pos.x += Math.sin(CAR.velAng) * CAR.speed * sdt;
+  CAR.pos.z += Math.cos(CAR.velAng) * CAR.speed * sdt;
+  CAR.pos.x = Math.max(-104, Math.min(104, CAR.pos.x));
+  CAR.pos.z = Math.max(-104, Math.min(104, CAR.pos.z));
+
+  // ---- terrain follow: average height + pitch/roll from axle samples ----
+  const fx = Math.sin(CAR.heading), fz = Math.cos(CAR.heading);
+  const hF = terrainHeight(CAR.pos.x + fx * 1.8, CAR.pos.z + fz * 1.8);
+  const hR = terrainHeight(CAR.pos.x - fx * 1.8, CAR.pos.z - fz * 1.8);
+  const hRt = terrainHeight(CAR.pos.x + fz * 1.0, CAR.pos.z - fx * 1.0);
+  const hL = terrainHeight(CAR.pos.x - fz * 1.0, CAR.pos.z + fx * 1.0);
+  CAR.pos.y = (hF + hR + hRt + hL) * 0.25;
+  carGroup.position.copy(CAR.pos);
+  carGroup.rotation.y = CAR.heading;
+  carTilt.rotation.x = Math.atan2(hR - hF, 3.6);
+  carTilt.rotation.z = Math.atan2(hRt - hL, 2.0) - CAR.steer * spdN * 0.05;  // lean
+
+  // ---- wheels: spin with speed, front pair steers ----
+  const spin = CAR.speed * sdt / CAR.wheelR;
+  for (const w of wheels) w.rotation.x += spin;
+  for (const p of steerPivots) p.rotation.y = CAR.steer * 0.5;
+
+  // ---- keep the sim glued: the player rides inside the car (sun, enemies,
+  //      rain, camera follow all keep tracking player.position) ----
+  player.position.copy(CAR.pos);
+  player.rotation.y = CAR.heading;
+
+  // ---- engine audio: oscillator stack pitched to RPM, quiet by design ----
+  if (engGain) {
+    const a = AC;
+    const rpm = Math.min(1.1, Math.abs(CAR.speed) / CAR.topSpeed * 0.85 + Math.abs(thr) * 0.15);
+    if (a && a.state === 'running') {
+      engOsc1.frequency.value = 58 + rpm * 175;
+      engOsc2.frequency.value = 29 + rpm * 88;
+      const tgt = 0.045 + rpm * 0.05;
+      engGain.gain.value += (tgt - engGain.gain.value) * Math.min(1, 5 * sdt);
+    } else {
+      engGain.gain.value *= 0.9;
+    }
+  }
+
+  // ---- HUD speedo, throttled like the position readout ----
+  CAR.hudT += sdt;
+  if (CAR.hudT > 0.12) {
+    CAR.hudT = 0;
+    spdNumEl.textContent = Math.round(Math.abs(CAR.speed) * 3.6);
+  }
+}
+worldTickers.push(carUpdate);   // after dayNightTick: weather ordering intact
+
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
 const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
@@ -2399,20 +2676,23 @@ function tick() {
   const sprint = keys.ShiftLeft || keys.ShiftRight || touch.sprint;
   const maxSpeed = sprint ? SPRINT : WALK;
 
-  /* --- accelerate / decelerate (no ice-skating, no teleport) --- */
-  if (wishDir.lengthSq() > 0) {
-    wishDir.normalize().multiplyScalar(maxSpeed);
-    tmpV.copy(wishDir).sub(P.vel);
-    const maxDelta = ACCEL * sdt;
-    if (tmpV.length() > maxDelta) tmpV.setLength(maxDelta);
-    P.vel.add(tmpV);
-  } else {
-    const f = Math.max(0, 1 - 10 * sdt);   // ground friction
-    P.vel.multiplyScalar(f);
-    if (P.vel.lengthSq() < 0.0004) P.vel.set(0, 0, 0);
-  }
+  /* --- accelerate / decelerate (no ice-skating, no teleport).
+         Skipped while driving: the car ticker owns motion instead. --- */
+  if (!CAR.driving) {
+    if (wishDir.lengthSq() > 0) {
+      wishDir.normalize().multiplyScalar(maxSpeed);
+      tmpV.copy(wishDir).sub(P.vel);
+      const maxDelta = ACCEL * sdt;
+      if (tmpV.length() > maxDelta) tmpV.setLength(maxDelta);
+      P.vel.add(tmpV);
+    } else {
+      const f = Math.max(0, 1 - 10 * sdt);   // ground friction
+      P.vel.multiplyScalar(f);
+      if (P.vel.lengthSq() < 0.0004) P.vel.set(0, 0, 0);
+    }
 
-  player.position.addScaledVector(P.vel, sdt);
+    player.position.addScaledVector(P.vel, sdt);
+  }
 
   /* --- world edge: invisible wall at +/-104 (boulder ring shows it) --- */
   player.position.x = Math.max(-104, Math.min(104, player.position.x));
@@ -2420,21 +2700,24 @@ function tick() {
 
   /* --- face travel direction, smooth turn --- */
   const speed = Math.hypot(P.vel.x, P.vel.z);
-  if (speed > 0.6) {
+  if (!CAR.driving && speed > 0.6) {
     const targetYaw = Math.atan2(P.vel.x, P.vel.z);
     player.rotation.y = angleLerp(player.rotation.y, targetYaw, 1 - Math.exp(-12 * sdt));
   }
 
-  /* --- jump + gravity, collide with terrain --- */
+  /* --- jump + gravity, collide with terrain (skipped while driving) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
-  P.vy += GRAV * sdt;
-  player.position.y += P.vy * sdt;
-  if (player.position.y <= groundY) {
-    player.position.y = groundY; P.vy = 0; P.grounded = true;
+  if (!CAR.driving) {
+    if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
+    P.vy += GRAV * sdt;
+    player.position.y += P.vy * sdt;
+    if (player.position.y <= groundY) {
+      player.position.y = groundY; P.vy = 0; P.grounded = true;
+    }
   }
 
-  /* --- procedural walk cycle --- */
+  /* --- procedural walk cycle (frozen while driving: the driver is seated) --- */
+  if (!CAR.driving) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -2469,7 +2752,24 @@ function tick() {
     }
   }
   player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob
+  }   // end: walk cycle + punch anim skipped while driving
 
+  /* --- chase cam while driving, over-shoulder on foot --- */
+  if (CAR.driving) {
+    /* the camera swings behind the velocity direction (not the nose) in a drift */
+    const driftBlend = Math.min(1, Math.abs(CAR.slip) / CAR.slipMax);
+    const camAng = CAR.heading + CAR.slip * driftBlend;
+    lookTarget.copy(CAR.pos); lookTarget.y += 1.6;
+    camTargetPos.set(
+      lookTarget.x - Math.sin(camAng) * CAR.camDist,
+      lookTarget.y + CAR.camH,
+      lookTarget.z - Math.cos(camAng) * CAR.camDist
+    );
+    const camGround = terrainHeight(camTargetPos.x, camTargetPos.z) + 0.5;
+    if (camTargetPos.y < camGround) camTargetPos.y = camGround;
+    camPos.lerp(camTargetPos, 1 - Math.exp(-6 * dt));   // looser follow than on foot
+    camera.position.copy(camPos);
+  } else {
   /* --- over-shoulder camera --- */
   lookTarget.copy(player.position); lookTarget.y += 1.9;
   const dist = 7.5, cp = Math.cos(camPitch), sp = Math.sin(camPitch);
@@ -2483,10 +2783,17 @@ function tick() {
   if (camTargetPos.y < camGround) camTargetPos.y = camGround;
   camPos.lerp(camTargetPos, 1 - Math.exp(-11 * dt));   // smooth follow
   camera.position.copy(camPos);
+  }
+  /* wider FOV while driving, eases back to normal on exit */
+  const fovT = CAR.driving ? CAR.fovDrive : CAR.fovWalk;
+  if (Math.abs(camera.fov - fovT) > 0.05) {
+    camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
+    camera.updateProjectionMatrix();
+  }
   /* --- melee camera punch: tiny shake (2-3 frames) on connect, bigger on the
          3rd hit. Touches only the camera offset: pointer lock and touch-drag
          look (camYaw/camPitch) are never disturbed. --- */
-  if (P.shakeT > 0) {
+  if (P.shakeT > 0 && !CAR.driving) {
     P.shakeT -= dt;
     const m = P.shakeMag * Math.max(0, P.shakeT / Math.max(P.shakeDur, 0.001));
     camera.position.x += (Math.random() * 2 - 1) * m;
@@ -2503,8 +2810,9 @@ function tick() {
   /* --- HUD position readout --- */
   if ((hudTick += dt) > 0.12) {
     hudTick = 0;
+    const mode = CAR.driving ? 'DRIVE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE');
     posEl.textContent = 'X ' + player.position.x.toFixed(1) + '  Z ' + player.position.z.toFixed(1)
-      + '  ' + (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE');
+      + '  ' + mode;
   }
 
   if (P.dead) wishDir.set(0, 0, 0);   // no moving while eliminated
@@ -2513,6 +2821,7 @@ function tick() {
   fireCd -= sdt;
   if (P.godT > 0) P.godT -= sdt;
   if (P.dead) {
+    if (CAR.driving) carExit();   // death always ejects: no driving while dead
     P.deadT += sdt;
     if (P.deadT > 1.2) {   // redeploy at spawn with full health
       player.position.set(0, terrainHeight(0, 0), 0);
