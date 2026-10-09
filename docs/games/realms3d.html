@@ -421,9 +421,24 @@ import * as THREE from 'three';
 
 /* ============================ RENDERER / SCENE ============================ */
 const app = document.getElementById('app');
+/* PERF-3 ladder head: the adaptive DPR governor (full state below, after the
+   perf overlay) needs the ladder at renderer boot. Steps [1, 1.25, 1.5] plus
+   the device cap itself as the top rung, so boot never starts below the old
+   Math.min(devicePixelRatio, 2) behavior. A persisted ceiling from a prior
+   thermal session pulls the start rung down instead. */
+const GOV_KEY = 'realms3d_dpr_ceiling_v1';
+const GOV_CAP = Math.min(devicePixelRatio, 2);
+const GOV_LADDER = [];
+for (const s of [1, 1.25, 1.5]) if (s <= GOV_CAP) GOV_LADDER.push(s);
+if (GOV_LADDER.indexOf(GOV_CAP) < 0) GOV_LADDER.push(GOV_CAP);
+let GOV_START = GOV_LADDER[GOV_LADDER.length - 1];
+try {
+  const savedCeil = parseFloat(localStorage.getItem(GOV_KEY));
+  if (savedCeil >= 1) for (const s of GOV_LADDER) if (s <= savedCeil) GOV_START = s;
+} catch (e) { /* storage unavailable: boot at the top rung */ }
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(GOV_START);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
@@ -10684,6 +10699,11 @@ function tick() {
   if (renderer.info) renderer.info.reset();
   renderer.render(scene, camera);
 
+  /* PERF-3: adaptive pixel-ratio governor. Samples the rAF interval and
+     steps DPR for iPhone thermal safety. Zero draw calls, zero allocation,
+     hook placed after render so a DPR change applies next frame. */
+  govTick(dt);
+
   /* --- perf overlay sampling: accumulate split counters, text at most 1 Hz
          while visible. PERF-1h: shadow-cadence frames and main-only frames
          are tracked separately so the chip stays honest. --- */
@@ -10714,10 +10734,93 @@ function tick() {
         '  TRIS ' + mainTris +
         '\nGEO ' + mem.geometries +
         '  TEX ' + mem.textures +
-        '\nMAIN~' + mainAvg + '  SHDW~' + shdwCost + '  SHD ' + cad;
+        '\nMAIN~' + mainAvg + '  SHDW~' + shdwCost + '  SHD ' + cad +
+        '  DPR ' + renderer.getPixelRatio().toFixed(2);
+      /* PERF-3: a quality step flashes the chip instead of the regular stats,
+         so the governor never changes rendering quality silently. */
+      if (govFlash > 0) perfEl.textContent = govFlashMsg;
       perfFrames = 0; perfT0 = pt; perfLastUpd = pt;
       perfMainSum = perfMainN = perfShadowSum = perfShadowN = perfMainTris = 0;
     }
+  }
+}
+
+/* ================= PERF-3: ADAPTIVE PIXEL-RATIO GOVERNOR ====================
+   iPhone thermal safety, zero draw calls. Samples the rAF frame interval,
+   computes p75 over a 45-frame window, and steps renderer DPR down/up through
+   GOV_LADDER (built at renderer boot; top rung is the device cap so boot
+   keeps the old behavior). Rules:
+   - settle 30 frames after each DPR change before sampling again;
+   - gaps over 250 ms (paused tab, GC pause) are ignored, never counted;
+   - step down at p75 >= 26 ms or p75 >= 1.15x the best-held pace;
+   - step up at p75 <= 18.5 ms, only while under the in-session ceiling;
+   - a step-down sets the in-session ceiling, so it is never retried, and the
+     ceiling is persisted to localStorage: a thermal-limited phone starts
+     conservative next visit.
+   - HUD tie-in: on a step the perf chip flashes the quality change for 4 s,
+     so the mechanic is never silent (no-silent-mechanics rule).
+   Zero per-frame allocation: preallocated Float32Array buffers, in-place
+   insertion sort for p75 (45 elements), all strings built at step time only.
+   Seeded-PRNG note: no randomness is used anywhere here. */
+const GOV_N = 45, GOV_SETTLE_F = 30, GOV_GAP_MS = 250,
+      GOV_DOWN_MS = 26.0, GOV_UP_MS = 18.5, GOV_BEST_SLIP = 1.15;
+const govWin = new Float32Array(GOV_N);    // ring window of valid intervals
+const govSort = new Float32Array(GOV_N);   // scratch for p75, reused
+let govN = 0;                             // valid samples collected
+let govSettle = GOV_SETTLE_F;             // settle frames remaining (boot)
+let govPrevT = -1;                        // last tick timestamp
+let govBest = 16.7;                       // best-held p75 (ms)
+let govFlash = 0;                         // chip flash seconds remaining
+let govFlashMsg = '';                     // built once per step
+let govCur = GOV_LADDER.length - 1;       // current ladder index
+while (govCur > 0 && GOV_LADDER[govCur] > GOV_START) govCur--;
+let govCeil = govCur;                     // in-session ceiling: step-ups stop here
+
+/* force-show the chip with the step message; tick() restores visibility */
+function govFlashChip(msg) {
+  govFlashMsg = msg;
+  govFlash = 4;
+  perfEl.style.display = 'block';
+  perfEl.textContent = govFlashMsg;
+}
+
+function govTick(dt) {
+  if (govFlash > 0) {
+    govFlash -= dt;
+    if (govFlash <= 0) perfEl.style.display = perfOn ? 'block' : 'none';
+  }
+  const now = performance.now();
+  if (govPrevT >= 0) {
+    const iv = now - govPrevT;
+    if (govSettle > 0) govSettle--;
+    else if (iv < GOV_GAP_MS && govN < GOV_N) govWin[govN++] = iv;
+  }
+  govPrevT = now;
+  if (govN < GOV_N) return;
+  /* window full: p75 from the reused scratch buffer, insertion sort */
+  for (let i = 0; i < GOV_N; i++) govSort[i] = govWin[i];
+  for (let i = 1; i < GOV_N; i++) {
+    const v = govSort[i];
+    let j = i - 1;
+    while (j >= 0 && govSort[j] > v) { govSort[j + 1] = govSort[j]; j--; }
+    govSort[j + 1] = v;
+  }
+  const p75 = govSort[(GOV_N * 3) >> 2];   // index 33 of 45
+  govN = 0;
+  if (p75 < govBest) govBest = p75;
+  const dpr = GOV_LADDER[govCur];
+  if ((p75 >= GOV_DOWN_MS || p75 >= govBest * GOV_BEST_SLIP) && govCur > 0) {
+    govCur--;
+    govCeil = govCur;
+    govSettle = GOV_SETTLE_F;
+    renderer.setPixelRatio(GOV_LADDER[govCur]);
+    try { localStorage.setItem(GOV_KEY, String(GOV_LADDER[govCur])); } catch (e) {}
+    govFlashChip('QUAL DOWN: DPR ' + GOV_LADDER[govCur].toFixed(2));
+  } else if (p75 <= GOV_UP_MS && govCur < govCeil) {
+    govCur++;
+    govSettle = GOV_SETTLE_F;
+    renderer.setPixelRatio(GOV_LADDER[govCur]);
+    govFlashChip('QUAL UP: DPR ' + GOV_LADDER[govCur].toFixed(2));
   }
 }
 
