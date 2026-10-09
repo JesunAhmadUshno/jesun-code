@@ -352,8 +352,14 @@ const WX = {};
   DNF.starMat = starMat;   // opacity faded by the day/night cycle
 }
 
-/* Drifting clouds: white translucent planes high above the world */
+/* Drifting clouds: white translucent planes high above the world.
+   PERF-1h: all 6 clouds share one geometry and one material, so they become
+   one InstancedMesh (6 -> 1 draw call). Per-cloud drift state lives in the
+   `clouds` array; tick() bakes position + a yaw-only camera billboard into
+   each instance matrix. Render is identical to the old per-mesh billboards:
+   each plane still faces the camera horizontally. */
 const clouds = [];
+let cloudIM;
 {
   const c = document.createElement('canvas'); c.width = 128; c.height = 64;
   const g = c.getContext('2d');
@@ -370,15 +376,18 @@ const clouds = [];
   });
   /* PERF-1g: 7 -> 6 clouds. Placement stays evenly spread around the sky, so
      every direction keeps cloud cover; saves 1 draw call. */
+  const cloudGeo = new THREE.PlaneGeometry(46, 23);
   for (let i = 0; i < 6; i++) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(46, 23), cloudMat);
     const a = (i / 6) * Math.PI * 2 + Math.random() * 0.6;
     const r = 90 + Math.random() * 110;
-    m.position.set(Math.cos(a) * r, 42 + Math.random() * 22, Math.sin(a) * r);
-    m.userData.speed = 0.4 + Math.random() * 0.7;
-    scene.add(m);
-    clouds.push(m);
+    clouds.push({
+      x: Math.cos(a) * r, y: 42 + Math.random() * 22, z: Math.sin(a) * r,
+      speed: 0.4 + Math.random() * 0.7,
+    });
   }
+  cloudIM = new THREE.InstancedMesh(cloudGeo, cloudMat, clouds.length);
+  cloudIM.frustumCulled = false;   // instances span the whole sky; one draw
+  scene.add(cloudIM);
   DNF.cloudMat = cloudMat;   // dimmed at night by the day/night cycle
 }
 
@@ -396,6 +405,27 @@ sun.shadow.camera.top = 28; sun.shadow.camera.bottom = -28;
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
 sun.shadow.bias = -0.0004;
 scene.add(sun, sun.target);
+
+/* PERF-1h: on-demand shadow-map cadence. renderer.shadowMap.autoUpdate=false
+   means the shadow map renders only on frames where needsUpdate=true; every
+   other frame skips the whole shadow pass. The map refreshes on a 200ms time
+   cadence (dynamic actors move and the sun rides the player, so shadows go
+   stale fast) plus an extra trigger when the sun direction has turned more
+   than 0.5 degrees since the last shadow render (threeforge DayNight
+   pattern), so dawn/dusk sweeps never leave stale shadows. Baked once at
+   init: with autoUpdate=false the first render needs the flag set.
+   The sun is the only shadow-casting light, so this cadence covers all
+   shadow renders. Guarded: the headless stub renderer exposes a bare
+   shadowMap object, so setting flags on it is harmless. */
+const SHADOW_INTERVAL_MS = 200;
+const SHADOW_TURN_TRIG = 0.5 * Math.PI / 180;   // 0.5 degrees, in radians
+let shadowNextAt = 0;                            // frame 0 bakes the map
+let shadowThisFrame = false;
+const shadowLastDir = new THREE.Vector3(0, 1, 0);
+if (renderer.shadowMap) {
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
+}
 
 const hemi = new THREE.HemisphereLight(0x9db4dd, 0x2a3220, 1.2);  // sky/ground fill
 scene.add(hemi);
@@ -1605,18 +1635,29 @@ const gun = new THREE.Group();
 {
   const mGun = new THREE.MeshStandardMaterial({ color: 0x191b1e, roughness: 0.55, metalness: 0.45 });
   const mGrip = new THREE.MeshStandardMaterial({ color: 0x4a3220, roughness: 0.8 });
-  const gp = (w, h, d, m, x, y, z) => {
-    const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-    /* PERF-1f: rifle micro-parts skip the shadow pass (5 shadow draws saved).
-       Their shadows are unreadable thin lines; the player-body shadow
-       already grounds the gun. */
-    q.position.set(x, y, z); q.castShadow = false; gun.add(q);
-  };
-  gp(0.09, 0.13, 0.55, mGun, 0, 0, 0.1);     // receiver
-  gp(0.05, 0.05, 0.5, mGun, 0, 0.02, 0.6);   // barrel
-  gp(0.07, 0.2, 0.12, mGrip, 0, -0.12, 0.05);// grip
-  gp(0.08, 0.16, 0.1, mGun, 0, -0.1, -0.22);// stock
-  gp(0.03, 0.08, 0.03, mGun, 0, 0.1, -0.05);// sight
+  /* PERF-1h: the four mGun boxes share a material and never move relative to
+     the gun group, so their geometry merges into one draw call. Per-part
+     positions are baked into the geometry, so the render is identical to the
+     old four-mesh version. The grip keeps its own mesh (different material).
+     5 meshes -> 2 draw calls. */
+  const gunBits = [];
+  for (const [w, h, d, x, y, z] of [
+    [0.09, 0.13, 0.55, 0, 0, 0.1],      // receiver
+    [0.05, 0.05, 0.5, 0, 0.02, 0.6],    // barrel
+    [0.08, 0.16, 0.1, 0, -0.1, -0.22],  // stock
+    [0.03, 0.08, 0.03, 0, 0.1, -0.05],  // sight
+  ]) {
+    const g = new THREE.BoxGeometry(w, h, d);
+    g.translate(x, y, z);
+    gunBits.push(g);
+  }
+  const gunBody = new THREE.Mesh(mergeGeos(gunBits), mGun);
+  /* PERF-1f: rifle micro-parts skip the shadow pass (their shadows are
+     unreadable thin lines; the player-body shadow already grounds the gun). */
+  gunBody.castShadow = false;
+  gun.add(gunBody);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.12), mGrip);
+  grip.position.set(0, -0.12, 0.05); grip.castShadow = false; gun.add(grip);
 }
 gun.position.set(0.28, 1.28, 0.28);
 player.add(gun);
@@ -1633,6 +1674,10 @@ for (let i = 0; i < 10; i++) {
   const line = new THREE.Line(geo,
     new THREE.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0 }));
   line.frustumCulled = false;
+  /* PERF-1h: a spent tracer sits at opacity 0 (invisible) but still costs a
+     draw call every frame. Hide the line when it expires; fireTracer shows
+     it again. Zero visual change, up to 10 main-pass draws saved while idle. */
+  line.visible = false;
   scene.add(line);
   tracers.push({ line, life: 0 });
 }
@@ -1642,6 +1687,7 @@ function fireTracer(a, b) {
   p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, b.x, b.y, b.z);
   p.needsUpdate = true;
   t.line.material.opacity = 0.9;
+  t.line.visible = true;   // PERF-1h: unhide for the 70ms flash
   t.life = 0.07;
 }
 
@@ -4194,10 +4240,21 @@ scene.traverse(o => {
   else if (o.isLight && o.castShadow === true) perfShadowLights++;
 });
 const SHDW_EST = perfCasters * perfShadowLights;
+/* PERF-1h: with on-demand shadow cadence, frames no longer all carry the
+   shadow pass, so a single live CALLS sample is ambiguous. Accumulate
+   per-frame call/triangle counts split by whether the frame rendered a
+   shadow map; the overlay then reports the measured main-pass average,
+   the measured shadow-pass cost, and the shadow cadence. SHDW_EST above
+   stays as the fallback when no shadow frame lands in a window. */
+let perfMainSum = 0, perfMainN = 0, perfShadowSum = 0, perfShadowN = 0,
+    perfMainTris = 0;
 function togglePerf() {
   perfOn = !perfOn;
   perfEl.style.display = perfOn ? 'block' : 'none';
-  if (perfOn) { perfFrames = 0; perfT0 = performance.now(); perfLastUpd = perfT0; }
+  if (perfOn) {
+    perfFrames = 0; perfT0 = performance.now(); perfLastUpd = perfT0;
+    perfMainSum = perfMainN = perfShadowSum = perfShadowN = perfMainTris = 0;
+  }
 }
 
 function tick() {
@@ -4357,6 +4414,20 @@ function tick() {
   /* --- sun follows player for crisp shadows; direction driven by day/night cycle --- */
   sun.position.copy(player.position).addScaledVector(sunDir, 130);
   sun.target.position.copy(player.position);
+
+  /* PERF-1h: shadow-map cadence (see LIGHTING section). needsUpdate=true on
+     this frame makes the render rebuild the shadow map; all other frames
+     skip the shadow pass entirely. shadowThisFrame feeds the perf overlay. */
+  shadowThisFrame = false;
+  if (renderer.shadowMap) {
+    const nowMs = performance.now();
+    if (nowMs >= shadowNextAt || shadowLastDir.angleTo(sunDir) > SHADOW_TURN_TRIG) {
+      renderer.shadowMap.needsUpdate = true;
+      shadowThisFrame = true;
+      shadowNextAt = nowMs + SHADOW_INTERVAL_MS;
+      shadowLastDir.copy(sunDir);
+    }
+  }
   sun.target.updateMatrixWorld();
 
   /* --- HUD position readout --- */
@@ -4402,19 +4473,33 @@ function tick() {
   muzzle.getWorldPosition(muzzleFlash.position);
   muzzleFlash.intensity *= Math.exp(-26 * sdt);
   for (const t of tracers) {
-    if (t.life > 0) { t.life -= sdt; t.line.material.opacity = Math.max(0, t.life / 0.07) * 0.9; }
+    if (t.life > 0) {
+      t.life -= sdt;
+      t.line.material.opacity = Math.max(0, t.life / 0.07) * 0.9;
+      /* PERF-1h: hide the spent line so idle tracers cost no draw call. */
+      if (t.life <= 0) t.line.visible = false;
+    }
   }
   if (toastT > 0) { toastT -= sdt; if (toastT <= 0) toastEl.style.opacity = 0; }
   dmgV *= Math.exp(-5 * sdt);
   dmgflashEl.style.opacity = dmgV.toFixed(2);
 
-  /* --- clouds drift, birds circle and flap --- */
+  /* --- clouds drift, birds circle and flap ---
+     PERF-1h: clouds are one InstancedMesh now; bake drift + yaw billboard
+     per instance (atan2 gives the same yaw the old lookAt produced). --- */
   const now = performance.now() / 1000;
-  for (const cl of clouds) {
-    cl.position.x += cl.userData.speed * sdt;
-    if (cl.position.x > 220) cl.position.x = -220;
-    cl.lookAt(camera.position.x, cl.position.y, camera.position.z);  // face camera
+  for (let i = 0; i < clouds.length; i++) {
+    const cl = clouds[i];
+    cl.x += cl.speed * sdt;
+    if (cl.x > 220) cl.x = -220;
+    dummy.position.set(cl.x, cl.y, cl.z);
+    dummy.rotation.set(0,
+      Math.atan2(camera.position.x - cl.x, camera.position.z - cl.z), 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    cloudIM.setMatrixAt(i, dummy.matrix);
   }
+  cloudIM.instanceMatrix.needsUpdate = true;
   for (const u of birds) {
     u.a += u.spd * sdt;
     u.px = u.cx + Math.cos(u.a) * u.r;
@@ -4431,21 +4516,39 @@ function tick() {
   if (renderer.info) renderer.info.reset();
   renderer.render(scene, camera);
 
-  /* --- perf overlay sampling: counter only, text at most 1 Hz while visible --- */
+  /* --- perf overlay sampling: accumulate split counters, text at most 1 Hz
+         while visible. PERF-1h: shadow-cadence frames and main-only frames
+         are tracked separately so the chip stays honest. --- */
   if (perfOn && renderer.info) {
+    const info = renderer.info.render;
+    if (shadowThisFrame) { perfShadowSum += info.calls; perfShadowN++; }
+    else { perfMainSum += info.calls; perfMainN++; perfMainTris += info.triangles; }
     perfFrames++;
     const pt = performance.now();
     if (pt - perfLastUpd >= 1000) {
-      const info = renderer.info.render, mem = renderer.info.memory;
-      const mainEst = Math.max(0, info.calls - SHDW_EST);
+      const mem = renderer.info.memory;
+      /* weighted average = the true mean draw calls per frame over the window */
+      const callsAvg = perfFrames
+        ? Math.round((perfMainSum + perfShadowSum) / perfFrames) : 0;
+      const mainAvg = perfMainN ? Math.round(perfMainSum / perfMainN) : 0;
+      const mainTris = perfMainN ? Math.round(perfMainTris / perfMainN) : 0;
+      /* measured shadow-pass cost = shadow-frame total minus the main-pass
+         average; falls back to the static estimate if no shadow frame landed
+         in this window. */
+      const shdwCost = perfShadowN
+        ? Math.max(0, Math.round(perfShadowSum / perfShadowN) - mainAvg)
+        : SHDW_EST;
+      const cad = perfShadowN
+        ? '1/' + Math.max(1, Math.round(perfFrames / perfShadowN)) + 'f' : 'off';
       perfEl.textContent =
         'FPS ' + Math.round(perfFrames * 1000 / (pt - perfT0)) +
-        '  CALLS ' + info.calls +
-        '  TRIS ' + info.triangles +
+        '  CALLS ' + callsAvg +
+        '  TRIS ' + mainTris +
         '\nGEO ' + mem.geometries +
         '  TEX ' + mem.textures +
-        '\nMAIN~' + mainEst + ' EST  SHDW~' + SHDW_EST + ' EST';
+        '\nMAIN~' + mainAvg + '  SHDW~' + shdwCost + '  SHD ' + cad;
       perfFrames = 0; perfT0 = pt; perfLastUpd = pt;
+      perfMainSum = perfMainN = perfShadowSum = perfShadowN = perfMainTris = 0;
     }
   }
 }
