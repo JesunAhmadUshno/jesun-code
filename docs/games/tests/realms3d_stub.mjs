@@ -156,7 +156,7 @@ export function installStubs() {
     setSize() {}
     setPixelRatio() {}
     setClearColor() {}
-    render() {}
+    render() { globalThis.__renderCount = (globalThis.__renderCount || 0) + 1; }
     dispose() {}
   }
   globalThis.__StubRenderer = StubRenderer;
