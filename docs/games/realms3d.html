@@ -302,6 +302,16 @@
     font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
+  /* ---- cooking HUD (Phase 5): food chip reuses the pet-chip chip language,
+         stacked below it; clickable (touch works) to open the eat panel.
+         DOM only, zero draw calls. ---- */
+  #foodchip {
+    position: absolute; top: 446px; right: 18px; color: #ffd24a; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #shop .srow .sicon { width: 30px; height: 30px; image-rendering: pixelated; }
 
   /* ---- lightning flash: DOM layer above the canvas only, capped under 0.18
          opacity, pointer-events none, no layout impact ---- */
@@ -379,6 +389,7 @@
   <div id="schint"></div>
   <div id="pethint"></div>
   <div id="petchip">PET</div>
+  <div id="foodchip"></div>
   <div id="farmhint"></div>
   <div id="emotehint"></div>
   <div id="shop">
@@ -5581,6 +5592,8 @@ function sfxBuy() {
 function sfxDenied() { sfxBlip(160, 0.18, 'sawtooth', 0.25); }
 
 let shopOpen = false, shopOpenIdx = -1;
+let shopFood = false;                 // Phase 5 cooking: the eat panel shares the #shop DOM
+let shopBaseTitle = 'SHOP';           // Phase 5 cooking: title to restore after a list swap
 const shopCool = [false, false, false];   // reopen lock until the player walks out
 const shopEl = document.getElementById('shop');
 const shopNameEl = document.getElementById('shopname');
@@ -5597,9 +5610,15 @@ function renderShopRows() {
     key.className = 'k'; key.textContent = '[' + it.key + ']';
     const name = document.createElement('span');
     name.className = 'n'; name.textContent = it.label();
+    if (it.icon) {                                     // Phase 5 cooking: procedural food icon, DOM only
+      const im = document.createElement('img');
+      im.className = 'sicon'; im.src = it.icon; im.alt = '';
+      row.appendChild(im);
+    }
     const pr = document.createElement('span');
     pr.className = 'p';
-    pr.textContent = st === 'OWNED' ? 'OWNED' : st === 'NA' ? 'N/A' : '$' + it.price;
+    pr.textContent = it.cost ? it.cost + ' CORN'       // Phase 5 cooking: corn-priced rows
+      : st === 'OWNED' ? 'OWNED' : st === 'NA' ? 'N/A' : '$' + it.price;
     row.appendChild(key); row.appendChild(name); row.appendChild(pr);
     row.addEventListener('click', () => buyItem(idx));
     row.addEventListener('touchstart', e => {
@@ -5626,6 +5645,7 @@ function openShop(i) {
   if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || !playing()) return;
   shopOpen = true; shopOpenIdx = i;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;   // Phase 3: panel is shared with diners
+  shopBaseTitle = SHOPS[i].name;              // Phase 5 cooking: list-swap restore title
   shopNameEl.textContent = SHOPS[i].name;
   refreshShopPanel();
   shopEl.style.display = 'block';
@@ -5638,18 +5658,27 @@ function closeShop() {
   else if (shopOpenIdx >= 0) shopCool[shopOpenIdx] = true;           // must walk out to reopen
   shopBldg = false; shopBldgSlot = -1;
   shopRest = false; shopRestSlot = -1;
+  shopFood = false;                             // Phase 5 cooking: eat panel leaves no cooldown
   shopOpen = false; shopOpenIdx = -1;
   shopEl.style.display = 'none';
 }
 function buyItem(i) {
   if (!shopOpen || i < 0 || i >= SHOP_LIST.length) return;
-  const it = SHOP_LIST[i];
-  if (it.state() !== 'BUY') { sfxDenied(); return; }
+  const it = SHOP_LIST[i], st = it.state();
+  if (st === 'COOK' || st === 'BACK') {   // Phase 5 cooking: swap the panel list, no purchase
+    sfxShopOpen();
+    SHOP_LIST = st === 'COOK' ? COOK_ITEMS : REST_ITEMS;
+    shopNameEl.textContent = st === 'COOK' ? 'FIELD KITCHEN' : shopBaseTitle;
+    refreshShopPanel();
+    return;
+  }
+  if (st !== 'BUY') { sfxDenied(); return; }
   if (cash < it.price) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }
+  if (it.cost && FOOD.corn < it.cost) { sfxDenied(); toast('NOT ENOUGH CORN'); return; }
   cash -= it.price; updateCashHUD();
   it.buy();
   sfxBuy();
-  toast('PURCHASED ' + it.label());
+  toast((it.verb || 'PURCHASED') + ' ' + (it.dishName || it.label()));
   saveGame();                                              // safe-point save
   refreshShopPanel();
 }
@@ -6111,12 +6140,16 @@ const REST_ITEMS = [
   { key: '2', label: () => 'FULL HEAL TO 100 HP', price: 40,
     state: () => P.hp >= 100 ? 'NA' : 'BUY',
     buy() { P.hp = 100; updateHpHUD(); } },
+  { key: '3', label: () => 'COOK FROM HARVEST (' + FOOD.corn + ' CORN)', price: 0,
+    state: () => FOOD.corn > 0 ? 'COOK' : 'NA',   // Phase 5 cooking: swaps the panel to COOK_ITEMS
+    buy() {} },
 ];
 let shopRest = false, shopRestSlot = -1, SHOP_LIST = SHOP_ITEMS;
 function openRest(R, slot) {
   if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || !playing()) return;
   shopOpen = true; shopRest = true; shopRestSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = REST_ITEMS;
+  shopBaseTitle = R.name;                     // Phase 5 cooking: list-swap restore title
   shopNameEl.textContent = R.name;
   refreshShopPanel();
   shopEl.style.display = 'block';
@@ -6791,9 +6824,12 @@ function farmHarvest(j) {
   }
   const reward = 15 + rows * 2;
   cash += reward; updateCashHUD();
+  const cornGain = rows;                               // Phase 5 cooking: 1 corn per ripe row
+  FOOD.corn = Math.min(FOOD_MAX, FOOD.corn + cornGain);
+  updateFoodHUD();
   FPLOT.harvestT.set(p.gx + ',' + p.gz, tNow);
   farmPaintCrops();                                    // immediate sprout look
-  toast('HARVEST +$' + reward);
+  toast('HARVEST +$' + reward + ' +' + cornGain + ' CORN');
   sfxBlip(660, 0.12, 'square', 0.25);                  // existing idiom, no new nodes
   setTimeout(() => sfxBlip(880, 0.16, 'square', 0.25), 120);
 }
@@ -6884,6 +6920,187 @@ function farmTick(dt) {
 }
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(farmTick));
+
+/* ================== COOKING + FOOD (Phase 5 food/farming) ==================
+   Harvested crops now also yield CORN produce into a small food inventory.
+   The diner walk-in panel gains a COOK option (list swap on the shared #shop
+   panel, zero new DOM panels, zero new keybinds); dishes are eaten anywhere
+   from the FIELD KITCHEN eat panel opened by the #foodchip HUD chip
+   (clickable, touch works). Recipes are a data table of ingredient lists ->
+   dish; each row is an exact subset match against the carried corn, and
+   SCRAPS (1 corn) is the fallback row for odd leftovers (tiny heal).
+   Food icons are drawn once at boot on one offscreen canvas, sliced into
+   data URLs used only in the DOM rows: zero draw calls, zero meshes, zero
+   lights, zero audio nodes, zero new keybinds. Save schema v2 -> v3 adds
+   the food field. */
+const FOOD_ORDER = ['corn', 'roasted', 'soup', 'hash', 'fritters', 'scraps'];
+const FOOD = { corn: 0, roasted: 0, soup: 0, hash: 0, fritters: 0, scraps: 0 };
+const FOOD_MAX = 999;
+/* recipe table: ingredient list -> dish. Heals beat the diner $40 full heal
+   per dollar (diner meal: $15 -> +40HP; soup: 3 corn ~= $18 of harvest -> +65HP). */
+const RECIPES = [
+  { id: 'roasted',  name: 'ROASTED CORN',  cost: 2, hp: 40 },
+  { id: 'soup',     name: 'CORN SOUP',     cost: 3, hp: 65 },
+  { id: 'hash',     name: 'FIELD HASH',    cost: 4, hp: 80 },
+  { id: 'fritters', name: 'CORN FRITTERS', cost: 5, hp: 95 },
+  { id: 'scraps',   name: 'SCRAPS',        cost: 1, hp: 15 },
+];
+
+/* ---- food icons: one 288x48 offscreen canvas holds six 48x48 procedural
+        icons (fixed geometry, no randomness), sliced into data URLs for the
+        DOM rows only. Zero draw calls. ---- */
+function _ficBg(g, S) { g.fillStyle = '#0c0e0a'; g.fillRect(0, 0, S, S); }
+function paintCornIcon(g, S) {
+  _ficBg(g, S);
+  g.fillStyle = '#2e5a1e';                                     // husk leaves
+  g.beginPath(); g.moveTo(10, 44); g.quadraticCurveTo(4, 30, 14, 18);
+  g.lineTo(20, 40); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(38, 44); g.quadraticCurveTo(44, 30, 34, 18);
+  g.lineTo(28, 40); g.closePath(); g.fill();
+  g.fillStyle = '#e8b93a';                                     // cob
+  g.beginPath(); g.ellipse(24, 25, 9, 14, 0, 0, 6.2832); g.fill();
+  g.fillStyle = '#a87f16';                                     // kernel rows
+  for (let y = 13; y <= 35; y += 4)
+    for (let x = 19; x <= 29; x += 4) g.fillRect(x, y, 2, 2);
+  g.fillStyle = '#3e7a28'; g.fillRect(22, 37, 4, 6);           // stem
+}
+function paintRoastIcon(g, S) {
+  _ficBg(g, S);
+  g.fillStyle = '#c97a1e';                                     // fire-roasted cob
+  g.beginPath(); g.ellipse(24, 25, 9, 14, 0, 0, 6.2832); g.fill();
+  g.fillStyle = '#7a4a10';
+  for (let y = 13; y <= 35; y += 4)
+    for (let x = 19; x <= 29; x += 4) g.fillRect(x, y, 2, 2);
+  g.fillStyle = '#1a1208';                                     // char marks
+  g.fillRect(18, 18, 4, 3); g.fillRect(28, 24, 4, 3); g.fillRect(21, 31, 4, 3);
+  g.strokeStyle = '#8a6a2a'; g.lineWidth = 3;                  // skewer stick
+  g.beginPath(); g.moveTo(24, 39); g.lineTo(24, 46); g.stroke();
+  g.fillStyle = '#d83a2a'; g.fillRect(6, 6, 4, 4);             // ember accent
+}
+function paintSoupIcon(g, S) {
+  _ficBg(g, S);
+  g.fillStyle = '#20242a';                                     // bowl body
+  g.beginPath(); g.ellipse(24, 27, 17, 9, 0, 0, Math.PI); g.fill();
+  g.fillRect(7, 27, 34, 2);
+  g.fillStyle = '#e8b93a';                                     // soup surface
+  g.beginPath(); g.ellipse(24, 26, 15, 6, 0, 0, 6.2832); g.fill();
+  g.fillStyle = '#a87f16';                                     // corn chunks
+  g.fillRect(18, 24, 3, 2); g.fillRect(27, 27, 3, 2); g.fillRect(23, 25, 2, 2);
+  g.strokeStyle = '#f2ede0'; g.lineWidth = 2;                  // steam
+  for (let i = 0; i < 3; i++) {
+    const x = 16 + i * 8;
+    g.beginPath(); g.moveTo(x, 15);
+    g.quadraticCurveTo(x - 3, 11, x, 8); g.quadraticCurveTo(x + 3, 5, x, 2);
+    g.stroke();
+  }
+  g.fillStyle = '#d83a2a'; g.fillRect(21, 37, 6, 3);           // brand-red foot
+}
+function paintHashIcon(g, S) {
+  _ficBg(g, S);
+  g.fillStyle = '#20242a';                                     // bowl body
+  g.beginPath(); g.ellipse(24, 30, 17, 8, 0, 0, Math.PI); g.fill();
+  g.fillRect(7, 30, 34, 2);
+  const cols = ['#c97a1e', '#3e7a28', '#e8b93a', '#8a5a2a'];    // diced chunks
+  let n = 0;
+  for (let y = 16; y <= 28; y += 5)
+    for (let x = 13; x <= 33; x += 5) { g.fillStyle = cols[n++ % 4]; g.fillRect(x, y, 4, 4); }
+}
+function paintFrittersIcon(g, S) {
+  _ficBg(g, S);
+  g.fillStyle = '#d8a02a';                                     // golden patties
+  const px = [16, 32, 24], py = [30, 30, 18];
+  for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(px[i], py[i], 9, 0, 6.2832); g.fill(); }
+  g.fillStyle = '#8a5a10';                                     // crisp speckles
+  const sx = [13, 19, 30, 35, 22, 26], sy = [28, 33, 28, 33, 16, 21];
+  for (let i = 0; i < 6; i++) g.fillRect(sx[i], sy[i], 2, 2);
+}
+function paintScrapsIcon(g, S) {
+  _ficBg(g, S);
+  g.fillStyle = '#6a6258';                                     // leftover pile
+  const px = [16, 24, 32, 20, 28], py = [32, 26, 32, 36, 36], pr = [7, 8, 7, 6, 6];
+  for (let i = 0; i < 5; i++) { g.beginPath(); g.arc(px[i], py[i], pr[i], 0, 6.2832); g.fill(); }
+  g.fillStyle = '#4a443c';
+  g.fillRect(21, 24, 3, 3); g.fillRect(14, 31, 3, 3); g.fillRect(30, 31, 3, 3);
+}
+const FOOD_ICONS = {};
+function buildFoodIcons() {
+  const S = 48, sheet = document.createElement('canvas');
+  sheet.width = S * 6; sheet.height = S;
+  const g = sheet.getContext('2d');
+  const paints = [paintCornIcon, paintSoupIcon, paintRoastIcon,
+                  paintHashIcon, paintFrittersIcon, paintScrapsIcon];
+  for (let i = 0; i < 6; i++) { g.save(); g.translate(i * S, 0); paints[i](g, S); g.restore(); }
+  for (let i = 0; i < 6; i++) {
+    const cell = document.createElement('canvas');
+    cell.width = S; cell.height = S;
+    cell.getContext('2d').drawImage(sheet, i * S, 0, S, S, 0, 0, S, S);
+    FOOD_ICONS[FOOD_ORDER[i]] = cell.toDataURL();
+  }
+}
+buildFoodIcons();
+
+/* cook list: one row per recipe row in the table (keys 1-5), plus a BACK row.
+   The ingredient list is an exact subset match against the carried corn. */
+const COOK_ITEMS = RECIPES.map((r, i) => ({
+  key: '' + (i + 1), dishName: r.name, icon: FOOD_ICONS[r.id], verb: 'COOKED',
+  label: () => r.name + ' (+' + r.hp + ' HP)', price: 0, cost: r.cost,
+  state: () => FOOD.corn >= r.cost ? 'BUY' : 'NA',
+  buy() { FOOD.corn -= r.cost; FOOD[r.id] = Math.min(FOOD_MAX, FOOD[r.id] + 1); updateFoodHUD(); },
+}));
+COOK_ITEMS.push({ key: '0', dishName: 'DINER MENU', label: () => 'BACK TO DINER MENU', price: 0,
+  state: () => 'BACK', buy() {} });   // click/tap only: E closes the panel instead
+
+/* eat panel: dishes eaten anywhere via the food chip. Raw corn is edible
+   too (+10 HP). Selling cooked dishes stays out of scope. */
+const EAT_DEFS = [
+  { id: 'soup', hp: 65 }, { id: 'hash', hp: 80 }, { id: 'fritters', hp: 95 },
+  { id: 'roasted', hp: 40 }, { id: 'corn', hp: 10 }, { id: 'scraps', hp: 15 },
+];
+const EAT_ITEMS = EAT_DEFS.map((d, i) => {
+  const nm = d.id === 'corn' ? 'RAW CORN' : RECIPES.find(r => r.id === d.id).name;
+  return {
+    key: '' + (i + 1), dishName: nm, icon: FOOD_ICONS[d.id], verb: 'ATE',
+    label: () => nm + ' x' + FOOD[d.id] + ' (+' + d.hp + ' HP)', price: 0,
+    state: () => FOOD[d.id] > 0 ? (P.hp >= 100 ? 'NA' : 'BUY') : 'NA',
+    buy() { FOOD[d.id]--; P.hp = Math.min(100, P.hp + d.hp); updateHpHUD(); updateFoodHUD(); },
+  };
+});
+
+/* ---- food HUD chip: hidden until the first harvest, then CORN xN MEALS xM.
+        Clickable (touch works); no silent mechanics. ---- */
+const foodChipEl = document.getElementById('foodchip');
+function updateFoodHUD() {
+  const dishes = FOOD.roasted + FOOD.soup + FOOD.hash + FOOD.fritters + FOOD.scraps;
+  if (FOOD.corn + dishes <= 0) { foodChipEl.style.display = 'none'; return; }
+  foodChipEl.style.display = 'block';
+  foodChipEl.textContent = 'CORN x' + FOOD.corn + '  MEALS x' + dishes;
+}
+foodChipEl.addEventListener('click', () => { openFoodPanel(); });
+function openFoodPanel() {
+  if (shopOpen || P.dead || !playing()) return;
+  shopOpen = true; shopFood = true; shopOpenIdx = -1;
+  SHOP_LIST = EAT_ITEMS; shopBaseTitle = 'FIELD KITCHEN';
+  shopNameEl.textContent = 'FIELD KITCHEN';
+  refreshShopPanel();
+  shopEl.style.display = 'block';
+  sfxShopOpen();
+}
+updateFoodHUD();   // chip starts hidden until the first harvest
+
+/* ---- save helpers: compact "corn:roasted:soup:hash:fritters:scraps" string,
+        validated like the pet string (untrusted input). ---- */
+function foodSaveStr() { return FOOD_ORDER.map(k => FOOD[k]).join(':'); }
+function foodLoadStr(s) {
+  for (const k of FOOD_ORDER) FOOD[k] = 0;
+  if (typeof s !== 'string') return;
+  const parts = s.split(':'), vals = [];
+  if (parts.length !== FOOD_ORDER.length) return;
+  for (const p of parts) {
+    if (!/^\d{1,4}$/.test(p) || +p > FOOD_MAX) return;   // tampered: keep the zeroed pantry
+    vals.push(+p);
+  }
+  for (let i = 0; i < FOOD_ORDER.length; i++) FOOD[FOOD_ORDER[i]] = vals[i];
+}
 
 /* ============================ CAMERA (OVER-SHOULDER) ====================== */
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 500);
@@ -10833,14 +11050,15 @@ function govTick(dt) {
    game. Zero per-frame allocation: the tick only moves scalars and updates
    one HUD string once per second. */
 const SAVE_KEY = 'realms3d_save_v1', SAVE_JOURNAL = 'realms3d_save_journal',
-      SAVE_BAK = 'realms3d_save_bak', SAVE_VERSION = 2;
+      SAVE_BAK = 'realms3d_save_bak', SAVE_VERSION = 3;
 const SAVE_WORLD_R = 120;                 // validation: |x|,|z| stay inside the world
 const savedEl = document.getElementById('saved');
 let lastSaveAt = 0, saveBootToast = false, saveAutoT = 0, saveChipT = 0;
 
 /* forward-only migrations: v1 is the identity step; v1->v2 adds the optional
-   pet field (absent = no pet, still valid). Future versions add N->N+1. */
-const SAVE_MIGRATIONS = { 1: d => d };
+   pet field (absent = no pet, still valid); v2->v3 adds the optional food
+   field (absent = empty pantry, still valid). Future versions add N->N+1. */
+const SAVE_MIGRATIONS = { 1: d => d, 2: d => { d.food = d.food || '0:0:0:0:0:0'; return d; } };
 function migrateSave(env) {
   let v = env.version | 0, d = env.data;
   while (v < SAVE_VERSION) {
@@ -10864,7 +11082,8 @@ function collectSave() {
     am: (MS.state === 'ACTIVE' && MS.idx >= 0) ? MS.idx : -1,
     done: MS.done.map(b => b ? 1 : 0).join(''),
     heat: 0,                                       // never persist wanted heat
-    pet: petSaveStr()                              // Phase 5 wildlife: "kind:ox:oz" or ""
+    pet: petSaveStr(),                             // Phase 5 wildlife: "kind:ox:oz" or ""
+    food: foodSaveStr()                            // Phase 5 cooking: "corn:roasted:soup:hash:fritters:scraps"
   };
 }
 
@@ -10892,6 +11111,14 @@ function validSave(d) {
       if (!pm || Math.abs(+pm[2]) > 120 || Math.abs(+pm[3]) > 120) return false;
     }
   }
+  /* Phase 5 cooking: food is optional (v2 saves lack it).
+     "corn:roasted:soup:hash:fritters:scraps". */
+  if (d.food !== undefined) {
+    if (typeof d.food !== 'string') return false;
+    const fp = d.food.split(':');
+    if (fp.length !== 6) return false;
+    for (const s of fp) { if (!/^\d{1,4}$/.test(s) || +s > 999) return false; }
+  }
   return true;
 }
 
@@ -10900,6 +11127,7 @@ function applySave(d) {
   player.rotation.y = Math.PI;
   P.vel.set(0, 0, 0); P.vy = 0; P.hp = d.hp; P.dead = false; P.godT = 0;
   petLoadStr(d.pet);   // Phase 5 wildlife: retame the saved pet at its offset
+  foodLoadStr(d.food);  // Phase 5 cooking: restore the pantry
   cash = d.cash; kills = d.kills;
   WEAPONS.shotgun.owned = d.sg >= 0; WEAPONS.shotgun.ammo = d.sg >= 0 ? d.sg : 8;
   WEAPONS.smg.owned = d.sm >= 0;     WEAPONS.smg.ammo = d.sm >= 0 ? d.sm : 120;
@@ -10912,7 +11140,7 @@ function applySave(d) {
   }
   refreshMarkerColors(); updateMissionHUD();
   setHeat(0, true); W.evading = false; updateHeatHUD();
-  updateCashHUD(); updateCombatHUD(); updateWeaponHUD(); updateHpHUD();
+  updateCashHUD(); updateCombatHUD(); updateWeaponHUD(); updateHpHUD(); updateFoodHUD();
 }
 
 /* atomic write: journal first, back up the last good save, then commit.
@@ -10960,6 +11188,8 @@ function newGame() {
   for (let i = 0; i < MS.done.length; i++) MS.done[i] = false;
   cash = 0; kills = 0;
   releasePet(true);   // Phase 5 wildlife: new game releases the pet (silent)
+  for (const k of FOOD_ORDER) FOOD[k] = 0;   // Phase 5 cooking: empty the pantry
+  updateFoodHUD();
   WEAPONS.shotgun.owned = false; WEAPONS.shotgun.ammo = 8;
   WEAPONS.smg.owned = false;     WEAPONS.smg.ammo = 120;
   curWeapon = 'rifle';
