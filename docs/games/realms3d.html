@@ -1126,6 +1126,37 @@ function sfxPunch() {
   const g = a.createGain(); g.gain.value = 0.5;
   s.connect(f); f.connect(g); g.connect(a.destination); s.start();
 }
+/* --- enemy audio: telegraph warning chirp, distant enemy gunshot, brute slam (all procedural) --- */
+const sfxTelegraph = () => sfxBlip(520, 0.14, 'square', 0.22);
+function sfxEnemyShot() {
+  const a = ac(); if (!a) return;
+  const dur = 0.2, n = Math.floor(a.sampleRate * dur);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.5); }
+  const s = a.createBufferSource(); s.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(1800, a.currentTime);
+  f.frequency.exponentialRampToValueAtTime(200, a.currentTime + dur);
+  const g = a.createGain(); g.gain.value = 0.22;   // quieter: the shot is far away
+  s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+}
+function sfxSlam() {
+  const a = ac(); if (!a) return;
+  const dur = 0.35, n = Math.floor(a.sampleRate * dur);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3); }
+  const s = a.createBufferSource(); s.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 260;
+  const g = a.createGain(); g.gain.value = 0.6;
+  s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+  const o = a.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(70, a.currentTime);
+  o.frequency.exponentialRampToValueAtTime(30, a.currentTime + 0.3);
+  const g2 = a.createGain();
+  g2.gain.setValueAtTime(0.5, a.currentTime);
+  g2.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.32);
+  o.connect(g2); g2.connect(a.destination); o.start(); o.stop(a.currentTime + 0.34);
+}
 /* --- melee punch: F key / right-click / PUNCH button. Right arm extends,
        hits hostiles in a 2.4-unit 45-degree frontal cone, 2 dmg --- */
 function doPunch() {
@@ -1188,7 +1219,10 @@ function fireTracer(a, b) {
   t.life = 0.07;
 }
 
-/* --- enemies: box-built hostiles, red/dark, shared geometries --- */
+/* --- enemies: 3 types (rusher / shooter / brute) on shared EGEO geometries.
+       Per-enemy accent materials drive hit/telegraph flashes.
+       RESEARCH STEAL: every attack has a readable telegraph (wind-up pose,
+       eye flash, sound cue) so each type's pattern is learnable. --- */
 const EGEO = {
   torso: new THREE.BoxGeometry(0.52, 0.62, 0.32),
   vest:  new THREE.BoxGeometry(0.56, 0.4, 0.38),
@@ -1197,40 +1231,106 @@ const EGEO = {
   limb:  new THREE.BoxGeometry(0.2, 0.9, 0.24),
   arm:   new THREE.BoxGeometry(0.16, 0.62, 0.2),
   eye:   new THREE.BoxGeometry(0.06, 0.05, 0.02),
+  slimTorso: new THREE.BoxGeometry(0.42, 0.58, 0.26),
+  slimLimb:  new THREE.BoxGeometry(0.15, 0.82, 0.17),
+  slimArm:   new THREE.BoxGeometry(0.12, 0.58, 0.15),
+  bruteTorso: new THREE.BoxGeometry(0.84, 0.74, 0.52),
+  bruteVest:  new THREE.BoxGeometry(0.9, 0.44, 0.58),
+  bruteLimb:  new THREE.BoxGeometry(0.3, 0.85, 0.32),
+  bruteArm:   new THREE.BoxGeometry(0.24, 0.66, 0.28),
+  bruteHead:  new THREE.BoxGeometry(0.38, 0.38, 0.36),
+  gunA:  new THREE.BoxGeometry(0.08, 0.11, 0.45),
+  gunB:  new THREE.BoxGeometry(0.045, 0.045, 0.4),
+};
+const ETYPES = {
+  rusher:  { hp: 2, chase: 6.8, walk: 3.2, aggro: 25, eye: 0xff2222 },
+  shooter: { hp: 3, chase: 3.8, walk: 2.0, aggro: 30, eye: 0xffdd44 },
+  brute:   { hp: 8, chase: 2.4, walk: 1.4, aggro: 25, eye: 0xff5511 },
 };
 const enemies = [], hitMeshes = [];
-function makeEnemy() {
+function makeEnemy(type) {
+  const cfg = ETYPES[type];
   const g = new THREE.Group();
-  const mBody = new THREE.MeshStandardMaterial({ color: 0x6e1f1f, roughness: 0.9 });
+  const mBody = new THREE.MeshStandardMaterial({ roughness: 0.9 });
   const mDark = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 });
   const mHead = new THREE.MeshStandardMaterial({ color: 0x7a5f4c, roughness: 0.85 });
-  const mEye = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+  const mEye = new THREE.MeshBasicMaterial({ color: cfg.eye });
   const pm = (geo, mat, x, y, z, parent) => {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z); m.castShadow = true;
     (parent || g).add(m); return m;
   };
   const legL = new THREE.Group(), legR = new THREE.Group();
-  legL.position.set(-0.16, 0.9, 0); legR.position.set(0.16, 0.9, 0);
-  pm(EGEO.limb, mDark, 0, -0.45, 0, legL);
-  pm(EGEO.limb, mDark, 0, -0.45, 0, legR);
-  g.add(legL, legR);
-  pm(EGEO.torso, mBody, 0, 1.21, 0);
-  pm(EGEO.vest, mDark, 0, 1.18, 0.01);
   const armL = new THREE.Group(), armR = new THREE.Group();
-  armL.position.set(-0.36, 1.45, 0); armR.position.set(0.36, 1.45, 0);
-  pm(EGEO.arm, mDark, 0, -0.31, 0, armL);
-  pm(EGEO.arm, mDark, 0, -0.31, 0, armR);
-  g.add(armL, armR);
-  pm(EGEO.head, mHead, 0, 1.68, 0);
-  pm(EGEO.helm, mDark, 0, 1.82, 0);
-  pm(EGEO.eye, mEye, -0.08, 1.7, 0.16);
-  pm(EGEO.eye, mEye, 0.08, 1.7, 0.16);
+  let aimLine = null, ring = null;
+  if (type === 'rusher') {
+    /* RUSHER: slim sprinter, red accent. Sprint at you, telegraph a dash
+       (crouch 0.4s + eye flash), then lunge. Low HP: dies in 2 rifle hits. */
+    mBody.color.setHex(0x9e2121);
+    legL.position.set(-0.13, 0.82, 0); legR.position.set(0.13, 0.82, 0);
+    pm(EGEO.slimLimb, mDark, 0, -0.41, 0, legL);
+    pm(EGEO.slimLimb, mDark, 0, -0.41, 0, legR);
+    pm(EGEO.slimTorso, mBody, 0, 1.11, 0);
+    armL.position.set(-0.29, 1.34, 0); armR.position.set(0.29, 1.34, 0);
+    pm(EGEO.slimArm, mDark, 0, -0.29, 0, armL);
+    pm(EGEO.slimArm, mDark, 0, -0.29, 0, armR);
+    pm(EGEO.head, mHead, 0, 1.52, 0);
+    pm(EGEO.eye, mEye, -0.08, 1.54, 0.16);
+    pm(EGEO.eye, mEye, 0.08, 1.54, 0.16);
+  } else if (type === 'shooter') {
+    /* SHOOTER: medium build, tan + dark. Keeps 10-14 range, strafes sideways,
+       telegraphs 0.6s (aim line + glowing eyes), then hitscan tracer. */
+    mBody.color.setHex(0x9a8655);
+    legL.position.set(-0.16, 0.9, 0); legR.position.set(0.16, 0.9, 0);
+    pm(EGEO.limb, mDark, 0, -0.45, 0, legL);
+    pm(EGEO.limb, mDark, 0, -0.45, 0, legR);
+    pm(EGEO.torso, mBody, 0, 1.21, 0);
+    pm(EGEO.vest, mDark, 0, 1.18, 0.01);
+    armL.position.set(-0.36, 1.45, 0); armR.position.set(0.36, 1.45, 0);
+    pm(EGEO.arm, mDark, 0, -0.31, 0, armL);
+    pm(EGEO.arm, mDark, 0, -0.31, 0, armR);
+    pm(EGEO.head, mHead, 0, 1.68, 0);
+    pm(EGEO.helm, mDark, 0, 1.82, 0);
+    pm(EGEO.eye, mEye, -0.08, 1.7, 0.16);
+    pm(EGEO.eye, mEye, 0.08, 1.7, 0.16);
+    pm(EGEO.gunA, mDark, 0.30, 1.15, 0.30);   // held carbine: threat reads at range
+    pm(EGEO.gunB, mDark, 0.30, 1.19, 0.62);
+    const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    aimLine = new THREE.Line(lg, new THREE.LineBasicMaterial({
+      color: 0xff4444, transparent: true, opacity: 0.85 }));
+    aimLine.visible = false; aimLine.frustumCulled = false;
+    scene.add(aimLine);
+  } else {
+    /* BRUTE: big dark-red bulk. Slow approach, 0.7s telegraph (arms raised +
+       ground ring marker), heavy slam with knockback. Tanky: 8 HP. */
+    mBody.color.setHex(0x5c1414);
+    legL.position.set(-0.22, 0.85, 0); legR.position.set(0.22, 0.85, 0);
+    pm(EGEO.bruteLimb, mDark, 0, -0.425, 0, legL);
+    pm(EGEO.bruteLimb, mDark, 0, -0.425, 0, legR);
+    pm(EGEO.bruteTorso, mBody, 0, 1.22, 0);
+    pm(EGEO.bruteVest, mDark, 0, 1.2, 0.01);
+    armL.position.set(-0.54, 1.5, 0); armR.position.set(0.54, 1.5, 0);
+    pm(EGEO.bruteArm, mDark, 0, -0.33, 0, armL);
+    pm(EGEO.bruteArm, mDark, 0, -0.33, 0, armR);
+    pm(EGEO.bruteHead, mHead, 0, 1.78, 0);
+    pm(EGEO.helm, mDark, 0, 1.98, 0);
+    pm(EGEO.eye, mEye, -0.1, 1.8, 0.2);
+    pm(EGEO.eye, mEye, 0.1, 1.8, 0.2);
+    const rg = new THREE.RingGeometry(2.0, 2.45, 28);
+    rg.rotateX(-Math.PI / 2);
+    ring = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({
+      color: 0xff3322, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+    ring.visible = false;
+    scene.add(ring);
+  }
+  g.add(legL, legR, armL, armR);
   scene.add(g);
-  const e = { group: g, mats: [mBody, mDark, mHead], hp: 3, state: 'wander',
-    target: new THREE.Vector3(), attackCd: 0, deadT: 0, respawnT: 0,
-    walkPhase: Math.random() * 6, speed: 0, hitT: 0, lunge: 0, aggroT: 0,
-    yaw: 0, legL, legR, armL, armR };
+  const e = { type, cfg, group: g, mats: [mBody, mDark, mHead], eyeMat: mEye,
+    hp: cfg.hp, state: 'wander', target: new THREE.Vector3(),
+    attackCd: 0, deadT: 0, respawnT: 0, walkPhase: Math.random() * 6,
+    speed: 0, hitT: 0, aggroT: 0, yaw: 0, legL, legR, armL, armR,
+    windT: 0, dashT: 0, poseT: 0, dashDir: new THREE.Vector3(),
+    strafeDir: 1, strafeT: 0, aimLine, ring };
   g.traverse(o => { if (o.isMesh) { o.userData.enemy = e; hitMeshes.push(o); } });
   return e;
 }
@@ -1247,17 +1347,30 @@ function spawnPos(edge) {
     Math.max(-100, Math.min(100, Math.cos(a) * r)), 0,
     Math.max(-100, Math.min(100, Math.sin(a) * r)));
 }
+/* hide telegraph visuals (eye color, aim line, ring) without changing state */
+function hideTelegraph(e) {
+  e.eyeMat.color.setHex(e.cfg.eye);
+  if (e.aimLine) e.aimLine.visible = false;
+  if (e.ring) e.ring.visible = false;
+}
 function placeEnemy(e, v) {
   const g = e.group;
   g.position.set(v.x, terrainHeight(v.x, v.z), v.z);
   g.rotation.set(0, Math.random() * Math.PI * 2, 0);
+  g.scale.set(1, 1, 1);
   g.visible = true;
-  e.hp = 3; e.state = 'wander'; e.yaw = g.rotation.y;
-  e.attackCd = 0; e.deadT = 0; e.hitT = 0; e.lunge = 0; e.aggroT = 0; e.speed = 0;
+  e.hp = e.cfg.hp; e.state = 'wander'; e.yaw = g.rotation.y;
+  e.attackCd = 0; e.deadT = 0; e.hitT = 0; e.aggroT = 0; e.speed = 0;
+  e.windT = 0; e.dashT = 0; e.poseT = 0;
+  e.strafeDir = Math.random() < 0.5 ? 1 : -1; e.strafeT = 0;
+  hideTelegraph(e);
   e.mats.forEach(m => m.emissive.setHex(0x000000));
   pickWander(e);
 }
-for (let i = 0; i < 5; i++) { const e = makeEnemy(); placeEnemy(e, spawnPos(false)); enemies.push(e); }
+/* 5 hostiles, fixed mix: 2 rushers / 2 shooters / 1 brute.
+   Respawn keeps each enemy's type, so the mix is preserved forever. */
+const ENEMY_MIX = ['rusher', 'rusher', 'shooter', 'shooter', 'brute'];
+for (const t of ENEMY_MIX) { const e = makeEnemy(t); placeEnemy(e, spawnPos(false)); enemies.push(e); }
 updateCombatHUD();
 
 function damageEnemy(e, d) {
@@ -1268,6 +1381,7 @@ function damageEnemy(e, d) {
   e.mats.forEach(m => m.emissive.setHex(0x7a1010));
   if (e.hp <= 0) {
     e.state = 'dead'; e.deadT = 0; e.respawnT = 10;
+    hideTelegraph(e);
     kills++; sfxDie(); updateCombatHUD(); toast('HOSTILE DOWN');
   } else sfxHit();
 }
@@ -1302,7 +1416,151 @@ function hurtPlayer(d) {
   if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; toast('ELIMINATED'); updateHpHUD(); }
 }
 
-function updateEnemy(e, dt) {
+/* --- shooter fires: tracer from its gun, procedural bang, 55% hit (fair) --- */
+function enemyShoot(e) {
+  const gp = e.group.position;
+  const from = new THREE.Vector3(gp.x, gp.y + 1.5, gp.z);
+  const to = new THREE.Vector3(player.position.x, player.position.y + 1.3, player.position.z);
+  fireTracer(from, to);
+  sfxEnemyShot();
+  e.poseT = 0.3;                                  // gun-raise recoil pose
+  if (Math.random() < 0.55) hurtPlayer(8);
+}
+/* shared wander used by all types when the player is far away */
+function wanderMove(e, r, dt, walkSpd) {
+  const gp = e.group.position;
+  const tx = e.target.x - gp.x, tz = e.target.z - gp.z, td = Math.hypot(tx, tz);
+  if (td < 1.5) pickWander(e);
+  else { r.spd = walkSpd; r.mvx = tx / td; r.mvz = tz / td; e.yaw = Math.atan2(r.mvx, r.mvz); }
+}
+/* eye blink during a telegraph: alternates between the type color and a hot color */
+function eyeBlink(e, now, hot) {
+  e.eyeMat.color.setHex((Math.floor(now * 12) % 2 === 0) ? hot : e.cfg.eye);
+}
+function safeDir(dist, dx, dz) {
+  const d = Math.max(dist, 0.01);
+  return [dx / d, dz / d];
+}
+
+/* RUSHER AI: sprint at the player, crouch-telegraph 0.4s with eye flash,
+   then a locked-direction dash that hurts on contact. */
+function rusherAI(e, dt, now, dist, dx, dz) {
+  const r = { mvx: 0, mvz: 0, spd: 0, armT: -0.3, crouch: 0 };
+  const [nx, nz] = safeDir(dist, dx, dz);
+  if ((dist < e.cfg.aggro || e.aggroT > 0) && !P.dead) {
+    e.yaw = Math.atan2(dx, dz);
+    if (e.state === 'dashwind') {
+      e.windT -= dt;
+      r.crouch = 1; eyeBlink(e, now, 0xffffff);
+      if (e.windT <= 0) {
+        e.state = 'dash'; e.dashT = 0.55;
+        e.dashDir.set(nx, 0, nz);                  // direction locks at dash start
+        sfxBlip(700, 0.1, 'sawtooth', 0.28);
+      }
+    } else if (e.state === 'dash') {
+      e.dashT -= dt;
+      r.spd = 11; r.mvx = e.dashDir.x; r.mvz = e.dashDir.z;
+      r.armT = -1.4;                               // strike pose
+      if (dist < 1.8) { hurtPlayer(6); e.state = 'chase'; e.attackCd = 2.0; hideTelegraph(e); }
+      else if (e.dashT <= 0) { e.state = 'chase'; e.attackCd = 1.6; hideTelegraph(e); }
+    } else {
+      r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz;
+      if (dist < 12 && e.attackCd <= 0) {
+        e.state = 'dashwind'; e.windT = 0.4;       // 0.4s readable telegraph
+        sfxTelegraph();
+      }
+    }
+  } else {
+    if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
+    wanderMove(e, r, dt, e.cfg.walk);
+  }
+  return r;
+}
+
+/* SHOOTER AI: holds the 10-14 unit pocket, strafes sideways, aim-telegraphs
+   0.6s with a glowing eye + thin aim line, then fires a hitscan tracer. */
+function shooterAI(e, dt, now, dist, dx, dz) {
+  const r = { mvx: 0, mvz: 0, spd: 0, armT: -0.5, crouch: 0 };
+  const [nx, nz] = safeDir(dist, dx, dz);
+  if ((dist < e.cfg.aggro || e.aggroT > 0) && !P.dead) {
+    e.yaw = Math.atan2(dx, dz);
+    if (e.state === 'aim') {
+      e.windT -= dt;
+      eyeBlink(e, now, 0xffff88);
+      const gp = e.group.position;
+      const p = e.aimLine.geometry.attributes.position;
+      p.setXYZ(0, gp.x, gp.y + 1.5, gp.z);
+      p.setXYZ(1, player.position.x, player.position.y + 1.3, player.position.z);
+      p.needsUpdate = true;
+      if (e.windT <= 0) {
+        enemyShoot(e);
+        hideTelegraph(e);
+        e.state = 'chase'; e.attackCd = 2.6 + Math.random() * 1.4;
+      }
+    } else {
+      if (dist > 14) { r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz; }
+      else if (dist < 10) { r.spd = e.cfg.chase; r.mvx = -nx; r.mvz = -nz; }
+      else {
+        e.strafeT -= dt;
+        if (e.strafeT <= 0) {
+          e.strafeT = 1.5 + Math.random() * 1.5;
+          e.strafeDir = Math.random() < 0.5 ? 1 : -1;
+        }
+        r.spd = e.cfg.chase * 0.8;                // strafe sideways inside the pocket
+        r.mvx = -nz * e.strafeDir;
+        r.mvz = nx * e.strafeDir;
+      }
+      if (e.attackCd <= 0 && dist < 24) {
+        e.state = 'aim'; e.windT = 0.6;           // 0.6s readable telegraph
+        e.aimLine.visible = true;
+        sfxTelegraph();
+      }
+    }
+  } else {
+    if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
+    wanderMove(e, r, dt, e.cfg.walk);
+  }
+  return r;
+}
+
+/* BRUTE AI: slow approach, 0.7s telegraph (arms raised high + ground ring),
+   then a heavy slam with knockback. */
+function bruteAI(e, dt, now, dist, dx, dz) {
+  const r = { mvx: 0, mvz: 0, spd: 0, armT: -0.2, crouch: 0 };
+  const [nx, nz] = safeDir(dist, dx, dz);
+  if ((dist < e.cfg.aggro || e.aggroT > 0) && !P.dead) {
+    e.yaw = Math.atan2(dx, dz);
+    if (e.state === 'slamwind') {
+      e.windT -= dt;
+      r.armT = -2.6;                              // arms raised high
+      eyeBlink(e, now, 0xffaa00);
+      const gp = e.group.position;
+      e.ring.position.set(gp.x, terrainHeight(gp.x, gp.z) + 0.12, gp.z);
+      if (e.windT <= 0) {
+        hideTelegraph(e);
+        sfxSlam();
+        if (dist < 2.8) {
+          hurtPlayer(25);
+          P.vel.x += nx * 14; P.vel.z += nz * 14;  // knockback away from the brute
+        }
+        e.state = 'chase'; e.attackCd = 3.0;
+      }
+    } else {
+      r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz;
+      if (dist < 2.6 && e.attackCd <= 0) {
+        e.state = 'slamwind'; e.windT = 0.7;      // 0.7s readable telegraph
+        e.ring.visible = true;
+        sfxTelegraph();
+      }
+    }
+  } else {
+    if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
+    wanderMove(e, r, dt, e.cfg.walk);
+  }
+  return r;
+}
+
+function updateEnemy(e, dt, now) {
   const g = e.group;
   if (e.state === 'dead') {
     e.deadT += dt;
@@ -1310,7 +1568,7 @@ function updateEnemy(e, dt) {
     g.rotation.x = -Math.PI / 2 * k * k;   // fall flat
     if (e.deadT > 1.4) g.visible = false;
     e.respawnT -= dt;
-    if (e.respawnT <= 0) placeEnemy(e, spawnPos(true));
+    if (e.respawnT <= 0) placeEnemy(e, spawnPos(true));   // type preserved
     return;
   }
   e.attackCd -= dt; e.aggroT -= dt;
@@ -1318,27 +1576,20 @@ function updateEnemy(e, dt) {
   const pp = player.position, gp = g.position;
   const dx = pp.x - gp.x, dz = pp.z - gp.z;
   const dist = Math.hypot(dx, dz);
-  let mvx = 0, mvz = 0, spd = 0;
-  if ((dist < 25 || e.aggroT > 0) && !P.dead) {
-    spd = 4.2; mvx = dx / dist; mvz = dz / dist;   // chase (slower than player walk)
-    e.yaw = Math.atan2(dx, dz);
-    if (dist < 1.9 && e.attackCd <= 0) { e.attackCd = 1.2; e.lunge = 0.25; hurtPlayer(10); }
-  } else {
-    const tx = e.target.x - gp.x, tz = e.target.z - gp.z, td = Math.hypot(tx, tz);
-    if (td < 1.5) pickWander(e);
-    else { spd = 2.0; mvx = tx / td; mvz = tz / td; e.yaw = Math.atan2(mvx, mvz); }
-  }
-  e.speed += (spd - e.speed) * Math.min(1, 8 * dt);
-  gp.x = Math.max(-105, Math.min(105, gp.x + mvx * e.speed * dt));
-  gp.z = Math.max(-105, Math.min(105, gp.z + mvz * e.speed * dt));
-  gp.y = terrainHeight(gp.x, gp.z);
+  const r = e.type === 'rusher' ? rusherAI(e, dt, now, dist, dx, dz)
+          : e.type === 'shooter' ? shooterAI(e, dt, now, dist, dx, dz)
+          : bruteAI(e, dt, now, dist, dx, dz);
+  e.speed += (r.spd - e.speed) * Math.min(1, 8 * dt);
+  gp.x = Math.max(-105, Math.min(105, gp.x + r.mvx * e.speed * dt));
+  gp.z = Math.max(-105, Math.min(105, gp.z + r.mvz * e.speed * dt));
+  gp.y = terrainHeight(gp.x, gp.z) - r.crouch * 0.18;     // telegraph crouch
   g.rotation.y = angleLerp(g.rotation.y, e.yaw, 1 - Math.exp(-8 * dt));
   e.walkPhase += dt * (3 + e.speed * 1.5);
   const sw = Math.min(1, e.speed / 4) * 0.55, s = Math.sin(e.walkPhase) * sw;
   e.legL.rotation.x = s; e.legR.rotation.x = -s;
-  let armT = -s * 0.7;
-  if (e.lunge > 0) { e.lunge -= dt; armT = -1.4; }   // strike pose
-  e.armL.rotation.x = armT; e.armR.rotation.x = armT;
+  let armTgt = r.armT - s * 0.5;                 // per-type pose + walk counter-swing
+  if (e.poseT > 0) { e.poseT -= dt; armTgt = -1.5; }      // shoot recoil pose
+  e.armL.rotation.x = armTgt; e.armR.rotation.x = armTgt;
 }
 
 /* ============================ CAMERA (OVER-SHOULDER) ====================== */
@@ -1533,7 +1784,9 @@ if (IS_TOUCH) {
   const WALK_SPD = 1.8, FLEE_SPD = 5;
   const tmpDir = new THREE.Vector3();
 
-  worldTickers.push((dt, now) => {
+  /* worldTickers is declared later in this module (const, temporal dead zone):
+     register after full module evaluation (same pattern as the city worker). */
+  queueMicrotask(() => worldTickers.push((dt, now) => {
     /* __lastShotAt is performance.now() in ms; now is seconds. Convert. */
     const shotAgeMs = now * 1000 - (window.__lastShotAt || 0);
     const shotLive = shotAgeMs < 1500 && window.__lastShotPos;
@@ -1604,7 +1857,7 @@ if (IS_TOUCH) {
       const bob = n.state === 'IDLE' ? Math.abs(Math.sin(now * 2 + n.phase)) * 0.04 : 0;
       p.y = terrainHeight(p.x, p.z) + bob;
     }
-  });
+  }));
 }
 /* NPC pedestrians code goes here (worker: people). 12 walkers with walk/idle/flee states. */
 
@@ -1753,7 +2006,7 @@ function tick() {
       updateHpHUD(); toast('REDEPLOYED');
     }
   }
-  for (const e of enemies) updateEnemy(e, dt);
+  for (const e of enemies) updateEnemy(e, dt, performance.now() / 1000);
   muzzle.getWorldPosition(muzzleFlash.position);
   muzzleFlash.intensity *= Math.exp(-26 * dt);
   for (const t of tracers) {
