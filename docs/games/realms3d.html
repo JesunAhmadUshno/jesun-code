@@ -173,6 +173,14 @@
   }
   #wx span { margin-right: 8px; }
 
+  /* ---- difficulty HUD: dynamic-AI tier chip, same chip language as #wx.
+         DOM only, zero draw calls. ---- */
+  #diffchip {
+    position: absolute; top: 352px; right: 18px; color: #8a927c; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center;
+  }
+
   /* ---- save HUD: tiny last-save chip below the speedo block (no overlap) ---- */
   #saved {
     position: absolute; top: 318px; right: 18px; color: #8a927c; font-size: 11px;
@@ -270,6 +278,7 @@
   <div id="marrow"><div id="marr">▲</div><div id="mdist"></div></div>
   <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
   <div id="wx"><span>☀</span> CLEAR</div>
+  <div id="diffchip">AI TIER 0</div>
   <div id="saved">SAVED --:--</div>
   <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond">HULL 100%</div></div>
   <div id="perfchip"></div>
@@ -1164,16 +1173,19 @@ const _slotN = { deerM: 0, deerF: 0, deerL: 0, cow: 0, cowL: 0, horse: 0, horseL
 
 const animals = [];
 function addAnimal(kind, male, zone, opts) {
-  const x = zone.x0 + Math.random() * (zone.x1 - zone.x0);
-  const z = zone.z0 + Math.random() * (zone.z1 - zone.z0);
+  /* higher-IQ: per-animal seeded stream; behavior is deterministic given
+     the same spawn order and player state. */
+  const rng = mulberry32(hash2i(5000 + animals.length, 9));
+  const x = zone.x0 + rng() * (zone.x1 - zone.x0);
+  const z = zone.z0 + rng() * (zone.z1 - zone.z0);
   const a = {
-    kind, zone,
+    kind, zone, rng,
     pos: new THREE.Vector3(x, terrainHeight(x, z), z),
-    rotY: Math.random() * Math.PI * 2,
+    rotY: rng() * Math.PI * 2,
     swingF: 0, swingB: 0, headPitch: 0,
     target: new THREE.Vector3(x, 0, z),
-    mode: 'idle', t: 1 + Math.random() * 3,
-    walkPhase: Math.random() * 6,
+    mode: 'idle', t: 1 + rng() * 3,
+    walkPhase: rng() * 6,
     fleeT: 0, fleeFrom: new THREE.Vector3(),
     grazeT: 0, trotT: 0,
     walk: opts.walk, fleeR: opts.fleeR || 0, graze: !!opts.graze,
@@ -1214,17 +1226,17 @@ function addAnimal(kind, male, zone, opts) {
 function randTarget(a, pad) {
   const z = a.zone;
   a.target.set(
-    z.x0 + pad + Math.random() * (z.x1 - z.x0 - pad * 2), 0,
-    z.z0 + pad + Math.random() * (z.z1 - z.z0 - pad * 2));
+    z.x0 + pad + a.rng() * (z.x1 - z.x0 - pad * 2), 0,
+    z.z0 + pad + a.rng() * (z.z1 - z.z0 - pad * 2));
 }
 const FARM_IN = { x0: -97, x1: -43, z0: -17, z1: 37 };  // inside the fence
-for (let i = 0; i < 8; i++) addAnimal('deer', i < 4, FOREST, { walk: 1.2, fleeR: 10 });
+for (let i = 0; i < 8; i++) addAnimal('deer', i < 4, FOREST, { walk: 1.2, fleeR: 10, graze: true });
 /* WILD DEER: infinite animals. 12 extra deer roam the visible chunks; when the
    player crosses into new chunks they relocate (seeded) so the wild never ends. */
 const wildDeer = [];
 for (let i = 0; i < 12; i++) {
   const zone = { x0: -20, x1: 20, z0: -20, z1: 20 };
-  const a = addAnimal('deer', i < 6, zone, { walk: 1.2, fleeR: 10 });
+  const a = addAnimal('deer', i < 6, zone, { walk: 1.2, fleeR: 10, graze: true });
   a.wild = true;
   wildDeer.push(a);
 }
@@ -1251,10 +1263,11 @@ function redistributeWildDeer(pcx, pcz) {
   for (const m of ALL_ANIMAL_MESHES) m.instanceMatrix.needsUpdate = true;
 }
 for (let i = 0; i < 6; i++) addAnimal('cow', false, FARM_IN, { walk: 0.8, graze: true });
-for (let i = 0; i < 4; i++) addAnimal('horse', false, FARM_IN, { walk: 1.4 });
+for (let i = 0; i < 4; i++) addAnimal('horse', false, FARM_IN, { walk: 1.4, graze: true });
 
 /* ---- ONE ticker: ocean waves + every animal's wander/graze/flee -------- */
 const _nv = new THREE.Vector3();
+const _hv = new THREE.Vector3();   // higher-IQ: herd-centroid scratch (zero alloc)
 function natureTick(dt, now) {
   /* ocean: displace vertices, recompute normals */
   const op = oceanGeo.attributes.position, arr = op.array;
@@ -1271,6 +1284,16 @@ function natureTick(dt, now) {
   const shotLive = shotAgeMs < 1500 && !!window.__lastShotPos;
   const px = player.position.x, pz = player.position.z;
 
+  /* higher-IQ: vehicle flight. A player-driven (or AI-driven) vehicle within
+     8m scares every animal, even kinds that ignore the player on foot.
+     CAR/BUS/HORSE are declared later in the module; this ticker runs after
+     full evaluation, so the references are live. */
+  let vtx = 0, vtz = 0, vtOn = false;
+  if (CAR.driving) { vtx = CAR.pos.x; vtz = CAR.pos.z; vtOn = true; }
+  else if (BUS.driving || BUS.riding || (BUS.active && Math.abs(BUS.speed) > 1)) {
+    vtx = BUS.pos.x; vtz = BUS.pos.z; vtOn = true;
+  } else if (HORSE.riding) { vtx = px; vtz = pz; vtOn = true; }
+
   for (const a of animals) {
     /* the ridden horse: its instances stay hidden, the ride rig replaces them */
     if (a.mountLocked) { hideAnimal(a); continue; }
@@ -1284,12 +1307,15 @@ function natureTick(dt, now) {
     if (a.fleeR > 0 && Math.hypot(p.x - px, p.z - pz) < a.fleeR) {
       a.fleeT = 3; a.fleeFrom.set(px, 0, pz);   // deer bolt from the player
     }
+    if (vtOn && Math.hypot(p.x - vtx, p.z - vtz) < 8) {
+      a.fleeT = 3; a.fleeFrom.set(vtx, 0, vtz);   // vehicles scare every animal
+    }
 
     let moving = false, spd = 0;
     if (a.fleeT > 0) {
       a.fleeT -= dt;
       _nv.set(p.x - a.fleeFrom.x, 0, p.z - a.fleeFrom.z);
-      if (_nv.lengthSq() < 0.01) _nv.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+      if (_nv.lengthSq() < 0.01) _nv.set(a.rng() - 0.5, 0, a.rng() - 0.5);
       _nv.normalize();
       spd = 6; moving = true;
       p.x += _nv.x * spd * dt; p.z += _nv.z * spd * dt;
@@ -1299,24 +1325,48 @@ function natureTick(dt, now) {
     } else if (a.mode === 'idle') {
       a.t -= dt;
       if (a.graze) {
+        /* graze-idle pause: stop, head down on a timer, then resume */
         if (a.grazeT > 0) a.grazeT -= dt;
-        else if (Math.random() < dt * 0.25) a.grazeT = 2 + Math.random() * 2;
+        else if (a.rng() < dt * 0.25) a.grazeT = 2 + a.rng() * 2;
       }
       if (a.grazeT <= 0 && a.t <= 0) {
         randTarget(a, 2);
         a.mode = 'walk';
-        if (a.kind === 'horse' && Math.random() < 0.3) a.trotT = 2 + Math.random() * 2;
+        if (a.kind === 'horse' && a.rng() < 0.3) a.trotT = 2 + a.rng() * 2;
       }
     } else {
       _nv.set(a.target.x - p.x, 0, a.target.z - p.z);
       const d = _nv.length();
-      if (d < 0.6) { a.mode = 'idle'; a.t = 1 + Math.random() * 4; }
+      if (d < 0.6) { a.mode = 'idle'; a.t = 1 + a.rng() * 4; }
       else {
         _nv.normalize();
+        /* higher-IQ herd steering: seek the local same-kind centroid (25m),
+           separate from close herdmates (4m). Zero allocation. */
+        _hv.set(0, 0, 0);
+        let hn = 0, sx = 0, sz = 0;
+        for (const b of animals) {
+          if (b === a || b.kind !== a.kind || b.mountLocked) continue;
+          const bx = b.pos.x - p.x, bz = b.pos.z - p.z;
+          const bd2 = bx * bx + bz * bz;
+          if (bd2 < 625) { _hv.x += b.pos.x; _hv.z += b.pos.z; hn++; }
+          if (bd2 < 16 && bd2 > 1e-6) {
+            const bd = Math.sqrt(bd2), push = (4 - bd) / bd;
+            sx -= bx * push; sz -= bz * push;
+          }
+        }
+        let mx = _nv.x, mz = _nv.z;
+        if (hn > 0) {
+          const cx = _hv.x / hn - p.x, cz = _hv.z / hn - p.z;
+          const cl = Math.hypot(cx, cz);
+          if (cl > 0.5) { mx = mx * 0.65 + (cx / cl) * 0.35; mz = mz * 0.65 + (cz / cl) * 0.35; }
+        }
+        mx += sx * 0.6; mz += sz * 0.6;
+        const ml = Math.hypot(mx, mz) || 1;
         spd = a.walk * (a.trotT > 0 ? 3 : 1);  // horses occasionally trot
         if (a.trotT > 0) a.trotT -= dt;
-        p.x += _nv.x * spd * dt; p.z += _nv.z * spd * dt;
+        p.x += (mx / ml) * spd * dt; p.z += (mz / ml) * spd * dt;
         moving = true;
+        _nv.set(mx / ml, 0, mz / ml);   // face the steered heading
       }
     }
 
@@ -1342,8 +1392,9 @@ function natureTick(dt, now) {
 }
 /* worldTickers is declared later in this module (const, temporal dead zone),
    so register after full module evaluation. angleLerp/player/scene are fine:
-   the ticker only runs once the game loop starts. */
-setTimeout(() => worldTickers.push(natureTick), 0);
+   the ticker only runs once the game loop starts. queueMicrotask (not
+   setTimeout) so headless harnesses that drive tick() manually still run it. */
+queueMicrotask(() => worldTickers.push(natureTick));
 /* Nature zones code goes here (worker: nature & animals). Forest (N), farm (W), ocean (S), deer/horses/cows. */
 
 /* Birds: 6 simple two-triangle birds circling high above the world.
@@ -2195,7 +2246,11 @@ function makeEnemy(type, idx) {
     windT: 0, dashT: 0, poseT: 0, dashDir: new THREE.Vector3(),
     strafeDir: 1, strafeT: 0, lastSwing: 0, lastArm: 0,
     stagger: 0, reactT: 0, kbX: 0, kbZ: 0, kbT: 0,   // melee polish: flinch + knockback
-    coverT: 0 };                                     // take-cover timer after being shot
+    coverT: 0,                                       // take-cover timer after being shot
+    /* higher-IQ brain: perception + memory, all seeded (deterministic) */
+    lastKnown: new THREE.Vector3(), tx: 0, tz: 0,
+    seeT: 0, scanT: 0, wasSpotted: false, live: false, aware: false,
+    spawnGen: 0, rng: mulberry32(hash2i(2000 + idx, 0)) };
 }
 function pickWander(e) {
   const g = e.group.position;
@@ -2227,6 +2282,11 @@ function placeEnemy(e, v) {
   e.coverT = 0;                                     // cover reset
   e.lastSwing = 0; e.lastArm = -0.5;
   e.strafeDir = Math.random() < 0.5 ? 1 : -1; e.strafeT = 0;
+  /* higher-IQ reset: fresh memory, fresh seeded stream (deterministic per life) */
+  e.lastKnown.set(v.x, 0, v.z); e.tx = v.x; e.tz = v.z;
+  e.seeT = 0; e.scanT = 0; e.wasSpotted = false; e.live = false; e.aware = false;
+  e.spawnGen = (e.spawnGen || 0) + 1;
+  e.rng = mulberry32(hash2i(2000 + e.idx, e.spawnGen));
   hideTelegraph(e);
   setEnemyFlash(e, 0xffffff);
   pickWander(e);
@@ -2255,11 +2315,15 @@ function damageEnemy(e, d) {
   e.hp -= d;
   e.hitT = 0.09;
   e.aggroT = 6;   // getting shot makes them hunt you
+  e.lastKnown.set(player.position.x, 0, player.position.z);   // they hunt the shot's origin
   if (e.type === 'shooter') e.coverT = 2.5;   // shot at: break for the nearest tree/rock
   setEnemyFlash(e, 0xff6a55);
   if (e.hp <= 0) {
     e.state = 'dead'; e.deadT = 0; e.respawnT = 10;
     hideTelegraph(e);
+    window.__lastViolenceAt = performance.now();   // NPCs/animals read this to flee
+    window.__lastViolencePos = e.group.position.clone();
+    diffRecordKill();
     /* enemy variety reward: brutes pay best, shooters mid, rushers base */
     const pay = e.type === 'brute' ? 60 : e.type === 'shooter' ? 35 : 25;
     kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type, pay);
@@ -2331,25 +2395,31 @@ function hurtPlayer(d) {
   P.hp -= d;
   sfxHurt();
   dmgV = 0.85;
+  diffRecordDamage(d);   // dynamic difficulty: rolling damage-taken stat
   updateHpHUD();
-  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; toast('ELIMINATED'); missionOnDeath();
+  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; diffRecordDeath();
+    toast('ELIMINATED'); missionOnDeath();
     closeShop();
     curWeapon = 'rifle'; updateWeaponHUD(); updateHpHUD(); }
 }
 
 /* --- shooter fires: tracer from its gun, muzzle flash light, procedural
        bang (lowpass = lower pitch than the player's rifle), 8-12 damage,
-       55% hit so a moving player survives --- */
+       55% hit so a moving player survives. Firing blind at the last known
+       position (memory): 25% hit. --- */
 function enemyShoot(e) {
   const gp = e.group.position;
   const from = new THREE.Vector3(gp.x, gp.y + 1.5, gp.z);
-  const to = new THREE.Vector3(player.position.x, player.position.y + 1.3, player.position.z);
+  const to = e.live
+    ? new THREE.Vector3(player.position.x, player.position.y + 1.3, player.position.z)
+    : new THREE.Vector3(e.lastKnown.x, gp.y + 1.0, e.lastKnown.z);
   fireTracer(from, to);
   sfxEnemyShot();
   enemyMuzzle.position.set(gp.x, gp.y + 1.6, gp.z);
   enemyMuzzle.intensity = 22;                       // decays in the main loop
   e.poseT = 0.3;                                  // gun-raise recoil pose
-  if (Math.random() < 0.55) hurtPlayer(8 + Math.floor(Math.random() * 5));
+  const hitCh = e.live ? 0.55 : 0.25;
+  if (e.rng() < hitCh) hurtPlayer(8 + Math.floor(e.rng() * 5));
 }
 /* shared wander used by all types when the player is far away */
 function wanderMove(e, r, dt, walkSpd) {
@@ -2362,42 +2432,36 @@ function wanderMove(e, r, dt, walkSpd) {
 function eyeBlink(e, now, hot) {
   setEyeColor(e, (Math.floor(now * 12) % 2 === 0) ? hot : e.cfg.eye);
 }
-function safeDir(dist, dx, dz) {
-  const d = Math.max(dist, 0.01);
-  return [dx / d, dz / d];
-}
 
-/* RUSHER AI: sprint at the player, crouch-telegraph 0.4s with eye flash,
-   then a locked-direction dash that hurts on contact. */
+/* RUSHER AI (higher-IQ): flanks wide when the squad engages, kites when
+   wounded, attacks only on a live visual (never at a memory position). */
 function rusherAI(e, dt, now, dist, dx, dz) {
-  const r = { mvx: 0, mvz: 0, spd: 0, armT: -0.3, crouch: 0 };
-  const [nx, nz] = safeDir(dist, dx, dz);
-  if ((dist < e.cfg.aggro || e.aggroT > 0) && !P.dead) {
-    e.yaw = Math.atan2(dx, dz);
-    if (e.state === 'dashwind') {
-      e.windT -= dt;
-      r.crouch = 1; eyeBlink(e, now, 0xffffff);
-      if (e.windT <= 0) {
-        e.state = 'dash'; e.dashT = 0.55;
-        e.dashDir.set(nx, 0, nz);                  // direction locks at dash start
-        sfxBlip(700, 0.1, 'sawtooth', 0.28);
-      }
-    } else if (e.state === 'dash') {
-      e.dashT -= dt;
-      r.spd = 11; r.mvx = e.dashDir.x; r.mvz = e.dashDir.z;
-      r.armT = -1.4;                               // strike pose
-      if (dist < 1.8) { hurtPlayer(6); e.state = 'chase'; e.attackCd = 2.0; hideTelegraph(e); }
-      else if (e.dashT <= 0) { e.state = 'chase'; e.attackCd = 1.6; hideTelegraph(e); }
-    } else {
-      r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz;
-      if (dist < 12 && e.attackCd <= 0) {
-        e.state = 'dashwind'; e.windT = 0.4;       // 0.4s readable telegraph
-        sfxTelegraph();
-      }
+  const r = _er; r.mvx = 0; r.mvz = 0; r.spd = 0; r.armT = -0.3; r.crouch = 0;
+  const dd = Math.max(dist, 0.01), nx = dx / dd, nz = dz / dd;
+  const gp = e.group.position;
+  e.yaw = Math.atan2(dx, dz);
+  if (e.state === 'dashwind') {
+    e.windT -= dt;
+    r.crouch = 1; eyeBlink(e, now, 0xffffff);
+    if (e.windT <= 0) {
+      e.state = 'dash'; e.dashT = 0.55;
+      e.dashDir.set(nx, 0, nz);                  // direction locks at dash start
+      sfxBlip(700, 0.1, 'sawtooth', 0.28);
     }
+  } else if (e.state === 'dash') {
+    e.dashT -= dt;
+    r.spd = 11; r.mvx = e.dashDir.x; r.mvz = e.dashDir.z;
+    r.armT = -1.4;                               // strike pose
+    if (e.live && dist < 1.8) { hurtPlayer(6); e.state = 'chase'; e.attackCd = 2.0; hideTelegraph(e); }
+    else if (e.dashT <= 0) { e.state = 'chase'; e.attackCd = 1.6; hideTelegraph(e); }
   } else {
-    if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
-    wanderMove(e, r, dt, e.cfg.walk);
+    if (isWounded(e)) kiteMove(e, r, gp.x, gp.z, e.tx, e.tz);
+    else if (shouldFlank(e)) flankMove(e, r, gp.x, gp.z, e.tx, e.tz, e.cfg.chase);
+    else { r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz; }
+    if (e.live && dist < 12 && e.attackCd <= 0) {
+      e.state = 'dashwind'; e.windT = 0.4;       // 0.4s readable telegraph
+      sfxTelegraph();
+    }
   }
   return r;
 }
@@ -2416,114 +2480,254 @@ function hasLoS(gp, pp) {
   return true;
 }
 
-/* SHOOTER AI: holds the 10-14 unit pocket, strafes sideways, aim-telegraphs
-   0.6s with a glowing eye + thin aim line, then fires a hitscan tracer.
-   Shot at by the player -> breaks for the nearest tree/rock (coverT).
-   No line of sight -> sidesteps to find a firing angle. */
+/* ================= HIGHER IQ (Phase 3): squad tactics + perception ========
+   Behavior-only upgrade. Zero draw calls, zero per-frame allocation: every
+   scratch value below is module-level. All randomness rides per-enemy
+   seeded streams (mulberry32), so behavior is deterministic given the same
+   spawn state. Cops reuse shooterAI; they get the same brain fields in
+   makeCop and always hunt the live player (updateCop pins tx/tz/live). */
+const _er = { mvx: 0, mvz: 0, spd: 0, armT: 0, crouch: 0 };   // shared AI move-result scratch
+
+/* --- dynamic difficulty: rolling 120s combat window, tier 0-3.
+       Higher tiers scale perception (alert radius), reaction delay and
+       volley frequency. Never raw stats: no HP/speed/damage inflation. --- */
+const DIFF = {
+  tier: 0,
+  kills: 0, deaths: 0, dmg: 0, t: 0,
+  alertR: [30, 35, 40, 45],
+  react:  [0.8, 0.6, 0.45, 0.35],
+  volley: [1.0, 0.9, 0.8, 0.7],
+};
+const diffEl = document.getElementById('diffchip');
+const DIFF_COL = ['#8a927c', '#d8c84a', '#ff9a5e', '#ff6b5e'];
+function updateDiffHUD() {
+  diffEl.textContent = 'AI TIER ' + DIFF.tier;
+  diffEl.style.color = DIFF_COL[DIFF.tier];
+}
+function diffRecordKill() { DIFF.kills++; }
+function diffRecordDeath() { DIFF.deaths++; }
+function diffRecordDamage(d) { DIFF.dmg += d; }
+function diffEval() {
+  const score = DIFF.kills * 2 - DIFF.deaths * 3 - DIFF.dmg / 25;
+  let nt = 0;
+  if (score >= 12) nt = 3;
+  else if (score >= 6) nt = 2;
+  else if (score >= 2) nt = 1;
+  if (nt !== DIFF.tier) { DIFF.tier = nt; updateDiffHUD(); }
+}
+function diffTick(dt) {
+  DIFF.t += dt;
+  if (DIFF.t >= 120) {
+    diffEval();
+    DIFF.kills = 0; DIFF.deaths = 0; DIFF.dmg = 0; DIFF.t = 0;
+  }
+}
+updateDiffHUD();
+
+/* --- squad state, refreshed once per frame in tick() before the enemy loop --- */
+const SQ = { n: 0, leader: -1, cx: 0, cz: 0 };
+function squadThink() {
+  SQ.n = 0; SQ.leader = -1; SQ.cx = 0; SQ.cz = 0;
+  for (const e of enemies) {
+    if (e.state === 'dead' || !e.aware) continue;
+    SQ.n++;
+    if (SQ.leader < 0 || e.idx < SQ.leader) SQ.leader = e.idx;
+    SQ.cx += e.group.position.x; SQ.cz += e.group.position.z;
+  }
+  if (SQ.n > 0) { SQ.cx /= SQ.n; SQ.cz /= SQ.n; }
+}
+/* an enemy counts as wounded below 30% of its type HP */
+function isWounded(e) { return e.hp < e.cfg.hp * 0.3; }
+/* flanking unlocks at tier 1+: non-leader engaged enemies strafe wide */
+function shouldFlank(e) {
+  return !e.isCop && DIFF.tier >= 1 && SQ.n >= 2 &&
+         e.idx !== SQ.leader && e.live && !isWounded(e);
+}
+/* flank: steer toward a lateral offset point (player + perpendicular *
+   side * 8u), sides alternating by enemy index, instead of charging straight */
+function flankMove(e, r, gpx, gpz, ppx, ppz, spd) {
+  const dx = ppx - gpx, dz = ppz - gpz;
+  const d = Math.hypot(dx, dz) || 1;
+  const nx = dx / d, nz = dz / d;
+  const side = (e.idx % 2 === 0) ? 1 : -1;
+  const fx = ppx + (-nz) * side * 8, fz = ppz + nx * side * 8;
+  const mx = fx - gpx, mz = fz - gpz;
+  const ml = Math.hypot(mx, mz);
+  e.yaw = Math.atan2(dx, dz);   // eyes on the player while strafing wide
+  if (ml > 0.5) { r.spd = spd; r.mvx = mx / ml; r.mvz = mz / ml; }
+  else { r.spd = 0; r.mvx = 0; r.mvz = 0; }
+}
+/* wounded kite: 70% away from the player, 30% toward the squad centroid */
+function kiteMove(e, r, gpx, gpz, ppx, ppz) {
+  const dx = ppx - gpx, dz = ppz - gpz;
+  const d = Math.hypot(dx, dz) || 1;
+  const nx = dx / d, nz = dz / d;
+  let kx = SQ.cx - gpx, kz = SQ.cz - gpz;
+  const kl = Math.hypot(kx, kz);
+  if (kl > 0.01) { kx /= kl; kz /= kl; } else { kx = -nx; kz = -nz; }
+  const mx = -nx * 0.7 + kx * 0.3, mz = -nz * 0.7 + kz * 0.3;
+  const ml = Math.hypot(mx, mz) || 1;
+  r.spd = e.cfg.chase * 0.9;
+  r.mvx = mx / ml; r.mvz = mz / ml;
+  e.yaw = Math.atan2(dx, dz);   // face the threat while giving ground
+}
+/* call for backup (unlocks tier 2+): alert enemies within 40m of the
+   spotter. They converge on the LAST KNOWN position, not the live one. */
+function callBackup(spotter) {
+  if (DIFF.tier < 2) return;
+  const sp = spotter.group.position;
+  for (const e of enemies) {
+    if (e === spotter || e.state === 'dead') continue;
+    const gp = e.group.position;
+    const dx = gp.x - sp.x, dz = gp.z - sp.z;
+    if (dx * dx + dz * dz < 40 * 40) {
+      e.lastKnown.copy(spotter.lastKnown);
+      e.scanT = 0;
+      if (e.aggroT < 4) e.aggroT = 4;
+    }
+  }
+}
+/* perception pass, once per enemy per frame, before squadThink/AI.
+   seeT accumulates while the player is visible; the spot lands after the
+   tier's reaction delay. e.live = literal line of sight this frame.
+   e.tx/tz = the effective chase target (live player, else last known). */
+function perceiveEnemy(e, dt) {
+  if (e.state === 'dead') { e.aware = false; e.live = false; return; }
+  const gp = e.group.position, pp = player.position;
+  const dx = pp.x - gp.x, dz = pp.z - gp.z;
+  const dist = Math.hypot(dx, dz);
+  const seeNow = !P.dead && dist < DIFF.alertR[DIFF.tier] && hasLoS(gp, pp);
+  if (seeNow) {
+    e.lastKnown.set(pp.x, 0, pp.z);
+    e.scanT = 0;
+    e.seeT += dt;
+  } else {
+    e.seeT = Math.max(0, e.seeT - 2 * dt);
+  }
+  const spotted = e.seeT >= DIFF.react[DIFF.tier];
+  if (spotted && !e.wasSpotted && !P.dead) callBackup(e);
+  e.wasSpotted = spotted;
+  e.live = seeNow;
+  e.aware = (spotted || e.aggroT > 0) && !P.dead;
+  if (seeNow) { e.tx = pp.x; e.tz = pp.z; }
+  else { e.tx = e.lastKnown.x; e.tz = e.lastKnown.z; }
+}
+
+/* SHOOTER AI (higher-IQ): holds the 10-14 unit pocket, strafes sideways,
+   aim-telegraphs 0.6s with a glowing eye + thin aim line, then fires a
+   hitscan tracer. Shot at by the player -> breaks for the nearest tree/rock
+   (coverT). No line of sight -> works the last known position (memory).
+   Wounded shooters keep their distance and volley less often. */
 function shooterAI(e, dt, now, dist, dx, dz) {
-  const r = { mvx: 0, mvz: 0, spd: 0, armT: -0.5, crouch: 0 };
-  const [nx, nz] = safeDir(dist, dx, dz);
-  if ((dist < e.cfg.aggro || e.aggroT > 0) && !P.dead) {
-    e.yaw = Math.atan2(dx, dz);
-    if (e.state === 'aim') {
-      e.windT -= dt;
-      eyeBlink(e, now, 0xffff88);
-      const gp = e.group.position;
+  const r = _er; r.mvx = 0; r.mvz = 0; r.spd = 0; r.armT = -0.5; r.crouch = 0;
+  const dd = Math.max(dist, 0.01), nx = dx / dd, nz = dz / dd;
+  const gp = e.group.position;
+  const wounded = isWounded(e);
+  e.yaw = Math.atan2(dx, dz);
+  if (e.state === 'aim') {
+    e.windT -= dt;
+    eyeBlink(e, now, 0xffff88);
+    if (e.live) {
       const p = enemyAimLine.geometry.attributes.position;
       p.setXYZ(0, gp.x, gp.y + 1.5, gp.z);
       p.setXYZ(1, player.position.x, player.position.y + 1.3, player.position.z);
       p.needsUpdate = true;
-      if (e.windT <= 0) {
-        enemyShoot(e);
-        hideTelegraph(e);
-        e.state = 'chase'; e.attackCd = 1.5 + Math.random() * 1.0;   // 1.5-2.5s volleys
-      }
-    } else if (e.coverT > 0) {
-      /* --- take cover: put the nearest tree/rock between us and the player --- */
-      e.coverT -= dt;
-      const gp = e.group.position, pp = player.position;
-      let bx = gp.x, bz = gp.z, bd = 1e12;
-      for (let i = 0; i < coverPts.length; i++) {
-        const cx = coverPts[i][0] - gp.x, cz = coverPts[i][1] - gp.z;
-        const d = cx * cx + cz * cz;
-        if (d < bd) { bd = d; bx = coverPts[i][0]; bz = coverPts[i][1]; }
-      }
-      /* destination: far side of the cover point, away from the player */
-      let ox = bx - pp.x, oz = bz - pp.z;
-      const ol = Math.hypot(ox, oz) || 1; ox /= ol; oz /= ol;
-      const mx = (bx + ox * 2.4) - gp.x, mz = (bz + oz * 2.4) - gp.z;
-      const ml = Math.hypot(mx, mz);
-      if (ml > 0.6) { r.spd = e.cfg.chase * 1.2; r.mvx = mx / ml; r.mvz = mz / ml; }
-      e.yaw = Math.atan2(dx, dz);   // eyes on the player while relocating
-    } else {
-      if (dist > 14) { r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz; }
-      else if (dist < 10) { r.spd = e.cfg.chase; r.mvx = -nx; r.mvz = -nz; }
-      else {
-        e.strafeT -= dt;
-        if (e.strafeT <= 0) {
-          e.strafeT = 1.5 + Math.random() * 1.5;
-          e.strafeDir = Math.random() < 0.5 ? 1 : -1;
-        }
-        r.spd = e.cfg.chase * 0.8;                // strafe sideways inside the pocket
-        r.mvx = -nz * e.strafeDir;
-        r.mvz = nx * e.strafeDir;
-      }
-      if (e.attackCd <= 0 && dist < 30) {
-        if (hasLoS(e.group.position, player.position)) {
-          e.state = 'aim'; e.windT = 0.6;         // 0.6s readable telegraph
-          enemyAimLine.visible = true;
-          sfxTelegraph();
-        } else {
-          /* hill between us: sidestep to find a firing angle */
-          r.spd = e.cfg.chase; r.mvx = -nz * e.strafeDir; r.mvz = nx * e.strafeDir;
-          e.strafeT = Math.min(e.strafeT, 0.4);
-        }
-      }
+      enemyAimLine.visible = true;
     }
+    if (e.windT <= 0) {
+      enemyShoot(e);
+      hideTelegraph(e);
+      e.state = 'chase';
+      const base = wounded ? 2.6 + e.rng() * 1.5 : 1.5 + e.rng() * 1.0;
+      e.attackCd = base * DIFF.volley[DIFF.tier];   // difficulty: volley frequency
+    }
+  } else if (e.coverT > 0) {
+    /* --- take cover: put the nearest tree/rock between us and the player --- */
+    e.coverT -= dt;
+    const pp = player.position;
+    let bx = gp.x, bz = gp.z, bd = 1e12;
+    for (let i = 0; i < coverPts.length; i++) {
+      const cx = coverPts[i][0] - gp.x, cz = coverPts[i][1] - gp.z;
+      const d = cx * cx + cz * cz;
+      if (d < bd) { bd = d; bx = coverPts[i][0]; bz = coverPts[i][1]; }
+    }
+    /* destination: far side of the cover point, away from the player */
+    let ox = bx - pp.x, oz = bz - pp.z;
+    const ol = Math.hypot(ox, oz) || 1; ox /= ol; oz /= ol;
+    const mx = (bx + ox * 2.4) - gp.x, mz = (bz + oz * 2.4) - gp.z;
+    const ml = Math.hypot(mx, mz);
+    if (ml > 0.6) { r.spd = e.cfg.chase * 1.2; r.mvx = mx / ml; r.mvz = mz / ml; }
+    e.yaw = Math.atan2(dx, dz);   // eyes on the player while relocating
   } else {
-    if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
-    wanderMove(e, r, dt, e.cfg.walk);
+    if (dist > 14) {
+      if (wounded) kiteMove(e, r, gp.x, gp.z, e.tx, e.tz);
+      else if (shouldFlank(e)) flankMove(e, r, gp.x, gp.z, e.tx, e.tz, e.cfg.chase);
+      else { r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz; }
+    }
+    else if (dist < 10) {
+      if (wounded) kiteMove(e, r, gp.x, gp.z, e.tx, e.tz);
+      else { r.spd = e.cfg.chase; r.mvx = -nx; r.mvz = -nz; }
+    }
+    else {
+      e.strafeT -= dt;
+      if (e.strafeT <= 0) {
+        e.strafeT = 1.5 + e.rng() * 1.5;
+        e.strafeDir = e.rng() < 0.5 ? 1 : -1;
+      }
+      r.spd = e.cfg.chase * 0.8;                // strafe sideways inside the pocket
+      r.mvx = -nz * e.strafeDir;
+      r.mvz = nx * e.strafeDir;
+    }
+    /* e.live already implies line of sight (perceiveEnemy gates it) */
+    if (e.live && e.attackCd <= 0 && dist < 30) {
+      e.state = 'aim'; e.windT = 0.6;         // 0.6s readable telegraph
+      enemyAimLine.visible = true;
+      sfxTelegraph();
+    }
   }
   return r;
 }
 
-/* BRUTE AI: slow approach, 0.7s telegraph (arms raised high + ground ring),
-   then a heavy slam with knockback. */
+/* BRUTE AI (higher-IQ): slow approach, 0.7s telegraph (arms raised high +
+   ground ring), then a heavy slam with knockback. Flanks wide with the
+   squad, kites when wounded, slams only on a live visual. */
 function bruteAI(e, dt, now, dist, dx, dz) {
-  const r = { mvx: 0, mvz: 0, spd: 0, armT: -0.2, crouch: 0 };
-  const [nx, nz] = safeDir(dist, dx, dz);
-  if ((dist < e.cfg.aggro || e.aggroT > 0) && !P.dead) {
-    e.yaw = Math.atan2(dx, dz);
-    if (e.state === 'slamwind') {
-      e.windT -= dt;
-      r.armT = -2.6;                              // arms raised high
-      eyeBlink(e, now, 0xffaa00);
-      const gp = e.group.position;
-      enemyRing.position.set(gp.x, terrainHeight(gp.x, gp.z) + 0.12, gp.z);
-      if (e.windT <= 0) {
-        hideTelegraph(e);
-        sfxSlam();
-        if (dist < 2.8) {
-          hurtPlayer(25);
-          P.vel.x += nx * 14; P.vel.z += nz * 14;  // knockback away from the brute
-        }
-        e.state = 'chase'; e.attackCd = 3.0;
+  const r = _er; r.mvx = 0; r.mvz = 0; r.spd = 0; r.armT = -0.2; r.crouch = 0;
+  const dd = Math.max(dist, 0.01), nx = dx / dd, nz = dz / dd;
+  const gp = e.group.position;
+  e.yaw = Math.atan2(dx, dz);
+  if (e.state === 'slamwind') {
+    e.windT -= dt;
+    r.armT = -2.6;                              // arms raised high
+    eyeBlink(e, now, 0xffaa00);
+    enemyRing.position.set(gp.x, terrainHeight(gp.x, gp.z) + 0.12, gp.z);
+    if (e.windT <= 0) {
+      hideTelegraph(e);
+      sfxSlam();
+      if (e.live && dist < 2.8) {
+        hurtPlayer(25);
+        P.vel.x += nx * 14; P.vel.z += nz * 14;  // knockback away from the brute
       }
-    } else {
-      r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz;
-      if (dist < 2.6 && e.attackCd <= 0) {
-        e.state = 'slamwind'; e.windT = 0.7;      // 0.7s readable telegraph
-        enemyRing.visible = true;
-        sfxTelegraph();
-      }
+      e.state = 'chase'; e.attackCd = 3.0;
     }
   } else {
-    if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
-    wanderMove(e, r, dt, e.cfg.walk);
+    if (isWounded(e)) kiteMove(e, r, gp.x, gp.z, e.tx, e.tz);
+    else if (shouldFlank(e)) flankMove(e, r, gp.x, gp.z, e.tx, e.tz, e.cfg.chase);
+    else { r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz; }
+    if (e.live && dist < 2.6 && e.attackCd <= 0) {
+      e.state = 'slamwind'; e.windT = 0.7;      // 0.7s readable telegraph
+      enemyRing.visible = true;
+      sfxTelegraph();
+    }
   }
   return r;
 }
 
+/* updateEnemy: perceiveEnemy (called from tick) fills e.aware / e.live /
+   e.tx / e.tz first. Unaware -> wander. Aware but no live visual and not
+   mid-telegraph -> memory: push to the last known position, scan-rotate 3s
+   on arrival, then stand down to wander. Telegraphs always run to
+   completion on the effective target. */
 function updateEnemy(e, dt, now) {
   const g = e.group;
   if (e.state === 'dead') {
@@ -2565,9 +2769,33 @@ function updateEnemy(e, dt, now) {
     poseEnemy(e, lean, e.lastSwing, e.lastArm);
     return;
   }
-  const r = e.type === 'rusher' ? rusherAI(e, dt, now, dist, dx, dz)
-          : e.type === 'shooter' ? shooterAI(e, dt, now, dist, dx, dz)
-          : bruteAI(e, dt, now, dist, dx, dz);
+  const r = _er;
+  r.mvx = 0; r.mvz = 0; r.spd = 0; r.crouch = 0;
+  r.armT = e.type === 'shooter' ? -0.5 : e.type === 'brute' ? -0.2 : -0.3;
+  const telegraph = e.state === 'dashwind' || e.state === 'dash' ||
+                    e.state === 'aim' || e.state === 'slamwind';
+  if (!e.aware) {
+    if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
+    wanderMove(e, r, dt, e.cfg.walk);
+  } else if (!e.live && !telegraph) {
+    const tdx = e.tx - gp.x, tdz = e.tz - gp.z;
+    const tdist = Math.hypot(tdx, tdz);
+    if (tdist > 2) {
+      e.scanT = 0;
+      r.spd = e.cfg.walk * 1.4; r.mvx = tdx / tdist; r.mvz = tdz / tdist;
+      e.yaw = Math.atan2(tdx, tdz);
+    } else {
+      e.scanT += dt;
+      e.yaw += dt * 2.2;                        // scan: rotate in place
+      if (e.scanT >= 3) { e.aggroT = 0; e.state = 'wander'; hideTelegraph(e); pickWander(e); }
+    }
+  } else {
+    const tdx = e.tx - gp.x, tdz = e.tz - gp.z;
+    const tdist = Math.hypot(tdx, tdz);
+    if (e.type === 'rusher') rusherAI(e, dt, now, tdist, tdx, tdz);
+    else if (e.type === 'shooter') shooterAI(e, dt, now, tdist, tdx, tdz);
+    else bruteAI(e, dt, now, tdist, tdx, tdz);
+  }
   e.speed += (r.spd - e.speed) * Math.min(1, 8 * dt);
   gp.x = Math.max(-105, Math.min(105, gp.x + r.mvx * e.speed * dt));
   gp.z = Math.max(-105, Math.min(105, gp.z + r.mvz * e.speed * dt));
@@ -2684,7 +2912,13 @@ function makeCop(i) {
     deadT: 0, respawnT: 0, walkPhase: Math.random() * 6,
     target: new THREE.Vector3(), strafeDir: 1, strafeT: 0,
     windT: 0, poseT: 0, dashDir: new THREE.Vector3(), coverT: 0,
-    eyeMat: copEyeMat, aimLine: copAimLine };
+    eyeMat: copEyeMat, aimLine: copAimLine,
+    /* higher-IQ brain fields (cops reuse shooterAI): they always hunt the
+       live player, so updateCop pins live/tx/tz every frame. Never flank. */
+    isCop: true, live: true, tx: 0, tz: 0,
+    lastKnown: new THREE.Vector3(), seeT: 99, scanT: 0,
+    wasSpotted: true, aware: true,
+    rng: mulberry32(hash2i(4100 + i, 3)) };
 }
 /* spawn 30-45u from the player, at least 20u out after world clamping */
 function copSpawnPos(out) {
@@ -2813,6 +3047,7 @@ function updateCop(c, dt, now) {
   const pp = player.position, gp = g.position;
   const dx = pp.x - gp.x, dz = pp.z - gp.z;
   const dist = Math.hypot(dx, dz);
+  c.live = true; c.tx = pp.x; c.tz = pp.z;   // cops always hunt the live player
   const r = shooterAI(c, dt, now, dist, dx, dz);
   if (c.state === 'aim') copAimLine.visible = true;   // re-assert: shared line
   c.speed += (r.spd - c.speed) * Math.min(1, 8 * dt);
@@ -4390,6 +4625,11 @@ const BUSNPC = { npcs: null, hideNPC: null };
       fleeDir: new THREE.Vector3(),
       home: (zone === 'city' ? HOME_CITY : HOME_SPAWN)[idx % 4],
       phase: Math.random() * Math.PI * 2,
+      /* higher-IQ: seeded routine stream, day-part routine, chat pairing,
+         amenity-seeking flee */
+      rng: mulberry32(hash2i(3000 + idx, 5)),
+      routine: 'walk', chatWith: -1,
+      fleeToAmen: false, fleeTX: 0, fleeTZ: 0,
     });
     _nCol.setHex(SHIRTS[shirtIdx % SHIRTS.length]); npcBodyIM.setColorAt(idx, _nCol);
     _nCol.setHex(SKINS[skinIdx % SKINS.length]);    npcHeadIM.setColorAt(idx, _nCol);
@@ -4457,39 +4697,123 @@ const BUSNPC = { npcs: null, hideNPC: null };
     npcHeadIM.instanceMatrix.needsUpdate = true;
     npcLegIM.instanceMatrix.needsUpdate = true;
   };
+  /* higher-IQ: expose the amenity finder for the bus/NPC bridge (function
+     declarations hoist, so this runs before the def below). */
+  BUSNPC.nearestAmenity = nearestAmenityCenter;
 
   /* worldTickers is declared later in this module (const, temporal dead zone):
      register after full module evaluation (same pattern as the city worker). */
+  /* --- higher-IQ: day-part routine weights (walk / idle-chat in pairs /
+         shop-side pause). Night is handled by the shelter branch below. --- */
+  function npcPeriod() {
+    if (isNight) return 'night';
+    const p = dayPhase;
+    if (p < 0.14 || p >= 0.9) return 'morning';
+    if (p < 0.36) return 'afternoon';
+    return 'evening';
+  }
+  const NPC_ROUTINE_W = {
+    morning:   [0.55, 0.25, 0.20],
+    afternoon: [0.45, 0.30, 0.25],
+    evening:   [0.35, 0.40, 0.25],
+  };
+  function pickRoutine(n, ni) {
+    const w = NPC_ROUTINE_W[npcPeriod()] || NPC_ROUTINE_W.morning;
+    const roll = n.rng();
+    n.routine = roll < w[0] ? 'walk' : (roll < w[0] + w[1] ? 'chat' : 'pause');
+    n.idleT = n.routine === 'walk' ? 2 + n.rng() * 3
+            : n.routine === 'chat' ? 4 + n.rng() * 4
+            : 6 + n.rng() * 4;
+    n.state = 'IDLE'; n.chatWith = -1;
+    n.swingL = 0; n.swingR = 0;
+    if (n.routine === 'chat') {
+      /* idle-chat in pairs: pull the pair partner into a shared chat */
+      const q = npcs[ni ^ 1];
+      if (q && (q.state === 'IDLE' || q.state === 'WALK')) {
+        q.state = 'IDLE'; q.routine = 'chat'; q.chatWith = ni;
+        q.idleT = Math.max(q.idleT, 4 + q.rng() * 2);
+        q.swingL = 0; q.swingR = 0;
+        n.chatWith = ni ^ 1;
+      }
+    }
+  }
+  /* nearest amenity center (gas/garage/rest/park/land), or null */
+  function nearestAmenityCenter(x, z) {
+    let bx = 0, bz = 0, bd = Infinity;
+    for (const key in AMEN.active) {
+      const arr = AMEN.active[key];
+      for (let i = 0; i < arr.length; i++) {
+        const a = arr[i];
+        const dx = a.x - x, dz = a.z - z, d = dx * dx + dz * dz;
+        if (d < bd) { bd = d; bx = a.x; bz = a.z; }
+      }
+    }
+    return bd === Infinity ? null : { x: bx, z: bz };
+  }
+  /* flee TO the nearest amenity center when one exists; otherwise run from
+     the threat on the given (fx, fz) vector. Seeded target, no allocation
+     in the per-frame move (the {x,z} above is built once per flee). */
+  function npcStartFlee(n, fx, fz) {
+    n.state = 'FLEE'; n.chatWith = -1;
+    const tgt = nearestAmenityCenter(n.pos.x, n.pos.z);
+    if (tgt) {
+      n.fleeToAmen = true; n.fleeTX = tgt.x; n.fleeTZ = tgt.z; n.fleeT = 8;
+      n.fleeDir.set(tgt.x - n.pos.x, 0, tgt.z - n.pos.z);
+    } else {
+      n.fleeToAmen = false; n.fleeT = 3;
+      n.fleeDir.set(fx, 0, fz);
+    }
+    if (n.fleeDir.lengthSq() < 0.01) n.fleeDir.set(1, 0, 0);
+    n.fleeDir.normalize();
+  }
   queueMicrotask(() => worldTickers.push((dt, now) => {
-    /* __lastShotAt is performance.now() in ms; now is seconds. Convert. */
+    /* __lastShotAt / __lastViolenceAt are performance.now() in ms; now is seconds. Convert. */
     const shotAgeMs = now * 1000 - (window.__lastShotAt || 0);
     const shotLive = shotAgeMs < 1500 && window.__lastShotPos;
-    for (const n of npcs) {
-      const p = n.pos;
+    const violAgeMs = now * 1000 - (window.__lastViolenceAt || 0);
+    const violLive = violAgeMs < 4000 && window.__lastViolencePos;
+    for (let ni = 0; ni < npcs.length; ni++) {
+      const n = npcs[ni], p = n.pos;
 
-      /* --- FLEE trigger: shot within 1.5s and NPC within 25 units of it --- */
-      if (n.state !== 'FLEE' && shotLive) {
-        const dxs = p.x - window.__lastShotPos.x, dzs = p.z - window.__lastShotPos.z;
-        if (dxs * dxs + dzs * dzs < 25 * 25) {
-          n.state = 'FLEE'; n.fleeT = 3;
-          n.fleeDir.set(dxs, 0, dzs);
-          if (n.fleeDir.lengthSq() < 0.01) n.fleeDir.set(1, 0, 0);
-          n.fleeDir.normalize();
+      /* --- FLEE trigger: gunfire or mission violence within 25u, or wanted heat --- */
+      if (n.state !== 'FLEE') {
+        let fx = 0, fz = 0, scared = false;
+        if (shotLive) {
+          const dxs = p.x - window.__lastShotPos.x, dzs = p.z - window.__lastShotPos.z;
+          if (dxs * dxs + dzs * dzs < 625) { fx = dxs; fz = dzs; scared = true; }
+        }
+        if (!scared && violLive) {
+          const dxv = p.x - window.__lastViolencePos.x, dzv = p.z - window.__lastViolencePos.z;
+          if (dxv * dxv + dzv * dzv < 625) { fx = dxv; fz = dzv; scared = true; }
+        }
+        if (scared) npcStartFlee(n, fx, fz);
+        else if (W.heat > 0) {
+          /* wanted: head for shelter unless already at an amenity center */
+          const tgt = nearestAmenityCenter(p.x, p.z);
+          if (!tgt || Math.hypot(tgt.x - p.x, tgt.z - p.z) > 5) npcStartFlee(n, 0, 0);
         }
       }
 
       if (n.state === 'FLEE') {
-        /* run away from the shot at 5 u/s for 3s */
         n.fleeT -= dt;
+        if (n.fleeToAmen) {
+          /* steer to the amenity center every frame; arrive -> stand down */
+          tmpDir.set(n.fleeTX - p.x, 0, n.fleeTZ - p.z);
+          if (tmpDir.length() < 3) {
+            n.fleeToAmen = false;
+            n.state = isNight ? 'SHELTER' : 'IDLE';
+            n.idleT = 3; n.routine = 'pause'; n.chatWith = -1;
+          } else { tmpDir.normalize(); n.fleeDir.copy(tmpDir); }
+        }
         p.x += n.fleeDir.x * FLEE_SPD * dt;
         p.z += n.fleeDir.z * FLEE_SPD * dt;
         n.yaw = Math.atan2(n.fleeDir.x, n.fleeDir.z);
         const sw = Math.sin(now * 14 + n.phase);
         n.swingL = sw * 0.8; n.swingR = -sw * 0.8;
-        if (n.fleeT <= 0) n.state = isNight ? 'SHELTER' : 'WALK';
+        if (n.fleeT <= 0) { n.fleeToAmen = false; n.state = isNight ? 'SHELTER' : 'WALK'; }
       } else if (isNight) {
         /* night: walk to the doorway anchor, stand there until dawn */
-        n.state = 'SHELTER';
+        n.state = 'SHELTER'; n.chatWith = -1;
         tmpDir.set(n.home[0] - p.x, 0, n.home[1] - p.z);
         if (tmpDir.length() < 0.8) {
           n.swingL = 0; n.swingR = 0;
@@ -4502,10 +4826,21 @@ const BUSNPC = { npcs: null, hideNPC: null };
           n.swingL = sw * 0.6; n.swingR = -sw * 0.6;
         }
       } else if (n.state === 'IDLE') {
-        /* at waypoint: stand 2-5s, slight bob */
+        /* at waypoint: routine idle (walk/chat/pause), slight bob */
         n.idleT -= dt;
         n.swingL = 0; n.swingR = 0;
-        if (n.idleT <= 0) { n.wi = (n.wi + 1) % n.wps.length; n.state = 'WALK'; }
+        if (n.routine === 'chat' && n.chatWith >= 0) {
+          /* face the chat partner */
+          const q = npcs[n.chatWith];
+          if (q) {
+            tmpDir.set(q.pos.x - p.x, 0, q.pos.z - p.z);
+            if (tmpDir.lengthSq() > 0.01) n.yaw = Math.atan2(tmpDir.x, tmpDir.z);
+          }
+        }
+        if (n.idleT <= 0) {
+          if (n.chatWith >= 0) { const q = npcs[n.chatWith]; if (q) q.chatWith = -1; n.chatWith = -1; }
+          n.wi = (n.wi + 1) % n.wps.length; n.state = 'WALK';
+        }
       } else {
         /* WALK: 1.8 u/s toward next waypoint, legs swing, face direction */
         if (n.state === 'SHELTER') n.state = 'WALK';   // dawn: back on route
@@ -4513,8 +4848,7 @@ const BUSNPC = { npcs: null, hideNPC: null };
         tmpDir.set(wp[0] - p.x, 0, wp[1] - p.z);
         const dist = tmpDir.length();
         if (dist < 0.6) {
-          n.state = 'IDLE'; n.idleT = 2 + Math.random() * 3;
-          n.swingL = 0; n.swingR = 0;
+          pickRoutine(n, ni);   // day-part routine: walk / chat / pause
         } else {
           tmpDir.normalize();
           p.x += tmpDir.x * WALK_SPD * dt;
@@ -6221,7 +6555,10 @@ function tick() {
     }
   }
   enemyAimLine.visible = false;   // aiming shooters re-assert (last writer wins)
-  for (const e of enemies) updateEnemy(e, sdt, performance.now() / 1000);
+  const eNow = performance.now() / 1000;
+  for (const e of enemies) perceiveEnemy(e, sdt);   // higher-IQ: vision + memory
+  squadThink();                                       // ...then squad tactics
+  for (const e of enemies) updateEnemy(e, sdt, eNow);
   if (eDirty) {
     eDirty = false;
     eBodyRus.instanceMatrix.needsUpdate = true;
@@ -6233,6 +6570,7 @@ function tick() {
   }
   missionTick(sdt);
   wantedTick(sdt);
+  diffTick(sdt);   // higher-IQ: rolling 120s difficulty window
   lootTick(sdt);
   shopTick(sdt);
   saveTick(dt);
