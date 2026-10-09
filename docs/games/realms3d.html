@@ -123,6 +123,31 @@
   #heat.evading { animation: heatblink .8s steps(2) infinite; }
   @keyframes heatblink { 50% { opacity: .25; } }
 
+  /* ---- shops v1: interaction-menu panel. World stays live while it is
+         open (GTA Interaction Menu pattern). Keyboard buys 1-5, E/Esc close;
+         rows are also tappable for touch. ---- */
+  #shop {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    color: #c9d2b8; font-size: 12px; font-family: 'Courier New', monospace;
+    background: rgba(6,10,8,.94); border: 2px solid #35e0c8; padding: 14px 16px;
+    letter-spacing: 1px; display: none; pointer-events: auto; min-width: 330px;
+    max-width: 92vw; z-index: 25;
+  }
+  #shop h3 { color: #35e0c8; font-size: 14px; letter-spacing: 3px; margin: 0 0 4px; }
+  #shop .sbal { color: #7dff9a; margin-bottom: 10px; letter-spacing: 2px; }
+  #shop .srow {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 5px 0;
+    border: 1px solid #3a4a44; background: rgba(20,28,24,.6); cursor: pointer;
+  }
+  #shop .srow .k { color: #ffd24a; font-weight: bold; }
+  #shop .srow .n { color: #eef2e4; }
+  #shop .srow .p { color: #7dff9a; margin-left: auto; }
+  #shop .srow.owned { border-color: #3fae5a; cursor: default; }
+  #shop .srow.na { opacity: .55; cursor: default; }
+  #shop .srow.owned .p, #shop .srow.na .p { color: #6a6a6a; }
+  #shop .shint { color: #8a927e; font-size: 10px; margin-top: 10px; letter-spacing: 2px; text-align: center; }
+  #armorchip { display: none; color: #35e0c8; }
+
   /* ---- time-of-day readout (day/night cycle) ---- */
   #tod {
     position: absolute; top: 134px; right: 18px; color: #d8c84a; font-size: 13px;
@@ -186,7 +211,7 @@
     <b>1/2/3</b> weapons
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
-  <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b></div>
+  <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b><br><span id="armorchip">ARMOR <b id="armor">100</b></span></div>
   <div id="heat"></div>
   <div id="weap"><span id="wname">RIFLE</span> <b id="wammo">&infin;</b></div>
   <div id="mtracker"><div id="mtitle"></div><div id="mobj"></div></div>
@@ -196,6 +221,12 @@
   <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H</div>
   <div id="toast"></div>
   <div id="carhint"></div>
+  <div id="shop">
+    <h3 id="shopname">SHOP</h3>
+    <div class="sbal">CASH $<b id="shopcash">0</b></div>
+    <div id="shoprows"></div>
+    <div class="shint">[1-5] BUY &nbsp; [E] / [ESC] CLOSE &nbsp; TAP ROW ON TOUCH</div>
+  </div>
 </div>
 
 <div id="dmgflash"></div>
@@ -1617,11 +1648,19 @@ function shoot() {
 
 function hurtPlayer(d) {
   if (P.dead || P.godT > 0) return;
+  if (shopArmor > 0) {                              // armor soaks damage first, player-only
+    const soak = Math.min(shopArmor, d);
+    shopArmor -= soak; d -= soak;
+    updateArmorHUD();
+    sfxBlip(1200, 0.06, 'square', 0.2);
+    if (d <= 0) return;                             // fully absorbed: no HP loss, no flash
+  }
   P.hp -= d;
   sfxHurt();
   dmgV = 0.85;
   updateHpHUD();
   if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; toast('ELIMINATED'); missionOnDeath();
+    closeShop();
     curWeapon = 'rifle'; updateWeaponHUD(); updateHpHUD(); }
 }
 
@@ -2084,7 +2123,7 @@ function busted() {
   player.position.set(0, terrainHeight(0, 0), 0);
   P.vel.set(0, 0, 0); P.vy = 0;
   P.hp = 100; P.dead = false; P.godT = 2;
-  updateHpHUD();
+  updateHpHUD(); closeShop();
   missionOnDeath();
   sfxBusted();
   toast('BUSTED - $' + seized + ' SEIZED');
@@ -2690,6 +2729,180 @@ function lootTick(dt) {
   }
 }
 
+/* ================================ SHOPS v1 ================================
+   Three shops, walk-in radius 3u, on foot only. GTA Interaction Menu pattern:
+   the world stays live while the panel is open (no pause, no freeze).
+   Markers: 2 draw calls (instanced cyan rings + green octahedron icons, the
+   mission-marker diamond idiom in a distinct color). Zero per-frame
+   allocation in the tick; proximity check throttled at 0.15s.
+   Flow: walk in -> panel opens -> keys 1-5 buy, E/Esc closes -> walk out
+   past 4.5u to re-arm. Closes on death, respawn and BUSTED. */
+const SHOPS = [
+  { name: 'PATCH CLINIC',    x: -4,  z: -16, baseY: 0 },   // spawn: field clinic
+  { name: 'IRONHIDE ARMS',   x: 70,  z: -70, baseY: 0 },   // city: gun shop
+  { name: 'HARVEST GENERAL', x: -54, z: 24,  baseY: 0 },   // farm: general store
+];
+const SHOP_R2 = 3 * 3;                     // walk-in radius, on foot only
+const SHOP_REOPEN_R2 = 4.5 * 4.5;          // must leave this far to re-open
+const shopRingGeo = new THREE.RingGeometry(2.0, 2.7, 28);
+shopRingGeo.rotateX(-Math.PI / 2);
+const shopRingMat = new THREE.MeshStandardMaterial({ color: 0x35e0c8,
+  emissive: 0x35e0c8, emissiveIntensity: 0.5, transparent: true, opacity: 0.8,
+  side: THREE.DoubleSide, depthWrite: false });
+const shopRings = new THREE.InstancedMesh(shopRingGeo, shopRingMat, SHOPS.length);
+const shopIconGeo = new THREE.OctahedronGeometry(0.6);
+const shopIconMat = new THREE.MeshStandardMaterial({ color: 0x3fe89a,
+  emissive: 0x1d9e5f, emissiveIntensity: 0.7, roughness: 0.35 });
+const shopIcons = new THREE.InstancedMesh(shopIconGeo, shopIconMat, SHOPS.length);
+shopRings.frustumCulled = false; shopIcons.frustumCulled = false;
+for (let i = 0; i < SHOPS.length; i++) {
+  const S = SHOPS[i];
+  S.baseY = terrainHeight(S.x, S.z);
+  _mDummy.position.set(S.x, S.baseY + 0.06, S.z);
+  _mDummy.rotation.set(0, 0, 0); _mDummy.scale.set(1, 1, 1);
+  _mDummy.updateMatrix(); shopRings.setMatrixAt(i, _mDummy.matrix);
+  _mDummy.position.set(S.x, S.baseY + 2.6, S.z);
+  _mDummy.updateMatrix(); shopIcons.setMatrixAt(i, _mDummy.matrix);
+}
+shopRings.instanceMatrix.needsUpdate = true;
+shopIcons.instanceMatrix.needsUpdate = true;
+scene.add(shopRings); scene.add(shopIcons);
+
+/* armor: plate that absorbs the next 100 damage before HP, player-only */
+let shopArmor = 0;
+const armorChipEl = document.getElementById('armorchip');
+const armorEl = document.getElementById('armor');
+function updateArmorHUD() {
+  armorEl.textContent = Math.round(shopArmor);
+  armorChipEl.style.display = shopArmor > 0 ? 'inline' : 'none';
+}
+
+/* stock: 5 items. state() returns BUY, OWNED or NA (skipped) */
+const SHOP_ITEMS = [
+  { key: '1', label: () => 'SHOTGUN', price: 300,
+    state: () => WEAPONS.shotgun.owned ? 'OWNED' : 'BUY',
+    buy() { WEAPONS.shotgun.owned = true; curWeapon = 'shotgun'; updateWeaponHUD(); } },
+  { key: '2', label: () => 'SMG', price: 500,
+    state: () => WEAPONS.smg.owned ? 'OWNED' : 'BUY',
+    buy() { WEAPONS.smg.owned = true; curWeapon = 'smg'; updateWeaponHUD(); } },
+  { key: '3', label: () => 'REFILL ' + WEAPONS[curWeapon].label + ' AMMO', price: 100,
+    state: () => curWeapon === 'rifle' ? 'NA' : 'BUY',
+    buy() { const w = WEAPONS[curWeapon]; w.ammo = w.max; updateWeaponHUD(); } },
+  { key: '4', label: () => 'FIELD PATCH +50 HP', price: 50,
+    state: () => P.hp >= 100 ? 'NA' : 'BUY',
+    buy() { P.hp = Math.min(100, P.hp + 50); updateHpHUD(); } },
+  { key: '5', label: () => 'BODY ARMOR (100)', price: 150,
+    state: () => 'BUY',
+    buy() { shopArmor = 100; updateArmorHUD(); } },
+];
+
+/* --- shop jingles: buy is a brighter pickup variant, denied is a low buzz --- */
+function sfxShopOpen() { sfxBlip(740, 0.07, 'square', 0.2); }
+function sfxBuy() {
+  sfxBlip(660, 0.09, 'square', 0.22);
+  setTimeout(() => sfxBlip(880, 0.09, 'square', 0.22), 70);
+  setTimeout(() => sfxBlip(1320, 0.16, 'square', 0.22), 140);
+}
+function sfxDenied() { sfxBlip(160, 0.18, 'sawtooth', 0.25); }
+
+let shopOpen = false, shopOpenIdx = -1;
+const shopCool = [false, false, false];   // reopen lock until the player walks out
+const shopEl = document.getElementById('shop');
+const shopNameEl = document.getElementById('shopname');
+const shopCashEl = document.getElementById('shopcash');
+const shopRowsEl = document.getElementById('shoprows');
+
+function renderShopRows() {
+  shopRowsEl.textContent = '';
+  for (let i = 0; i < SHOP_ITEMS.length; i++) {
+    const it = SHOP_ITEMS[i], st = it.state(), idx = i;
+    const row = document.createElement('div');
+    row.className = 'srow' + (st === 'OWNED' ? ' owned' : st === 'NA' ? ' na' : '');
+    const key = document.createElement('span');
+    key.className = 'k'; key.textContent = '[' + it.key + ']';
+    const name = document.createElement('span');
+    name.className = 'n'; name.textContent = it.label();
+    const pr = document.createElement('span');
+    pr.className = 'p';
+    pr.textContent = st === 'OWNED' ? 'OWNED' : st === 'NA' ? 'N/A' : '$' + it.price;
+    row.appendChild(key); row.appendChild(name); row.appendChild(pr);
+    row.addEventListener('click', () => buyItem(idx));
+    row.addEventListener('touchstart', e => {
+      e.preventDefault(); e.stopPropagation(); buyItem(idx);
+    }, { passive: false });
+    shopRowsEl.appendChild(row);
+  }
+  const closeRow = document.createElement('div');
+  closeRow.className = 'srow';
+  const ck = document.createElement('span'); ck.className = 'k'; ck.textContent = '[E]';
+  const cn = document.createElement('span'); cn.className = 'n'; cn.textContent = 'CLOSE SHOP';
+  closeRow.appendChild(ck); closeRow.appendChild(cn);
+  closeRow.addEventListener('click', closeShop);
+  closeRow.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation(); closeShop();
+  }, { passive: false });
+  shopRowsEl.appendChild(closeRow);
+}
+function refreshShopPanel() {
+  shopCashEl.textContent = cash;
+  renderShopRows();
+}
+function openShop(i) {
+  if (shopOpen || P.dead || CAR.driving || !playing()) return;
+  shopOpen = true; shopOpenIdx = i;
+  shopNameEl.textContent = SHOPS[i].name;
+  refreshShopPanel();
+  shopEl.style.display = 'block';
+  sfxShopOpen();
+}
+function closeShop() {
+  if (!shopOpen) return;
+  shopCool[shopOpenIdx] = true;            // must walk out before it can reopen
+  shopOpen = false; shopOpenIdx = -1;
+  shopEl.style.display = 'none';
+}
+function buyItem(i) {
+  if (!shopOpen || i < 0 || i >= SHOP_ITEMS.length) return;
+  const it = SHOP_ITEMS[i];
+  if (it.state() !== 'BUY') { sfxDenied(); return; }
+  if (cash < it.price) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }
+  cash -= it.price; updateCashHUD();
+  it.buy();
+  sfxBuy();
+  toast('PURCHASED ' + it.label());
+  refreshShopPanel();
+}
+
+let shopCheckT = 0;
+function shopTick(dt) {
+  const now = performance.now() / 1000;
+  /* marker bob and spin (cheap, zero allocation, shared _mDummy) */
+  for (let i = 0; i < SHOPS.length; i++) {
+    const S = SHOPS[i];
+    _mDummy.position.set(S.x, S.baseY + 2.6 + Math.sin(now * 2 + i * 2.1) * 0.25, S.z);
+    _mDummy.rotation.set(0, now * 1.6 + i, 0);
+    _mDummy.scale.set(1, 1, 1);
+    _mDummy.updateMatrix(); shopIcons.setMatrixAt(i, _mDummy.matrix);
+  }
+  shopIcons.instanceMatrix.needsUpdate = true;
+  shopRingMat.opacity = 0.6 + 0.25 * Math.sin(now * 3 + 1);
+  if (shopOpen) return;                    // panel open: world stays live, no proximity work
+  shopCheckT += dt;
+  if (shopCheckT < 0.15) return;           // proximity check throttled
+  shopCheckT = 0;
+  if (!playing() || P.dead || CAR.driving) return;
+  const px = player.position.x, pz = player.position.z;
+  for (let i = 0; i < SHOPS.length; i++) {
+    const S = SHOPS[i];
+    const dx = S.x - px, dz = S.z - pz, d2 = dx * dx + dz * dz;
+    if (d2 < SHOP_R2) {
+      if (!shopCool[i]) openShop(i);
+    } else if (d2 > SHOP_REOPEN_R2) {
+      shopCool[i] = false;                 // walked out: re-armed
+    }
+  }
+}
+
 /* ============================ CAMERA (OVER-SHOULDER) ====================== */
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 500);
 let camYaw = Math.PI, camPitch = 0.32;               // start behind player
@@ -2703,6 +2916,15 @@ const keys = {};
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
+  if (shopOpen) {                                     // shop panel captures keys: 1-5 buy, E/Esc close
+    if (e.code === 'KeyE' || e.code === 'Escape') closeShop();
+    else if (e.code === 'Digit1') buyItem(0);
+    else if (e.code === 'Digit2') buyItem(1);
+    else if (e.code === 'Digit3') buyItem(2);
+    else if (e.code === 'Digit4') buyItem(3);
+    else if (e.code === 'Digit5') buyItem(4);
+    return;                                           // no weapon select, no car toggle while shopping
+  }
   if (e.code === 'KeyE') carToggle();                                   // enter / exit the car
   if (e.code === 'KeyF') { if (CAR.driving) carExit(); else doPunch(); } // F exits while driving
   if (e.code === 'Digit1') selectWeapon('rifle');
@@ -2727,12 +2949,13 @@ overlay.addEventListener('click', () => {
   setTimeout(() => overlay.classList.add('hidden'), 300);
 });
 addEventListener('mousedown', e => {
-  if (e.button === 0 && overlay.classList.contains('hidden')) shoot();
-  else if (e.button === 2 && overlay.classList.contains('hidden')) doPunch();   // right-click punch
+  if (e.button === 0 && overlay.classList.contains('hidden') && !shopOpen) shoot();
+  else if (e.button === 2 && overlay.classList.contains('hidden') && !shopOpen) doPunch();   // right-click punch
 });
 document.addEventListener('contextmenu', e => { if (overlay.classList.contains('hidden')) e.preventDefault(); });
 document.addEventListener('pointerlockchange', () => {
   overlay.classList.toggle('hidden', document.pointerLockElement === renderer.domElement);
+  if (!document.pointerLockElement && shopOpen) closeShop();   // Esc natively exits lock: close shop too
 });
 addEventListener('mousemove', e => {
   if (document.pointerLockElement !== renderer.domElement) return;
@@ -3779,13 +4002,14 @@ function tick() {
       P.vel.set(0, 0, 0); P.vy = 0;
       P.hp = 100; P.dead = false; P.godT = 2;
       setHeat(0, true); W.evading = false;   // death always clears the heat
-      updateHpHUD(); toast('REDEPLOYED');
+      updateHpHUD(); toast('REDEPLOYED'); closeShop();
     }
   }
   for (const e of enemies) updateEnemy(e, sdt, performance.now() / 1000);
   missionTick(sdt);
   wantedTick(sdt);
   lootTick(sdt);
+  shopTick(sdt);
   muzzle.getWorldPosition(muzzleFlash.position);
   muzzleFlash.intensity *= Math.exp(-26 * sdt);
   for (const t of tracers) {
