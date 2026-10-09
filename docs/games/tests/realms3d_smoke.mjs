@@ -57,6 +57,8 @@ globalThis.__R3D = {
   carEnter, carExit, openShop, closeShop, buyItem,
   busEnter, busExit, busTakeWheel, busRebuildRoute, busDoorWorld, mountToggle,
   busDwellService, BUSNPC, BUS,
+  taxiEnter, taxiExit, txRebuild, txDoorWorld, crRebuild, ambRebuild,
+  CR, TX, AMB, emBodyIM, toastEl, W,
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
@@ -371,6 +373,100 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('ai: animal herd separation maintained', sep0 < 1 && sep1 >= 1.5,
     'sep0=' + sep0.toFixed(2) + ' sep1=' + sep1.toFixed(2));
   resetBrains();
+}
+
+/* ================= 8. EMERGENCY + SERVICE VEHICLES (Phase 5) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.cash = 100;
+  G.setHeat(0, true);
+  G.player.position.set(0, groundY(0, 0), 0);          // anchor chunk (0,0)
+  frame(3);                                            // emUpdate builds all three units
+  check('em: cruiser patrol activates',
+    G.CR.active === true && G.CR.patrol.length === 6 && G.CR.pursuing === false,
+    'stops=' + G.CR.patrol.length);
+  const p1 = JSON.stringify(G.CR.patrol);
+  G.CR.anchorCx = 1e9; G.CR.routeKey = '';             // force a rebuild on next frame
+  frame(1);
+  check('em: cruiser patrol is deterministic on revisit',
+    G.CR.routeKey === '0,0' && JSON.stringify(G.CR.patrol) === p1);
+  check('em: taxi route activates',
+    G.TX.active === true && G.TX.route.length >= 2, 'stops=' + G.TX.route.length);
+  const t1 = JSON.stringify(G.TX.route);
+  G.TX.anchorCx = 1e9; G.TX.routeKey = '';             // force a rebuild on next frame
+  frame(1);
+  check('em: taxi route is deterministic on revisit',
+    G.TX.routeKey === '0,0' && JSON.stringify(G.TX.route) === t1);
+  check('em: ambulance pad placed', G.AMB.placed === true,
+    'pad=(' + G.AMB.x.toFixed(1) + ',' + G.AMB.z.toFixed(1) + ')');
+  const ax = G.AMB.x, az = G.AMB.z;
+  G.AMB.key = '';                                      // force a rebuild on next frame
+  frame(1);
+  check('em: ambulance pad is deterministic on revisit',
+    Math.abs(G.AMB.x - ax) < 1e-9 && Math.abs(G.AMB.z - az) < 1e-9);
+  check('em: one shared body InstancedMesh holds all three units',
+    G.emBodyIM.isInstancedMesh === true);
+
+  /* cruiser pursuit at heat >= 1 */
+  G.setHeat(1, true);
+  frame(30);
+  check('em: cruiser pursues at heat >= 1', G.CR.pursuing === true);
+
+  /* bust pressure: park the cruiser on the player, pressure must rise */
+  G.P.godT = 0;
+  G.CR.pos.set(G.player.position.x + 5, 0, G.player.position.z);
+  G.CR.pos.y = G.terrainHeight(G.CR.pos.x, G.CR.pos.z);
+  frame(20);
+  check('em: bust pressure rises within 8m at heat >= 1', G.CR.bustPress > 0,
+    'press=' + G.CR.bustPress.toFixed(3));
+  check('em: pull-over toast fires on contact',
+    G.toastEl.textContent.indexOf('PULL OVER') >= 0, G.toastEl.textContent);
+  /* force the bust: pressure at 1 triggers the existing BUSTED hook */
+  const cashBefore = G.cash;
+  G.CR.bustPress = 1;
+  frame(2);
+  check('em: bust pressure at 1 triggers BUSTED (heat 0, cash seized)',
+    G.W.heat === 0 && G.cash < cashBefore,
+    'heat=' + G.W.heat + ' cash=' + G.cash);
+
+  /* ambulance triage: teleport to the pad; hysteresis keeps it there */
+  G.P.godT = 9999; G.P.hp = 50; G.P.dead = false;
+  const padX = G.AMB.x, padZ = G.AMB.z, padY = G.AMB.y;
+  G.BUS.active = false; G.BUS.speed = 0;               // park the bus: isolate the toast check
+  G.BUS.anchorCx = Math.floor(padX / 48); G.BUS.anchorCz = Math.floor(padZ / 48);
+  G.player.position.set(padX, padY, padZ);
+  frame(2);
+  check('em: ambulance pad sticks under the player (no chunk-cross pop)',
+    Math.abs(G.AMB.x - padX) < 1e-9 && Math.abs(G.AMB.z - padZ) < 1e-9,
+    'moved=' + Math.hypot(G.AMB.x - padX, G.AMB.z - padZ).toFixed(2));
+  frame(120);                                          // ~2 s on the pad: 4 HP/s
+  check('em: triage regen heals inside 10m', G.P.hp > 50 && G.P.hp <= 58.5,
+    'hp=' + G.P.hp.toFixed(1));
+  G.AMB.toastT = 5.9; G.AMB.healed = 12;               // toast is due almost now
+  frame(20);
+  check('em: triage HUD toast fires',
+    G.toastEl.textContent.indexOf('TRIAGE +') >= 0, G.toastEl.textContent);
+
+  /* taxi: board prompt, $5 fare, exit */
+  G.P.hp = 100; G.cash = 100; G.P.godT = 9999;
+  G.player.position.set(0, groundY(0, 0), 0);          // anchor chunk (0,0)
+  frame(3);
+  const s0 = G.TX.route[0];
+  G.TX.pos.set(s0.x, G.terrainHeight(s0.x, s0.z), s0.z);
+  G.TX.speed = 0; G.TX.stopIdx = 0; G.TX.heading = 0;  // hold it at the stop
+  const door = G.txDoorWorld().clone();
+  G.player.position.set(door.x, groundY(door.x, door.z), door.z);
+  frame(2);                                            // anchor may rebuild: taxi holds position
+  check('em: taxi board prompt appears at the door', G.TX.hintOn === true);
+  G.taxiEnter();                                       // real entry
+  check('em: taxi boarding rides + charges $5 fare',
+    G.TX.riding === true && G.player.visible === false && G.cash === 95,
+    'cash=' + G.cash);
+  check('em: taxi fare toast',
+    G.toastEl.textContent.indexOf('TAXI FARE $5 PAID') >= 0, G.toastEl.textContent);
+  G.mountToggle();                                     // E while riding: get out
+  check('em: E while riding exits the taxi',
+    G.TX.riding === false && G.player.visible === true);
+  G.setHeat(0, true);
 }
 
 /* ---------- zero console errors ---------- */
