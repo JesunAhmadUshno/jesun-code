@@ -73,6 +73,8 @@ globalThis.__R3D = {
   enemies, tracers, enemyMeshes, objRing, objIcon,
   SAVE_KEY,
   DIFF, diffEval, animals,
+  birds, wingL, wingR, PET, tamePet, releasePet, acquirePrey, petRejoin,
+  petHintEl, petChipEl, birdFlockTick,
   get cash() { return cash; }, set cash(v) { cash = v; },
   get kills() { return kills; }, set kills(v) { kills = v; },
   get curWeapon() { return curWeapon; }, set curWeapon(v) { curWeapon = v; },
@@ -562,6 +564,169 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   G.emoteCancel();
   check('emote: exactly one render per tick during an emote (zero new draw sites)',
     renders === 30, 'renders=' + renders);
+}
+
+/* ================= 10. WILDLIFE (Phase 5) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
+  G.CAR.driving = false; G.HORSE.riding = false;
+  G.BUS.driving = false; G.BUS.riding = false; G.TX.riding = false;
+  G.player.visible = true; G.DIFF.tier = 0;
+  const press = (code) => {
+    stubs.fireGlobal('keydown', { code, preventDefault() {} });
+    stubs.fireGlobal('keyup', { code });
+  };
+  const parkEnemies = (x, z) => {
+    for (const e of G.enemies) {
+      e.seeT = 0; e.scanT = 0; e.wasSpotted = false; e.live = false;
+      e.aware = false; e.aggroT = 0; e.attackCd = 0; e.state = 'wander';
+      e.prey = null; e.preyCd = 0; e.hp = e.cfg.hp; e.speed = 0;
+      e.group.position.set(x, groundY(x, z), z);
+    }
+  };
+
+  /* 10a. draw-call budget: still 45 InstancedMesh, one render site per tick */
+  const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
+  check('wildlife: zero new InstancedMesh vs main (45)', imCount === 45, 'count=' + imCount);
+  globalThis.__renderCount = 0; frame(30);
+  check('wildlife: exactly one render per tick', globalThis.__renderCount === 30,
+    'renders=' + globalThis.__renderCount);
+
+  /* 10b. birds flock: neighbor spread stays bounded over 600 frames */
+  frame(600);
+  let maxD2 = 0;
+  for (let i = 0; i < G.birds.length; i++)
+    for (let j = i + 1; j < G.birds.length; j++) {
+      const a = G.birds[i], b = G.birds[j];
+      const d2 = (a.ox - b.ox) * (a.ox - b.ox) + (a.oz - b.oz) * (a.oz - b.oz);
+      if (d2 > maxD2) maxD2 = d2;
+    }
+  check('wildlife: bird flock spread stays bounded over 600 frames',
+    Math.sqrt(maxD2) < 90, 'maxSpread=' + Math.sqrt(maxD2).toFixed(1) + 'm');
+  let spdOk = true;
+  for (const u of G.birds) { const s = Math.hypot(u.vx, u.vz); if (s < 2.9 || s > 7.1) spdOk = false; }
+  check('wildlife: bird cruise speed stays in the 3..7 m/s band', spdOk);
+
+  /* 10c. predator diverts to the nearest animal when the player is far */
+  parkEnemies(50, 50);
+  G.player.position.set(0, groundY(0, 0), 0);   // ~71m: outside every alert radius
+  let testDeer = null;
+  for (const a of G.animals) {
+    if (a.kind === 'deer' && !testDeer && !a.mountLocked && a !== G.PET.a) { testDeer = a; continue; }
+    if ((a.kind === 'deer' || a.kind === 'horse') && a !== G.PET.a) {
+      a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0;
+    }
+  }
+  testDeer.zone = { x0: -200, x1: 200, z0: -200, z1: 200 };   // room to bolt
+  testDeer.pos.set(58, groundY(58, 55), 55);
+  testDeer.fleeT = 0; testDeer.mode = 'idle'; testDeer.t = 999;
+  const e0 = G.enemies[0];   // rusher: 6.8 m/s chase
+  const d0 = Math.hypot(testDeer.pos.x - 50, testDeer.pos.z - 50);
+  frame(120);
+  const d1 = Math.hypot(testDeer.pos.x - e0.group.position.x, testDeer.pos.z - e0.group.position.z);
+  check('wildlife: predator acquires the nearest animal as prey',
+    e0.prey === testDeer && e0.aware === false, 'preyAcquired=' + (e0.prey === testDeer));
+  check('wildlife: predator closes distance on its prey',
+    d1 < d0 - 0.5, 'd0=' + d0.toFixed(1) + ' d1=' + d1.toFixed(1));
+
+  /* 10d. prey flees: the bolt carries it beyond 15m from a slower predator */
+  parkEnemies(150, 150);
+  const eB = G.enemies[4];   // brute: 2.4 m/s chase, slower than the 6 m/s bolt
+  eB.group.position.set(60, groundY(60, 58), 58);
+  testDeer.pos.set(62, groundY(62, 60), 60); testDeer.fleeT = 0;
+  let pdMax = 0;
+  for (let i = 0; i < 240; i++) {
+    frame(1);
+    const d = Math.hypot(testDeer.pos.x - eB.group.position.x, testDeer.pos.z - eB.group.position.z);
+    if (d > pdMax) pdMax = d;
+  }
+  check('wildlife: prey bolts beyond 15m from the predator', pdMax > 15,
+    'maxD=' + pdMax.toFixed(1) + 'm');
+
+  /* 10e. tame via E: horse at 2.5m (inside 3m tame, outside 2.2m ride) */
+  parkEnemies(150, 150);
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.player.rotation.y = Math.PI;
+  const horse = G.animals.find(a => a.kind === 'horse' && !a.mountLocked);
+  for (const a of G.animals) {
+    if (a !== horse && (a.kind === 'deer' || a.kind === 'horse')) {
+      a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0;
+    }
+  }
+  horse.pos.set(2.5, groundY(2.5, 0), 0); horse.fleeT = 0; horse.mode = 'idle'; horse.t = 999;
+  frame(2);
+  check('wildlife: tame prompt raises for the nearby horse',
+    G.PET.hintOn === true && G.PET.nearA === horse);
+  G.BUS.hintOn = false; G.TX.hintOn = false;   // isolate: E must reach the pet branch
+  press('KeyE');
+  check('wildlife: E tames the prompted animal',
+    G.PET.a === horse && G.toastEl.textContent === 'PET TAMED' &&
+    G.petChipEl.style.display === 'block' && horse.fleeR === 0,
+    'pet=' + (G.PET.a && G.PET.a.kind));
+
+  /* 10f. pet follows: distance shrinks */
+  G.player.position.set(30, groundY(30, 0), 0);
+  const petD0 = Math.hypot(horse.pos.x - 30, horse.pos.z);
+  frame(180);
+  const petD1 = Math.hypot(horse.pos.x - G.player.position.x, horse.pos.z - G.player.position.z);
+  check('wildlife: pet follows the player (distance shrinks)',
+    petD1 < petD0 - 3 && G.PET.mode === 'follow',
+    'd0=' + petD0.toFixed(1) + ' d1=' + petD1.toFixed(1) + ' mode=' + G.PET.mode);
+
+  /* 10g. pet waits while the player is mounted, resumes on dismount */
+  G.CAR.driving = true;
+  frame(1);
+  const waitToast = G.toastEl.textContent === 'PET WAITING';
+  const wx = horse.pos.x, wz = horse.pos.z;
+  frame(59);
+  const wMoved = Math.hypot(horse.pos.x - wx, horse.pos.z - wz);
+  check('wildlife: pet waits while the player drives (toast on transition, no follow)',
+    G.PET.mode === 'wait' && waitToast && wMoved < 0.01,
+    'mode=' + G.PET.mode + ' moved=' + wMoved.toFixed(3));
+  G.CAR.driving = false;
+  frame(5);
+  check('wildlife: pet resumes follow after dismount', G.PET.mode === 'follow');
+
+  /* 10h. save/load round-trip retames the pet at its saved offset */
+  G.saveGame();
+  const raw = stubs.localStorage.getItem(G.SAVE_KEY);
+  check('wildlife: save persists the pet (kind + offset)',
+    /"pet":"(deer|horse):-?\d/.test(raw));
+  G.releasePet(true);
+  check('wildlife: release clears the pet', G.PET.a === null && G.petChipEl.style.display === 'none');
+  G.loadSave();
+  const savedPet = JSON.parse(raw).data.pet.split(':');
+  const ex = G.player.position.x + (+savedPet[1]), ez = G.player.position.z + (+savedPet[2]);
+  const offErr = G.PET.a ?
+    Math.hypot(G.PET.a.pos.x - ex, G.PET.a.pos.z - ez) : 999;
+  check('wildlife: load retames the pet at its saved offset',
+    G.PET.a !== null && G.PET.a.kind === 'horse' && offErr < 0.5,
+    'kind=' + (G.PET.a && G.PET.a.kind) + ' offErr=' + offErr.toFixed(2));
+
+  /* 10i. taming a second pet releases the first (exactly one) */
+  const oldPet = G.PET.a;
+  oldPet.pos.set(100, groundY(100, 100), 100); oldPet.fleeT = 0;
+  const horse2 = G.animals.find(a => a.kind === 'horse' && a !== oldPet && !a.mountLocked);
+  for (const a of G.animals) {
+    if (a !== oldPet && a !== horse2 && (a.kind === 'deer' || a.kind === 'horse')) {
+      a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0;
+    }
+  }
+  horse2.pos.set(G.player.position.x + 2.5, 0, G.player.position.z);
+  horse2.pos.y = groundY(horse2.pos.x, horse2.pos.z);
+  horse2.fleeT = 0; horse2.mode = 'idle'; horse2.t = 999;
+  frame(2);
+  G.BUS.hintOn = false; G.TX.hintOn = false;
+  press('KeyE');
+  check('wildlife: taming a second pet releases the first (exactly one pet)',
+    G.PET.a === horse2 && oldPet.fleeR === 0,
+    'petIsHorse2=' + (G.PET.a === horse2));
+
+  /* 10j. weapon guard: no animal mesh is in the player hitscan target list */
+  const animalMeshes = new Set();
+  for (const a of G.animals) { animalMeshes.add(a.imBody); animalMeshes.add(a.imHead); animalMeshes.add(a.imLegs); }
+  check('wildlife: pet can never be hit by player weapons (no animal mesh raycast)',
+    !G.enemyMeshes.some(m => animalMeshes.has(m)));
 }
 
 /* ---------- zero console errors ---------- */

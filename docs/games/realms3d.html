@@ -245,6 +245,21 @@
     border: 1px solid rgba(255,211,77,.45); font-size: 12px; letter-spacing: 2px;
     font-weight: bold; padding: 8px 12px; display: none; white-space: nowrap;
   }
+  /* ---- wildlife HUD (Phase 5): TAME prompt mirrors the taxi hint pattern;
+         the PET chip reuses the #diffchip chip language, stacked below it.
+         DOM only, zero draw calls. ---- */
+  #pethint {
+    position: absolute; bottom: 240px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #7dff9a; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #petchip {
+    position: absolute; top: 390px; right: 18px; color: #7dff9a; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: none;
+  }
 
   /* ---- lightning flash: DOM layer above the canvas only, capped under 0.18
          opacity, pointer-events none, no layout impact ---- */
@@ -317,6 +332,8 @@
   <div id="bushud"></div>
   <div id="txhint"></div>
   <div id="txhud"></div>
+  <div id="pethint"></div>
+  <div id="petchip">PET</div>
   <div id="emotehint"></div>
   <div id="shop">
     <h3 id="shopname">SHOP</h3>
@@ -1275,6 +1292,7 @@ for (let i = 0; i < 12; i++) {
 function redistributeWildDeer(pcx, pcz) {
   for (let i = 0; i < wildDeer.length; i++) {
     const a = wildDeer[i];
+    if (a === PET.a) continue;   /* Phase 5 wildlife: pets never relocate */
     const rnd = mulberry32(hash2i(pcx * 31 + i, pcz * 17 + i * 7));
     const gx = pcx - HALFGRID + Math.floor(rnd() * GRID);
     const gz = pcz - HALFGRID + Math.floor(rnd() * GRID);
@@ -1346,6 +1364,19 @@ function natureTick(dt, now) {
     if (vtOn && Math.hypot(p.x - vtx, p.z - vtz) < 8) {
       a.fleeT = 3; a.fleeFrom.set(vtx, 0, vtz);   // vehicles scare every animal
     }
+    /* Phase 5 wildlife: predator scare. An enemy inside 15m bolts any animal
+       (the pet included), at the same run speed as the other scares. */
+    if (a.fleeT <= 0) {
+      for (let ei = 0; ei < enemies.length; ei++) {
+        const en = enemies[ei];
+        if (en.state === 'dead') continue;
+        const ex = en.group.position.x - p.x, ez = en.group.position.z - p.z;
+        if (ex * ex + ez * ez < 225) {
+          a.fleeT = 3; a.fleeFrom.set(en.group.position.x, 0, en.group.position.z);
+          break;
+        }
+      }
+    }
 
     let moving = false, spd = 0;
     if (a.fleeT > 0) {
@@ -1355,9 +1386,18 @@ function natureTick(dt, now) {
       _nv.normalize();
       spd = 6; moving = true;
       p.x += _nv.x * spd * dt; p.z += _nv.z * spd * dt;
-      p.x = Math.max(a.zone.x0, Math.min(a.zone.x1, p.x));  // stay in home zone
-      p.z = Math.max(a.zone.z0, Math.min(a.zone.z1, p.z));
+      /* Phase 5 wildlife: the pet roams with the player, it has no home zone */
+      if (a !== PET.a) {
+        p.x = Math.max(a.zone.x0, Math.min(a.zone.x1, p.x));  // stay in home zone
+        p.z = Math.max(a.zone.z0, Math.min(a.zone.z1, p.z));
+      }
       a.mode = 'idle'; a.t = 0.5;
+    } else if (a === PET.a) {
+      /* Phase 5 wildlife: the pet follows instead of wandering/grazing.
+         Flee (above) still wins: the pet bolts from vehicles, gunshots,
+         and enemies like every other animal. */
+      petSteer(a, dt);
+      moving = _petMoving; spd = _petSpd;
     } else if (a.mode === 'idle') {
       a.t -= dt;
       if (a.graze) {
@@ -1425,12 +1465,170 @@ function natureTick(dt, now) {
   /* write the per-animal instance matrices once per frame */
   for (const a of animals) writeAnimalMatrices(a);
   for (const m of ALL_ANIMAL_MESHES) m.instanceMatrix.needsUpdate = true;
+  petPromptScan();   /* Phase 5 wildlife: E-tame prompt */
 }
 /* worldTickers is declared later in this module (const, temporal dead zone),
    so register after full module evaluation. angleLerp/player/scene are fine:
    the ticker only runs once the game loop starts. queueMicrotask (not
    setTimeout) so headless harnesses that drive tick() manually still run it. */
 queueMicrotask(() => worldTickers.push(natureTick));
+
+/* ================= PHASE 5 WILDLIFE: PET + PREDATOR/PREY =================
+   Behavior-only. Zero new draw calls: the pet reuses its species'
+   InstancedMeshes (it stays in `animals`), predators reuse the enemy chase
+   steering, birds keep their two wing meshes. Seeded rng only; zero
+   per-frame allocation in the hot ticks.
+
+   Weapon-safety note (guards the damage flow by construction): the player
+   hitscan raycasts `enemyMeshes` + `copMeshes` only, and punchHitCheck
+   iterates `enemies` + `cops` only. Animals (the pet included) are in
+   neither target list, so no player weapon can ever hit the pet. */
+const PET = { a: null, mode: 'none', hintOn: false, nearA: null };
+let _petMoving = false, _petSpd = 0;
+
+/* ---- HUD: TAME prompt (taxi-hint idiom) + PET status chip (diffchip idiom) ---- */
+const petHintEl = document.getElementById('pethint');
+const petChipEl = document.getElementById('petchip');
+function updatePetChip() { petChipEl.style.display = PET.a ? 'block' : 'none'; }
+petHintEl.addEventListener('click', () => { if (PET.hintOn && PET.nearA) tamePet(PET.nearA); });
+
+function setPetMode(m) {
+  if (PET.mode === m) return;
+  PET.mode = m;
+  if (m === 'wait' && PET.a) toast('PET WAITING');   /* toast only on transition */
+}
+/* Tame a deer or horse. Exactly one pet: taming a second releases the first. */
+function tamePet(a, silent) {
+  if (!a || a === PET.a || a.mountLocked) return;
+  if (PET.a) releasePet(true);
+  PET.a = a;
+  a._petFleeR = a.fleeR; a.fleeR = 0;   /* the pet never bolts from its owner */
+  a.wild = false;                        /* the chunk relocator leaves pets alone */
+  a.fleeT = 0; a.mode = 'idle'; a.t = 1;
+  PET.mode = 'follow';
+  if (!silent) { toast('PET TAMED'); sfxBlip(880, 0.12, 'sine', 0.25); }
+  updatePetChip();
+}
+function releasePet(silent) {
+  const a = PET.a;
+  if (!a) return;
+  a.fleeR = (a._petFleeR !== undefined) ? a._petFleeR : a.fleeR;
+  a.wild = false;
+  PET.a = null; PET.mode = 'none'; PET.hintOn = false; PET.nearA = null;
+  petHintEl.style.opacity = 0;
+  if (!silent) toast('PET LOST');
+  updatePetChip();
+}
+/* Player redeploy: the pet rejoins at the spawn point (the one sanctioned
+   reposition; follow steering itself never teleports). */
+function petRejoin() {
+  const a = PET.a;
+  if (!a) return;
+  const px = player.position.x, pz = player.position.z;
+  a.pos.set(px + 2, terrainHeight(px + 2, pz + 2), pz + 2);
+  a.fleeT = 0; a.mode = 'idle'; a.t = 1;
+  PET.mode = 'follow';
+}
+/* Save/load: "kind:ox:oz" (player-relative offset). Compact, validated. */
+function petSaveStr() {
+  const a = PET.a;
+  if (!a) return '';
+  const r2 = v => Math.round(v * 100) / 100;
+  return a.kind + ':' + r2(a.pos.x - player.position.x) + ':' + r2(a.pos.z - player.position.z);
+}
+function petLoadStr(s) {
+  if (!s) return;
+  const m = /^(deer|horse):(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/.exec(s);
+  if (!m || Math.abs(+m[2]) > 120 || Math.abs(+m[3]) > 120) return;
+  const tx = player.position.x + (+m[2]), tz = player.position.z + (+m[3]);
+  let best = null, bestD2 = 3600;   /* nearest of the kind inside 60m of the mark */
+  for (const a of animals) {
+    if (a.kind !== m[1] || a.mountLocked) continue;
+    const dx = a.pos.x - tx, dz = a.pos.z - tz, d2 = dx * dx + dz * dz;
+    if (d2 < bestD2) { bestD2 = d2; best = a; }
+  }
+  if (!best) {                        /* fallback: any of the kind, moved to the mark */
+    bestD2 = Infinity;
+    for (const a of animals) {
+      if (a.kind !== m[1] || a.mountLocked) continue;
+      const dx = a.pos.x - tx, dz = a.pos.z - tz, d2 = dx * dx + dz * dz;
+      if (d2 < bestD2) { bestD2 = d2; best = a; }
+    }
+  }
+  if (!best) return;
+  best.pos.set(tx, terrainHeight(tx, tz), tz);
+  best.fleeT = 0;
+  tamePet(best, true);                 /* silent: boot already toasts SAVE LOADED */
+}
+/* Pet follow steering: seek-with-arrival to 2.5m behind the player's facing.
+   Writes _petMoving/_petSpd for the shared animal pose code and _nv for
+   facing. No zone clamp: the pet follows the player across chunks. */
+function petSteer(a, dt) {
+  const p = a.pos, pp = player.position;
+  _petMoving = false; _petSpd = 0;
+  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding;
+  const dx = pp.x - p.x, dz = pp.z - p.z;
+  /* death, any vehicle mode, or >120m: the pet stops and waits */
+  if (P.dead || inVehicle || dx * dx + dz * dz > 14400) { setPetMode('wait'); return; }
+  setPetMode('follow');
+  const yaw = player.rotation.y;
+  const sx = (pp.x - Math.sin(yaw) * 2.5) - p.x;
+  const sz = (pp.z - Math.cos(yaw) * 2.5) - p.z;
+  const sd = Math.hypot(sx, sz);
+  if (sd < 1.2) return;                       /* arrived: stand */
+  const spd = Math.min(4.5, 1.2 + (sd - 1.2) * 1.5);
+  _nv.set(sx / sd, 0, sz / sd);
+  p.x += _nv.x * spd * dt; p.z += _nv.z * spd * dt;
+  _petMoving = true; _petSpd = spd;
+}
+/* E-tame prompt: nearest tamable deer/horse inside 3m, on foot, not fleeing.
+   Horses inside the 2.2m ride radius keep the RIDE prompt (existing behavior
+   wins there); tame a horse from 2.2-3m. Runs at the tail of natureTick. */
+function petPromptScan() {
+  const onFoot = playing() && !P.dead && !shopOpen &&
+    !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !HORSE.riding;
+  let best = null, bestD2 = 9;
+  if (onFoot) {
+    for (const a of animals) {
+      if (a === PET.a || a.mountLocked || a.fleeT > 0) continue;
+      if (a.kind !== 'deer' && a.kind !== 'horse') continue;
+      if (a.kind === 'horse' && HORSE.hintOn && HORSE.nearA === a) continue;
+      const dx = player.position.x - a.pos.x, dz = player.position.z - a.pos.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < bestD2) { bestD2 = d2; best = a; }
+    }
+  }
+  PET.nearA = best;
+  const on = best !== null;
+  if (on !== PET.hintOn) { PET.hintOn = on; petHintEl.style.opacity = on ? 1 : 0; }
+  if (on) {
+    const label = (IS_TOUCH ? 'TAP TO TAME ' : 'E TAME ') + (best.kind === 'deer' ? 'DEER' : 'HORSE');
+    if (petHintEl.textContent !== label) petHintEl.textContent = label;
+  }
+}
+/* Predator/prey: with no player target, an enemy may hunt the nearest
+   non-pet deer/cow/horse inside 25m. Returns the prey animal or null.
+   The catch is a panic bolt (animals carry no HP); the enemy then rests. */
+function acquirePrey(e, gp) {
+  if (e.preyCd > 0) { e.prey = null; return null; }
+  const cur = e.prey;
+  if (cur && cur !== PET.a && !cur.mountLocked) {
+    const dx = cur.pos.x - gp.x, dz = cur.pos.z - gp.z;
+    if (dx * dx + dz * dz < 900) return cur;   /* stay on it inside 30m */
+  }
+  let best = null, bestD2 = 625;                /* 25m acquire radius */
+  for (let i = 0; i < animals.length; i++) {
+    const a = animals[i];
+    if (a === PET.a || a.mountLocked) continue;
+    const k = a.kind;
+    if (k !== 'deer' && k !== 'cow' && k !== 'horse') continue;
+    const dx = a.pos.x - gp.x, dz = a.pos.z - gp.z;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < bestD2) { bestD2 = d2; best = a; }
+  }
+  e.prey = best;
+  return best;
+}
 /* Nature zones code goes here (worker: nature & animals). Forest (N), farm (W), ocean (S), deer/horses/cows. */
 
 /* Birds: 6 simple two-triangle birds circling high above the world.
@@ -1468,6 +1666,76 @@ for (let i = 0; i < BIRD_N; i++) {
     ph: Math.random() * Math.PI * 2,
     px: 0, py: 0, pz: 0,   /* bookkeeping position, written by the tick */
   });
+}
+/* ---- Phase 5 wildlife: Reynolds boids for the 6 park birds.
+   Separation / alignment / cohesion over local neighbors, plus a soft pull
+   toward each bird's park anchor (cx,cz; the amenity tick re-homes birds 0-1
+   to parks) and one shared seeded wandering flock center. Integrates in
+   player-relative offset space (the sky follows the player in the infinite
+   world). Zero allocation: scalar locals only. Zero new draw calls: the two
+   wing InstancedMeshes are posed exactly as before. ---- */
+const _bRng = mulberry32(hash2i(9000, 7));   /* seeded: flock init + wander */
+const _flock = { x: 0, z: 0, ph1: _bRng() * 6.2832, ph2: _bRng() * 6.2832 };
+/* the flock starts as a flock: tight seeded cluster, shared heading. The
+   park anchors (cx,cz) still steer the whole flock via birdFlockTick. */
+{
+  const ha = _bRng() * 6.2832;
+  for (const u of birds) {
+    const ca = _bRng() * 6.2832, cr = 3 + _bRng() * 5;
+    u.ox = Math.cos(ca) * cr;
+    u.oz = Math.sin(ca) * cr;
+    const j = (_bRng() - 0.5) * 0.6;
+    u.vx = Math.cos(ha + j) * 5;
+    u.vz = Math.sin(ha + j) * 5;
+  }
+}
+function birdFlockTick(dt, now, ppx, ppz) {
+  _flock.x = Math.sin(now * 0.05 + _flock.ph1) * 10;   /* wandering flock center */
+  _flock.z = Math.sin(now * 0.037 + _flock.ph2) * 10;
+  /* shared flock anchor: the park-homed birds' mean anchor (the amenity tick
+     re-homes birds 0-1 to parks), plus the wander. One center for the whole
+     flock: this is the park soft-containment. */
+  let anx = 0, anz = 0, an = 0;
+  for (let i = 0; i < 2 && i < birds.length; i++) {
+    if (birds[i].cx || birds[i].cz) { anx += birds[i].cx; anz += birds[i].cz; an++; }
+  }
+  anx = (an > 0 ? anx / an : 0) + _flock.x;
+  anz = (an > 0 ? anz / an : 0) + _flock.z;
+  for (let i = 0; i < birds.length; i++) {
+    const u = birds[i];
+    let sx = 0, sz = 0, ax = 0, az = 0, gx = 0, gz = 0, n = 0;
+    for (let j = 0; j < birds.length; j++) {
+      if (j === i) continue;
+      const v = birds[j];
+      const dx = v.ox - u.ox, dz = v.oz - u.oz;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < 36 && d2 > 1e-4) {            /* separation: inside 6m */
+        const d = Math.sqrt(d2), push = (6 - d) / d;
+        sx -= dx * push; sz -= dz * push;
+      }
+      if (d2 < 400) {                         /* alignment + cohesion: inside 20m */
+        ax += v.vx; az += v.vz; gx += v.ox; gz += v.oz; n++;
+      }
+    }
+    let fx = sx * 1.8, fz = sz * 1.8;
+    if (n > 0) {
+      fx += (ax / n - u.vx) * 1.0; fz += (az / n - u.vz) * 1.0;
+      fx += (gx / n - u.ox) * 0.35; fz += (gz / n - u.oz) * 0.35;
+    }
+    /* park soft-containment: pull back beyond 22m of the shared anchor */
+    const cdx = anx - u.ox, cdz = anz - u.oz;
+    const cd = Math.hypot(cdx, cdz);
+    if (cd > 22) { const pull = (cd - 22) * 1.2 / cd; fx += cdx * pull; fz += cdz * pull; }
+    u.vx += fx * dt; u.vz += fz * dt;
+    const sp = Math.hypot(u.vx, u.vz) || 0.001;
+    const csp = sp < 3 ? 3 : sp > 7 ? 7 : sp;   /* birds always cruise 3..7 m/s */
+    u.vx *= csp / sp; u.vz *= csp / sp;
+    u.ox += u.vx * dt; u.oz += u.vz * dt;
+    u.a = -Math.atan2(-u.vz, u.vx);              /* yaw faces the velocity */
+    u.px = ppx + u.ox;
+    u.py = u.h + Math.sin(now * 0.7 + u.ph) * 1.5;
+    u.pz = ppz + u.oz;
+  }
 }
 /* pose every wing instance from the bookkeeping state.
    root = T(pos) * Ry(-a); left = root * Rz(flap); right = root * Rz(-flap).
@@ -2423,7 +2691,8 @@ function makeEnemy(type, idx) {
     /* higher-IQ brain: perception + memory, all seeded (deterministic) */
     lastKnown: new THREE.Vector3(), tx: 0, tz: 0,
     seeT: 0, scanT: 0, wasSpotted: false, live: false, aware: false,
-    spawnGen: 0, rng: mulberry32(hash2i(2000 + idx, 0)) };
+    spawnGen: 0, rng: mulberry32(hash2i(2000 + idx, 0)),
+    prey: null, preyCd: 0 };   /* Phase 5 wildlife: predator/prey target + rest timer */
 }
 function pickWander(e) {
   const g = e.group.position;
@@ -2460,6 +2729,7 @@ function placeEnemy(e, v) {
   e.seeT = 0; e.scanT = 0; e.wasSpotted = false; e.live = false; e.aware = false;
   e.spawnGen = (e.spawnGen || 0) + 1;
   e.rng = mulberry32(hash2i(2000 + e.idx, e.spawnGen));
+  e.prey = null; e.preyCd = 0;   /* Phase 5 wildlife: forget the hunt on respawn */
   hideTelegraph(e);
   setEnemyFlash(e, 0xffffff);
   pickWander(e);
@@ -2914,7 +3184,7 @@ function updateEnemy(e, dt, now) {
     if (e.respawnT <= 0) placeEnemy(e, spawnPos(true));   // type preserved
     return;
   }
-  e.attackCd -= dt; e.aggroT -= dt;
+  e.attackCd -= dt; e.aggroT -= dt; e.preyCd -= dt;   /* preyCd: predator rest timer */
   if (e.hitT > 0) { e.hitT -= dt; if (e.hitT <= 0) setEnemyFlash(e, 0xffffff); }
   const pp = player.position, gp = g.position;
   const dx = pp.x - gp.x, dz = pp.z - gp.z;
@@ -2950,8 +3220,26 @@ function updateEnemy(e, dt, now) {
   const telegraph = e.state === 'dashwind' || e.state === 'dash' ||
                     e.state === 'aim' || e.state === 'slamwind';
   if (!e.aware) {
-    if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
-    wanderMove(e, r, dt, e.cfg.walk);
+    /* Phase 5 wildlife: predator/prey. With no player target the enemy may
+       hunt the nearest non-pet animal inside 25m, reusing chase steering.
+       The catch reads as a panic bolt (animals carry no HP); the enemy
+       then rests before hunting again. */
+    const prey = acquirePrey(e, gp);
+    if (prey) {
+      const tdx = prey.pos.x - gp.x, tdz = prey.pos.z - gp.z;
+      const tdist = Math.hypot(tdx, tdz) || 0.001;
+      r.spd = e.cfg.chase; r.mvx = tdx / tdist; r.mvz = tdz / tdist;
+      e.yaw = Math.atan2(tdx, tdz);
+      if (tdist < 2.4) {
+        prey.fleeT = 4; prey.fleeFrom.set(gp.x, 0, gp.z);
+        e.prey = null; e.preyCd = 6 + e.rng() * 6;
+        if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
+        pickWander(e);
+      }
+    } else {
+      if (e.state !== 'wander') { e.state = 'wander'; hideTelegraph(e); }
+      wanderMove(e, r, dt, e.cfg.walk);
+    }
   } else if (!e.live && !telegraph) {
     const tdx = e.tx - gp.x, tdz = e.tz - gp.z;
     const tdist = Math.hypot(tdx, tdz);
@@ -5884,7 +6172,9 @@ function horseExit() {
 }
 /* E key: dismount first, then car, then bus, then taxi, then mount if a prompt
    is live, else car. While riding the bus, E takes the driver's seat; while
-   riding the taxi, E gets out; F exits (car convention). */
+   riding the taxi, E gets out; F exits (car convention).
+   Phase 5 wildlife: E also tames (pet prompt sits after the vehicle prompts
+   so boarding wins ties; the car fallback stays last). */
 function mountToggle() {
   if (HORSE.riding) horseExit();
   else if (CAR.driving) carExit();
@@ -5894,6 +6184,7 @@ function mountToggle() {
   else if (HORSE.hintOn && HORSE.nearA) horseEnter();
   else if (BUS.hintOn) busEnter();
   else if (TX.hintOn) taxiEnter();
+  else if (PET.hintOn && PET.nearA) tamePet(PET.nearA);
   else carEnter();
 }
 /* the touch EXIT button doubles as the dismount button while riding */
@@ -7224,6 +7515,7 @@ function tick() {
       P.hp = 100; P.dead = false; P.godT = 2;
       setHeat(0, true); W.evading = false;   // death always clears the heat
       updateHpHUD(); toast('REDEPLOYED'); closeShop();
+      petRejoin();   // Phase 5 wildlife: the pet rejoins at the redeploy point
     }
   }
   enemyAimLine.visible = false;   // aiming shooters re-assert (last writer wins)
@@ -7279,12 +7571,7 @@ function tick() {
     cloudIM.setMatrixAt(i, dummy.matrix);
   }
   cloudIM.instanceMatrix.needsUpdate = true;
-  for (const u of birds) {
-    u.a += u.spd * sdt;
-    u.px = ppx + u.cx + Math.cos(u.a) * u.r;
-    u.py = u.h + Math.sin(now * 0.7 + u.ph) * 1.5;
-    u.pz = ppz + u.cz + Math.sin(u.a) * u.r;
-  }
+  birdFlockTick(sdt, now, ppx, ppz);   /* Phase 5 wildlife: Reynolds boids */
   poseBirds(now);
 
   /* --- world expansion tickers (city/nature/people workers) --- */
@@ -7341,12 +7628,13 @@ function tick() {
    game. Zero per-frame allocation: the tick only moves scalars and updates
    one HUD string once per second. */
 const SAVE_KEY = 'realms3d_save_v1', SAVE_JOURNAL = 'realms3d_save_journal',
-      SAVE_BAK = 'realms3d_save_bak', SAVE_VERSION = 1;
+      SAVE_BAK = 'realms3d_save_bak', SAVE_VERSION = 2;
 const SAVE_WORLD_R = 120;                 // validation: |x|,|z| stay inside the world
 const savedEl = document.getElementById('saved');
 let lastSaveAt = 0, saveBootToast = false, saveAutoT = 0, saveChipT = 0;
 
-/* forward-only migrations: v1 is the identity step; future versions add N->N+1 */
+/* forward-only migrations: v1 is the identity step; v1->v2 adds the optional
+   pet field (absent = no pet, still valid). Future versions add N->N+1. */
 const SAVE_MIGRATIONS = { 1: d => d };
 function migrateSave(env) {
   let v = env.version | 0, d = env.data;
@@ -7370,7 +7658,8 @@ function collectSave() {
     hp: Math.round(P.hp),
     am: (MS.state === 'ACTIVE' && MS.idx >= 0) ? MS.idx : -1,
     done: MS.done.map(b => b ? 1 : 0).join(''),
-    heat: 0                                        // never persist wanted heat
+    heat: 0,                                       // never persist wanted heat
+    pet: petSaveStr()                              // Phase 5 wildlife: "kind:ox:oz" or ""
   };
 }
 
@@ -7390,6 +7679,14 @@ function validSave(d) {
   if (typeof d.done !== 'string' || d.done.length !== MISSIONS.length ||
       !/^[01]+$/.test(d.done)) return false;
   if (d.heat !== 0) return false;
+  /* Phase 5 wildlife: pet is optional (v1 saves lack it). "kind:ox:oz". */
+  if (d.pet !== undefined) {
+    if (typeof d.pet !== 'string') return false;
+    if (d.pet !== '') {
+      const pm = /^(deer|horse):(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/.exec(d.pet);
+      if (!pm || Math.abs(+pm[2]) > 120 || Math.abs(+pm[3]) > 120) return false;
+    }
+  }
   return true;
 }
 
@@ -7397,6 +7694,7 @@ function applySave(d) {
   player.position.set(d.x, terrainHeight(d.x, d.z), d.z);
   player.rotation.y = Math.PI;
   P.vel.set(0, 0, 0); P.vy = 0; P.hp = d.hp; P.dead = false; P.godT = 0;
+  petLoadStr(d.pet);   // Phase 5 wildlife: retame the saved pet at its offset
   cash = d.cash; kills = d.kills;
   WEAPONS.shotgun.owned = d.sg >= 0; WEAPONS.shotgun.ammo = d.sg >= 0 ? d.sg : 8;
   WEAPONS.smg.owned = d.sm >= 0;     WEAPONS.smg.ammo = d.sm >= 0 ? d.sm : 120;
@@ -7456,6 +7754,7 @@ function newGame() {
   MS.state = 'IDLE'; MS.idx = -1; MS.phase = 0; MS.prog = 0; MS.giverT = 0;
   for (let i = 0; i < MS.done.length; i++) MS.done[i] = false;
   cash = 0; kills = 0;
+  releasePet(true);   // Phase 5 wildlife: new game releases the pet (silent)
   WEAPONS.shotgun.owned = false; WEAPONS.shotgun.ammo = 8;
   WEAPONS.smg.owned = false;     WEAPONS.smg.ammo = 120;
   curWeapon = 'rifle';
