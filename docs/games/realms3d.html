@@ -98,6 +98,19 @@
   #todicon { margin-right: 10px; }
   #dmgflash { position: fixed; inset: 0; pointer-events: none; z-index: 14; opacity: 0;
     background: radial-gradient(ellipse at center, rgba(200,0,0,0) 35%, rgba(210,25,15,.6) 100%); }
+
+  /* ---- weather HUD: icon + current state, under the day/night clock ---- */
+  #wx {
+    position: absolute; top: 148px; right: 18px; color: #c9d2b8; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center;
+  }
+  #wx span { margin-right: 8px; }
+
+  /* ---- lightning flash: DOM layer above the canvas only, capped under 0.18
+         opacity, pointer-events none, no layout impact ---- */
+  #boltflash { position: fixed; inset: 0; pointer-events: none; z-index: 9;
+    background: #dfe8ff; opacity: 0; }
   #toast { position: absolute; top: 32%; left: 50%; transform: translateX(-50%);
     color: #ff6b5e; font-size: 24px; letter-spacing: 8px; font-weight: bold; opacity: 0;
     transition: opacity .25s; text-shadow: 0 0 18px rgba(255,60,40,.6); white-space: nowrap; }
@@ -125,10 +138,12 @@
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b></div>
   <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
+  <div id="wx"><span>☀</span> CLEAR</div>
   <div id="toast"></div>
 </div>
 
 <div id="dmgflash"></div>
+<div id="boltflash"></div>
 
 <div id="touchui">
   <div id="stick"><div id="stickknob"></div></div>
@@ -167,6 +182,11 @@ scene.fog = new THREE.Fog(0x1a2438, 40, 220);          // distance haze
 /* Day/night shared refs: populated by the sky/stars/sun/lamp blocks below,
    consumed by the day/night cycle tick (declared after worldTickers). */
 const DNF = {};
+
+/* WX: weather registry. Stashed refs (ground material) are filled by world
+   blocks below; the weather tick + dayNightTick consume them. Declared up
+   here so every block below can write to it. */
+const WX = {};
 
 /* Sky dome: vertical gradient, brighter tactical dusk (not pitch black) */
 {
@@ -306,6 +326,7 @@ const WORLD = 220;
     new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
   ground.receiveShadow = true;
   scene.add(ground);
+  WX.groundMat = ground.material;   // weather tick darkens + glosses it when raining
 }
 
 /* ============================ TREES AND ROCKS ============================= */
@@ -2002,6 +2023,208 @@ if (IS_TOUCH) {
    This keeps world-expansion animation out of the game loop body (no merge conflicts). */
 const worldTickers = [];
 
+/* ==================== WEATHER SYSTEM (worker: world builder) ================ */
+/* clear / overcast / rain / storm on a timer. Registered BEFORE dayNightTick
+   (pushed directly, worldTickers is already initialized above) so the
+   day/night tick writes fog color, sun color and sun base intensity last;
+   weather only supplies multipliers (WX.sunMul, WX.fogMul) plus its own
+   near/far writes. Rain is one LineSegments draw call, player-centered. */
+const WX_STATES = {
+  clear:    { fog: 1.0,  sun: 1.0,  rain: 0, wind: 0.0,  dur: [60, 110], wet: 0 },
+  overcast: { fog: 0.78, sun: 0.62, rain: 0, wind: 0.35, dur: [40, 80],  wet: 0 },
+  rain:     { fog: 0.52, sun: 0.30, rain: 1, wind: 0.6,  dur: [50, 90],  wet: 1 },
+  storm:    { fog: 0.36, sun: 0.18, rain: 2, wind: 1.2,  dur: [25, 50],  wet: 1 },
+};
+WX.state = 'clear';
+WX.params = WX_STATES.clear;
+WX.stateT = 45;                    // first transition lands ~45s into the run
+WX.fogMul = 1; WX.sunMul = 1;      // smoothed multipliers dayNightTick consumes
+WX.wet = 0;                        // smoothed wet-ground amount 0..1
+WX.windA = Math.random() * Math.PI * 2;   // slow-drifting wind heading
+WX.windVec = new THREE.Vector2(1, 0);
+
+/* ---- rain: 1500 drops, one LineSegments draw call, player-centered volume.
+        Drops wrap inside the volume relative to the camera; never reallocated.
+        Drop slant scales with speed^2 (storm slants harder). ---- */
+const RAIN_N = 1500, RAIN_W = 40, RAIN_H = 24, RAIN_D = 40;
+const rainPos = new Float32Array(RAIN_N * 6);
+const rainDrops = [];   // [lx, ly, lz, len] local to the volume
+for (let i = 0; i < RAIN_N; i++) {
+  rainDrops.push([Math.random() * RAIN_W, Math.random() * RAIN_H, Math.random() * RAIN_D,
+                  0.9 + Math.random() * 0.7]);
+}
+const rainGeo = new THREE.BufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainMat = new THREE.LineBasicMaterial({ color: 0x9fb8d8, transparent: true, opacity: 0 });
+const rain = new THREE.LineSegments(rainGeo, rainMat);
+rain.frustumCulled = false;
+rain.visible = false;
+scene.add(rain);
+
+function updateRain(dt, rainAmt, wind) {
+  rain.visible = rainAmt > 0;
+  if (!rain.visible) return;
+  const speed = rainAmt === 2 ? 27 : 20;             // storm falls faster
+  const slantX = WX.windVec.x * wind * speed * speed * 0.0009;   // slant ~ speed^2
+  const slantZ = WX.windVec.y * wind * speed * speed * 0.0009;
+  for (let i = 0; i < RAIN_N; i++) {
+    const d = rainDrops[i];
+    d[1] -= speed * dt;                             // fall; recycle inside the volume
+    if (d[1] < 0) { d[1] += RAIN_H; d[0] = Math.random() * RAIN_W; d[2] = Math.random() * RAIN_D; }
+    const o = i * 6;
+    rainPos[o]     = d[0];        rainPos[o + 1] = d[1];        rainPos[o + 2] = d[2];
+    rainPos[o + 3] = d[0] - slantX; rainPos[o + 4] = d[1] - d[3]; rainPos[o + 5] = d[2] - slantZ;
+  }
+  rainGeo.attributes.position.needsUpdate = true;
+  rain.position.set(camera.position.x - RAIN_W / 2, camera.position.y - RAIN_H / 2,
+                    camera.position.z - RAIN_D / 2);
+  rainMat.opacity += ((rainAmt === 2 ? 0.8 : 0.55) - rainMat.opacity) * Math.min(1, 3 * dt);
+}
+
+/* ---- lightning: one dedicated DirectionalLight, exponential-decay
+        multi-pulse flash (2-4 pulses, fast falloff). Distant thunder is
+        delayed after the flash via setTimeout + the sfx system. ---- */
+const bolt = new THREE.DirectionalLight(0xcfe0ff, 0);
+bolt.castShadow = false;   // no shadow map work: flash is pure light
+scene.add(bolt, bolt.target);
+const boltFlashEl = document.getElementById('boltflash');
+WX.boltT = -1; WX.boltPulses = [];   // [{at, peak}]
+WX.boltCd = 6 + Math.random() * 6;
+function triggerBolt() {
+  const n = 2 + Math.floor(Math.random() * 3);      // 2-4 pulses
+  WX.boltPulses = [];
+  let at = 0;
+  for (let i = 0; i < n; i++) {
+    WX.boltPulses.push({ at, peak: 2.5 + Math.random() * 2 });
+    at += 0.07 + Math.random() * 0.14;
+  }
+  WX.boltT = 0;
+  const a = Math.random() * Math.PI * 2, r = 60 + Math.random() * 60;
+  bolt.position.set(player.position.x + Math.cos(a) * r, 90,
+                    player.position.z + Math.sin(a) * r);
+  bolt.target.position.copy(player.position);
+  setTimeout(sfxThunder, 700 + Math.random() * 1600);   // distant thunder, delayed
+}
+function updateBolt(dt) {
+  if (WX.boltT < 0) { bolt.intensity = 0; boltFlashEl.style.opacity = 0; return; }
+  WX.boltT += dt;
+  let I = 0;
+  const TAU = 0.035;                                  // fast exponential falloff
+  for (const p of WX.boltPulses) {
+    const t = WX.boltT - p.at;
+    if (t >= 0) I += p.peak * Math.exp(-t / TAU);
+  }
+  if (WX.boltT > WX.boltPulses[WX.boltPulses.length - 1].at + 0.4) { WX.boltT = -1; I = 0; }
+  bolt.intensity = I;
+  boltFlashEl.style.opacity = Math.min(0.15, I * 0.035);   // stays under 0.18
+}
+
+/* ---- wet ground: darken + glossier while raining, restored when clear ---- */
+WX.groundCol0 = WX.groundMat ? WX.groundMat.color.getHex() : 0xffffff;
+WX.groundRough0 = WX.groundMat ? WX.groundMat.roughness : 1;
+const _wetCol = new THREE.Color();
+function updateWet(dt, wetTgt) {
+  WX.wet += (wetTgt - WX.wet) * Math.min(1, 1.5 * dt);   // slow soak / slow dry
+  if (!WX.groundMat) return;
+  _wetCol.setHex(WX.groundCol0).multiplyScalar(1 - WX.wet * 0.42);
+  WX.groundMat.color.copy(_wetCol);
+  WX.groundMat.roughness = WX.groundRough0 - WX.wet * 0.5;
+}
+
+/* ---- procedural rain patter + thunder. No external audio files. ---- */
+let rainSrc = null, rainGain = null;
+function ensureRainAudio() {
+  const a = ac();
+  if (!a || a.state !== 'running' || rainSrc) return;
+  const n = Math.floor(a.sampleRate * 2);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  rainSrc = a.createBufferSource(); rainSrc.buffer = buf; rainSrc.loop = true;
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
+  const hp = a.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 300;
+  rainGain = a.createGain(); rainGain.gain.value = 0;
+  rainSrc.connect(lp); lp.connect(hp); hp.connect(rainGain); rainGain.connect(a.destination);
+  rainSrc.start();
+}
+function sfxThunder() {
+  const a = ac();
+  if (!a || a.state !== 'running') return;
+  const t0 = a.currentTime;
+  const dur = 1.6, n = Math.floor(a.sampleRate * dur);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 1.8); }
+  const s = a.createBufferSource(); s.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 130;
+  const g = a.createGain(); g.gain.value = 0.55;
+  s.connect(f); f.connect(g); g.connect(a.destination); s.start(t0);
+  const o = a.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(58, t0);
+  o.frequency.exponentialRampToValueAtTime(28, t0 + 1.2);
+  const g2 = a.createGain();
+  g2.gain.setValueAtTime(0.4, t0);
+  g2.gain.exponentialRampToValueAtTime(0.001, t0 + 1.4);
+  o.connect(g2); g2.connect(a.destination); o.start(t0); o.stop(t0 + 1.5);
+}
+
+/* ---- weather state machine + HUD ---- */
+const wxEl = document.getElementById('wx');
+const WX_ICON = { clear: '\u2600', overcast: '\u2601', rain: '\u2602', storm: '\u26C8' };
+const WX_LABEL = { clear: 'CLEAR', overcast: 'OVERCAST', rain: 'RAIN', storm: 'STORM' };
+function setWeather(next) {
+  WX.state = next;
+  WX.params = WX_STATES[next];
+  const d = WX.params.dur;
+  WX.stateT = d[0] + Math.random() * (d[1] - d[0]);
+  wxEl.innerHTML = '<span>' + WX_ICON[next] + '</span> ' + WX_LABEL[next];
+  if (next === 'storm') WX.boltCd = 2 + Math.random() * 4;   // storm opens with a bolt
+}
+function nextWeather() {
+  const r = Math.random(), s = WX.state;
+  if (s === 'clear') return 'overcast';
+  if (s === 'overcast') return r < 0.6 ? 'rain' : 'clear';
+  if (s === 'rain') return r < 0.3 ? 'storm' : 'overcast';
+  return 'rain';   // storm always decays back to rain
+}
+wxEl.innerHTML = '<span>\u2600</span> CLEAR';
+
+function weatherTick(dt, now) {
+  WX.stateT -= dt;
+  if (WX.stateT <= 0) setWeather(nextWeather());
+
+  /* wind heading drifts slowly, faster in storm */
+  WX.windA += dt * (0.05 + WX.params.wind * 0.12);
+  WX.windVec.set(Math.cos(WX.windA), Math.sin(WX.windA));
+
+  /* smooth multipliers; dayNightTick runs after this and writes fog color,
+     sun color and sun base intensity last (multiplied by WX.sunMul) */
+  const k = Math.min(1, 2 * dt);
+  WX.fogMul += (WX.params.fog - WX.fogMul) * k;
+  WX.sunMul += (WX.params.sun - WX.sunMul) * k;
+  scene.fog.near = 40 * Math.max(0.4, WX.fogMul * 0.85);
+  scene.fog.far = 220 * WX.fogMul;      // rain pushes far to x0.52
+
+  updateWet(dt, WX.params.wet);
+  updateRain(dt, WX.params.rain, WX.params.wind);
+
+  /* lightning: frequent in storm, rare in rain */
+  if (WX.state === 'storm' || WX.state === 'rain') {
+    WX.boltCd -= dt;
+    if (WX.boltCd <= 0) {
+      triggerBolt();
+      WX.boltCd = WX.state === 'storm' ? 4 + Math.random() * 6 : 20 + Math.random() * 20;
+    }
+  }
+  updateBolt(dt);
+
+  /* rain audio: fade the looped patter with the weather */
+  ensureRainAudio();
+  if (rainGain) {
+    const tgt = WX.state === 'storm' ? 0.20 : WX.state === 'rain' ? 0.10 : 0;
+    rainGain.gain.value += (tgt - rainGain.gain.value) * Math.min(1, 2.5 * dt);
+  }
+}
+worldTickers.push(weatherTick);   // before dayNightTick: it writes fog color + sun last
+
 /* ==================== DAY / NIGHT CYCLE (worker: world builder) ==================== */
 /* 480s full cycle, starts at dusk (matches the shipped "brighter dusk" mood).
    Drives the existing sun DirectionalLight along an arc; at night the same light
@@ -2083,7 +2306,7 @@ function dayNightTick(dt, now) {
   sunDir.copy(_v1.normalize());
   keyCol(SUN_COL, dayPhase, _c1);
   sun.color.copy(_c1);
-  sun.intensity = keyNum(SUN_INT, dayPhase);
+  sun.intensity = keyNum(SUN_INT, dayPhase) * (WX.sunMul || 1);   // weather dim multiplier (rain x0.3)
 
   /* hemisphere fill: night stays readable, never pitch black */
   keyCol(HEMI_SKY, dayPhase, _c1); DNF.hemi.color.copy(_c1);
