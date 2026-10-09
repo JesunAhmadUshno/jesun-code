@@ -90,7 +90,7 @@
   #combat #kills { color: #d8c84a; }
   #combat #cash { color: #7dff9a; }
   #weap {
-    position: absolute; top: 128px; right: 18px; color: #c9d2b8; font-size: 12px;
+    position: absolute; top: 170px; right: 18px; color: #c9d2b8; font-size: 12px;
     background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 6px 12px;
     letter-spacing: 2px; text-align: right; line-height: 1.6; pointer-events: auto;
   }
@@ -112,9 +112,20 @@
   #marr { font-size: 26px; line-height: 1; text-shadow: 0 0 10px rgba(255,180,40,.7); }
   #mdist { font-size: 11px; letter-spacing: 2px; margin-top: 2px; }
 
+  /* ---- wanted HUD: heat stars under #combat. Solid while seen,
+         flashing (.evading) while the cops lose your trail, hidden at 0. ---- */
+  #heat {
+    position: absolute; top: 100px; right: 18px; color: #ff6b5e; font-size: 17px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 6px 12px;
+    letter-spacing: 5px; min-width: 92px; text-align: center; display: none;
+    text-shadow: 0 0 10px rgba(255,60,40,.6);
+  }
+  #heat.evading { animation: heatblink .8s steps(2) infinite; }
+  @keyframes heatblink { 50% { opacity: .25; } }
+
   /* ---- time-of-day readout (day/night cycle) ---- */
   #tod {
-    position: absolute; top: 100px; right: 18px; color: #d8c84a; font-size: 13px;
+    position: absolute; top: 134px; right: 18px; color: #d8c84a; font-size: 13px;
     background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
     letter-spacing: 3px; min-width: 92px; text-align: center;
   }
@@ -124,7 +135,7 @@
 
   /* ---- weather HUD: icon + current state, under the day/night clock ---- */
   #wx {
-    position: absolute; top: 148px; right: 18px; color: #c9d2b8; font-size: 12px;
+    position: absolute; top: 206px; right: 18px; color: #c9d2b8; font-size: 12px;
     background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
     letter-spacing: 2px; min-width: 92px; text-align: center;
   }
@@ -132,7 +143,7 @@
 
   /* ---- vehicle HUD: speedo under the weather block, enter-car hint ---- */
   #speedo {
-    position: absolute; top: 196px; right: 18px; color: #c9d2b8; font-size: 12px;
+    position: absolute; top: 254px; right: 18px; color: #c9d2b8; font-size: 12px;
     background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
     letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
   }
@@ -176,6 +187,7 @@
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b></div>
+  <div id="heat"></div>
   <div id="weap"><span id="wname">RIFLE</span> <b id="wammo">&infin;</b></div>
   <div id="mtracker"><div id="mtitle"></div><div id="mobj"></div></div>
   <div id="marrow"><div id="marr">▲</div><div id="mdist"></div></div>
@@ -1313,6 +1325,14 @@ function punchHitCheck() {
       connected = true;
     }
   }
+  for (const c of cops) {
+    if (!c.active || c.state === 'dead') continue;
+    const dx = c.group.position.x - px, dz = c.group.position.z - pz;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 2.4) continue;
+    const dot = (dx * fx + dz * fz) / Math.max(dist, 0.001);
+    if (dot > 0.7) { damageCop(c.idx, dmg); connected = true; }
+  }
   if (connected) punchConnectFX(step);   // hit-stop + camera punch + recoil + thud
   return connected;
 }
@@ -1545,7 +1565,7 @@ function damageEnemy(e, d) {
   if (e.hp <= 0) {
     e.state = 'dead'; e.deadT = 0; e.respawnT = 10;
     hideTelegraph(e);
-    kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type); toast('HOSTILE DOWN');
+    kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type, 25); toast('HOSTILE DOWN'); addHeat(1);
   } else sfxHit();
 }
 
@@ -1574,8 +1594,22 @@ function shoot() {
     else jitterPt.set(0, 0);
     raycaster.setFromCamera(jitterPt, camera);
     const hits = raycaster.intersectObjects(targets, false);
+    /* cop hits: instanced meshes, first living cop along the ray wins */
+    let cHit = null, cIdx = -1;
+    if (copAnyActive) {
+      const ch = raycaster.intersectObjects(copMeshes, false);
+      for (let ci = 0; ci < ch.length; ci++) {
+        const h = ch[ci];
+        const idx = Math.floor(h.instanceId / h.object.userData.perCop);
+        const cc = cops[idx];
+        if (cc && cc.active && cc.state !== 'dead') { cHit = h; cIdx = idx; break; }
+      }
+    }
     let end;
-    if (hits.length) { end = hits[0].point; damageEnemy(hits[0].object.userData.enemy, w.dmg); }
+    if (cHit && (!hits.length || cHit.distance < hits[0].distance)) {
+      end = cHit.point; damageCop(cIdx, w.dmg);
+    }
+    else if (hits.length) { end = hits[0].point; damageEnemy(hits[0].object.userData.enemy, w.dmg); }
     else { end = raycaster.ray.at(90, tmpEnd); }
     fireTracer(tmpV2, end);
   }
@@ -1788,6 +1822,335 @@ function updateEnemy(e, dt, now) {
   e.armL.rotation.x = armTgt; e.armR.rotation.x = armTgt;
 }
 
+/* ============================ WANTED SYSTEM v1 ============================
+   GTA-flavored heat. Crimes raise stars (hostile kill +1, cop kill +2, max
+   5). At heat >= 1, cop enforcers spawn (up to heat, capped 5) and hunt the
+   player with the shooter AI. A cop "sees" the player inside 55u (75u while
+   driving); 10s unseen cools one star and restarts the timer. A cop that
+   reaches the player makes the BUSTED bust: heat to 0, 25% cash seized,
+   respawn at spawn, mission fails. Death always clears the heat.
+   Rendered as 5 InstancedMeshes (torso/head/legs/arms/gun, shared hostile
+   geometry, blue-uniform materials) + 1 shared aim line = 6 draw calls.
+   Zero per-frame allocation in the wanted tick; sight/evade/busted checks
+   are throttled to 0.25s. */
+const W = { heat: 0, lastSeen: -999, evading: false, tickT: 0 };
+const COP_MAX = 5;
+const COP_CFG = { hp: 3, chase: 5.2, walk: 2.2, aggro: 300, eye: 0x4488ff };
+const COP_SEE = 55, COP_SEE_CAR = 75, EVADE_T = 10;
+const heatEl = document.getElementById('heat');
+
+/* --- cop visuals: instanced parts, hostile geometry reused, one shared
+       blue uniform material set. No new textures, no new geometry. --- */
+const copUniM = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.85 });
+const copHeadM = new THREE.MeshStandardMaterial({ color: 0x8a6a52, roughness: 0.85 });
+const copLegM = new THREE.MeshStandardMaterial({ color: 0x1a2030, roughness: 0.9 });
+const copGunM = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 });
+const copEyeMat = new THREE.MeshBasicMaterial({ color: COP_CFG.eye });
+const copTorso = new THREE.InstancedMesh(EGEO.torso, copUniM, COP_MAX);
+const copHead = new THREE.InstancedMesh(EGEO.head, copHeadM, COP_MAX);
+const copLegs = new THREE.InstancedMesh(EGEO.limb, copLegM, COP_MAX * 2);
+const copArms = new THREE.InstancedMesh(EGEO.arm, copUniM, COP_MAX * 2);
+const copGuns = new THREE.InstancedMesh(EGEO.gunA, copGunM, COP_MAX);
+const copMeshes = [copTorso, copHead, copLegs, copArms, copGuns];
+for (const m of copMeshes) {
+  m.frustumCulled = false; m.castShadow = true;
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  m.userData.perCop = (m === copLegs || m === copArms) ? 2 : 1;   // instances per cop
+  scene.add(m);
+}
+/* one aim line shared by all aiming cops (last writer wins, 1 draw call) */
+const copAimLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+  new THREE.LineBasicMaterial({ color: 0x6688ff, transparent: true, opacity: 0.85 }));
+copAimLine.visible = false; copAimLine.frustumCulled = false;
+scene.add(copAimLine);
+
+/* --- matrix temps: zero allocation in the per-frame cop posing --- */
+const _copM1 = new THREE.Matrix4(), _copM2 = new THREE.Matrix4();
+const _copD = new THREE.Object3D();
+let copDirty = false, copAnyActive = false;
+
+function copBody(mesh, inst, gx, gy, gz, yaw, fall, ox, oy, oz) {
+  _copM1.makeRotationY(yaw);
+  _copM2.makeRotationX(fall); _copM1.multiply(_copM2);
+  _copM1.setPosition(gx, gy, gz);
+  _copM2.makeTranslation(ox, oy, oz); _copM1.multiply(_copM2);
+  mesh.setMatrixAt(inst, _copM1);
+  copDirty = true;
+}
+function copLimb(mesh, inst, gx, gy, gz, yaw, fall, jx, jy, jz, swing, half) {
+  _copM1.makeRotationY(yaw);
+  _copM2.makeRotationX(fall); _copM1.multiply(_copM2);
+  _copM1.setPosition(gx, gy, gz);
+  _copM2.makeTranslation(jx, jy, jz); _copM1.multiply(_copM2);
+  _copM2.makeRotationX(swing); _copM1.multiply(_copM2);
+  _copM2.makeTranslation(0, -half, 0); _copM1.multiply(_copM2);
+  mesh.setMatrixAt(inst, _copM1);
+  copDirty = true;
+}
+/* pose one cop: body parts around the ground point, limbs swinging at the
+   hip/shoulder joints, whole figure tipping over by `fall` when dead */
+function poseCop(c, fall, swing, armTgt) {
+  const gp = c.group.position, yaw = c.group.rotation.y, i = c.idx, gy = gp.y;
+  copBody(copTorso, i, gp.x, gy, gp.z, yaw, fall, 0, 1.21, 0);
+  copBody(copHead, i, gp.x, gy, gp.z, yaw, fall, 0, 1.68, 0);
+  copBody(copGuns, i, gp.x, gy, gp.z, yaw, fall, 0.30, 1.15, 0.30);
+  copLimb(copLegs, i * 2, gp.x, gy, gp.z, yaw, fall, -0.16, 0.9, 0, swing, 0.45);
+  copLimb(copLegs, i * 2 + 1, gp.x, gy, gp.z, yaw, fall, 0.16, 0.9, 0, -swing, 0.45);
+  copLimb(copArms, i * 2, gp.x, gy, gp.z, yaw, fall, -0.36, 1.45, 0, armTgt, 0.31);
+  copLimb(copArms, i * 2 + 1, gp.x, gy, gp.z, yaw, fall, 0.36, 1.45, 0, armTgt, 0.31);
+}
+/* park a cop's instances far underground: invisible and unhittable */
+function parkCop(c) {
+  _copD.position.set(0, -60, 0); _copD.rotation.set(0, 0, 0); _copD.scale.set(1, 1, 1);
+  _copD.updateMatrix();
+  const i = c.idx;
+  copTorso.setMatrixAt(i, _copD.matrix);
+  copHead.setMatrixAt(i, _copD.matrix);
+  copGuns.setMatrixAt(i, _copD.matrix);
+  copLegs.setMatrixAt(i * 2, _copD.matrix);
+  copLegs.setMatrixAt(i * 2 + 1, _copD.matrix);
+  copArms.setMatrixAt(i * 2, _copD.matrix);
+  copArms.setMatrixAt(i * 2 + 1, _copD.matrix);
+  copDirty = true;
+}
+
+const cops = [];
+function makeCop(i) {
+  const g = new THREE.Group();
+  scene.add(g); g.visible = false;   // bookkeeping only: position + yaw
+  return { idx: i, type: 'cop', cfg: COP_CFG, group: g,
+    active: false, hp: COP_CFG.hp, state: 'chase',
+    yaw: 0, speed: 0, attackCd: 1, aggroT: 9999,
+    deadT: 0, respawnT: 0, walkPhase: Math.random() * 6,
+    target: new THREE.Vector3(), strafeDir: 1, strafeT: 0,
+    windT: 0, poseT: 0, dashDir: new THREE.Vector3(),
+    eyeMat: copEyeMat, aimLine: copAimLine };
+}
+/* spawn 30-45u from the player, at least 20u out after world clamping */
+function copSpawnPos(out) {
+  const px = player.position.x, pz = player.position.z;
+  for (let i = 0; i < 6; i++) {
+    const a = Math.random() * Math.PI * 2, r = 30 + Math.random() * 15;
+    const x = Math.max(-100, Math.min(100, px + Math.cos(a) * r));
+    const z = Math.max(-100, Math.min(100, pz + Math.sin(a) * r));
+    const dx = x - px, dz = z - pz;
+    if (dx * dx + dz * dz > 400) { out.x = x; out.z = z; return out; }
+  }
+  out.x = Math.max(-100, Math.min(100, px + 35));
+  out.z = Math.max(-100, Math.min(100, pz));
+  return out;
+}
+const _copSpawn = { x: 0, z: 0 };
+function spawnCop(c) {
+  copSpawnPos(_copSpawn);
+  const g = c.group, sx = _copSpawn.x, sz = _copSpawn.z;
+  g.position.set(sx, terrainHeight(sx, sz), sz);
+  g.rotation.set(0, 0, 0);
+  c.active = true; c.hp = COP_CFG.hp; c.state = 'chase';
+  c.yaw = Math.atan2(player.position.x - sx, player.position.z - sz);
+  g.rotation.y = c.yaw;
+  c.speed = 0; c.attackCd = 1 + Math.random(); c.aggroT = 9999;
+  c.deadT = 0; c.respawnT = 0; c.poseT = 0; c.windT = 0;
+  c.strafeDir = Math.random() < 0.5 ? 1 : -1; c.strafeT = 0;
+  c.eyeMat.color.setHex(COP_CFG.eye);
+  pickWander(c);
+  poseCop(c, 0, 0, -0.5);
+}
+for (let i = 0; i < COP_MAX; i++) { const c = makeCop(i); parkCop(c); cops.push(c); }
+copTorso.instanceMatrix.needsUpdate = true;
+copHead.instanceMatrix.needsUpdate = true;
+copLegs.instanceMatrix.needsUpdate = true;
+copArms.instanceMatrix.needsUpdate = true;
+copGuns.instanceMatrix.needsUpdate = true;
+
+/* --- heat state --- */
+function updateHeatHUD() {
+  if (W.heat <= 0) { heatEl.style.display = 'none'; heatEl.classList.remove('evading'); return; }
+  heatEl.style.display = 'block';
+  let s = '';
+  for (let i = 0; i < W.heat; i++) s += '★';
+  heatEl.textContent = s;
+  heatEl.classList.toggle('evading', W.evading);
+}
+function setHeat(n, silent) {
+  n = Math.max(0, Math.min(5, n));
+  const prev = W.heat;
+  if (n === prev) return;
+  W.heat = n;
+  if (prev === 0 && n > 0) W.evading = false;
+  W.lastSeen = performance.now() / 1000;
+  updateHeatHUD();
+  if (!silent) toast(n > prev ? 'WANTED LEVEL ' + n : 'HEAT COOLING');
+  if (n > 0) ensureSiren();
+  syncCops();
+}
+function addHeat(n) { setHeat(W.heat + n); }
+/* keep exactly min(heat, 5) cop slots live; retire dead slots first, else
+   the farthest living cop */
+function syncCops() {
+  const want = Math.min(W.heat, COP_MAX);
+  let have = 0;
+  for (const c of cops) if (c.active) have++;
+  for (const c of cops) {
+    if (have >= want) break;
+    if (!c.active) { spawnCop(c); have++; }
+  }
+  while (have > want) {
+    let pick = null, pickDead = null, bd = -1;
+    const px = player.position.x, pz = player.position.z;
+    for (const c of cops) {
+      if (!c.active) continue;
+      if (c.state === 'dead') { pickDead = c; break; }
+      const dx = c.group.position.x - px, dz = c.group.position.z - pz;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > bd) { bd = d2; pick = c; }
+    }
+    const out = pickDead || pick;
+    if (!out) break;
+    out.active = false; out.state = 'chase'; parkCop(out);
+    have--;
+  }
+  copAnyActive = false;
+  for (const c of cops) if (c.active) { copAnyActive = true; break; }
+}
+
+/* --- cop damage + death: pays $0, counts for kill missions, +2 heat --- */
+function damageCop(idx, d) {
+  const c = cops[idx];
+  if (!c || !c.active || c.state === 'dead') return;
+  c.hp -= d;
+  c.aggroT = 9999;
+  if (c.hp <= 0) {
+    c.state = 'dead'; c.deadT = 0; c.respawnT = 8;
+    c.eyeMat.color.setHex(COP_CFG.eye);
+    copAimLine.visible = false;
+    kills++; updateCombatHUD();
+    missionOnKill('cop', 0);
+    sfxDie();
+    const before = W.heat;
+    addHeat(2);
+    if (W.heat === before) toast('COP DOWN');
+  } else sfxHit();
+}
+
+/* --- cop AI: the hostile shooter brain on a cop body --- */
+function updateCop(c, dt, now) {
+  if (!c.active) return;
+  const g = c.group;
+  if (c.state === 'dead') {
+    c.deadT += dt;
+    const k = Math.min(1, c.deadT / 0.4);
+    poseCop(c, -Math.PI / 2 * k * k, 0, 0);   // fall flat
+    if (c.deadT > 1.4) parkCop(c);
+    else {
+      c.respawnT -= dt;
+      if (c.respawnT <= 0) spawnCop(c);        // fresh cop keeps the pressure on
+    }
+    return;
+  }
+  c.attackCd -= dt;
+  const pp = player.position, gp = g.position;
+  const dx = pp.x - gp.x, dz = pp.z - gp.z;
+  const dist = Math.hypot(dx, dz);
+  const r = shooterAI(c, dt, now, dist, dx, dz);
+  if (c.state === 'aim') copAimLine.visible = true;   // re-assert: shared line
+  c.speed += (r.spd - c.speed) * Math.min(1, 8 * dt);
+  gp.x = Math.max(-105, Math.min(105, gp.x + r.mvx * c.speed * dt));
+  gp.z = Math.max(-105, Math.min(105, gp.z + r.mvz * c.speed * dt));
+  gp.y = terrainHeight(gp.x, gp.z) - r.crouch * 0.18;
+  g.rotation.y = angleLerp(g.rotation.y, c.yaw, 1 - Math.exp(-8 * dt));
+  if (c.poseT > 0) c.poseT -= dt;
+  c.walkPhase += dt * (3 + c.speed * 1.5);
+  const sw = Math.min(1, c.speed / 4) * 0.55, s = Math.sin(c.walkPhase) * sw;
+  let armTgt = r.armT - s * 0.5;
+  if (c.poseT > 0) armTgt = -1.5;             // shoot recoil pose
+  poseCop(c, 0, s, armTgt);
+}
+
+/* --- BUSTED: caught by a cop. Heat to 0, 25% cash seized, respawn at
+       spawn with full HP, mission fails. Never soft-locks. --- */
+function sfxBusted() {
+  sfxBlip(660, 0.16, 'square', 0.25);
+  setTimeout(() => sfxBlip(440, 0.16, 'square', 0.25), 150);
+  setTimeout(() => sfxBlip(330, 0.3, 'square', 0.25), 300);
+}
+function busted() {
+  if (CAR.driving) carExit();
+  const seized = Math.floor(cash * 0.25);
+  cash -= seized; updateCashHUD();
+  setHeat(0, true);
+  W.evading = false; updateHeatHUD();
+  player.position.set(0, terrainHeight(0, 0), 0);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  P.hp = 100; P.dead = false; P.godT = 2;
+  updateHpHUD();
+  missionOnDeath();
+  sfxBusted();
+  toast('BUSTED - $' + seized + ' SEIZED');
+}
+
+/* --- procedural two-tone siren: one oscillator + square LFO, created once,
+       gain rides the heat (low), silent at 0. Same WebAudio idiom as the
+       engine loop. --- */
+let sirOsc = null, sirGain = null;
+function ensureSiren() {
+  const a = ac(); if (!a || sirOsc) return;
+  sirOsc = a.createOscillator(); sirOsc.type = 'triangle'; sirOsc.frequency.value = 830;
+  const lfo = a.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 0.85;
+  const lg = a.createGain(); lg.gain.value = 140;   // 690 / 970 Hz two-tone
+  lfo.connect(lg); lg.connect(sirOsc.frequency);
+  sirGain = a.createGain(); sirGain.gain.value = 0;
+  sirOsc.connect(sirGain); sirGain.connect(a.destination);
+  sirOsc.start(); lfo.start();
+}
+
+/* --- wanted tick: per-frame cop sim (zero alloc), throttled sight / evade /
+       busted checks at 0.25s --- */
+function wantedTick(dt) {
+  const now = performance.now() / 1000;
+  if (sirGain) {
+    const tgt = W.heat > 0 ? 0.05 : 0;
+    sirGain.gain.value += (tgt - sirGain.gain.value) * Math.min(1, 5 * dt);
+  }
+  if (!playing() || P.dead) return;
+  copAimLine.visible = false;
+  for (const c of cops) updateCop(c, dt, now);
+  if (copDirty) {
+    copDirty = false;
+    copTorso.instanceMatrix.needsUpdate = true;
+    copHead.instanceMatrix.needsUpdate = true;
+    copLegs.instanceMatrix.needsUpdate = true;
+    copArms.instanceMatrix.needsUpdate = true;
+    copGuns.instanceMatrix.needsUpdate = true;
+  }
+  W.tickT += dt;
+  if (W.tickT < 0.25) return;
+  W.tickT = 0;
+  const px = player.position.x, pz = player.position.z;
+  const seeR = CAR.driving ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
+  let seen = false, bust = false;
+  for (const c of cops) {
+    if (!c.active || c.state === 'dead') continue;
+    const dx = c.group.position.x - px, dz = c.group.position.z - pz;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < see2) seen = true;
+    if (P.godT > 0) continue;
+    if (!CAR.driving) { if (d2 < 6.25) { bust = true; break; } }
+    else if (d2 < 9 && Math.abs(CAR.speed) < 3) { bust = true; break; }
+  }
+  if (bust) { busted(); return; }
+  if (W.heat <= 0) return;
+  if (seen) {
+    W.lastSeen = now;
+    if (W.evading) { W.evading = false; updateHeatHUD(); }
+  } else if (now - W.lastSeen >= EVADE_T) {
+    W.evading = true;
+    addHeat(-1);          // cools one star, toasts HEAT COOLING, retires a cop
+    updateHeatHUD();
+  }
+}
+
 /* ============================ MISSIONS v1 =================================
    5 handcrafted GTA-style missions: walk into a glowing ring to start one.
    IDLE -> ACTIVE -> objective phases -> COMPLETE / FAIL. Player death fails
@@ -1972,9 +2335,10 @@ function missionOnDeath() {
   toast('MISSION FAILED'); sfxMissionFail();
   updateMissionHUD();
 }
-/* hooked into the hostile death path: every kill pays $25 and can credit kill objectives */
-function missionOnKill(type) {
-  cash += 25; updateCashHUD();
+/* hooked into the kill paths: every kill can credit kill objectives.
+   Hostile kills pay $25; cop kills pay $0 but still count (type filter kept). */
+function missionOnKill(type, pay) {
+  cash += pay; updateCashHUD();
   if (MS.state !== 'ACTIVE') return;
   const o = MISSIONS[MS.idx].obj[MS.phase];
   if (o.type !== 'kill') return;
@@ -3414,11 +3778,13 @@ function tick() {
       player.position.set(0, terrainHeight(0, 0), 0);
       P.vel.set(0, 0, 0); P.vy = 0;
       P.hp = 100; P.dead = false; P.godT = 2;
+      setHeat(0, true); W.evading = false;   // death always clears the heat
       updateHpHUD(); toast('REDEPLOYED');
     }
   }
   for (const e of enemies) updateEnemy(e, sdt, performance.now() / 1000);
   missionTick(sdt);
+  wantedTick(sdt);
   lootTick(sdt);
   muzzle.getWorldPosition(muzzleFlash.position);
   muzzleFlash.intensity *= Math.exp(-26 * sdt);
