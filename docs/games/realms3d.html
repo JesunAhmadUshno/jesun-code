@@ -368,9 +368,11 @@ const clouds = [];
   const cloudMat = new THREE.MeshBasicMaterial({
     map: cloudTex, transparent: true, opacity: 0.8, fog: false, depthWrite: false
   });
-  for (let i = 0; i < 7; i++) {
+  /* PERF-1g: 7 -> 6 clouds. Placement stays evenly spread around the sky, so
+     every direction keeps cloud cover; saves 1 draw call. */
+  for (let i = 0; i < 6; i++) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(46, 23), cloudMat);
-    const a = (i / 7) * Math.PI * 2 + Math.random() * 0.6;
+    const a = (i / 6) * Math.PI * 2 + Math.random() * 0.6;
     const r = 90 + Math.random() * 110;
     m.position.set(Math.cos(a) * r, 42 + Math.random() * 22, Math.sin(a) * r);
     m.userData.speed = 0.4 + Math.random() * 0.7;
@@ -384,8 +386,13 @@ const clouds = [];
 const sun = new THREE.DirectionalLight(0xffe0b3, 2.8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -45; sun.shadow.camera.right = 45;
-sun.shadow.camera.top = 45; sun.shadow.camera.bottom = -45;
+/* PERF-1g: shadow box +-45 -> +-28. The box follows the player, so casters
+   beyond ~28m are frustum-culled from the shadow pass (fewer shadow draws)
+   and the 2048 map covers less ground (sharper shadows for free). Camera
+   pullback is 7-9m, so ~19m of margin remains before any box edge could show.
+   near/far, map size, and the sun angle logic are untouched. */
+sun.shadow.camera.left = -28; sun.shadow.camera.right = 28;
+sun.shadow.camera.top = 28; sun.shadow.camera.bottom = -28;
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
 sun.shadow.bias = -0.0004;
 scene.add(sun, sun.target);
@@ -1222,7 +1229,8 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
     heads.setMatrixAt(i, dummy.matrix);
   });
   poles.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
-  poles.castShadow = true;
+  poles.castShadow = false;  /* PERF-1g: thin pole shadows do not read at play
+     distance; saves 1 shadow draw. Heads never cast (emissive fakes). */
   scene.add(poles, heads);
 
   /* 4 real point lights at key spots; the rest of the lamps are emissive fakes */
@@ -1252,7 +1260,8 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
   }
   const roofs = new THREE.Mesh(mergeGeos(roofBits),
     new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.85 }));
-  roofs.castShadow = true;
+  roofs.castShadow = false;  /* PERF-1g: rooftop AC/antenna shadows are invisible
+     from the street; saves 1 shadow draw. The towers themselves keep casting. */
   scene.add(roofs);
 
   /* ---- cheap animation: lamp glow pulse + subtle window flicker ---- */
@@ -1349,7 +1358,8 @@ player.add(legL, legR);
 /* Torso: tapered cylinder + vest */
 pm(GEO.torso, MAT.shirt, 0, 1.22, 0);
 pm(GEO.vestG, MAT.vest, 0, 1.2, 0);
-pm(GEO.chestG, MAT.accent, 0, 1.24, 0.2);  // chest light
+pm(GEO.chestG, MAT.accent, 0, 1.24, 0.2, null, true);  /* PERF-1g: chest-light
+   shadow lands on the torso itself (unreadable); saves 1 shadow draw. */
 /* Arms: shoulder pivot (y=1.45) -> upper -> elbow pivot -> forearm -> fist */
 const armL = new THREE.Group(), armR = new THREE.Group();
 const elbowL = new THREE.Group(), elbowR = new THREE.Group();
@@ -1364,12 +1374,25 @@ const fistL = pm(GEO.fist, MAT.skin, 0, -0.36, 0, elbowL);
 const fistR = pm(GEO.fist, MAT.skin, 0, -0.36, 0, elbowR);
 player.add(armL, armR);
 /* Head with face (faces +z, player-forward) */
-pm(GEO.head, MAT.skin, 0, 1.68, 0);
+/* PERF-1g: static same-material face parts are merged (positions baked into the
+   geometry, render identical). 7 meshes -> 4 draw calls; nothing here animates. */
+{
+  const headG = GEO.head.clone(); headG.translate(0, 1.68, 0);
+  const noseG = GEO.nose.clone(); noseG.translate(0, 1.655, 0.135);
+  pm(mergeGeos([headG, noseG]), MAT.skin, 0, 0, 0);            // head + nose (casts)
+  const eyeGs = [];
+  for (const sx of [-0.052, 0.052]) {
+    const g = GEO.eye.clone(); g.translate(sx, 1.70, 0.125); eyeGs.push(g);
+  }
+  pm(mergeGeos(eyeGs), MAT.eye, 0, 0, 0, null, true);          // both eyes
+  const pupGs = [];
+  for (const sx of [-0.052, 0.052]) {
+    const g = GEO.pup.clone(); g.translate(sx, 1.70, 0.14); pupGs.push(g);
+  }
+  pm(mergeGeos(pupGs), MAT.pup, 0, 0, 0, null, true);          // both pupils
+}
 /* PERF-1f: face micro-parts skip the shadow pass (6 shadow draws saved).
    Eyes, pupils, nose, mouth cast no readable shadow; hair keeps its own. */
-pm(GEO.eye, MAT.eye, -0.052, 1.70, 0.125, null, true); pm(GEO.eye, MAT.eye, 0.052, 1.70, 0.125, null, true);
-pm(GEO.pup, MAT.pup, -0.052, 1.70, 0.14, null, true);  pm(GEO.pup, MAT.pup, 0.052, 1.70, 0.14, null, true);
-pm(GEO.nose, MAT.skin, 0, 1.655, 0.135, null, true);
 pm(GEO.mouth, MAT.mouth, 0, 1.615, 0.128, null, true);
 pm(GEO.hair, MAT.hair, 0, 1.685, -0.008);  // short hair cap
 scene.add(player);
@@ -3922,11 +3945,15 @@ carGroup.add(carTilt);
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.42, 1.9), carGlass);
   cabin.position.set(0, 1.16, -0.3); cabin.castShadow = true; carTilt.add(cabin);
 
-  const hlGeo = new THREE.PlaneGeometry(0.44, 0.16);
+  /* PERF-1g: the two headlight quads share material and never move relative to
+     the car, so they merge into one draw call. Render is identical. */
+  const hlGeos = [];
   for (const sx of [-0.55, 0.55]) {
-    const hl = new THREE.Mesh(hlGeo, carLightM);
-    hl.position.set(sx, 0.78, 2.16); carTilt.add(hl);
+    const g = new THREE.PlaneGeometry(0.44, 0.16);
+    g.translate(sx, 0.78, 2.16);
+    hlGeos.push(g);
   }
+  carTilt.add(new THREE.Mesh(mergeGeos(hlGeos), carLightM));
   const tail = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 0.06), carTailM);
   tail.position.set(0, 0.78, -2.16); carTilt.add(tail);
 }
