@@ -68,6 +68,7 @@ globalThis.__R3D = {
   busDwellService, BUSNPC, BUS,
   taxiEnter, taxiExit, txRebuild, txDoorWorld, crRebuild, ambRebuild,
   CR, TX, AMB, HORSE, emBodyIM, toastEl, W,
+  bikeEnter, bikeExit, bikeRebuild, BIKE, bikeBodyIM, bikeHintEl,
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
@@ -585,9 +586,10 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     }
   };
 
-  /* 10a. draw-call budget: still 45 InstancedMesh, one render site per tick */
+  /* 10a. draw-call budget: the bike adds the single allowed InstancedMesh (46),
+         one render site per tick */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('wildlife: zero new InstancedMesh vs main (45)', imCount === 45, 'count=' + imCount);
+  check('wildlife: exactly one new InstancedMesh vs main (46: the bike body)', imCount === 46, 'count=' + imCount);
   globalThis.__renderCount = 0; frame(30);
   check('wildlife: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
@@ -727,6 +729,105 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   for (const a of G.animals) { animalMeshes.add(a.imBody); animalMeshes.add(a.imHead); animalMeshes.add(a.imLegs); }
   check('wildlife: pet can never be hit by player weapons (no animal mesh raycast)',
     !G.enemyMeshes.some(m => animalMeshes.has(m)));
+}
+
+/* ================= 11. MOTORCYCLE (Phase 5) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.CAR.driving = false; G.HORSE.riding = false;
+  G.BUS.driving = false; G.BUS.riding = false; G.TX.riding = false;
+  G.player.visible = true;
+  G.player.position.set(0, groundY(0, 0), 0);          // anchor chunk (0,0)
+  frame(3);                                            // bikeUpdate seeds the 3 slots
+  check('bike: three seeded slots placed near amenities',
+    G.BIKE.slots.length === 3 && G.BIKE.slots.every(s => s.placed === true),
+    G.BIKE.slots.map(s => '(' + s.x.toFixed(0) + ',' + s.z.toFixed(0) + ')').join(' '));
+  check('bike: one shared body InstancedMesh holds all three slots',
+    G.bikeBodyIM.isInstancedMesh === true);
+  const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
+  check('bike: InstancedMesh count is 45 or 46 (one allowed for the bike)',
+    imCount2 === 45 || imCount2 === 46, 'count=' + imCount2);
+
+  /* determinism on revisit: same player spot, forced rebuild, identical pads */
+  const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
+  G.BIKE.anchorCx = 1e9; G.BIKE.anchorCz = 1e9; G.BIKE.key = '';   // force rebuild
+  frame(1);
+  const samePose = (s, p) =>
+    Math.abs(s.x - p[0]) < 1e-9 && Math.abs(s.z - p[1]) < 1e-9 && Math.abs(s.yaw - p[2]) < 1e-9;
+  check('bike: pads are deterministic on rebuild',
+    G.BIKE.slots.every((s, i) => samePose(s, poses[i])));
+
+  /* hysteresis: move slot 0 away, stand on it, rebuild must keep it there */
+  const s0 = G.BIKE.slots[0];
+  s0.x += 30; s0.z += 30;
+  G.player.position.set(s0.x, groundY(s0.x, s0.z), s0.z);
+  G.BIKE.anchorCx = 1e9; G.BIKE.anchorCz = 1e9; G.BIKE.key = '';
+  frame(1);
+  check('bike: pad sticks under the player (no chunk-cross pop)',
+    Math.abs(G.BIKE.slots[0].x - s0.x) < 1e-9 && Math.abs(G.BIKE.slots[0].z - s0.z) < 1e-9);
+
+  /* ride: E near the bike enters */
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.BIKE.anchorCx = 1e9; G.BIKE.anchorCz = 1e9; G.BIKE.key = '';
+  frame(2);
+  const bx = G.BIKE.slots[0].x, bz = G.BIKE.slots[0].z;
+  G.player.position.set(bx, groundY(bx, bz), bz);       // exactly on slot 0: nearest wins
+  frame(2);
+  check('bike: RIDE hint appears near a parked bike',
+    G.BIKE.hintOn === true && G.BIKE.nearIdx === 0 && G.bikeHintEl.style.opacity === 1);
+  G.bikeEnter();                                       // real entry
+  check('bike: E near bike enters (BIKE.driving true)',
+    G.BIKE.driving === true && G.player.visible === false);
+  check('bike: mount toast fires', G.toastEl.textContent === 'MOTORCYCLE');
+
+  /* throttle moves the bike */
+  const start = G.BIKE.pos.clone();
+  G.keys.KeyW = true;
+  frame(120);                                          // ~2 s of throttle
+  G.keys.KeyW = false;
+  const moved = G.BIKE.pos.distanceTo(start);
+  check('bike: 120 frames of throttle moves the bike', moved > 5, 'moved=' + moved.toFixed(2) + 'u');
+  check('bike: still driving, player hidden',
+    G.BIKE.driving === true && G.player.visible === false);
+
+  /* nitro boost engages and lifts the 30 cap */
+  G.BIKE.speed = 28; G.BIKE.boostCd = 0; G.BIKE.boostT = 0;
+  G.keys.KeyW = true;
+  frame(10);                                           // settle at the cap
+  const vCap = G.BIKE.speed;
+  G.keys.ShiftLeft = true;
+  frame(40);                                           // boost burns (~0.67 s)
+  const engaged = G.BIKE.boostT > 0;
+  G.keys.ShiftLeft = false; G.keys.KeyW = false;
+  const vBoost = G.BIKE.speed;
+  check('bike: nitro boost engages and lifts speed past the cap',
+    engaged && vCap <= 30.01 && vBoost > vCap + 3,
+    'engaged=' + engaged + ' vCap=' + vCap.toFixed(1) + ' vBoost=' + vBoost.toFixed(1));
+
+  /* lean changes sign with left/right steering */
+  G.BIKE.speed = 20;
+  G.keys.KeyW = true; G.keys.KeyD = true;
+  frame(60);
+  const leanR = G.BIKE.lean;
+  G.keys.KeyD = false; G.keys.KeyA = true;
+  frame(60);
+  const leanL = G.BIKE.lean;
+  G.keys.KeyA = false; G.keys.KeyW = false;
+  check('bike: lean changes sign with left/right steering',
+    leanR < -0.05 && leanL > 0.05,
+    'leanR=' + leanR.toFixed(3) + ' leanL=' + leanL.toFixed(3));
+
+  /* exit returns the player on foot */
+  G.bikeExit();                                        // real exit
+  check('bike: exit returns player on foot',
+    G.BIKE.driving === false && G.player.visible === true);
+  check('bike: dismount toast fires', G.toastEl.textContent === 'ON FOOT');
+
+  /* draw-call budget: exactly one renderer.render per tick */
+  globalThis.__renderCount = 0;
+  frame(30);
+  check('bike: exactly one render per tick', globalThis.__renderCount === 30,
+    'renders=' + globalThis.__renderCount);
 }
 
 /* ---------- zero console errors ---------- */
