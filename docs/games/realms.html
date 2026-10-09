@@ -68,18 +68,23 @@
     #log { font-size:14px; height:80px; }
   }
   .hidden { display:none !important; }
-  #touch { display:none; width:100%; max-width:768px; margin-top:8px; justify-content:space-between; }
-  #dpad { display:grid; grid-template-columns:repeat(3,64px); grid-template-rows:repeat(3,64px); gap:6px; }
-  #dpad button { background:#1e1e2a; color:#ffd75e; border:1px solid #4a4a5e; border-radius:10px; font-size:24px; font-family:inherit; }
-  #dpad button:active, #dpad button.tapped { background:#3a3a55; transform:scale(.9); }
-  #acts { display:flex; gap:10px; align-items:center; }
-  #acts button { width:76px; height:76px; border-radius:50%; border:2px solid #4a4a5e; background:#1e1e2a; color:#fff; font-family:inherit; font-size:14px; font-weight:bold; }
-  #acts button:active, #acts button.tapped { background:#3a3a55; transform:scale(.9); }
+  #touch { display:none; width:100%; max-width:768px; margin-top:8px; justify-content:space-between; align-items:center; gap:12px; padding:0 4px; }
+  #dpad { display:grid; grid-template-columns:repeat(3,clamp(56px,17vw,76px)); grid-template-rows:repeat(3,clamp(56px,17vw,76px)); gap:8px; }
+  #dpad button { background:#1e1e2a; color:#ffd75e; border:1px solid #4a4a5e; border-radius:12px; font-size:28px; font-family:inherit; touch-action:manipulation; }
+  #dpad button:active, #dpad button.tapped { background:#3a3a55; transform:scale(.93); box-shadow:0 0 10px rgba(255,215,94,.55); }
+  #acts { display:grid; grid-template-columns:repeat(2,clamp(56px,17vw,76px)); grid-auto-rows:clamp(56px,17vw,76px); gap:10px; align-content:center; }
+  #acts button { width:100%; height:100%; border-radius:50%; border:2px solid #4a4a5e; background:#1e1e2a; color:#fff; font-family:inherit; font-size:14px; font-weight:bold; touch-action:manipulation; }
+  #acts button:active, #acts button.tapped { background:#3a3a55; transform:scale(.93); box-shadow:0 0 12px rgba(255,255,255,.35); }
   #btnAtk { border-color:#e03030 !important; color:#ff9a8a !important; }
+  #btnUse { border-color:#4a9ae0 !important; color:#9ac0f0 !important; }
+  #btnPot { border-color:#b44ae0 !important; color:#d0a0f0 !important; }
   #btnMode { border-color:#4ae08a !important; color:#9af0c0 !important; }
+  #btnPause { display:none; position:absolute; top:10px; right:10px; z-index:6; width:56px; height:56px; border-radius:50%; border:2px solid #ffd75e; background:rgba(20,20,30,.85); color:#ffd75e; font-family:inherit; font-size:16px; font-weight:bold; letter-spacing:1px; touch-action:manipulation; }
+  #btnPause:active, #btnPause.tapped { background:#3a3a55; transform:scale(.93); box-shadow:0 0 14px rgba(255,215,94,.7); }
   #help { width:100%; max-width:768px; margin-top:8px; font-size:12px; color:#77778a; text-align:center; }
-  @media (pointer:coarse) { #touch { display:flex; } #help { display:none; } }
+  @media (pointer:coarse) { #touch { display:flex; } #help { display:none; } #btnPause { display:block; } }
   body.showtouch #touch { display:flex; }
+  body.showtouch #btnPause { display:block; }
 </style>
 </head>
 <body>
@@ -90,6 +95,7 @@
   <canvas id="game" width="192" height="128"></canvas>
   <div id="bossbar" class="hidden"><span id="bossname"></span><div id="bosstrack"><div id="bossfill"></div></div></div>
   <div id="vignette"></div>
+  <button id="btnPause" aria-label="Pause">II</button>
   <div id="loading" class="overlay">
     <h2>SUMMONING THE DELVE</h2>
     <p id="loadmsg">Loading the Jesun.Code interpreter...</p>
@@ -134,14 +140,15 @@
 <div id="log"></div>
 <div id="touch">
   <div id="dpad">
-    <span></span><button data-k="w">&#9650;</button><button data-k="p" title="Pause">II</button>
-    <button data-k="a">&#9664;</button><button data-k="s">&#9660;</button><button data-k="d">&#9654;</button>
+    <span></span><button data-k="w" aria-label="Move up">&#9650;</button><span></span>
+    <button data-k="a" aria-label="Move left">&#9664;</button><span></span><button data-k="d" aria-label="Move right">&#9654;</button>
+    <span></span><button data-k="s" aria-label="Move down">&#9660;</button><span></span>
   </div>
   <div id="acts">
-    <button id="btnAtk">ATK</button>
-    <button id="btnUse">E</button>
-    <button id="btnPot">POT</button>
-    <button id="btnMode">3D</button>
+    <button id="btnAtk" aria-label="Attack">ATK</button>
+    <button id="btnUse" aria-label="Talk or use">E</button>
+    <button id="btnPot" aria-label="Drink potion">POT</button>
+    <button id="btnMode" aria-label="Toggle 3D view">3D</button>
   </div>
 </div>
 <div id="help">WASD / Arrows: move (bump to attack) &nbsp;|&nbsp; Space: attack &nbsp;|&nbsp; E: talk / trade &nbsp;|&nbsp; Q: potion &nbsp;|&nbsp; M: top-down / first-person (dungeon) &nbsp;|&nbsp; P: pause</div>
@@ -159,7 +166,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261009a';
+var APP_VERSION='20261009b';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -1068,6 +1075,7 @@ document.querySelectorAll('#dpad button').forEach(function(b){
   b.addEventListener('touchstart',go,{passive:false});
   b.addEventListener('mousedown',go);
   b.addEventListener('touchend',un); b.addEventListener('mouseup',un); b.addEventListener('mouseleave',un);
+  b.addEventListener('touchcancel',un);
 });
 function bindBtn(id,k){
   var el=document.getElementById(id);
@@ -1076,8 +1084,9 @@ function bindBtn(id,k){
   el.addEventListener('touchstart',go,{passive:false});
   el.addEventListener('mousedown',go);
   el.addEventListener('touchend',un); el.addEventListener('mouseup',un); el.addEventListener('mouseleave',un);
+  el.addEventListener('touchcancel',un);
 }
-bindBtn('btnAtk','space'); bindBtn('btnUse','e'); bindBtn('btnPot','q'); bindBtn('btnMode','m');
+bindBtn('btnAtk','space'); bindBtn('btnUse','e'); bindBtn('btnPot','q'); bindBtn('btnMode','m'); bindBtn('btnPause','p');
 var chosenDiff=2;
 var DIFFDESC={1:'Story: gentler foes, an extra potion. For the tale.',2:'Delver: the intended delve. Full danger, full glory.',3:'Nightmare: brutal foes, no starting potion, rare shrines.'};
 document.querySelectorAll('#diffrow button').forEach(function(b){
