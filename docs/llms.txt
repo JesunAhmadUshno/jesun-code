@@ -7,7 +7,7 @@
 - About the builder: https://jesunahmadushno.github.io/jesun-code/about.html
 - Community wall: https://jesunahmadushno.github.io/jesun-code/community.html
 - Repo: https://github.com/JesunAhmadUshno/jesun-code
-- License: MIT. Current version: 1.5.0 (2026-09-30).
+- License: MIT. Current version: 2.0.0 (2026-09-30).
 
 ## The language
 
