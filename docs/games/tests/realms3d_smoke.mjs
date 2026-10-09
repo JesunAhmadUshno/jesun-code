@@ -61,6 +61,7 @@ globalThis.__R3D = {
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
   SAVE_KEY,
+  DIFF, diffEval, animals,
   get cash() { return cash; }, set cash(v) { cash = v; },
   get kills() { return kills; }, set kills(v) { kills = v; },
   get curWeapon() { return curWeapon; }, set curWeapon(v) { curWeapon = v; },
@@ -272,6 +273,104 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   G.BUSNPC.hideNPC = origHide;
   check('bus: alighting NPC is unhidden at the door',
     hideCalls.some(c => c[0] === 0 && c[1] === false) && npc0.state === 'WALK');
+}
+
+/* ================= 7. HIGHER IQ (Phase 3) ================= */
+{
+  const resetBrains = () => {
+    for (const e of G.enemies) {
+      e.seeT = 0; e.scanT = 0; e.wasSpotted = false; e.live = false;
+      e.aware = false; e.aggroT = 0; e.attackCd = 0; e.state = 'wander';
+      e.hp = e.cfg.hp; e.speed = 0; e.stagger = 0; e.kbT = 0; e.coverT = 0;
+      e.group.position.set(100, G.terrainHeight(100, -100), -100);
+    }
+    G.DIFF.tier = 0; G.DIFF.kills = 0; G.DIFF.deaths = 0; G.DIFF.dmg = 0; G.DIFF.t = 0;
+    G.P.dead = false; G.P.hp = 100; G.P.godT = 9999;
+    G.setHeat(0, true);
+    G.player.position.set(0, G.terrainHeight(0, 0), 0);
+  };
+
+  /* 7a. flank: at tier 1+, the non-leader engaged enemy strafes wide */
+  resetBrains();
+  G.DIFF.tier = 1;
+  const e0 = G.enemies[0], e1 = G.enemies[1];   // rushers: idx 0 leads, idx 1 flanks
+  e0.group.position.set(-3, G.terrainHeight(-3, 20), 20);
+  e1.group.position.set(3, G.terrainHeight(3, 20), 20);
+  G.damageEnemy(e0, 1); G.damageEnemy(e1, 1);   // aggroT=6 on both, both alive
+  frame(45);
+  const flankX = e1.group.position.x;
+  check('ai: flank offset applied to non-leader',
+    e1.live === true && flankX < 1.4,
+    'x=' + flankX.toFixed(2) + ' live=' + e1.live + ' (straight charge would sit near x=2.3)');
+
+  /* 7b. wounded retreat: a brute under 30% HP kites away from the player */
+  resetBrains();
+  const brute = G.enemies[4];
+  brute.group.position.set(0, G.terrainHeight(0, 10), 10);
+  const wd0 = Math.hypot(brute.group.position.x, brute.group.position.z);
+  G.damageEnemy(brute, 7);                       // hp 8 -> 1 (< 30%): wounded, aggroT=6
+  frame(60);
+  const wd1 = Math.hypot(brute.group.position.x, brute.group.position.z);
+  check('ai: wounded retreat moves away', wd1 > wd0 + 1,
+    'd0=' + wd0.toFixed(2) + ' d1=' + wd1.toFixed(2));
+
+  /* 7c. backup: a spotter alerts enemies within 40m to the last known pos */
+  resetBrains();
+  G.DIFF.tier = 2;                               // backup unlocks at tier 2+
+  const spotter = G.enemies[0], backup = G.enemies[2];
+  spotter.group.position.set(0, G.terrainHeight(0, 15), 15);
+  backup.group.position.set(35, G.terrainHeight(35, 30), 30);   // 46u from player, 38u from spotter
+  frame(60);   // spotter holds LoS for 1s (>= 0.45s reaction) -> calls backup
+  const lkD = Math.hypot(backup.lastKnown.x, backup.lastKnown.z);
+  check('ai: backup alerts converge on last known position',
+    backup.aggroT > 0 && lkD < 2,
+    'aggroT=' + backup.aggroT.toFixed(2) + ' lastKnown=(' +
+    backup.lastKnown.x.toFixed(1) + ',' + backup.lastKnown.z.toFixed(1) + ')');
+
+  /* 7d. difficulty tier responds to the rolling stats */
+  resetBrains();
+  G.diffEval();
+  const tierCalm = G.DIFF.tier;
+  G.DIFF.kills = 10;                             // dominant: score 20 -> tier 3
+  G.diffEval();
+  const tierHot = G.DIFF.tier;
+  const chipHot = stubs.getEl('diffchip').textContent;
+  G.DIFF.kills = 0; G.DIFF.deaths = 2; G.DIFF.dmg = 100;   // struggling: score -10 -> tier 0
+  G.diffEval();
+  const tierCold = G.DIFF.tier;
+  check('ai: difficulty tier responds to stats',
+    tierCalm === 0 && tierHot === 3 && tierCold === 0 && chipHot === 'AI TIER 3',
+    'tiers=' + tierCalm + '/' + tierHot + '/' + tierCold + ' chip=' + chipHot);
+  resetBrains();
+
+  /* 7e. NPC flee targets an amenity center when wanted heat > 0 */
+  globalThis.__lastShotAt = 0; globalThis.__lastViolenceAt = 0;   // isolate the heat path
+  G.setHeat(1, true);
+  frame(5);
+  const n6 = G.BUSNPC.npcs[6];                   // spawn-zone walker
+  const tgt = G.BUSNPC.nearestAmenity(n6.pos.x, n6.pos.z);
+  const fleeOk = n6.state === 'FLEE' && tgt !== null &&
+    Math.abs(n6.fleeTX - tgt.x) < 0.01 && Math.abs(n6.fleeTZ - tgt.z) < 0.01;
+  check('ai: NPC flee targets an amenity center', fleeOk,
+    'state=' + n6.state + ' tgt=' + (tgt ? tgt.x.toFixed(1) + ',' + tgt.z.toFixed(1) : 'null'));
+  G.setHeat(0, true);
+
+  /* 7f. animal herd separation: two cows pushed together drift apart */
+  G.BUS.active = false; G.BUS.speed = 0;         // park the bus: isolate herd steering
+  const cows = G.animals.filter(a => a.kind === 'cow');
+  const c0 = cows[0], c1 = cows[1];
+  c0.pos.set(60, G.terrainHeight(60, 60), 60);
+  c1.pos.set(60.5, G.terrainHeight(60.5, 60), 60);
+  for (const c of [c0, c1]) {
+    c.fleeT = 0; c.grazeT = 0; c.mode = 'walk'; c.t = 999;
+    c.target.set(90, 0, 60); c.trotT = 0; c.mountLocked = false;
+  }
+  const sep0 = Math.hypot(c0.pos.x - c1.pos.x, c0.pos.z - c1.pos.z);
+  frame(120);
+  const sep1 = Math.hypot(c0.pos.x - c1.pos.x, c0.pos.z - c1.pos.z);
+  check('ai: animal herd separation maintained', sep0 < 1 && sep1 >= 1.5,
+    'sep0=' + sep0.toFixed(2) + ' sep1=' + sep1.toFixed(2));
+  resetBrains();
 }
 
 /* ---------- zero console errors ---------- */
