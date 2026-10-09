@@ -94,6 +94,14 @@ globalThis.__R3D = {
   BLDG, BLDG_DEF, bldgMeshes, BLDG_WIN_MATS, HOUSE_SCALE,
   openBldgStore, storeCool, carAmenityHit, resolveBldgFoot, STORE_R2,
   get shopBldg() { return shopBldg; },
+  /* Phase 5 farming plots (harvest gate for the food tests) */
+  farmHarvest, farmTryHarvest, farmPlotCenterFor, farmPlotMatureCount,
+  FPLOT, FARM_MATURE_NEED,
+  /* Phase 5 cooking + food */
+  FOOD, FOOD_ORDER, FOOD_MAX, RECIPES, COOK_ITEMS, EAT_ITEMS, FOOD_ICONS,
+  REST_ITEMS, openRest, openFoodPanel, foodChipEl, shopRowsEl, shopNameEl,
+  updateFoodHUD, updateHpHUD, foodSaveStr, foodLoadStr, refreshShopPanel,
+  get SHOP_LIST() { return SHOP_LIST; },
 };
 `;
 writeFileSync(BOOT, src);
@@ -1952,6 +1960,158 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   frame(30);
   check('bldg: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
+}
+
+/* ================= 17. COOKING + FOOD (Phase 5) ================= */
+{
+  /* clean preconditions: the real gates refuse dead/shopping/driving states */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
+  G.closeShop();
+  G.CAR.driving = false; G.HORSE.riding = false;
+  G.BUS.driving = false; G.BUS.riding = false; G.TX.riding = false;
+  G.BIKE.driving = false; G.BC.driving = false; G.SC.driving = false;
+
+  /* setup: a real farm plot at a ripe moment (pattern mirrors farm3d_test) */
+  let plot0 = null, pChunk = null;
+  for (let gx = -12; gx <= 12 && !plot0; gx++)
+    for (let gz = -12; gz <= 12 && !plot0; gz++) {
+      const p = G.farmPlotCenterFor(gx, gz);
+      if (p) { pChunk = [gx, gz]; plot0 = p; }
+    }
+  check('food: a farm plot exists for the harvest test', !!plot0);
+  if (plot0) {
+    G.player.position.set(plot0.x, groundY(plot0.x, plot0.z), plot0.z);
+    frame(3);   // chunk crossing -> redistributeFarm
+    const p = G.FPLOT.active.find(q => q.gx === pChunk[0] && q.gz === pChunk[1]);
+    let ripeT = -1;
+    for (let t = 0; t <= 600 && ripeT < 0; t += 5)
+      if (G.farmPlotMatureCount(p, t) >= G.FARM_MATURE_NEED) ripeT = t;
+    check('food: a ripe moment exists', ripeT >= 0, 'ripeT=' + ripeT);
+    G.FPLOT.t = ripeT;
+    G.player.position.set(p.x, groundY(p.x, p.z), p.z);
+    frame(15);  // farmTick settles nearIdx / nearMature
+    check('food: E gate arms on the ripe plot',
+      G.FPLOT.nearIdx >= 0 && G.FPLOT.nearMature === true,
+      'nearIdx=' + G.FPLOT.nearIdx + ' mature=' + G.FPLOT.nearMature);
+    /* clear proximity prompts so the E press is unambiguous */
+    G.HORSE.hintOn = false; G.BUS.hintOn = false; G.TX.hintOn = false;
+    G.BIKE.hintOn = false; G.BC.hintOn = false; G.SC.hintOn = false; G.PET.hintOn = false;
+    const corn0 = G.FOOD.corn, cash0 = G.cash;
+    check('food: E harvests via the real gate', G.farmTryHarvest() === true);
+    check('food: harvest yields corn produce', G.FOOD.corn > corn0, 'corn=' + G.FOOD.corn);
+    const delta = G.cash - cash0;
+    check('food: harvest cash unchanged (+$15..$23)', delta >= 15 && delta <= 23, 'delta=' + delta);
+    check('food: harvest toast names cash and corn',
+      G.toastEl.textContent.indexOf('HARVEST +$') === 0 && G.toastEl.textContent.indexOf('CORN') > 0,
+      G.toastEl.textContent);
+    check('food: HUD chip appears with the corn count',
+      G.foodChipEl.style.display === 'block' && G.foodChipEl.textContent.indexOf('CORN x') === 0,
+      G.foodChipEl.textContent);
+  }
+
+  /* cook: the diner walk-in panel offers the cook option (shared panel, list swap) */
+  G.closeShop();
+  G.FOOD.corn = 3; G.updateFoodHUD();
+  G.openRest({ name: 'TEST DINER' }, 0);
+  check('cook: diner panel opens', G.shopOpen === true);
+  const cookIdx = G.REST_ITEMS.findIndex(it => it.state() === 'COOK');
+  check('cook: diner menu has a COOK row when corn is carried', cookIdx === 2, 'idx=' + cookIdx);
+  G.buyItem(cookIdx);   // the COOK row swaps the list, no purchase
+  check('cook: cook row swaps the panel to FIELD KITCHEN',
+    G.SHOP_LIST === G.COOK_ITEMS && G.shopNameEl.textContent === 'FIELD KITCHEN');
+  check('cook: five recipe rows plus a BACK row', G.COOK_ITEMS.length === 6);
+  check('cook: recipe rows carry procedural icons',
+    G.COOK_ITEMS.slice(0, 5).every(it => typeof it.icon === 'string' && it.icon.indexOf('data:image/png') === 0));
+  check('cook: recipe rows show the corn cost', G.COOK_ITEMS[1].cost === 3, 'cost=' + G.COOK_ITEMS[1].cost);
+  const soupIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'CORN SOUP');
+  check('cook: soup row is BUY with 3 corn', G.COOK_ITEMS[soupIdx].state() === 'BUY');
+  G.buyItem(soupIdx);
+  check('cook: 3 corn -> CORN SOUP (subset match)',
+    G.FOOD.soup === 1 && G.FOOD.corn === 0, 'corn=' + G.FOOD.corn + ' soup=' + G.FOOD.soup);
+  check('cook: toast confirms the dish', G.toastEl.textContent === 'COOKED CORN SOUP', G.toastEl.textContent);
+  const fritIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'CORN FRITTERS');
+  check('cook: fritters row is NA with 0 corn (mismatch denied)', G.COOK_ITEMS[fritIdx].state() === 'NA');
+  const cornBefore = G.FOOD.corn, fritBefore = G.FOOD.fritters;
+  G.buyItem(fritIdx);
+  check('cook: denied cook changes nothing',
+    G.FOOD.corn === cornBefore && G.FOOD.fritters === fritBefore);
+  G.FOOD.corn = 1; G.updateFoodHUD();   // odd leftover: the SCRAPS fallback row
+  const scrIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'SCRAPS');
+  G.buyItem(scrIdx);
+  check('cook: 1 corn -> SCRAPS fallback', G.FOOD.scraps === 1 && G.FOOD.corn === 0,
+    'corn=' + G.FOOD.corn + ' scraps=' + G.FOOD.scraps);
+  G.buyItem(G.COOK_ITEMS.length - 1);   // BACK row
+  check('cook: BACK restores the diner menu without closing',
+    G.SHOP_LIST === G.REST_ITEMS && G.shopNameEl.textContent === 'TEST DINER' && G.shopOpen === true);
+  G.closeShop();
+
+  /* eat: dishes eaten anywhere via the food chip panel */
+  G.FOOD.soup = 1; G.FOOD.roasted = 1; G.updateFoodHUD();
+  G.P.hp = 30; G.updateHpHUD();
+  G.openFoodPanel();
+  check('eat: food panel opens anywhere',
+    G.shopOpen === true && G.SHOP_LIST === G.EAT_ITEMS && G.shopNameEl.textContent === 'FIELD KITCHEN');
+  const eatSoupIdx = G.EAT_ITEMS.findIndex(it => it.dishName === 'CORN SOUP');
+  check('eat: soup row is BUY below full HP', G.EAT_ITEMS[eatSoupIdx].state() === 'BUY');
+  G.buyItem(eatSoupIdx);
+  check('eat: CORN SOUP heals +65 (capped at 100)',
+    G.P.hp === 95 && G.FOOD.soup === 0, 'hp=' + G.P.hp + ' soup=' + G.FOOD.soup);
+  check('eat: toast confirms the meal', G.toastEl.textContent === 'ATE CORN SOUP', G.toastEl.textContent);
+  G.P.hp = 100; G.updateHpHUD();
+  check('eat: rows go NA at full HP (no wasted food)',
+    G.EAT_ITEMS.find(it => it.dishName === 'ROASTED CORN').state() === 'NA');
+  G.closeShop();
+
+  /* save/load round-trips the pantry (schema v3) */
+  /* save/load round-trips the pantry (schema v3) */
+  G.player.position.set(10, groundY(10, 20), 20);   // inside the save validation radius
+  const savedFood = G.foodSaveStr();
+  G.saveGame();
+  const raw = stubs.localStorage.getItem(G.SAVE_KEY);
+  check('food: save envelope carries the food field',
+    !!raw && raw.indexOf('"food":"' + savedFood + '"') >= 0, savedFood);
+  for (const k of G.FOOD_ORDER) G.FOOD[k] = 0;
+  G.updateFoodHUD();
+  check('food: chip hides when the pantry is empty', G.foodChipEl.style.display === 'none');
+  G.loadSave();
+  check('food: load restores the pantry exactly', G.foodSaveStr() === savedFood, G.foodSaveStr());
+  check('food: chip reappears after load', G.foodChipEl.style.display === 'block');
+  const before = G.foodSaveStr();
+  const env = JSON.parse(stubs.localStorage.getItem(G.SAVE_KEY));
+  env.data.food = '7:0:99999:1:0:0';   // tampered: 99999 exceeds the cap
+  stubs.localStorage.setItem(G.SAVE_KEY, JSON.stringify(env));
+  G.loadSave();
+  check('food: tampered food field is rejected (state kept)', G.foodSaveStr() === before, G.foodSaveStr());
+  G.FOOD.corn = 5; G.updateFoodHUD();
+  G.newGame();
+  check('food: new game empties the pantry',
+    G.foodSaveStr() === '0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
+
+  /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
+  check('food-static: InstancedMesh literal sites pin at 45',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 45);
+  check('food-static: single renderer.render call site',
+    (html.match(/renderer\.render\(/g) || []).length === 1);
+  check('food-static: Math.random lines pin at 91 (seeded PRNG only)',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 91);
+  check('food-static: light count pins at 6 (zero new lights)',
+    (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
+  check('food-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('food-static: no new audio nodes (sfxBlip reused)',
+    (html.match(/\.createOscillator\(/g) || []).length === 10 &&
+    (html.match(/\.createGain\(/g) || []).length === 20 &&
+    (html.match(/AudioContext/g) || []).length === 2);
+  {
+    const foodSrc = html.slice(
+      html.indexOf('/* ================== COOKING + FOOD'),
+      html.indexOf('/* ============================ CAMERA'));
+    check('food-static: food block creates no THREE objects',
+      foodSrc.length > 1000 && !/new THREE\./.test(foodSrc), foodSrc.length + ' chars');
+  }
+  check('food: six procedural icons as data URLs',
+    G.FOOD_ORDER.every(k => typeof G.FOOD_ICONS[k] === 'string' && G.FOOD_ICONS[k].indexOf('data:image/png') === 0),
+    Object.keys(G.FOOD_ICONS).join(','));
 }
 
 /* ---------- zero console errors ---------- */

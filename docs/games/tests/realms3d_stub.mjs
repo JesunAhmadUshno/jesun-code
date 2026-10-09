@@ -14,8 +14,12 @@ export function installStubs() {
       createLinearGradient() { return grad; },
       createRadialGradient() { return grad; },
       fillRect() {}, clearRect() {}, drawImage() {}, fillText() {},
-      beginPath() {}, closePath() {}, arc() {}, fill() {}, stroke() {},
-      moveTo() {}, lineTo() {},
+      beginPath() {}, closePath() {}, arc() {}, ellipse() {}, fill() {}, stroke() {},
+      moveTo() {}, lineTo() {}, quadraticCurveTo() {}, bezierCurveTo() {},
+      save() {}, restore() {}, translate() {}, rotate() {}, scale() {},
+      setTransform() {}, resetTransform() {}, clip() {}, setLineDash() {},
+      getLineDash() { return []; },
+      measureText() { return { width: 0 }; },
       fillStyle: '', strokeStyle: '', lineWidth: 1, globalAlpha: 1,
       canvas: null,
     };
@@ -46,6 +50,7 @@ export function installStubs() {
       addEventListener() {},
       removeEventListener() {},
       getContext() { return ctx2d(); },
+      toDataURL() { return 'data:image/png;base64,STUB'; },  // Phase 5 cooking: food icon sheet slice
       requestPointerLock() { return undefined; },
       click() {},
       focus() {},
