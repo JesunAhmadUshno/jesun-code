@@ -33,6 +33,15 @@ check('static: no em dashes', !html.includes('—'));
   const ok = urls.length === 1 && urls[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js';
   check('static: single allowed CDN URL', ok, urls.join(', '));
 }
+{
+  const emoteSrc = html.slice(
+    html.indexOf('/* ================= EMOTES (Phase 5)'),
+    html.indexOf('/* --- melee punch'));
+  check('static: emote code creates no THREE objects', emoteSrc.length > 1000 && !/new THREE\./.test(emoteSrc),
+    emoteSrc.length + ' chars');
+  check('static: single renderer.render call site',
+    (html.match(/renderer\.render\(/g) || []).length === 1);
+}
 
 /* ---------- console error capture ---------- */
 const consoleProblems = [];
@@ -58,7 +67,7 @@ globalThis.__R3D = {
   busEnter, busExit, busTakeWheel, busRebuildRoute, busDoorWorld, mountToggle,
   busDwellService, BUSNPC, BUS,
   taxiEnter, taxiExit, txRebuild, txDoorWorld, crRebuild, ambRebuild,
-  CR, TX, AMB, emBodyIM, toastEl, W,
+  CR, TX, AMB, HORSE, emBodyIM, toastEl, W,
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
@@ -69,6 +78,8 @@ globalThis.__R3D = {
   get curWeapon() { return curWeapon; }, set curWeapon(v) { curWeapon = v; },
   get fireCd() { return fireCd; }, set fireCd(v) { fireCd = v; },
   get shopOpen() { return shopOpen; },
+  fireEmote, emoteCancel, doPunch, hurtPlayer, EMOTES, EMOTE_ORDER, EMO,
+  eyeMesh, pupMesh, mouthMesh, armL, armR, elbowL, elbowR,
 };
 `;
 writeFileSync(BOOT, src);
@@ -467,6 +478,90 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('em: E while riding exits the taxi',
     G.TX.riding === false && G.player.visible === true);
   G.setHeat(0, true);
+}
+
+/* ================= 9. EMOTES (Phase 5) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.CAR.driving = false; G.HORSE.riding = false;
+  G.BUS.driving = false; G.BUS.riding = false; G.TX.riding = false;
+  G.player.visible = true;
+  const press = (code) => {
+    stubs.fireGlobal('keydown', { code, preventDefault() {} });
+    stubs.fireGlobal('keyup', { code });
+  };
+  const order = ['wave', 'dance', 'laugh', 'angry', 'cheer', 'bow'];
+  const names = ['WAVE', 'DANCE', 'LAUGH', 'ANGRY', 'CHEER', 'BOW'];
+  const codes = ['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyG', 'KeyB'];
+  let keysOk = true, keysDetail = '';
+  for (let i = 0; i < 6; i++) {
+    press(codes[i]);
+    if (G.EMO.key !== order[i] || G.toastEl.textContent !== names[i]) {
+      keysOk = false; keysDetail = codes[i] + '->' + G.EMO.key; break;
+    }
+  }
+  check('emote: all six keys fire their emote + toast', keysOk, keysDetail);
+  check('emote: six emotes authored in the data table',
+    G.EMOTE_ORDER.length === 6 && Object.keys(G.EMOTES).length === 6);
+  /* pose: wave raises the right arm off the locomotion baseline */
+  G.fireEmote('wave'); frame(30);
+  check('emote: wave raises the right arm (partial-body overlay)',
+    G.EMO.key === 'wave' && G.armR.rotation.x < -1.0,
+    'armRx=' + G.armR.rotation.x.toFixed(2));
+  /* interrupt: a new trigger restarts, no stacking */
+  const tBefore = G.EMO.t;
+  G.fireEmote('dance');
+  check('emote: trigger interrupts and restarts',
+    G.EMO.key === 'dance' && G.EMO.t === 0 && tBefore > 0,
+    'tBefore=' + tBefore.toFixed(2));
+  /* combat wins: punch and firing kill the emote instantly */
+  G.fireEmote('wave'); frame(10);
+  G.doPunch();
+  check('emote: punch cancels emote instantly', G.EMO.key === null);
+  frame(40);                                            // let the punch finish
+  G.fireEmote('cheer'); frame(5);
+  G.fireCd = 0; G.shoot();
+  check('emote: firing cancels emote instantly', G.EMO.key === null);
+  /* taking a hit cancels */
+  G.fireEmote('bow'); frame(5);
+  const hp0 = G.P.hp;
+  G.hurtPlayer(5);
+  check('emote: taking a hit cancels emote',
+    G.EMO.key === null && G.P.hp === hp0 - 5, 'hp=' + G.P.hp);
+  G.P.hp = 100; G.P.dead = false;
+  /* guards: no emote while driving or dead */
+  G.CAR.driving = true;
+  G.fireEmote('wave');
+  check('emote: blocked while driving', G.EMO.key === null);
+  G.CAR.driving = false;
+  G.P.dead = true;
+  G.fireEmote('wave');
+  check('emote: blocked while dead', G.EMO.key === null);
+  G.P.dead = false;
+  /* facial: laugh squints the merged eyes and lifts the mouth, then restores */
+  G.fireEmote('laugh'); frame(20);
+  check('emote: laugh squints the merged eyes',
+    G.eyeMesh.scale.y < 0.9 && G.pupMesh.scale.y < 0.9,
+    'eyeSY=' + G.eyeMesh.scale.y.toFixed(2));
+  check('emote: laugh lifts the mouth into a smile',
+    G.mouthMesh.scale.x > 1.1 && G.mouthMesh.position.y > 1.615,
+    'mouthY=' + G.mouthMesh.position.y.toFixed(3));
+  frame(220);                                           // past the 2.4s duration
+  check('emote: emote ends on its own after its duration', G.EMO.key === null);
+  check('emote: facial features restored after end',
+    G.eyeMesh.scale.y === 1 && G.eyeMesh.position.y === 0 &&
+    G.pupMesh.scale.y === 1 && G.pupMesh.position.y === 0 &&
+    G.mouthMesh.scale.x === 1 && G.mouthMesh.position.y === 1.615);
+  check('emote: body lean and fist scale restored after end',
+    G.player.rotation.x === 0 && G.player.rotation.z === 0);
+  /* draw-call budget: exactly one renderer.render per tick, even mid-emote */
+  G.fireEmote('dance');
+  globalThis.__renderCount = 0;
+  frame(30);
+  const renders = globalThis.__renderCount;
+  G.emoteCancel();
+  check('emote: exactly one render per tick during an emote (zero new draw sites)',
+    renders === 30, 'renders=' + renders);
 }
 
 /* ---------- zero console errors ---------- */

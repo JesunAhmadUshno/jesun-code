@@ -265,6 +265,21 @@
   #ridebtn { left: 26px; bottom: 290px; display: none;
     border-color: rgba(216,200,74,.7); color: #ffe9a8; }
   #ridebtn:active { background: rgba(216,200,74,.7); color: #0c0e0a; }
+  /* ---- touch EMOTE button: mirrors #punchbtn; cycles the six Phase 5
+         emotes on tap. Hidden on desktop (#touchui gates on body.touch),
+         hidden per-frame while driving, riding, or dead. ---- */
+  #emotebtn { right: 206px; bottom: 200px;
+    border-color: rgba(216,200,74,.7); color: #ffe9a8; }
+  #emotebtn:active { background: rgba(216,200,74,.7); color: #0c0e0a; }
+  /* ---- emote key legend: desktop-only hint next to #help, same visual
+         language. Hidden on touch (the EMOTE button covers it). ---- */
+  #emotehint {
+    position: absolute; bottom: 118px; left: 18px; color: #8b937a; font-size: 11px;
+    line-height: 1.7; background: rgba(10,12,10,.6); border: 1px solid #3a4034;
+    padding: 8px 12px; letter-spacing: 1px; white-space: nowrap;
+  }
+  #emotehint b { color: #d8c84a; }
+  body.touch #emotehint { display: none; }
 </style>
 </head>
 <body>
@@ -302,6 +317,7 @@
   <div id="bushud"></div>
   <div id="txhint"></div>
   <div id="txhud"></div>
+  <div id="emotehint"></div>
   <div id="shop">
     <h3 id="shopname">SHOP</h3>
     <div class="sbal">CASH $<b id="shopcash">0</b></div>
@@ -322,6 +338,7 @@
   <div class="tbtn" id="sprintbtn">RUN</div>
   <div class="tbtn" id="exitbtn">EXIT</div>
   <div class="tbtn" id="ridebtn">RIDE</div>
+  <div class="tbtn" id="emotebtn">EMOTE</div>
 </div>
 
 <div id="overlay">
@@ -1804,6 +1821,9 @@ player.add(armL, armR);
 /* Head with face (faces +z, player-forward) */
 /* PERF-1g: static same-material face parts are merged (positions baked into the
    geometry, render identical). 7 meshes -> 4 draw calls; nothing here animates. */
+/* Phase 5 emotes: the merged eye/pupil pair meshes and the mouth mesh are
+   captured so the emote layer can drive facial expressions. No new meshes. */
+let eyeMesh = null, pupMesh = null, mouthMesh = null;
 {
   const headG = GEO.head.clone(); headG.translate(0, 1.68, 0);
   const noseG = GEO.nose.clone(); noseG.translate(0, 1.655, 0.135);
@@ -1812,16 +1832,16 @@ player.add(armL, armR);
   for (const sx of [-0.052, 0.052]) {
     const g = GEO.eye.clone(); g.translate(sx, 1.70, 0.125); eyeGs.push(g);
   }
-  pm(mergeGeos(eyeGs), MAT.eye, 0, 0, 0, null, true);          // both eyes
+  eyeMesh = pm(mergeGeos(eyeGs), MAT.eye, 0, 0, 0, null, true);  // both eyes, one mesh
   const pupGs = [];
   for (const sx of [-0.052, 0.052]) {
     const g = GEO.pup.clone(); g.translate(sx, 1.70, 0.14); pupGs.push(g);
   }
-  pm(mergeGeos(pupGs), MAT.pup, 0, 0, 0, null, true);          // both pupils
+  pupMesh = pm(mergeGeos(pupGs), MAT.pup, 0, 0, 0, null, true);  // both pupils, one mesh
 }
 /* PERF-1f: face micro-parts skip the shadow pass (6 shadow draws saved).
    Eyes, pupils, nose, mouth cast no readable shadow; hair keeps its own. */
-pm(GEO.mouth, MAT.mouth, 0, 1.615, 0.128, null, true);
+mouthMesh = pm(GEO.mouth, MAT.mouth, 0, 1.615, 0.128, null, true);
 pm(GEO.hair, MAT.hair, 0, 1.685, -0.008);  // short hair cap
 scene.add(player);
 /* natural elbow bend */
@@ -1964,10 +1984,143 @@ function sfxSlam() {
   g2.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.32);
   o.connect(g2); g2.connect(a.destination); o.start(); o.stop(a.currentTime + 0.34);
 }
+/* ================= EMOTES (Phase 5) =================
+   One-shot emote overlay layers on the procedural skeleton. Per-frame priority
+   FSM: combat (punch) > emote > locomotion. Emotes are authored once as data
+   tables of per-joint sine/angle envelopes, blended by an eased weight
+   envelope (0.25s in, 0.35s out), NOT by replacing the locomotion pose:
+   partial-body emotes mask to upper-body joints so the player can keep walking,
+   full-body emotes claim the legs and plant the feet. Triggering while one is
+   active interrupts and restarts it (no stacking). Per-joint, the highest-
+   priority active layer wins.
+   Joint envelope entry: [joint, axis, base, amp, freqHz, phase]
+     angle(t) = base + amp * sin(2*pi*freq*t + phase)
+   Axes: x/y/z = rotation blend toward the envelope; s = fist scale pulse;
+   lift = additive player.position.y bounce; body = player rotation (bow lean).
+   Face: squint narrows the merged eye/pupil pairs (position-compensated so
+   they stay in place); smile widens and lifts the mouth, frown narrows and
+   lowers it. Honest limits: no brows exist on the model, and the eyes are a
+   merged pair, so expressions are whole-face, not per-eye.
+   Zero new meshes, lights, materials, or draw calls: only existing joints
+   and the three captured face meshes are animated. No per-frame allocation. */
+const EMOTE_ORDER = ['wave', 'dance', 'laugh', 'angry', 'cheer', 'bow'];
+const EMOTE_KEYS = ['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyG', 'KeyB'];  // 1-6 are weapons/shop
+const EMOTES = {
+  wave: { name: 'WAVE', dur: 2.0, full: false, sting: [660, 0.12, 'sine', 0.16],
+    joints: [
+      ['armR', 'x', -2.35, 0.18, 1.5, 0], ['armR', 'z', -0.45, 0.10, 1.5, 1.57],
+      ['elbowR', 'x', -0.55, 0.20, 1.5, 0], ['fistR', 'z', 0, 0.55, 3.0, 0],
+    ],
+    face: { squint: 0.5, smile: 0.4 } },
+  dance: { name: 'DANCE', dur: 3.6, full: true, sting: [220, 0.16, 'triangle', 0.18],
+    joints: [
+      ['legL', 'x', 0, 0.70, 2.0, 0], ['legR', 'x', 0, 0.70, 2.0, 3.14],
+      ['kneeL', 'x', 0, 0.85, 2.0, 0], ['kneeR', 'x', 0, 0.85, 2.0, 3.14],
+      ['armL', 'x', -1.2, 0.50, 2.0, 1.57], ['armR', 'x', -1.2, 0.50, 2.0, 4.71],
+      ['elbowL', 'x', -1.0, 0.20, 2.0, 0], ['elbowR', 'x', -1.0, 0.20, 2.0, 3.14],
+      ['body', 'z', 0, 0.12, 2.0, 0], ['lift', 'lift', 0, 0.06, 4.0, 0],
+    ],
+    face: { squint: 0.3, smile: 0.6 } },
+  laugh: { name: 'LAUGH', dur: 2.4, full: false, sting: [520, 0.10, 'square', 0.10],
+    joints: [
+      ['armL', 'x', -0.95, 0.15, 2.5, 0], ['armR', 'x', -0.95, 0.15, 2.5, 3.14],
+      ['elbowL', 'x', -1.45, 0.25, 2.5, 0], ['elbowR', 'x', -1.45, 0.25, 2.5, 3.14],
+      ['fistR', 'z', 0, 0.40, 5.0, 0], ['lift', 'lift', 0, 0.03, 5.0, 0],
+    ],
+    face: { squint: 0.85, smile: 1.0 } },
+  angry: { name: 'ANGRY', dur: 2.2, full: true, sting: [140, 0.18, 'sawtooth', 0.20],
+    joints: [
+      ['armL', 'x', 0.45, 0.15, 3.0, 0], ['armR', 'x', 0.45, 0.15, 3.0, 3.14],
+      ['armL', 'z', 0.55, 0.10, 3.0, 0], ['armR', 'z', -0.55, 0.10, 3.0, 3.14],
+      ['elbowL', 'x', -1.6, 0.15, 3.0, 0], ['elbowR', 'x', -1.6, 0.15, 3.0, 3.14],
+      ['fistL', 's', 1, 0.15, 3.0, 0], ['fistR', 's', 1, 0.15, 3.0, 3.14],
+      ['legR', 'x', 0, 0.50, 1.5, 0],
+    ],
+    face: { squint: 0.6, smile: -0.8 } },
+  cheer: { name: 'CHEER', dur: 2.6, full: true, sting: [880, 0.14, 'sine', 0.18],
+    joints: [
+      ['armL', 'x', -2.80, 0.35, 2.0, 0], ['armR', 'x', -2.80, 0.35, 2.0, 3.14],
+      ['elbowL', 'x', -0.30, 0.15, 2.0, 0], ['elbowR', 'x', -0.30, 0.15, 2.0, 3.14],
+      ['legL', 'x', 0, 0.30, 2.0, 0], ['legR', 'x', 0, 0.30, 2.0, 3.14],
+      ['lift', 'lift', 0, 0.09, 2.0, 0],
+    ],
+    face: { squint: 0.7, smile: 1.0 } },
+  bow: { name: 'BOW', dur: 2.0, full: true, sting: [330, 0.14, 'sine', 0.14],
+    joints: [
+      /* one-shot bow curve: 0 -> 0.64 rad at mid -> 0 at end (no sine loop) */
+      ['body', 'x', 0.32, 0.32, 0.5, -1.57],
+      ['armL', 'x', 0.30, 0.10, 0.5, -1.57], ['armR', 'x', 0.30, 0.10, 0.5, -1.57],
+      ['legL', 'x', 0, 0, 1, 0], ['legR', 'x', 0, 0, 1, 0],
+    ],
+    face: { squint: 0, smile: 0.2 } },
+};
+const EMO = { key: null, t: 0, idx: 0, btnOn: false };
+function emoJoint(n) {
+  if (n === 'armL') return armL; if (n === 'armR') return armR;
+  if (n === 'elbowL') return elbowL; if (n === 'elbowR') return elbowR;
+  if (n === 'fistL') return fistL; if (n === 'fistR') return fistR;
+  if (n === 'legL') return legL; if (n === 'legR') return legR;
+  if (n === 'kneeL') return kneeL; if (n === 'kneeR') return kneeR;
+  if (n === 'body' || n === 'lift') return player;
+  return null;
+}
+function emoFaceReset() {
+  eyeMesh.scale.y = 1; eyeMesh.position.y = 0;
+  pupMesh.scale.y = 1; pupMesh.position.y = 0;
+  mouthMesh.scale.x = 1; mouthMesh.position.y = 1.615;
+}
+function emoteCancel() {
+  if (!EMO.key) return;
+  EMO.key = null;
+  emoFaceReset();
+  player.rotation.x = 0; player.rotation.z = 0;
+  fistL.scale.set(1, 1, 1); fistR.scale.set(1, 1, 1);
+}
+function fireEmote(name) {
+  if (!playing() || P.dead || P.godT > 0) return;                 // dead or busted/spawn-protection
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding) return;
+  if (shopOpen) return;
+  const E = EMOTES[name];
+  if (!E) return;
+  EMO.key = name; EMO.t = 0;                                     // interrupt + restart, no stacking
+  toast(E.name);
+  sfxBlip(E.sting[0], E.sting[1], E.sting[2], E.sting[3]);       // existing WebAudio idiom
+}
+function emoteTick(dt) {
+  if (!EMO.key) return;
+  const E = EMOTES[EMO.key];
+  EMO.t += dt;
+  if (EMO.t >= E.dur) { emoteCancel(); return; }
+  const t = EMO.t;
+  let w = Math.min(1, t / 0.25);                                 // ease in 0.25s
+  const wo = Math.min(1, (E.dur - t) / 0.35);                    // ease out 0.35s
+  if (wo < w) w = wo;
+  w = w * w * (3 - 2 * w);
+  if (w <= 0) return;
+  const TAU = Math.PI * 2;
+  const js = E.joints;
+  for (let i = 0; i < js.length; i++) {
+    const j = js[i];
+    const o = emoJoint(j[0]);
+    if (!o) continue;
+    const target = j[2] + j[3] * Math.sin(TAU * j[4] * t + j[5]);
+    if (j[1] === 'x') { const r = o.rotation.x; o.rotation.x = r + (target - r) * w; }
+    else if (j[1] === 'y') { const r = o.rotation.y; o.rotation.y = r + (target - r) * w; }
+    else if (j[1] === 'z') { const r = o.rotation.z; o.rotation.z = r + (target - r) * w; }
+    else if (j[1] === 's') { const s = 1 + (target - 1) * w; o.scale.set(s, s, s); }
+    else if (j[1] === 'lift') { o.position.y += target * w; }
+  }
+  const q = E.face.squint * w, sm = E.face.smile * w;
+  const es = 1 - 0.45 * q;                                       // squint, position-compensated
+  eyeMesh.scale.y = es; eyeMesh.position.y = 1.70 * 0.45 * q;
+  pupMesh.scale.y = es; pupMesh.position.y = 1.70 * 0.45 * q;
+  mouthMesh.scale.x = 1 + 0.3 * sm; mouthMesh.position.y = 1.615 + 0.012 * sm;
+}
 /* --- melee punch: F key / right-click / PUNCH button. 3-punch chain
        (jab, cross, hook) inside a 0.6s window, dmg 2/2/4. Usable WHILE MOVING:
        momentum is untouched, the punch never roots the player. --- */
 function doPunch() {
+  emoteCancel();   // combat layer wins: punching kills the emote instantly
   if (CAR.driving) return;   // no melee from the driver's seat
   if (HORSE.riding) return;   // no melee from the saddle: the pose would break
   if (BUS.driving || BUS.riding) return;   // no melee from the bus: seated
@@ -2357,6 +2510,7 @@ const screenCenter = new THREE.Vector2(0, 0);
 const tmpV2 = new THREE.Vector3(), tmpEnd = new THREE.Vector3();
 const jitterPt = new THREE.Vector2();   // per-pellet spread offset, zero alloc
 function shoot() {
+  emoteCancel();   // combat layer wins: firing kills the emote instantly
   if (!playing() || P.dead || fireCd > 0) return;
   let w = WEAPONS[curWeapon];
   if (w.ammo <= 0) {   // dry weapon: fall back to the rifle, never soft-lock
@@ -2414,6 +2568,7 @@ function hurtPlayer(d) {
   }
   P.hp -= d;
   sfxHurt();
+  emoteCancel();   // taking a hit cancels the emote
   dmgV = 0.85;
   diffRecordDamage(d);   // dynamic difficulty: rolling damage-taken stat
   updateHpHUD();
@@ -3091,6 +3246,7 @@ function sfxBusted() {
   setTimeout(() => sfxBlip(330, 0.3, 'square', 0.25), 300);
 }
 function busted() {
+  emoteCancel();   // no emotes while busted
   if (CAR.driving) carExit();
   if (HORSE.riding) horseExit();   // busted off the saddle too
   if (BUS.driving || BUS.riding) busExit();   // busted off the bus too
@@ -4466,6 +4622,8 @@ addEventListener('keydown', e => {
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
   if (e.code === 'KeyN') newGame();                                   // wipe save, start fresh
+  const emk = EMOTE_KEYS.indexOf(e.code);                             // Phase 5 emotes: Z/X/C/V/G/B
+  if (emk >= 0) fireEmote(EMOTE_ORDER[emk]);                           // (1-6 are weapons/shop)
 });
 addEventListener('keyup', e => keys[e.code] = false);
 
@@ -4599,6 +4757,14 @@ if (IS_TOUCH) {
   punchBtn.addEventListener('touchstart', e => {
     e.preventDefault(); e.stopPropagation();
     doPunch();
+  }, { passive: false });
+
+  /* Phase 5 emotes: one EMOTE button cycles the six emotes on tap. */
+  const emoteBtn = document.getElementById('emotebtn');
+  emoteBtn.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation();
+    EMO.idx = (EMO.idx + 1) % EMOTE_ORDER.length;
+    fireEmote(EMOTE_ORDER[EMO.idx]);
   }, { passive: false });
 }
 
@@ -5390,6 +5556,7 @@ function ensureEngineAudio() {
 
 function carEnter() {
   if (CAR.driving || BUS.driving || BUS.riding || TX.riding || !playing() || P.dead) return;
+  emoteCancel();   // no emotes while driving
   const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
   if (dx * dx + dz * dz > 16) return;        // 4u enter radius
   CAR.driving = true;
@@ -5630,6 +5797,11 @@ const drivingTagEl = document.getElementById('drivingtag');
 rideHintEl.textContent = IS_TOUCH ? 'TAP TO RIDE' : 'E RIDE HORSE';
 rideHintEl.addEventListener('click', () => { if (!HORSE.riding) horseEnter(); });
 const rideBtnEl = document.getElementById('ridebtn');
+/* Phase 5 emotes: desktop key legend (hidden on touch via CSS, where the
+   EMOTE button covers it); touch button shown per-frame only when usable. */
+const emoteHintEl = document.getElementById('emotehint');
+const emoteBtnEl = document.getElementById('emotebtn');
+emoteHintEl.textContent = IS_TOUCH ? '' : 'Z WAVE - X DANCE - C LAUGH - V ANGRY - G CHEER - B BOW';
 rideBtnEl.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); horseEnter(); }, { passive: false });
 const HELP_RIDE = '<b>W/S</b> ride &nbsp; <b>A/D</b> steer &nbsp; <b>SHIFT</b> gallop<br>'
   + '<b>E</b> dismount &nbsp; <b>CLICK</b> shoot from the saddle &nbsp; <b>F</b> punch off';
@@ -5661,6 +5833,7 @@ function ensureHoofAudio() {
 
 function horseEnter() {
   if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || shopOpen) return;
+  emoteCancel();   // no emotes while riding
   const a = HORSE.nearA;
   if (!a || a.mountLocked || a.fleeT > 0) return;
   const dx = player.position.x - a.pos.x, dz = player.position.z - a.pos.z;
@@ -6145,6 +6318,7 @@ function busDwellService() {
 
 function busEnter() {
   if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || !playing() || P.dead || shopOpen) return;
+  emoteCancel();   // no emotes as a bus passenger
   if (!BUS.active || BUS.speed > 3) { toast('WAIT FOR THE BUS TO STOP'); return; }
   const door = busDoorWorld();
   const dx = player.position.x - door.x, dz = player.position.z - door.z;
@@ -6689,6 +6863,7 @@ function txPursuit(sdt) {
 function taxiEnter() {
   if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding
       || !playing() || P.dead || shopOpen) return;
+  emoteCancel();   // no emotes as a taxi passenger
   if (!TX.active || TX.speed > 3) { toast('WAIT FOR THE TAXI TO STOP'); return; }
   const door = txDoorWorld();
   const dx = player.position.x - door.x, dz = player.position.z - door.z;
@@ -6914,6 +7089,10 @@ function tick() {
   armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8;
   elbowL.rotation.x = -0.25 - Math.abs(s) * 0.3; elbowR.rotation.x = -0.25 - Math.abs(s) * 0.3;
   if (!P.grounded) { legL.rotation.x = 0.35; legR.rotation.x = -0.25; kneeL.rotation.x = 0.5; kneeR.rotation.x = 0.3; armL.rotation.x = -0.5; armR.rotation.x = -0.5; }
+  /* --- emote overlay (Phase 5): priority FSM combat > emote > locomotion.
+         Runs after locomotion writes the base pose, before punch (which wins
+         per joint by writing later, and cancels the emote outright). --- */
+  emoteTick(sdt);
   /* --- punch animation: arm extends fast, retracts; the 3rd hit (hook)
          swings visibly bigger with an arc across the body --- */
   if (P.punchCd > 0) P.punchCd -= sdt;
@@ -6945,6 +7124,10 @@ function tick() {
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
   const inBus = BUS.driving || BUS.riding;
   const inVeh = CAR.driving || HORSE.riding || inBus || TX.riding;
+  if (IS_TOUCH) {   // emote button lives only on touch; hide while driving/riding/dead
+    const emShow = !inVeh && !P.dead && playing();
+    if (emShow !== EMO.btnOn) { EMO.btnOn = emShow; emoteBtnEl.style.display = emShow ? 'flex' : 'none'; }
+  }
   if (inVeh) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
     const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
@@ -7262,6 +7445,7 @@ function loadSave() {
 /* wipe everything and restart at the spawn point. One toast, no other noise. */
 function newGame() {
   if (!playing()) return;
+  emoteCancel();
   try {
     localStorage.removeItem(SAVE_KEY);
     localStorage.removeItem(SAVE_JOURNAL);
