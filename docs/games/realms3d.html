@@ -661,104 +661,195 @@ ocean.receiveShadow = true;
 scene.add(ocean);
 
 /* ------------------------------ ANIMALS --------------------------------- */
-/* Shared unit box + materials. Each animal is a Group of 4-7 box meshes:
-   body, head group (head + extras), front leg-pair slab, back leg-pair slab.
-   Leg pairs pivot at the hip so the walk swing reads correctly. */
+/* PERF-1b: 18 animals in 11 draw calls (was ~106). Static parts per
+   species/variant are merged into ONE vertex-colored geometry each; the head
+   (graze pitch) and the two leg-pair slabs (walk swing) are InstancedMesh
+   slots updated per frame on the CPU. Same shapes, colors, shadows, and
+   walk/graze/flee behavior as the old per-animal Groups. */
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const antlerG = new THREE.CylinderGeometry(0.03, 0.05, 0.55, 5);
 const hornG = new THREE.ConeGeometry(0.06, 0.3, 6);
-const AMAT = {
-  deer:     new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 1 }),
-  cow:      new THREE.MeshStandardMaterial({ color: 0x3a2e24, roughness: 1 }),
-  cowPatch: new THREE.MeshStandardMaterial({ color: 0xd8d4cc, roughness: 1 }),
-  horse:    new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 1 }),
-  mane:     new THREE.MeshStandardMaterial({ color: 0x17110b, roughness: 1 }),
-  bone:     new THREE.MeshStandardMaterial({ color: 0xd9cba8, roughness: 0.9 }),
+const COL = {
+  deer: 0x6b4a2f, cow: 0x3a2e24, cowPatch: 0xd8d4cc,
+  horse: 0x4a3520, mane: 0x17110b, bone: 0xd9cba8,
 };
-function aPart(sx, sy, sz, mat, x, y, z, parent) {
-  const m = new THREE.Mesh(unitBox, mat);
-  m.scale.set(sx, sy, sz);
-  m.position.set(x, y, z);
-  m.castShadow = true;
-  parent.add(m);
-  return m;
-}
-function makeLegs(parent, hipY, legZ, legW, legH, legD, mat) {
-  const mk = z => {
-    const g = new THREE.Group();
-    g.position.set(0, hipY, z);
-    aPart(legW, legH, legD, mat, 0, -legH / 2, 0, g);  // wide slab reads as a leg pair
-    parent.add(g);
-    return g;
-  };
-  return [mk(legZ), mk(-legZ)];
-}
-function makeDeer(male) {
-  const g = new THREE.Group();
-  aPart(0.55, 0.62, 1.15, AMAT.deer, 0, 0.98, 0, g);
-  const headG = new THREE.Group();
-  headG.position.set(0, 1.42, 0.62);
-  aPart(0.3, 0.36, 0.55, AMAT.deer, 0, 0.08, 0.1, headG);
-  if (male) for (const sx of [-1, 1]) {
-    const a = new THREE.Mesh(antlerG, AMAT.bone);
-    a.position.set(sx * 0.1, 0.5, -0.02);
-    a.rotation.z = sx * -0.35;
-    a.castShadow = true;
-    headG.add(a);
+const animalMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+
+/* merge {geo, color, matrix} parts into one vertex-colored geometry */
+function mergeAnimalParts(parts) {
+  let total = 0;
+  const prepped = [];
+  for (const pt of parts) {
+    const g = pt.geo.index ? pt.geo.toNonIndexed() : pt.geo.clone();
+    g.applyMatrix4(pt.matrix);
+    total += g.attributes.position.count;
+    prepped.push({ g, color: pt.color });
   }
-  g.add(headG);
-  const [legF, legB] = makeLegs(g, 0.68, 0.38, 0.34, 0.68, 0.14, AMAT.deer);
-  return { g, headG, legF, legB };
-}
-function makeCow() {
-  const g = new THREE.Group();
-  aPart(0.8, 0.78, 1.35, AMAT.cow, 0, 0.92, 0, g);
-  aPart(0.84, 0.4, 0.7, AMAT.cowPatch, 0, 0.92, 0.1, g);  // white side patch
-  const headG = new THREE.Group();
-  headG.position.set(0, 1.28, 0.75);
-  aPart(0.4, 0.44, 0.5, AMAT.cow, 0, 0.05, 0.1, headG);
-  for (const sx of [-1, 1]) {
-    const h = new THREE.Mesh(hornG, AMAT.bone);
-    h.position.set(sx * 0.18, 0.32, 0.05);
-    h.castShadow = true;
-    headG.add(h);
+  const pos = new Float32Array(total * 3);
+  const nor = new Float32Array(total * 3);
+  const col = new Float32Array(total * 3);
+  const c = new THREE.Color();
+  let o = 0;
+  for (const { g, color } of prepped) {
+    const n = g.attributes.position.count;
+    pos.set(g.attributes.position.array, o * 3);
+    nor.set(g.attributes.normal.array, o * 3);
+    c.set(color);
+    for (let i = 0; i < n; i++) {
+      col[(o + i) * 3] = c.r;
+      col[(o + i) * 3 + 1] = c.g;
+      col[(o + i) * 3 + 2] = c.b;
+    }
+    o += n;
   }
-  g.add(headG);
-  const [legF, legB] = makeLegs(g, 0.55, 0.45, 0.4, 0.55, 0.16, AMAT.cow);
-  return { g, headG, legF, legB };
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return out;
 }
-function makeHorse() {
-  const g = new THREE.Group();
-  aPart(0.7, 0.82, 1.45, AMAT.horse, 0, 1.1, 0, g);
-  const neck = aPart(0.28, 0.75, 0.3, AMAT.horse, 0, 1.62, 0.72, g);
-  neck.rotation.x = -0.45;                                            // angled neck
-  aPart(0.12, 0.62, 0.42, AMAT.mane, 0, 1.68, 0.52, g);               // mane
-  const headG = new THREE.Group();
-  headG.position.set(0, 1.98, 0.92);
-  aPart(0.28, 0.3, 0.62, AMAT.horse, 0, 0.05, 0.12, headG);
-  g.add(headG);
-  const [legF, legB] = makeLegs(g, 0.72, 0.5, 0.4, 0.72, 0.15, AMAT.horse);
-  return { g, headG, legF, legB };
+/* box part: matches the old aPart mesh transform T * R * S exactly */
+function animalBox(sx, sy, sz, color, x, y, z, rx, ry, rz) {
+  const m = new THREE.Matrix4().compose(
+    new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(rx || 0, ry || 0, rz || 0)),
+    new THREE.Vector3(sx, sy, sz));
+  return { geo: unitBox, color, matrix: m };
+}
+/* raw-geometry part (antler / horn): old mesh transform was T * R, no scale */
+function animalGeo(geo, color, x, y, z, rx, ry, rz) {
+  const m = new THREE.Matrix4().compose(
+    new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(rx || 0, ry || 0, rz || 0)),
+    new THREE.Vector3(1, 1, 1));
+  return { geo, color, matrix: m };
+}
+/* leg-pair slab, baked with the old child offset (0, -legH / 2, 0) */
+function animalLegGeo(w, h, d, color) {
+  return mergeAnimalParts([animalBox(w, h, d, color, 0, -h / 2, 0)]);
 }
 
+/* species part lists: body merged; head parts in head-pivot-local space */
+const deerBodyParts = [animalBox(0.55, 0.62, 1.15, COL.deer, 0, 0.98, 0)];
+function deerHeadParts(male) {
+  const parts = [animalBox(0.3, 0.36, 0.55, COL.deer, 0, 0.08, 0.1)];
+  if (male) for (const sx of [-1, 1])
+    parts.push(animalGeo(antlerG, COL.bone, sx * 0.1, 0.5, -0.02, 0, 0, sx * -0.35));
+  return parts;
+}
+const cowBodyParts = [
+  animalBox(0.8, 0.78, 1.35, COL.cow, 0, 0.92, 0),
+  animalBox(0.84, 0.4, 0.7, COL.cowPatch, 0, 0.92, 0.1),  // white side patch
+];
+const cowHeadParts = [animalBox(0.4, 0.44, 0.5, COL.cow, 0, 0.05, 0.1)];
+for (const sx of [-1, 1])
+  cowHeadParts.push(animalGeo(hornG, COL.bone, sx * 0.18, 0.32, 0.05));
+const horseBodyParts = [
+  animalBox(0.7, 0.82, 1.45, COL.horse, 0, 1.1, 0),
+  animalBox(0.28, 0.75, 0.3, COL.horse, 0, 1.62, 0.72, -0.45, 0, 0),  // angled neck
+  animalBox(0.12, 0.62, 0.42, COL.mane, 0, 1.68, 0.52),              // mane
+];
+const horseHeadParts = [animalBox(0.28, 0.3, 0.62, COL.horse, 0, 0.05, 0.12)];
+
+function makeAnimalMesh(geo, count) {
+  const im = new THREE.InstancedMesh(geo, animalMat, count);
+  im.castShadow = true;
+  im.frustumCulled = false;   // instances roam a whole zone; per-mesh bounds would cull wrongly
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(im);
+  return im;
+}
+const deerBodyGeo = mergeAnimalParts(deerBodyParts);
+const AMESH = {
+  deerMaleBody:   makeAnimalMesh(deerBodyGeo, 4),
+  deerMaleHead:   makeAnimalMesh(mergeAnimalParts(deerHeadParts(true)), 4),
+  deerFemaleBody: makeAnimalMesh(deerBodyGeo, 4),
+  deerFemaleHead: makeAnimalMesh(mergeAnimalParts(deerHeadParts(false)), 4),
+  deerLegs:       makeAnimalMesh(animalLegGeo(0.34, 0.68, 0.14, COL.deer), 16),
+  cowBody:        makeAnimalMesh(mergeAnimalParts(cowBodyParts), 6),
+  cowHead:        makeAnimalMesh(mergeAnimalParts(cowHeadParts), 6),
+  cowLegs:        makeAnimalMesh(animalLegGeo(0.4, 0.55, 0.16, COL.cow), 12),
+  horseBody:      makeAnimalMesh(mergeAnimalParts(horseBodyParts), 4),
+  horseHead:      makeAnimalMesh(mergeAnimalParts(horseHeadParts), 4),
+  horseLegs:      makeAnimalMesh(animalLegGeo(0.4, 0.72, 0.15, COL.horse), 8),
+};
+const ALL_ANIMAL_MESHES = Object.values(AMESH);
+
+/* per-frame CPU matrix write: root, head (pivot * pitch), legs (hip * swing) */
+const _am1 = new THREE.Matrix4(), _am2 = new THREE.Matrix4(), _am3 = new THREE.Matrix4();
+const _aq = new THREE.Quaternion(), _ae = new THREE.Euler();
+const _as1 = new THREE.Vector3(1, 1, 1);
+function writeAnimalMatrices(a) {
+  _ae.set(0, a.rotY, 0);
+  _am1.compose(a.pos, _aq.setFromEuler(_ae), _as1);            // root
+  _am2.makeTranslation(a.pivotX, a.pivotY, a.pivotZ)
+      .multiply(_am3.makeRotationX(a.headPitch));              // head pivot * pitch
+  _am3.copy(_am1).multiply(_am2);                              // root * pivot * pitch
+  a.imBody.setMatrixAt(a.iBody, _am1);
+  a.imHead.setMatrixAt(a.iHead, _am3);
+  _am2.makeTranslation(0, a.hipY, a.legZ)
+      .multiply(_am3.makeRotationX(a.swingF));                 // front leg-pair * swing
+  _am3.copy(_am1).multiply(_am2);
+  a.imLegs.setMatrixAt(a.iLegF, _am3);
+  _am2.makeTranslation(0, a.hipY, -a.legZ)
+      .multiply(_am3.makeRotationX(a.swingB));                // back leg-pair * swing
+  _am3.copy(_am1).multiply(_am2);
+  a.imLegs.setMatrixAt(a.iLegB, _am3);
+}
+
+/* per-species animation slot layout: head pivot, hip height, leg offsets */
+const DEER_PIVOT = [0, 1.42, 0.62], DEER_HIP = 0.68, DEER_LEGZ = 0.38;
+const COW_PIVOT = [0, 1.28, 0.75], COW_HIP = 0.55, COW_LEGZ = 0.45;
+const HORSE_PIVOT = [0, 1.98, 0.92], HORSE_HIP = 0.72, HORSE_LEGZ = 0.5;
+const _slotN = { deerM: 0, deerF: 0, deerL: 0, cow: 0, cowL: 0, horse: 0, horseL: 0 };
+
 const animals = [];
-function addAnimal(kind, build, zone, opts) {
-  const built = build();
+function addAnimal(kind, male, zone, opts) {
   const x = zone.x0 + Math.random() * (zone.x1 - zone.x0);
   const z = zone.z0 + Math.random() * (zone.z1 - zone.z0);
-  built.g.position.set(x, terrainHeight(x, z), z);
-  built.g.rotation.y = Math.random() * Math.PI * 2;
-  scene.add(built.g);
-  const a = Object.assign(built, {
+  const a = {
     kind, zone,
+    pos: new THREE.Vector3(x, terrainHeight(x, z), z),
+    rotY: Math.random() * Math.PI * 2,
+    swingF: 0, swingB: 0, headPitch: 0,
     target: new THREE.Vector3(x, 0, z),
     mode: 'idle', t: 1 + Math.random() * 3,
     walkPhase: Math.random() * 6,
     fleeT: 0, fleeFrom: new THREE.Vector3(),
     grazeT: 0, trotT: 0,
     walk: opts.walk, fleeR: opts.fleeR || 0, graze: !!opts.graze,
-  });
+  };
+  if (kind === 'deer') {
+    const bi = male ? _slotN.deerM++ : _slotN.deerF++;
+    a.imBody = male ? AMESH.deerMaleBody : AMESH.deerFemaleBody;
+    a.imHead = male ? AMESH.deerMaleHead : AMESH.deerFemaleHead;
+    a.iBody = a.iHead = bi;
+    a.pivotX = DEER_PIVOT[0]; a.pivotY = DEER_PIVOT[1]; a.pivotZ = DEER_PIVOT[2];
+    a.hipY = DEER_HIP; a.legZ = DEER_LEGZ;
+    a.imLegs = AMESH.deerLegs;
+    const li = _slotN.deerL++;
+    a.iLegF = li * 2; a.iLegB = li * 2 + 1;
+  } else if (kind === 'cow') {
+    const bi = _slotN.cow++;
+    a.imBody = AMESH.cowBody; a.imHead = AMESH.cowHead;
+    a.iBody = a.iHead = bi;
+    a.pivotX = COW_PIVOT[0]; a.pivotY = COW_PIVOT[1]; a.pivotZ = COW_PIVOT[2];
+    a.hipY = COW_HIP; a.legZ = COW_LEGZ;
+    a.imLegs = AMESH.cowLegs;
+    const li = _slotN.cowL++;
+    a.iLegF = li * 2; a.iLegB = li * 2 + 1;
+  } else {
+    const bi = _slotN.horse++;
+    a.imBody = AMESH.horseBody; a.imHead = AMESH.horseHead;
+    a.iBody = a.iHead = bi;
+    a.pivotX = HORSE_PIVOT[0]; a.pivotY = HORSE_PIVOT[1]; a.pivotZ = HORSE_PIVOT[2];
+    a.hipY = HORSE_HIP; a.legZ = HORSE_LEGZ;
+    a.imLegs = AMESH.horseLegs;
+    const li = _slotN.horseL++;
+    a.iLegF = li * 2; a.iLegB = li * 2 + 1;
+  }
   animals.push(a);
+  writeAnimalMatrices(a);
   return a;
 }
 function randTarget(a, pad) {
@@ -768,9 +859,9 @@ function randTarget(a, pad) {
     z.z0 + pad + Math.random() * (z.z1 - z.z0 - pad * 2));
 }
 const FARM_IN = { x0: -97, x1: -43, z0: -17, z1: 37 };  // inside the fence
-for (let i = 0; i < 8; i++) addAnimal('deer', () => makeDeer(i < 4), FOREST, { walk: 1.2, fleeR: 10 });
-for (let i = 0; i < 6; i++) addAnimal('cow', makeCow, FARM_IN, { walk: 0.8, graze: true });
-for (let i = 0; i < 4; i++) addAnimal('horse', makeHorse, FARM_IN, { walk: 1.4 });
+for (let i = 0; i < 8; i++) addAnimal('deer', i < 4, FOREST, { walk: 1.2, fleeR: 10 });
+for (let i = 0; i < 6; i++) addAnimal('cow', false, FARM_IN, { walk: 0.8, graze: true });
+for (let i = 0; i < 4; i++) addAnimal('horse', false, FARM_IN, { walk: 1.4 });
 
 /* ---- ONE ticker: ocean waves + every animal's wander/graze/flee -------- */
 const _nv = new THREE.Vector3();
@@ -791,7 +882,7 @@ function natureTick(dt, now) {
   const px = player.position.x, pz = player.position.z;
 
   for (const a of animals) {
-    const p = a.g.position;
+    const p = a.pos;
     if (shotLive) {
       _nv.copy(window.__lastShotPos); _nv.y = 0;
       if (Math.hypot(p.x - _nv.x, p.z - _nv.z) < 30) {
@@ -841,17 +932,21 @@ function natureTick(dt, now) {
     if (moving) {
       a.walkPhase += dt * (3 + spd * 2.2);
       const sw = Math.sin(a.walkPhase) * Math.min(0.7, 0.25 + spd * 0.08);
-      a.legF.rotation.x = sw;
-      a.legB.rotation.x = -sw;
-      a.g.rotation.y = angleLerp(a.g.rotation.y, Math.atan2(_nv.x, _nv.z),
-                                1 - Math.exp(-8 * dt));
+      a.swingF = sw;
+      a.swingB = -sw;
+      a.rotY = angleLerp(a.rotY, Math.atan2(_nv.x, _nv.z),
+                         1 - Math.exp(-8 * dt));
     } else {
-      a.legF.rotation.x *= 0.9; a.legB.rotation.x *= 0.9;
+      a.swingF *= 0.9; a.swingB *= 0.9;
     }
     /* graze: pitch the head down; otherwise ease back to neutral */
     const headTgt = a.grazeT > 0 ? 0.75 : 0;
-    a.headG.rotation.x += (headTgt - a.headG.rotation.x) * Math.min(1, dt * 4);
+    a.headPitch += (headTgt - a.headPitch) * Math.min(1, dt * 4);
   }
+
+  /* write the per-animal instance matrices once per frame */
+  for (const a of animals) writeAnimalMatrices(a);
+  for (const m of ALL_ANIMAL_MESHES) m.instanceMatrix.needsUpdate = true;
 }
 /* worldTickers is declared later in this module (const, temporal dead zone),
    so register after full module evaluation. angleLerp/player/scene are fine:
