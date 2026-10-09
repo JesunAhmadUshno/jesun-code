@@ -79,6 +79,7 @@ globalThis.__R3D = {
   birds, wingL, wingR, PET, tamePet, releasePet, acquirePrey, petRejoin,
   petHintEl, petChipEl, birdFlockTick,
   AMESH, chunkBiome, redistributeWildlife,   /* Phase 5 wildlife v2 */
+  amenityCenterFor,                          /* Phase 5 wildlife v3: dog placement */
   get cash() { return cash; }, set cash(v) { cash = v; },
   get kills() { return kills; }, set kills(v) { kills = v; },
   get curWeapon() { return curWeapon; }, set curWeapon(v) { curWeapon = v; },
@@ -600,8 +601,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   check('wildlife: exactly one new InstancedMesh vs main (43: the bike body + the bicycle body + the scooter body)', imCount === 43, 'count=' + imCount);
-  check('wildlife2: AMESH holds 16 instanced-mesh sites (11 + rabbit/pig/wolf/bear bodies + shared wildLegs)',
-    Object.keys(G.AMESH).length === 16, 'sites=' + Object.keys(G.AMESH).length);
+  check('wildlife2: AMESH holds 20 instanced-mesh sites (16 + dog/cat/fox/duck bodies; v3 adds 4)',
+    Object.keys(G.AMESH).length === 20, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
   check('wildlife: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
@@ -840,25 +841,203 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('wildlife2: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
 
-  /* shared wild legs: per-instance species tint; bodies are real geometry */
+  /* shared wild legs: per-instance species tint; bodies are real geometry.
+     Phase 5 wildlife v3: 54 slots (12 v2 animals + 15 v3 animals, 2 each);
+     instance 24 is the first v3 (dog) leg, and must differ from the rabbit. */
   {
     const wl = G.AMESH.wildLegs;
     const ic = wl.instanceColor;
     let tintVaries = false;
-    if (ic && ic.count === 24) {
-      /* instance 0 = rabbit leg, instance 12 = first pig leg: must differ */
-      const d = Math.abs(ic.array[0] - ic.array[36]) +
-                Math.abs(ic.array[1] - ic.array[37]) +
-                Math.abs(ic.array[2] - ic.array[38]);
+    if (ic && ic.count === 54) {
+      /* instance 0 = rabbit leg, instance 24 = first dog leg: must differ */
+      const d = Math.abs(ic.array[0] - ic.array[72]) +
+                Math.abs(ic.array[1] - ic.array[73]) +
+                Math.abs(ic.array[2] - ic.array[74]);
       tintVaries = d > 0.01;
     }
     check('wildlife2: shared legs carry per-instance species tints', tintVaries,
       'count=' + (ic && ic.count));
-    const geoOk = ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody'].every(
+    const geoOk = ['rabbitBody', 'pigBody', 'wolfBody', 'bearBody',
+                   'dogBody', 'catBody', 'foxBody', 'duckBody'].every(
       k => G.AMESH[k].geometry.attributes.position.count > 0);
-    check('wildlife2: all four body geometries are non-empty', geoOk);
+    check('wildlife2: all eight body geometries are non-empty', geoOk);
   }
 }
+
+/* ================= 10m. PHASE 5 WILDLIFE V3: dogs / cats / foxes / ducks ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
+  const parkEnemies3 = (x, z) => {
+    for (const e of G.enemies) {
+      e.seeT = 0; e.scanT = 0; e.wasSpotted = false; e.live = false;
+      e.aware = false; e.aggroT = 0; e.attackCd = 0; e.state = 'wander';
+      e.prey = null; e.preyCd = 0; e.hp = e.cfg.hp; e.speed = 0;
+      e.group.position.set(x, groundY(x, z), z);
+    }
+  };
+  parkEnemies3(150, 150);
+  /* settle the player BEFORE placing test animals: a player teleport fires
+     the chunk-crossing relocate, which would scatter the placements */
+  const settle = (x, z) => {
+    G.player.position.set(x, groundY(x, z), z);
+    G.player.rotation.y = 0;
+    frame(3);   // absorb any chunk crossing
+  };
+  const scatterW3 = () => {
+    for (const a of w3) { a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0; a.panicT = 0; a.flyY = 0; }
+  };
+  const w3 = G.animals.filter(a => a.kind === 'dog' || a.kind === 'cat' ||
+                                   a.kind === 'fox' || a.kind === 'duck');
+  check('wildlife3: 4 new species spawn (4 dogs, 4 cats, 2 foxes, 5 ducks)',
+    w3.filter(a => a.kind === 'dog').length === 4 &&
+    w3.filter(a => a.kind === 'cat').length === 4 &&
+    w3.filter(a => a.kind === 'fox').length === 2 &&
+    w3.filter(a => a.kind === 'duck').length === 5,
+    'n=' + w3.length);
+
+  /* dogs relocate beside real amenity centers; placement is deterministic */
+  {
+    const snap = () => w3.map(a => a.kind + ':' + a.pos.x.toFixed(3) + ',' + a.pos.z.toFixed(3)).join('|');
+    G.redistributeWildlife(3, -2);
+    const s1 = snap();
+    let dogOk = true, duckOk = true, foxOk = true;
+    for (const a of w3) {
+      if (a.kind === 'dog') {
+        let near = false;
+        for (let gx = 0; gx <= 6 && !near; gx++)
+          for (let gz = -5; gz <= 1 && !near; gz++) {
+            const ac = G.amenityCenterFor(gx, gz);
+            if (ac && Math.hypot(a.pos.x - ac.x, a.pos.z - ac.z) < 16) near = true;
+          }
+        if (!near) dogOk = false;
+      } else if (a.kind === 'duck') {
+        if (G.terrainHeight(a.pos.x, a.pos.z) >= -0.55) duckOk = false;
+      } else if (a.kind === 'fox') {
+        const b = G.chunkBiome(Math.floor(a.pos.x / 48), Math.floor(a.pos.z / 48));
+        if (b !== 'forest' && b !== 'plain') foxOk = false;
+      }
+    }
+    check('wildlife3: relocated dogs park beside amenity centers', dogOk);
+    check('wildlife3: relocated ducks land on water', duckOk);
+    check('wildlife3: relocated foxes land in forest (spawn plain exempt)', foxOk);
+    G.redistributeWildlife(3, -2);
+    check('wildlife3: v3 redistribute is a pure function of chunk coords', snap() === s1);
+  }
+
+  /* cats keep a fixed city-district zone and never relocate */
+  {
+    const cats = w3.filter(a => a.kind === 'cat');
+    const zoneOk = cats.every(a => a.zone.x0 === 36 && a.zone.x1 === 104 &&
+                                    a.zone.z0 === -104 && a.zone.z1 === -36);
+    check('wildlife3: cats hold the city-district zone', zoneOk);
+  }
+
+  /* fox hunt: acquires the nearest rabbit; the catch panic-bolts it and the
+     fox rests LONGER than a wolf (preyCd >= 10) */
+  settle(-100, -100);
+  scatterW3();
+  const fox = w3.find(a => a.kind === 'fox');
+  const frabbit = G.animals.find(a => a.kind === 'rabbit');
+  fox.pos.set(40, G.terrainHeight(40, 40), 40);
+  fox.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  fox.mode = 'idle'; fox.t = 999; fox.fleeT = 0; fox.prey = null; fox.preyCd = 0;
+  frabbit.pos.set(46, G.terrainHeight(46, 40), 40);
+  frabbit.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  frabbit.mode = 'idle'; frabbit.t = 999; frabbit.fleeT = 0;
+  frame(5);
+  check('wildlife3: fox hunts the nearest rabbit', fox.prey === frabbit,
+    'prey=' + (fox.prey && fox.prey.kind));
+  frabbit.pos.set(fox.pos.x + 1, G.terrainHeight(fox.pos.x + 1, fox.pos.z), fox.pos.z);
+  frabbit.fleeT = 0;
+  frame(1);   // single frame: the catch sets preyCd before any decrement
+  check('wildlife3: fox catch panic-bolts the rabbit and rests long',
+    frabbit.fleeT > 3 && fox.prey === null && fox.preyCd >= 10,
+    'fleeT=' + frabbit.fleeT.toFixed(2) + ' preyCd=' + fox.preyCd.toFixed(2));
+
+  /* dogs: bark re-arms near the player; E-tame turns a dog into a pet on the
+     existing follow system; cats/foxes/ducks never raise the tame prompt */
+  settle(0, 0);
+  scatterW3();
+  for (const a of G.animals)   // park deer/horses far: the tame scan must see only our dog
+    if (a.kind === 'deer' || a.kind === 'horse') { a.pos.set(300, G.terrainHeight(300, 300), 300); a.fleeT = 0; }
+  const dog = w3.find(a => a.kind === 'dog');
+  const cat = w3.find(a => a.kind === 'cat');
+  const duck = w3.find(a => a.kind === 'duck');
+  dog.pos.set(5, G.terrainHeight(5, 0), 0);
+  dog.zone = { x0: -80, x1: 80, z0: -80, z1: 80 };
+  dog.fleeT = 0; dog.mode = 'idle'; dog.t = 999; dog.barkCd = 0;
+  frame(2);
+  check('wildlife3: untamed dog barks near the player (cooldown re-arms)',
+    dog.barkCd > 0, 'barkCd=' + dog.barkCd.toFixed(2));
+  dog.pos.set(2.5, G.terrainHeight(2.5, 0), 0);
+  dog.fleeT = 0; dog.mode = 'idle'; dog.t = 999;
+  frame(2);
+  check('wildlife3: tame prompt fires for a dog', G.PET.hintOn === true && G.PET.nearA === dog,
+    'hintOn=' + G.PET.hintOn);
+  G.tamePet(dog);
+  check('wildlife3: tamed dog joins the existing pet system',
+    G.PET.a === dog && G.PET.mode === 'follow');
+  dog.pos.set(60, G.terrainHeight(60, 0), 60);   // far from the player: follow steers back
+  const d0 = Math.hypot(dog.pos.x - G.player.position.x, dog.pos.z - G.player.position.z);
+  frame(120);
+  const d1 = Math.hypot(dog.pos.x - G.player.position.x, dog.pos.z - G.player.position.z);
+  check('wildlife3: pet dog follows the player', d1 < d0, d0.toFixed(1) + 'm -> ' + d1.toFixed(1) + 'm');
+  G.releasePet(true);
+  check('wildlife3: released dog leaves the pet slot', G.PET.a === null);
+  /* cats, foxes and ducks are not tamable */
+  scatterW3();
+  dog.pos.set(200, G.terrainHeight(200, 200), 200);   // the released dog: far, so it cannot raise the hint
+  cat.pos.set(2.5, G.terrainHeight(2.5, 0), 0); cat.fleeT = 0; cat.mode = 'idle'; cat.t = 999;
+  fox.pos.set(2.5, G.terrainHeight(2.5, 1), 1); fox.fleeT = 0; fox.mode = 'idle'; fox.t = 999; fox.prey = null; fox.preyCd = 999;
+  duck.pos.set(2.5, G.terrainHeight(2.5, 2), 2); duck.fleeT = 0; duck.panicT = 0;
+  frame(2);
+  check('wildlife3: tame prompt excludes cats, foxes and ducks',
+    G.PET.hintOn === false && G.PET.nearA === null, 'hintOn=' + G.PET.hintOn);
+
+  /* cat flees a dog inside 10m: displacement must point AWAY from the dog */
+  scatterW3();
+  for (const a of G.animals)   // wolves would also bolt the cat: park them far
+    if (a.kind === 'wolf') { a.pos.set(250, G.terrainHeight(250, 250), 250); a.fleeT = 0; a.prey = null; a.preyCd = 999; }
+  const dog2 = w3.find(a => a.kind === 'dog' && a !== dog);
+  dog2.pos.set(30, G.terrainHeight(30, 30), 30);
+  dog2.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  dog2.fleeT = 0; dog2.mode = 'idle'; dog2.t = 999; dog2.barkCd = 999;
+  cat.pos.set(30, G.terrainHeight(30, 31), 36);   // 6m from the dog
+  cat.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
+  cat.fleeT = 0; cat.mode = 'idle'; cat.t = 999;
+  const cx0 = cat.pos.x, cz0 = cat.pos.z;
+  frame(60);
+  const cdx = cat.pos.x - cx0, cdz = cat.pos.z - cz0;
+  const awayX = cx0 - dog2.pos.x, awayZ = cz0 - dog2.pos.z;   // cat start, away from the dog
+  const catFled = Math.hypot(cdx, cdz) > 1.5 && (cdx * awayX + cdz * awayZ) > 0;
+  check('wildlife3: cat flees a dog inside 10m', catFled && cat.fleeT > 0,
+    'moved=' + Math.hypot(cdx, cdz).toFixed(1) + 'm fleeT=' + cat.fleeT.toFixed(2));
+
+  /* duck panic: player close triggers take-off (flyY climbs); player far
+     lets it land (flyY returns to 0). Both player spots stay in chunk (0,0)
+     so no relocate fires mid-test. */
+  settle(13, 0);
+  scatterW3();
+  duck.pos.set(10, -0.55, 0);
+  duck.homeX = 10; duck.homeZ = 0; duck.cR = 3;   // test pond: pinned near the player
+  duck.zone = { x0: 2, x1: 18, z0: -8, z1: 8 };
+  duck.fleeT = 0; duck.panicT = 0; duck.flyY = 0; duck.duckAng = 0; duck.mode = 'idle';
+  frame(30);
+  check('wildlife3: duck panic take-off climbs', duck.panicT > 0 && duck.flyY > 0.5,
+    'panicT=' + duck.panicT.toFixed(2) + ' flyY=' + duck.flyY.toFixed(2));
+  G.player.position.set(30, groundY(30, 0), 0);   // 20m: outside the 6m panic radius, same chunk
+  frame(700);                                      // panic (<=8s) expires, then lands
+  check('wildlife3: duck lands after the panic', duck.panicT <= 0 && duck.flyY === 0,
+    'panicT=' + duck.panicT.toFixed(2) + ' flyY=' + duck.flyY.toFixed(2));
+
+  /* one render per tick still holds with the new meshes */
+  globalThis.__renderCount = 0;
+  frame(30);
+  check('wildlife3: exactly one render per tick', globalThis.__renderCount === 30,
+    'renders=' + globalThis.__renderCount);
+}
+
+/* ================= 11. MOTORCYCLE (Phase 5) ================= */
 
 /* ================= 11. MOTORCYCLE (Phase 5) ================= */
 {
