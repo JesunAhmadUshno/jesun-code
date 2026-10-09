@@ -211,6 +211,19 @@
     font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
+  /* ---- bus HUD: BOARD prompt mirrors the car/horse hint pattern; the route
+         chip sits top-left under the combat readout while aboard ---- */
+  #bushint {
+    position: absolute; bottom: 196px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #7db8ff; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #bushud {
+    position: absolute; top: 148px; left: 12px; color: #cfe4ff; background: rgba(10,14,20,.72);
+    border: 1px solid rgba(125,184,255,.45); font-size: 12px; letter-spacing: 2px;
+    font-weight: bold; padding: 8px 12px; display: none; white-space: nowrap;
+  }
 
   /* ---- lightning flash: DOM layer above the canvas only, capped under 0.18
          opacity, pointer-events none, no layout impact ---- */
@@ -263,6 +276,8 @@
   <div id="toast"></div>
   <div id="carhint"></div>
   <div id="ridehint"></div>
+  <div id="bushint"></div>
+  <div id="bushud"></div>
   <div id="shop">
     <h3 id="shopname">SHOP</h3>
     <div class="sbal">CASH $<b id="shopcash">0</b></div>
@@ -1885,6 +1900,7 @@ function sfxSlam() {
 function doPunch() {
   if (CAR.driving) return;   // no melee from the driver's seat
   if (HORSE.riding) return;   // no melee from the saddle: the pose would break
+  if (BUS.driving || BUS.riding) return;   // no melee from the bus: seated
   if (!playing() || P.dead || P.punchCd > 0) return;
   P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
   P.comboWin = 0.6;
@@ -2822,6 +2838,7 @@ function sfxBusted() {
 function busted() {
   if (CAR.driving) carExit();
   if (HORSE.riding) horseExit();   // busted off the saddle too
+  if (BUS.driving || BUS.riding) busExit();   // busted off the bus too
   const seized = Math.floor(cash * 0.25);
   cash -= seized; updateCashHUD();
   setHeat(0, true);
@@ -2873,7 +2890,7 @@ function wantedTick(dt) {
   if (W.tickT < 0.25) return;
   W.tickT = 0;
   const px = player.position.x, pz = player.position.z;
-  const seeR = CAR.driving ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
+  const seeR = (CAR.driving || BUS.driving || BUS.riding) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
   let seen = false, bust = false;
   for (const c of cops) {
     if (!c.active || c.state === 'dead') continue;
@@ -2881,8 +2898,9 @@ function wantedTick(dt) {
     const d2 = dx * dx + dz * dz;
     if (d2 < see2) seen = true;
     if (P.godT > 0) continue;
-    if (!CAR.driving && !HORSE.riding) { if (d2 < 6.25) { bust = true; break; } }
+    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding) { if (d2 < 6.25) { bust = true; break; } }
     else if (CAR.driving && d2 < 9 && Math.abs(CAR.speed) < 3) { bust = true; break; }
+    else if ((BUS.driving || BUS.riding) && d2 < 9 && Math.abs(BUS.speed) < 3) { bust = true; break; }
   }
   if (bust) { busted(); return; }
   if (W.heat <= 0) return;
@@ -3133,7 +3151,7 @@ function missionTick(dt) {
 
   const px = player.position.x, pz = player.position.z;
   if (MS.state === 'IDLE') {
-    const r = CAR.driving ? 6 : 3;   // markers are enterable on foot and while driving
+    const r = (CAR.driving || BUS.driving || BUS.riding) ? 6 : 3;   // markers are enterable on foot and while driving
     for (let i = 0; i < 5; i++) {
       if (MS.done[i] || !missionAvailable(i)) continue;
       const dx = MISSIONS[i].mx - px, dz = MISSIONS[i].mz - pz;
@@ -3144,7 +3162,7 @@ function missionTick(dt) {
   /* ACTIVE: evaluate the current phase */
   const o = MISSIONS[MS.idx].obj[MS.phase];
   if (o.type === 'collect') {
-    const r = CAR.driving ? 4.5 : 2.5;
+    const r = (CAR.driving || BUS.driving || BUS.riding) ? 4.5 : 2.5;
     for (let s = 0; s < crateSpots.length; s++) {
       const c = crateSpots[s];
       if (c.taken) continue;
@@ -3423,7 +3441,7 @@ function lootTick(dt) {
       if (L.respawnT <= 0) { L.taken = false; showLoot(L); }
     }
   }
-  if (!playing() || P.dead || CAR.driving) return;   // pickups are on-foot only
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding) return;   // pickups are on-foot only
   lootCheckT += dt;
   if (lootCheckT < 0.15) return;                      // radius checks throttled
   lootCheckT = 0;
@@ -3555,7 +3573,7 @@ function refreshShopPanel() {
   renderShopRows();
 }
 function openShop(i) {
-  if (shopOpen || P.dead || CAR.driving || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || !playing()) return;
   shopOpen = true; shopOpenIdx = i;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;   // Phase 3: panel is shared with diners
   shopNameEl.textContent = SHOPS[i].name;
@@ -3601,7 +3619,7 @@ function shopTick(dt) {
   shopCheckT += dt;
   if (shopCheckT < 0.15) return;           // proximity check throttled
   shopCheckT = 0;
-  if (!playing() || P.dead || CAR.driving) return;
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding) return;
   const px = player.position.x, pz = player.position.z;
   for (let i = 0; i < SHOPS.length; i++) {
     const S = SHOPS[i];
@@ -4040,7 +4058,7 @@ const REST_ITEMS = [
 ];
 let shopRest = false, shopRestSlot = -1, SHOP_LIST = SHOP_ITEMS;
 function openRest(R, slot) {
-  if (shopOpen || P.dead || CAR.driving || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || !playing()) return;
   shopOpen = true; shopRest = true; shopRestSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = REST_ITEMS;
   shopNameEl.textContent = R.name;
@@ -4060,7 +4078,7 @@ function amenTick(dt) {
   amenT += dt;
   if (amenT >= 0.15) {
     amenT = 0;
-    if (!shopOpen && !CAR.driving) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding) {
       const arr = AMEN.active.rest;
       for (let i = 0; i < arr.length; i++) {
         const R = arr[i];
@@ -4177,7 +4195,7 @@ addEventListener('keydown', e => {
     return;                                           // no weapon select, no car toggle while shopping
   }
   if (e.code === 'KeyE') mountToggle();                                  // horse dismount / car / horse / car
-  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else doPunch(); }
+  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -4319,6 +4337,10 @@ if (IS_TOUCH) {
 }
 
 /* === WORLD-PEOPLE-ANCHOR === */
+/* Phase 3 buses: passenger hook. The PEOPLE block below stores its npc list
+   and an instance hide/show helper here; the bus block reads them. Declared
+   before the block so there is no temporal-dead-zone issue. */
+const BUSNPC = { npcs: null, hideNPC: null };
 /* === PEOPLE (worker): 12 NPC pedestrians, walk/idle/flee states === */
 {
   /* PERF-1d: 12 NPC pedestrians in 3 draw calls (was 48). Body, head, and
@@ -4417,6 +4439,24 @@ if (IS_TOUCH) {
     npcLegIM.instanceMatrix.needsUpdate = true;
   }
   poseNPCs();   /* pose once before the first tick so no instance sits at the origin */
+
+  /* Phase 3 buses: expose the npc list + instance hide/show for passenger
+     boarding. The bus ticker registers after this one (queueMicrotask FIFO),
+     so re-hiding a boarded NPC each frame wins over poseNPCs; the behavior
+     sim keeps running underneath and resumes on alight. */
+  BUSNPC.npcs = npcs;
+  BUSNPC.hideNPC = (i, hide) => {
+    const s = hide ? 0 : 1;
+    _nM1.makeScale(s, s, s);
+    if (hide) _nM1.setPosition(0, -100, 0);
+    npcBodyIM.setMatrixAt(i, _nM1);
+    npcHeadIM.setMatrixAt(i, _nM1);
+    npcLegIM.setMatrixAt(i * 2, _nM1);
+    npcLegIM.setMatrixAt(i * 2 + 1, _nM1);
+    npcBodyIM.instanceMatrix.needsUpdate = true;
+    npcHeadIM.instanceMatrix.needsUpdate = true;
+    npcLegIM.instanceMatrix.needsUpdate = true;
+  };
 
   /* worldTickers is declared later in this module (const, temporal dead zone):
      register after full module evaluation (same pattern as the city worker). */
@@ -4984,7 +5024,7 @@ function ensureEngineAudio() {
 }
 
 function carEnter() {
-  if (CAR.driving || !playing() || P.dead) return;
+  if (CAR.driving || BUS.driving || BUS.riding || !playing() || P.dead) return;
   const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
   if (dx * dx + dz * dz > 16) return;        // 4u enter radius
   CAR.driving = true;
@@ -5020,9 +5060,9 @@ function carExit() {
         around it (combat, respawn, day/night, weather tickers untouched). ---- */
 function carUpdate(sdt, now) {
   if (!CAR.driving) {
-    // parked: show the enter hint inside 4u, nothing else
+    // parked: show the enter hint inside 4u, nothing else (never while aboard the bus)
     const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
-    const near = dx * dx + dz * dz < 16;
+    const near = dx * dx + dz * dz < 16 && !BUS.driving && !BUS.riding;
     if (near !== CAR.hintOn) { CAR.hintOn = near; carHintEl.style.opacity = near ? 1 : 0; }
     if (engGain) engGain.gain.value *= 0.9;
     if (skidGain) skidGain.gain.value *= 0.9;
@@ -5255,7 +5295,7 @@ function ensureHoofAudio() {
 }
 
 function horseEnter() {
-  if (HORSE.riding || !playing() || P.dead || CAR.driving || shopOpen) return;
+  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || shopOpen) return;
   const a = HORSE.nearA;
   if (!a || a.mountLocked || a.fleeT > 0) return;
   const dx = player.position.x - a.pos.x, dz = player.position.z - a.pos.z;
@@ -5304,21 +5344,25 @@ function horseExit() {
   helpEl.innerHTML = HELP_FOOT;
   sfxBlip(392, 0.09, 'square', 0.18);
 }
-/* E key: dismount first, then car, then mount if a prompt is live, else car */
+/* E key: dismount first, then car, then bus, then mount if a prompt is live, else car.
+   While riding the bus, E takes the driver's seat; F exits (car convention). */
 function mountToggle() {
   if (HORSE.riding) horseExit();
   else if (CAR.driving) carExit();
+  else if (BUS.driving) busExit();
+  else if (BUS.riding) busTakeWheel();
   else if (HORSE.hintOn && HORSE.nearA) horseEnter();
+  else if (BUS.hintOn) busEnter();
   else carEnter();
 }
 /* the touch EXIT button doubles as the dismount button while riding */
-function vehicleExit() { if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); }
+function vehicleExit() { if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); }
 
 /* ---- horse ticker: prompt, controller, procedural gait, audio, HUD ---- */
 function horseUpdate(sdt, now) {
   if (!HORSE.riding) {
     // parked: nearest non-fleeing horse inside 2.2u shows the RIDE prompt
-    const onFoot = playing() && !P.dead && !CAR.driving && !shopOpen;
+    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !shopOpen;
     let best = null, bestD2 = RIDE_R2;
     if (onFoot) {
       for (const a of animals) {
@@ -5437,6 +5481,483 @@ function horseUpdate(sdt, now) {
 }
 worldTickers.push(horseUpdate);
 
+/* ============================ BUSES (Phase 3) ============================
+   One AI bus runs a seeded amenity-stop loop near the player (pure-pursuit
+   path tracking), dwelling 4 s at each stop while NPC passengers board and
+   alight. E at the door boards as a passenger (the AI keeps its route);
+   E again takes the wheel (arcade drive, heavier than the car); F exits.
+   Draw calls: +3 (bus body IM, bus lights IM, stop shelter IM). Passengers
+   reuse the 12 pedestrian instances: zero new draw calls for them. */
+
+const BUS = {
+  // ---- tuning ----
+  cruise: 9, accelAI: 3.5, brakeAI: 7, wheelbase: 4, dwell: 4,
+  topSpeed: 16, reverseSpeed: 6, accel: 9, reverseAccel: 7,
+  brake: 20, coast: 8, drag: 0.015,
+  steerLow: 0.5, steerHigh: 0.18, steerSm: 7,
+  camDist: 12, camH: 3.8, fovDrive: 68,
+  seats: 10, boardR2: 3.5 * 3.5, fare: 2,
+  // ---- runtime (not tuning) ----
+  active: false, driving: false, riding: false,
+  pos: new THREE.Vector3(), heading: 0, speed: 0, steer: 0,
+  route: [], routeNo: 0, routeKey: '', stopIdx: 0, dwellT: 0, dwellServed: false,
+  passengers: 0, boarded: [], hintOn: false, hudT: 0,
+  anchorCx: 1e9, anchorCz: 1e9, announced: -1,
+};
+const BUS_TYPE_LBL = { gas: 'GAS', garage: 'GARAGE', rest: 'DINER', park: 'PARK', land: 'TOWER' };
+const BUS_COLORS = [0x4a7fb5, 0x4a9b6e, 0xb08d3e, 0x8a5f9e, 0xb5544a, 0x3f8f8a];
+const BUS_SCAN = 5;          // route scan window: anchor chunk +-5
+const BUS_MAXSTOPS = 8;      // stop shelter IM capacity
+
+/* ---- color-aware merge (mergeGeos skips the color attribute) ---- */
+function mergeGeosColor(list) {
+  let vCount = 0, iCount = 0;
+  for (const g of list) { vCount += g.attributes.position.count; iCount += g.index.count; }
+  const pos = new Float32Array(vCount * 3), nor = new Float32Array(vCount * 3);
+  const uv = new Float32Array(vCount * 2), col = new Float32Array(vCount * 3);
+  const idx = new (vCount > 65535 ? Uint32Array : Uint16Array)(iCount);
+  let vo = 0, io = 0;
+  for (const g of list) {
+    const n = g.attributes.position.count;
+    pos.set(g.attributes.position.array, vo * 3);
+    nor.set(g.attributes.normal.array, vo * 3);
+    uv.set(g.attributes.uv.array, vo * 2);
+    col.set(g.attributes.color.array, vo * 3);
+    const gi = g.index.array;
+    for (let i = 0; i < gi.length; i++) idx[io + i] = gi[i] + vo;
+    vo += n; io += gi.length;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  out.setIndex(new THREE.BufferAttribute(idx, 1));
+  return out;
+}
+const _busCol = new THREE.Color();
+function paintGeo(geo, hex) {
+  _busCol.setHex(hex);
+  const n = geo.attributes.position.count, arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { arr[i * 3] = _busCol.r; arr[i * 3 + 1] = _busCol.g; arr[i * 3 + 2] = _busCol.b; }
+  geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  return geo;
+}
+function partGeo(geo, hex, x, y, z) {
+  paintGeo(geo, hex);
+  geo.translate(x, y, z);
+  return geo;
+}
+
+/* ---- bus body: one merged vertex-colored geometry, one InstancedMesh.
+        The shell parts (busTintGeos) are repainted per route; the seeded
+        route color lives in the first busTintCount vertices. ---- */
+const busTintGeos = [
+  partGeo(new THREE.BoxGeometry(2.6, 1.5, 11), 0xffffff, 0, 1.35, 0),
+  partGeo(new THREE.BoxGeometry(2.5, 0.5, 10.6), 0xffffff, 0, 2.35, 0),
+];
+const busTrimGeos = [
+  partGeo(new THREE.BoxGeometry(2.64, 0.85, 10.7), 0x141a22, 0, 2.32, 0),    // window band
+  partGeo(new THREE.BoxGeometry(2.66, 0.2, 10.75), 0xFF3D2E, 0, 1.68, 0),    // signal-red stripe
+  partGeo(new THREE.BoxGeometry(2.3, 0.7, 0.12), 0x0e141b, 0, 2.25, 5.53),    // windshield
+  partGeo(new THREE.BoxGeometry(0.08, 1.6, 1.15), 0xd8d8d8, 1.32, 1.3, 3.4),  // door (+X side)
+  partGeo(new THREE.BoxGeometry(2.52, 0.14, 10.9), 0xe8e8e8, 0, 2.68, 0),     // roof
+  partGeo(new THREE.BoxGeometry(2.7, 0.32, 0.3), 0x2a2d33, 0, 0.55, 5.5),     // bumpers
+  partGeo(new THREE.BoxGeometry(2.7, 0.32, 0.3), 0x2a2d33, 0, 0.55, -5.5),
+];
+for (const [sx, sz] of [[-1.15, 3.7], [1.15, 3.7], [-1.15, -0.6], [1.15, -0.6], [-1.15, -3.6], [1.15, -3.6]]) {
+  const w = new THREE.CylinderGeometry(0.5, 0.5, 0.42, 10);
+  w.rotateZ(Math.PI / 2);
+  busTrimGeos.push(partGeo(w, 0x161616, sx, 0.5, sz));   // wheels baked (v1: no spin)
+}
+const busBodyGeo = mergeGeosColor(busTintGeos.concat(busTrimGeos));
+let busTintCount = 0;
+for (const g of busTintGeos) busTintCount += g.attributes.position.count;
+const busBodyIM = new THREE.InstancedMesh(busBodyGeo,
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.2 }), 2);
+busBodyIM.castShadow = false; busBodyIM.frustumCulled = false; busBodyIM.count = 0;
+busBodyIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(busBodyIM);
+function paintBusBody(hex) {
+  _busCol.setHex(hex);
+  const attr = busBodyGeo.attributes.color;
+  for (let i = 0; i < busTintCount; i++) attr.setXYZ(i, _busCol.r, _busCol.g, _busCol.b);
+  attr.needsUpdate = true;
+}
+
+/* ---- bus lights: unlit vertex colors read as emissive, one InstancedMesh ---- */
+const busLightIM = new THREE.InstancedMesh(mergeGeosColor([
+  partGeo(new THREE.PlaneGeometry(0.55, 0.3), 0xfff3cf, -0.85, 1.0, 5.58),
+  partGeo(new THREE.PlaneGeometry(0.55, 0.3), 0xfff3cf, 0.85, 1.0, 5.58),
+  partGeo(new THREE.BoxGeometry(2.3, 0.24, 0.1), 0xff2a1a, 0, 1.0, -5.53),
+]), new THREE.MeshBasicMaterial({ vertexColors: true }), 2);
+busLightIM.castShadow = false; busLightIM.frustumCulled = false; busLightIM.count = 0;
+busLightIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(busLightIM);
+
+/* ---- bus stop shelter: one merged vertex-colored geometry, one InstancedMesh ---- */
+const busStopIM = new THREE.InstancedMesh(mergeGeosColor([
+  partGeo(new THREE.BoxGeometry(0.16, 2.5, 0.16), 0x8a8f96, -1.5, 1.25, 0),
+  partGeo(new THREE.BoxGeometry(0.16, 2.5, 0.16), 0x8a8f96, 1.5, 1.25, 0),
+  partGeo(new THREE.BoxGeometry(3.4, 0.14, 1.8), 0x5a6a78, 0, 2.55, 0),
+  partGeo(new THREE.BoxGeometry(3.1, 1.15, 0.12), 0x4a5560, 0, 1.55, -0.78),
+  partGeo(new THREE.BoxGeometry(2.4, 0.12, 0.45), 0x6a5a48, 0, 0.72, -0.45),
+  partGeo(new THREE.BoxGeometry(0.12, 0.72, 0.4), 0x4a4a4a, -1.0, 0.36, -0.45),
+  partGeo(new THREE.BoxGeometry(0.12, 0.72, 0.4), 0x4a4a4a, 1.0, 0.36, -0.45),
+  partGeo(new THREE.BoxGeometry(0.14, 3.0, 0.14), 0x8a8f96, 2.0, 1.5, 0.6),
+  partGeo(new THREE.BoxGeometry(0.85, 0.6, 0.1), 0xFF3D2E, 2.0, 3.05, 0.6),
+]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.1 }), BUS_MAXSTOPS);
+busStopIM.castShadow = false; busStopIM.frustumCulled = false; busStopIM.count = 0;
+busStopIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(busStopIM);
+
+/* ---- HUD refs: board prompt, route chip, help footers ---- */
+const busHintEl = document.getElementById('bushint');
+const busHudEl = document.getElementById('bushud');
+const carcondEl = document.getElementById('carcond');
+const HELP_BUS_RIDE = '<b>E</b> take the wheel &nbsp; <b>F</b> get off<br><b>TOUCH</b> EXIT button to get off';
+const HELP_BUS_DRIVE = '<b>W/S</b> throttle / brake &nbsp; <b>A/D</b> steer &nbsp; <b>SPACE</b> brake<br>'
+  + '<b>E</b> get off &nbsp; <b>TOUCH</b> stick drives, <b>RUN</b> is brake';
+busHintEl.textContent = IS_TOUCH ? 'TAP TO BOARD' : 'E BOARD BUS';
+busHintEl.addEventListener('click', () => { if (BUS.hintOn) busEnter(); });
+
+/* ---- route: seeded loop through nearby amenity stops. Pure function of the
+        anchor chunk (amenityCenterFor is deterministic), so the same route
+        regenerates on every revisit. ---- */
+const _busM = new THREE.Matrix4(), _busQ = new THREE.Quaternion(),
+      _busE = new THREE.Euler(), _busP = new THREE.Vector3(), _busS = new THREE.Vector3(1, 1, 1);
+function busRebuildRoute(pcx, pcz) {
+  if (BUS.driving || BUS.riding) return;   // never yank the route out from under the player
+  const key = pcx + ',' + pcz;
+  if (key === BUS.routeKey) return;
+  BUS.routeKey = key; BUS.anchorCx = pcx; BUS.anchorCz = pcz;
+  const cx = (pcx + 0.5) * CHUNK, cz = (pcz + 0.5) * CHUNK;
+  const found = [];
+  for (let gx = pcx - BUS_SCAN; gx <= pcx + BUS_SCAN; gx++)
+    for (let gz = pcz - BUS_SCAN; gz <= pcz + BUS_SCAN; gz++) {
+      const a = amenityCenterFor(gx, gz);
+      if (a) found.push({ x: a.x, z: a.z, type: a.type, gx, gz });
+    }
+  found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
+                     - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
+  const stops = found.slice(0, BUS_MAXSTOPS);
+  if (stops.length < 2) {   // no loop possible here: park the bus
+    BUS.route = []; BUS.active = false;
+    busBodyIM.count = 0; busLightIM.count = 0; busStopIM.count = 0;
+    busHudEl.style.display = 'none';
+    return;
+  }
+  // loop order: sort by angle around the centroid so segments never cross
+  let mx = 0, mz = 0;
+  for (const s of stops) { mx += s.x; mz += s.z; }
+  mx /= stops.length; mz /= stops.length;
+  stops.sort((p, q) => Math.atan2(p.x - mx, p.z - mz) - Math.atan2(q.x - mx, q.z - mz));
+  const hh = hash2i(pcx, pcz);   // unsigned: safe modulo
+  BUS.routeNo = 1 + (hh % 12);
+  BUS.route = stops.map(s => ({
+    x: s.x, z: s.z, gx: s.gx, gz: s.gz,
+    label: BUS.routeNo + ' ' + (BUS_TYPE_LBL[s.type] || s.type.toUpperCase()),
+  }));
+  paintBusBody(BUS_COLORS[(hh >> 4) % BUS_COLORS.length]);
+  // shelters: deterministic pad-edge placement, facing the pad
+  for (let i = 0; i < BUS.route.length; i++) {
+    const s = BUS.route[i];
+    const sa = (hash2i(s.gx, s.gz) % 628) / 100;
+    const ox = Math.cos(sa) * 10.5, oz = Math.sin(sa) * 10.5;
+    _busE.set(0, Math.atan2(-ox, -oz), 0); _busQ.setFromEuler(_busE);
+    _busP.set(s.x + ox, terrainHeight(s.x + ox, s.z + oz), s.z + oz);
+    _busM.compose(_busP, _busQ, _busS);
+    busStopIM.setMatrixAt(i, _busM);
+  }
+  busStopIM.count = BUS.route.length;
+  busStopIM.instanceMatrix.needsUpdate = true;
+  // retarget: the nearest stop keeps the bus continuous across rebuilds
+  let bi = 0, bd = Infinity;
+  for (let i = 0; i < BUS.route.length; i++) {
+    const s = BUS.route[i];
+    const d = (s.x - BUS.pos.x) * (s.x - BUS.pos.x) + (s.z - BUS.pos.z) * (s.z - BUS.pos.z);
+    if (d < bd) { bd = d; bi = i; }
+  }
+  if (!BUS.active || bd > 400 * 400) {
+    // first activation (or the route jumped far): start dwelling at stop 0
+    const s0 = BUS.route[0], s1 = BUS.route[1];
+    BUS.pos.set(s0.x, terrainHeight(s0.x, s0.z), s0.z);
+    BUS.heading = Math.atan2(s1.x - s0.x, s1.z - s0.z);
+    BUS.speed = 0; BUS.stopIdx = 0; BUS.dwellT = BUS.dwell; BUS.dwellServed = false;
+  } else {
+    BUS.stopIdx = bi;
+  }
+  BUS.announced = -1;
+  BUS.active = true;
+  busBodyIM.count = 1; busLightIM.count = 1;
+}
+
+/* ---- pure pursuit: lookahead point on the route loop, bicycle steering ---- */
+function busPursuit(dt) {
+  const r = BUS.route, n = r.length;
+  const bx = BUS.pos.x, bz = BUS.pos.z;
+  let bestD2 = Infinity, bi = 0, bt = 0;
+  for (let i = 0; i < n; i++) {
+    const a = r[i], b = r[(i + 1) % n];
+    const abx = b.x - a.x, abz = b.z - a.z;
+    const len2 = abx * abx + abz * abz || 1;
+    let t = ((bx - a.x) * abx + (bz - a.z) * abz) / len2;
+    t = t < 0 ? 0 : (t > 1 ? 1 : t);
+    const px = a.x + abx * t, pz = a.z + abz * t;
+    const dx = bx - px, dz = bz - pz, d2 = dx * dx + dz * dz;
+    if (d2 < bestD2) { bestD2 = d2; bi = i; bt = t; }
+  }
+  let L = 3 + 0.35 * BUS.speed;             // research: lookahead grows with speed
+  L = L < 3 ? 3 : (L > 10 ? 10 : L);
+  let ci = bi, ct = bt, rem = L, guard = 0;
+  while (rem > 0 && guard++ < 32) {
+    const a = r[ci], b = r[(ci + 1) % n];
+    const segLen = Math.hypot(b.x - a.x, b.z - a.z) || 0.001;
+    const left = (1 - ct) * segLen;
+    if (left >= rem) { ct += rem / segLen; rem = 0; }
+    else { rem -= left; ci = (ci + 1) % n; ct = 0; }
+  }
+  const la = r[ci], lb = r[(ci + 1) % n];
+  const lx = la.x + (lb.x - la.x) * ct, lz = la.z + (lb.z - la.z) * ct;
+  const dx = lx - bx, dz = lz - bz;
+  const dist = Math.hypot(dx, dz) || 0.001;
+  let alpha = Math.atan2(dx, dz) - BUS.heading;
+  alpha = ((alpha + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  const delta = Math.atan2(2 * BUS.wheelbase * Math.sin(alpha), dist);
+  if (BUS.speed > 0.05) BUS.heading += (BUS.speed / BUS.wheelbase) * Math.tan(delta) * dt;
+}
+
+/* ---- door world position (front-right of the bus) ---- */
+const _busDoor = new THREE.Vector3();
+function busDoorWorld() {
+  const s = Math.sin(BUS.heading), c = Math.cos(BUS.heading);
+  _busDoor.set(BUS.pos.x + c * 1.55 + s * 3.4, BUS.pos.y, BUS.pos.z - s * 1.55 + c * 3.4);
+  return _busDoor;
+}
+
+/* ---- dwell service: NPC passengers alight (35% each), nearby NPCs board ---- */
+function busDwellService() {
+  if (!BUSNPC.npcs || !BUSNPC.hideNPC) return;
+  const door = busDoorWorld();
+  const staying = [];
+  for (const bi of BUS.boarded) {
+    if (Math.random() < 0.35) {
+      const n = BUSNPC.npcs[bi];
+      n.pos.set(door.x, terrainHeight(door.x, door.z), door.z);
+      n.busRidden = false; n.state = 'WALK'; n.idleT = 0;
+      let bw = 0, bd = Infinity;
+      for (let w = 0; w < n.wps.length; w++) {
+        const d = (n.wps[w][0] - door.x) * (n.wps[w][0] - door.x)
+                + (n.wps[w][1] - door.z) * (n.wps[w][1] - door.z);
+        if (d < bd) { bd = d; bw = w; }
+      }
+      n.wi = bw;
+      BUSNPC.hideNPC(bi, false);
+    } else staying.push(bi);
+  }
+  BUS.boarded = staying;
+  // board: NPCs within 8 m of the door step aboard (instant: their wander sim
+  // would fight a walk-to-door; the door ding sells the moment)
+  let seats = BUS.seats - BUS.boarded.length;
+  if (seats > 0) {
+    for (let i = 0; i < BUSNPC.npcs.length && seats > 0; i++) {
+      const n = BUSNPC.npcs[i];
+      if (n.busRidden || n.state === 'FLEE') continue;
+      const dx = n.pos.x - door.x, dz = n.pos.z - door.z;
+      if (dx * dx + dz * dz < 64) {
+        n.busRidden = true; BUS.boarded.push(i); seats--;
+        BUSNPC.hideNPC(i, true);
+      }
+    }
+  }
+  BUS.passengers = BUS.boarded.length;
+  sfxBlip(880, 0.12, 'sine', 0.18);
+  setTimeout(() => sfxBlip(659, 0.14, 'sine', 0.18), 160);
+}
+
+function busEnter() {
+  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || !playing() || P.dead || shopOpen) return;
+  if (!BUS.active || BUS.speed > 3) { toast('WAIT FOR THE BUS TO STOP'); return; }
+  const door = busDoorWorld();
+  const dx = player.position.x - door.x, dz = player.position.z - door.z;
+  if (dx * dx + dz * dz > BUS.boardR2) return;
+  BUS.riding = true;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = false;
+  if (cash >= BUS.fare) { cash -= BUS.fare; updateCashHUD(); toast('BUS FARE $2 PAID'); }
+  else toast('BUS FARE $2 WAIVED');
+  speedoEl.style.display = 'block';
+  drivingTagEl.textContent = 'BUS RIDER';
+  gaitTagEl.style.display = 'none';
+  carcondEl.style.display = 'none';
+  busHintEl.style.opacity = 0; BUS.hintOn = false;
+  carHintEl.style.opacity = 0; CAR.hintOn = false;
+  rideHintEl.style.opacity = 0; HORSE.hintOn = false;
+  if (IS_TOUCH) exitBtnEl.style.display = 'flex';
+  helpEl.innerHTML = HELP_BUS_RIDE;
+  ensureEngineAudio();
+  sfxBlip(660, 0.09, 'square', 0.2);
+}
+function busTakeWheel() {
+  if (!BUS.riding || BUS.driving) return;
+  BUS.riding = false; BUS.driving = true;
+  BUS.speed = Math.min(BUS.speed, 6);
+  BUS.dwellT = 0; BUS.dwellServed = false;   // the driver leaves when they want
+  drivingTagEl.textContent = 'BUS DRIVER';
+  helpEl.innerHTML = HELP_BUS_DRIVE;
+  toast('YOU HAVE THE WHEEL');
+  sfxBlip(520, 0.1, 'square', 0.2);
+}
+function busExit() {
+  if (!BUS.driving && !BUS.riding) return;
+  BUS.driving = false; BUS.riding = false;
+  exitBtnEl.style.display = 'none';
+  const door = busDoorWorld();
+  player.position.set(door.x, terrainHeight(door.x, door.z), door.z);
+  player.rotation.y = BUS.heading;
+  player.visible = true;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  speedoEl.style.display = 'none';
+  drivingTagEl.textContent = 'DRIVING';
+  carcondEl.style.display = '';
+  busHudEl.style.display = 'none';
+  helpEl.innerHTML = HELP_FOOT;
+  sfxBlip(440, 0.09, 'square', 0.18);
+}
+
+/* ---- player-driven bus: the CAR arcade feel, slower and heavier ---- */
+function busDrivePlayer(sdt) {
+  let thr = 0, str = 0;
+  if (keys.KeyW || keys.ArrowUp) thr += 1;
+  if (keys.KeyS || keys.ArrowDown) thr -= 1;
+  if (keys.KeyD || keys.ArrowRight) str += 1;
+  if (keys.KeyA || keys.ArrowLeft) str -= 1;
+  if (IS_TOUCH) { thr += -touch.moveY; str += touch.moveX; }
+  thr = Math.max(-1, Math.min(1, thr));
+  str = Math.max(-1, Math.min(1, str));
+  const hb = !!(keys.Space || (IS_TOUCH && touch.sprint));
+  const sp = BUS.speed;
+  if (thr > 0) BUS.speed = Math.min(BUS.topSpeed, sp + BUS.accel * thr * sdt);
+  else if (thr < 0) {
+    if (sp > 0.5) BUS.speed = Math.max(0, sp + BUS.brake * thr * sdt);
+    else BUS.speed = Math.max(-BUS.reverseSpeed, sp + BUS.reverseAccel * thr * sdt);
+  } else {
+    const dec = BUS.coast * sdt + Math.abs(sp) * sp * BUS.drag * sdt;
+    BUS.speed = Math.abs(sp) <= dec ? 0 : sp - Math.sign(sp) * dec;
+  }
+  if (hb) BUS.speed -= Math.sign(BUS.speed) * Math.min(Math.abs(BUS.speed), 18 * sdt);
+  BUS.steer += (str - BUS.steer) * Math.min(1, BUS.steerSm * sdt);
+  const spdN = Math.min(1, Math.abs(BUS.speed) / BUS.topSpeed);
+  const steerMax = BUS.steerLow + (BUS.steerHigh - BUS.steerLow) * spdN;
+  BUS.heading += BUS.steer * steerMax * (BUS.speed >= 0 ? 1 : -1) * sdt;
+  BUS.pos.x += Math.sin(BUS.heading) * BUS.speed * sdt;
+  BUS.pos.z += Math.cos(BUS.heading) * BUS.speed * sdt;
+}
+
+/* ---- bus ticker: route upkeep, AI driving, prompts, HUD, audio ---- */
+function busUpdate(sdt, now) {
+  const pcx = Math.floor(player.position.x / CHUNK), pcz = Math.floor(player.position.z / CHUNK);
+  if (pcx !== BUS.anchorCx || pcz !== BUS.anchorCz) busRebuildRoute(pcx, pcz);
+  if (!BUS.active) return;
+  if (P.dead && (BUS.driving || BUS.riding)) { busExit(); return; }
+
+  const n = BUS.route.length;
+  if (BUS.driving) {
+    busDrivePlayer(sdt);
+  } else {
+    // ---- AI: pure pursuit along the loop, dwell at stops ----
+    if (BUS.dwellT > 0) {
+      if (!BUS.dwellServed) { BUS.dwellServed = true; busDwellService(); }
+      BUS.dwellT -= sdt;
+      BUS.speed = Math.max(0, BUS.speed - BUS.brakeAI * sdt);
+      if (BUS.dwellT <= 0) {
+        BUS.stopIdx = (BUS.stopIdx + 1) % n;
+        BUS.dwellServed = false; BUS.announced = -1;
+      }
+    } else {
+      const tgt = BUS.route[BUS.stopIdx];
+      const dStop = Math.hypot(tgt.x - BUS.pos.x, tgt.z - BUS.pos.z);
+      // ease to ~4 m/s by 14 m out, rolling to a stop at the pad
+      const want = dStop < 15 ? Math.max(0, (dStop - 2.5) * 0.35) : BUS.cruise;
+      const rate = want > BUS.speed ? BUS.accelAI : BUS.brakeAI;
+      const dv = want - BUS.speed;
+      BUS.speed += dv > 0 ? Math.min(rate * sdt, dv) : Math.max(-rate * sdt, dv);
+      if (BUS.speed < 0) BUS.speed = 0;
+      busPursuit(sdt);
+      if (dStop < 4 && BUS.speed < 2) {
+        BUS.speed = 0; BUS.dwellT = BUS.dwell; BUS.dwellServed = false;
+      } else if (dStop < 30 && BUS.announced !== BUS.stopIdx) {
+        BUS.announced = BUS.stopIdx;
+        toast('NEXT STOP ' + tgt.label);
+      }
+    }
+    BUS.pos.x += Math.sin(BUS.heading) * BUS.speed * sdt;
+    BUS.pos.z += Math.cos(BUS.heading) * BUS.speed * sdt;
+  }
+
+  // ---- terrain follow: axle samples, like the car ----
+  const fx = Math.sin(BUS.heading), fz = Math.cos(BUS.heading);
+  const hF = terrainHeight(BUS.pos.x + fx * 4.2, BUS.pos.z + fz * 4.2);
+  const hR = terrainHeight(BUS.pos.x - fx * 4.2, BUS.pos.z - fz * 4.2);
+  BUS.pos.y = (hF + hR) * 0.5;
+
+  // ---- the rider/driver is glued to the bus (sun, enemies, camera follow) ----
+  if (BUS.driving || BUS.riding) { player.position.copy(BUS.pos); player.rotation.y = BUS.heading; }
+
+  // ---- write the two bus instances ----
+  _busE.set(0, BUS.heading, 0); _busQ.setFromEuler(_busE);
+  _busP.copy(BUS.pos); _busM.compose(_busP, _busQ, _busS);
+  busBodyIM.setMatrixAt(0, _busM);
+  busLightIM.setMatrixAt(0, _busM);
+  busBodyIM.instanceMatrix.needsUpdate = true;
+  busLightIM.instanceMatrix.needsUpdate = true;
+
+  // ---- boarded NPCs stay hidden: the people ticker poses them first, and
+  //      this ticker is registered after it (queueMicrotask), so this wins ----
+  if (BUSNPC.hideNPC) for (const bi of BUS.boarded) BUSNPC.hideNPC(bi, true);
+
+  // ---- board prompt: on foot, near the door, bus stopped ----
+  const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
+              && !BUS.driving && !BUS.riding && !shopOpen;
+  let nearDoor = false;
+  if (onFoot && BUS.speed < 3) {
+    const door = busDoorWorld();
+    const dx = player.position.x - door.x, dz = player.position.z - door.z;
+    nearDoor = dx * dx + dz * dz < BUS.boardR2;
+  }
+  if (nearDoor !== BUS.hintOn) {
+    BUS.hintOn = nearDoor;
+    busHintEl.style.opacity = nearDoor ? 1 : 0;
+  }
+
+  // ---- HUD: route chip + speedo, throttled ----
+  BUS.hudT += sdt;
+  if (BUS.hudT > 0.25) {
+    BUS.hudT = 0;
+    const aboard = BUS.driving || BUS.riding;
+    if (aboard || BUS.hintOn) {
+      const tgt = BUS.route[BUS.stopIdx];
+      busHudEl.style.display = 'block';
+      busHudEl.textContent = 'BUS ' + BUS.routeNo + ' > ' + tgt.label + '   PAX ' + BUS.passengers;
+    } else busHudEl.style.display = 'none';
+    if (aboard) spdNumEl.textContent = Math.round(Math.abs(BUS.speed) * 3.6);
+  }
+
+  // ---- bus engine note rides the shared engine nodes ----
+  if (engGain) {
+    if (BUS.driving && AC && AC.state === 'running') {
+      const rpm = Math.min(1.1, Math.abs(BUS.speed) / BUS.topSpeed * 0.85);
+      engOsc1.frequency.value = 52 + rpm * 140;
+      engOsc2.frequency.value = 26 + rpm * 70;
+      const tgtG = 0.04 + rpm * 0.04;
+      engGain.gain.value += (tgtG - engGain.gain.value) * Math.min(1, 5 * sdt);
+    } else if (!CAR.driving) engGain.gain.value *= 0.9;
+  }
+}
+/* deferred like the people ticker: the bus hides boarded NPCs AFTER the
+   people ticker poses them, so registration order puts this one last. */
+queueMicrotask(() => worldTickers.push(busUpdate));
+
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
 const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
@@ -5523,7 +6044,7 @@ function tick() {
 
   /* --- accelerate / decelerate (no ice-skating, no teleport).
          Skipped while driving or riding: the vehicle ticker owns motion instead. --- */
-  if (!CAR.driving && !HORSE.riding) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding) {
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize().multiplyScalar(maxSpeed);
       tmpV.copy(wishDir).sub(P.vel);
@@ -5545,14 +6066,14 @@ function tick() {
 
   /* --- face travel direction, smooth turn (the rider faces the horse heading) --- */
   const speed = Math.hypot(P.vel.x, P.vel.z);
-  if (!CAR.driving && !HORSE.riding && speed > 0.6) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && speed > 0.6) {
     const targetYaw = Math.atan2(P.vel.x, P.vel.z);
     player.rotation.y = angleLerp(player.rotation.y, targetYaw, 1 - Math.exp(-12 * sdt));
   }
 
   /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if (!CAR.driving && !HORSE.riding) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding) {
     if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -5563,7 +6084,7 @@ function tick() {
 
   /* --- procedural walk cycle (frozen while driving: the driver is seated;
          frozen while riding: the horse ticker poses the rider) --- */
-  if (!CAR.driving && !HORSE.riding) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -5601,14 +6122,15 @@ function tick() {
   }   // end: walk cycle + punch anim skipped while driving
 
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
-  if (CAR.driving || HORSE.riding) {
+  const inBus = BUS.driving || BUS.riding;
+  if (CAR.driving || HORSE.riding || inBus) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
     const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
-    const camAng = (CAR.driving ? CAR.heading : HORSE.heading)
+    const camAng = (CAR.driving ? CAR.heading : (inBus ? BUS.heading : HORSE.heading))
       + (CAR.driving ? CAR.slip * driftBlend : 0);
-    const vPos = CAR.driving ? CAR.pos : HORSE.pos;
-    const vDist = CAR.driving ? CAR.camDist : HORSE.camDist;
-    const vH = CAR.driving ? CAR.camH : HORSE.camH;
+    const vPos = CAR.driving ? CAR.pos : (inBus ? BUS.pos : HORSE.pos);
+    const vDist = CAR.driving ? CAR.camDist : (inBus ? BUS.camDist : HORSE.camDist);
+    const vH = CAR.driving ? CAR.camH : (inBus ? BUS.camH : HORSE.camH);
     lookTarget.copy(vPos); lookTarget.y += CAR.driving ? 1.6 : 2.1;
     camTargetPos.set(
       lookTarget.x - Math.sin(camAng) * vDist,
@@ -5635,7 +6157,7 @@ function tick() {
   camera.position.copy(camPos);
   }
   /* wider FOV while driving or galloping, eases back to normal after */
-  const fovT = CAR.driving ? CAR.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk);
+  const fovT = CAR.driving ? CAR.fovDrive : (inBus ? BUS.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk));
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
@@ -5643,7 +6165,7 @@ function tick() {
   /* --- melee camera punch: tiny shake (2-3 frames) on connect, bigger on the
          3rd hit. Touches only the camera offset: pointer lock and touch-drag
          look (camYaw/camPitch) are never disturbed. --- */
-  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding) {
+  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding) {
     P.shakeT -= dt;
     const m = P.shakeMag * Math.max(0, P.shakeT / Math.max(P.shakeDur, 0.001));
     camera.position.x += (Math.random() * 2 - 1) * m;
@@ -5674,7 +6196,7 @@ function tick() {
   /* --- HUD position readout --- */
   if ((hudTick += dt) > 0.12) {
     hudTick = 0;
-    const mode = CAR.driving ? 'DRIVE' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE'));
+    const mode = CAR.driving ? 'DRIVE' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE'))));
     posEl.textContent = 'X ' + player.position.x.toFixed(0) + '  Z ' + player.position.z.toFixed(0)
       + '  [' + Math.floor(player.position.x / CHUNK) + ',' + Math.floor(player.position.z / CHUNK) + ']'
       + '  ' + mode;
@@ -5688,6 +6210,7 @@ function tick() {
   if (P.dead) {
     if (CAR.driving) carExit();   // death always ejects: no driving while dead
     if (HORSE.riding) horseExit(); // ...and no riding while dead either
+    if (BUS.driving || BUS.riding) busExit();   // ...and no bus aboard while dead
     P.deadT += sdt;
     if (P.deadT > 1.2) {   // redeploy at spawn with full health
       player.position.set(0, terrainHeight(0, 0), 0);

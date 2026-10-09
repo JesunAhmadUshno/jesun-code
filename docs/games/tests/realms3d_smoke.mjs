@@ -55,6 +55,8 @@ src += `
 globalThis.__R3D = {
   tick, startMission, currentTarget, damageEnemy, shoot, fireTracer,
   carEnter, carExit, openShop, closeShop, buyItem,
+  busEnter, busExit, busTakeWheel, busRebuildRoute, busDoorWorld, mountToggle,
+  busDwellService, BUSNPC, BUS,
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
@@ -211,6 +213,65 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('tracer: kill credits exact brute reward ($60)',
     G.kills === kills0 + 1 && G.cash === cash0 + 60,
     'cash delta=' + (G.cash - cash0));
+}
+
+/* ================= 6. BUS ROUTE + BOARD + DRIVE ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.cash = 100;
+  G.setHeat(0, true);
+  G.player.position.set(0, groundY(0, 0), 0);          // anchor chunk (0,0)
+  frame(3);                                            // busUpdate builds the route
+  check('bus: route activates near spawn', G.BUS.active === true && G.BUS.route.length >= 2,
+    'stops=' + G.BUS.route.length);
+  const r1 = JSON.stringify(G.BUS.route), key1 = G.BUS.routeKey;
+  G.BUS.anchorCx = 1e9; G.BUS.routeKey = '';            // force a rebuild on next frame
+  frame(1);
+  check('bus: route is deterministic on revisit',
+    G.BUS.routeKey === key1 && JSON.stringify(G.BUS.route) === r1);
+  check('bus: stop labels carry the route number',
+    G.BUS.route.every(s => s.label.indexOf(String(G.BUS.routeNo)) === 0),
+    'no=' + G.BUS.routeNo);
+  // walk to the door while the bus dwells at its first stop
+  const door = G.busDoorWorld();
+  G.player.position.set(door.x, groundY(door.x, door.z), door.z);
+  frame(2);
+  check('bus: board prompt appears at the door', G.BUS.hintOn === true);
+  G.busEnter();                                        // real entry
+  check('bus: boarding rides + charges $2 fare',
+    G.BUS.riding === true && G.player.visible === false && G.cash === 98,
+    'cash=' + G.cash);
+  G.mountToggle();                                     // E while riding: take the wheel
+  check('bus: E while riding takes the wheel',
+    G.BUS.driving === true && G.BUS.riding === false);
+  const start = G.BUS.pos.clone();
+  G.keys.KeyW = true;
+  frame(90);                                           // ~1.5 s of bus-throttle driving
+  G.keys.KeyW = false;
+  const moved = G.BUS.pos.distanceTo(start);
+  check('bus: player-driven bus moves under throttle', moved > 3, 'moved=' + moved.toFixed(2) + 'u');
+  G.mountToggle();                                     // E while driving: get off
+  check('bus: E while driving exits on foot',
+    G.BUS.driving === false && G.BUS.riding === false && G.player.visible === true);
+  // NPC passengers: park an NPC at the door and run the dwell service
+  const origRandom = Math.random;
+  Math.random = () => 0.99;                            // never alight: isolate boarding
+  const door2 = G.busDoorWorld();
+  const npc0 = G.BUSNPC.npcs[0];
+  npc0.pos.set(door2.x, G.terrainHeight(door2.x, door2.z), door2.z);
+  npc0.state = 'IDLE';
+  G.busDwellService();
+  check('bus: nearby NPC boards during dwell',
+    G.BUS.boarded.length === 1 && G.BUS.passengers === 1 && npc0.busRidden === true,
+    'boarded=' + G.BUS.boarded.length);
+  const hideCalls = [];
+  const origHide = G.BUSNPC.hideNPC;
+  G.BUSNPC.hideNPC = (i, hide) => { hideCalls.push([i, hide]); origHide(i, hide); };
+  Math.random = () => 0;                               // always alight
+  G.busDwellService();
+  Math.random = origRandom;
+  G.BUSNPC.hideNPC = origHide;
+  check('bus: alighting NPC is unhidden at the door',
+    hideCalls.some(c => c[0] === 0 && c[1] === false) && npc0.state === 'WALK');
 }
 
 /* ---------- zero console errors ---------- */
