@@ -1784,7 +1784,9 @@ if (IS_TOUCH) {
   const WALK_SPD = 1.8, FLEE_SPD = 5;
   const tmpDir = new THREE.Vector3();
 
-  worldTickers.push((dt, now) => {
+  /* worldTickers is declared later in this module (const, temporal dead zone):
+     register after full module evaluation (same pattern as the city worker). */
+  queueMicrotask(() => worldTickers.push((dt, now) => {
     /* __lastShotAt is performance.now() in ms; now is seconds. Convert. */
     const shotAgeMs = now * 1000 - (window.__lastShotAt || 0);
     const shotLive = shotAgeMs < 1500 && window.__lastShotPos;
@@ -1855,7 +1857,7 @@ if (IS_TOUCH) {
       const bob = n.state === 'IDLE' ? Math.abs(Math.sin(now * 2 + n.phase)) * 0.04 : 0;
       p.y = terrainHeight(p.x, p.z) + bob;
     }
-  });
+  }));
 }
 /* NPC pedestrians code goes here (worker: people). 12 walkers with walk/idle/flee states. */
 
