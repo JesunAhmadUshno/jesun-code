@@ -57,8 +57,15 @@ eyes, judged like the videos: sharper than the last build or it does not ship.
   520px media query and the OBJECTIVE chip not visually verified in-game
   (automation could not set a phone viewport; no quest activated, see
   roadmap item 13).
-- Touch controls: bigger hit areas, dpad plus action buttons layout, pressed
-  states, pause button easy to reach.
+- [x] Touch controls (shipped 2026-10-09, APP_VERSION 20261009b): proper 3x3
+  cross dpad with larger responsive cells (56 to 76px); 2x2 color-coded
+  action grid (ATK red, E blue, POT purple, 3D green); pause moved out of the
+  dpad to a floating gold II button at the canvas top-right; pressed states
+  got glow plus scale, touchcancel handlers kill stuck states,
+  touch-action manipulation, aria labels. Playtested 2026-10-09 on the
+  pushed page (desktop width, touch forced on): boot clean, layout confirmed,
+  pause tap pauses and resumes, dpad and ATK register, zero errors. Gap:
+  phone narrow-viewport not visually verified (automation could not set one).
 - Dialogs: merchant/wanderer/elder text readable, toast timing tuned, no
   overlapping panels.
 - Onboarding: first-run hints (where the cave is, M for 3D sight, Q drinks a
