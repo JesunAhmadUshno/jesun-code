@@ -111,6 +111,13 @@
   }
   #marr { font-size: 26px; line-height: 1; text-shadow: 0 0 10px rgba(255,180,40,.7); }
   #mdist { font-size: 11px; letter-spacing: 2px; margin-top: 2px; }
+  /* ---- amenity HUD: landmark bearing chip (Phase 3) ---- */
+  #landchip {
+    position: absolute; top: 152px; left: 18px; color: #c9d2b8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #landarr { display: inline-block; color: #ffd24a; font-size: 14px; }
 
   /* ---- wanted HUD: heat stars under #combat. Solid while seen,
          flashing (.evading) while the cops lose your trail, hidden at 0. ---- */
@@ -190,6 +197,7 @@
   #speedo #spdnum { color: #ff3d2e; font-size: 22px; font-weight: bold; }
   #drivingtag { color: #ff6b5e; font-size: 10px; letter-spacing: 4px; margin-bottom: 4px; }
   #gaittag { color: #d8c84a; font-size: 11px; letter-spacing: 3px; margin-top: 4px; display: none; }
+  #carcond { color: #7dff9a; font-size: 10px; letter-spacing: 2px; margin-top: 4px; }
   #carhint {
     position: absolute; bottom: 108px; left: 50%; transform: translateX(-50%);
     color: #0c0e0a; background: #d8c84a; font-size: 13px; letter-spacing: 3px;
@@ -250,7 +258,7 @@
   <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
   <div id="wx"><span>☀</span> CLEAR</div>
   <div id="saved">SAVED --:--</div>
-  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div></div>
+  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond">HULL 100%</div></div>
   <div id="perfchip"></div>
   <div id="toast"></div>
   <div id="carhint"></div>
@@ -261,6 +269,7 @@
     <div id="shoprows"></div>
     <div class="shint">[1-5] BUY &nbsp; [E] / [ESC] CLOSE &nbsp; TAP ROW ON TOUCH</div>
   </div>
+  <div id="landchip"><span id="landarr">^</span> <span id="landtxt"></span></div>
 </div>
 
 <div id="dmgflash"></div>
@@ -582,6 +591,7 @@ function updateTerrainChunks() {
   }
   redistributeFlora(pcx, pcz);
   if (typeof redistributeWildDeer === 'function') redistributeWildDeer(pcx, pcz);
+  if (typeof redistributeAmenities === 'function') redistributeAmenities(pcx, pcz);
   return true;
 }
 /* sky rig follows the player so the infinite world never shows a void */
@@ -3461,8 +3471,8 @@ const shopRowsEl = document.getElementById('shoprows');
 
 function renderShopRows() {
   shopRowsEl.textContent = '';
-  for (let i = 0; i < SHOP_ITEMS.length; i++) {
-    const it = SHOP_ITEMS[i], st = it.state(), idx = i;
+  for (let i = 0; i < SHOP_LIST.length; i++) {
+    const it = SHOP_LIST[i], st = it.state(), idx = i;
     const row = document.createElement('div');
     row.className = 'srow' + (st === 'OWNED' ? ' owned' : st === 'NA' ? ' na' : '');
     const key = document.createElement('span');
@@ -3497,6 +3507,7 @@ function refreshShopPanel() {
 function openShop(i) {
   if (shopOpen || P.dead || CAR.driving || !playing()) return;
   shopOpen = true; shopOpenIdx = i;
+  SHOP_LIST = SHOP_ITEMS; shopRest = false;   // Phase 3: panel is shared with diners
   shopNameEl.textContent = SHOPS[i].name;
   refreshShopPanel();
   shopEl.style.display = 'block';
@@ -3504,13 +3515,15 @@ function openShop(i) {
 }
 function closeShop() {
   if (!shopOpen) return;
-  shopCool[shopOpenIdx] = true;            // must walk out before it can reopen
+  if (shopRest && shopRestSlot >= 0) restCool[shopRestSlot] = true;  // Phase 3: diner re-arm
+  else if (shopOpenIdx >= 0) shopCool[shopOpenIdx] = true;           // must walk out to reopen
+  shopRest = false; shopRestSlot = -1;
   shopOpen = false; shopOpenIdx = -1;
   shopEl.style.display = 'none';
 }
 function buyItem(i) {
-  if (!shopOpen || i < 0 || i >= SHOP_ITEMS.length) return;
-  const it = SHOP_ITEMS[i];
+  if (!shopOpen || i < 0 || i >= SHOP_LIST.length) return;
+  const it = SHOP_LIST[i];
   if (it.state() !== 'BUY') { sfxDenied(); return; }
   if (cash < it.price) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }
   cash -= it.price; updateCashHUD();
@@ -3547,6 +3560,480 @@ function shopTick(dt) {
       if (!shopCool[i]) openShop(i);
     } else if (d2 > SHOP_REOPEN_R2) {
       shopCool[i] = false;                 // walked out: re-armed
+    }
+  }
+}
+
+/* ==================== PHASE 3: WILDERNESS AMENITIES =====================
+   Five amenity types stream with the chunk grid:
+   - gas station: drive-through car repair (pad repairs hull over time)
+   - garage: drive-in instant full repair + free 50 car armor (8s cooldown)
+   - restaurant: walk-in heal for cash, reuses the shop panel (cheaper meal
+     + full-heal option, deliberately cheaper than shop health packs)
+   - park: ambient calm (benches, lamps, trees); day birds circle overhead
+   - landmark tower: world anchor, tall, visible from far (fog-permitting);
+     HUD bearing chip shows distance + chunk coords, like the mission compass
+   Deterministic per chunk: hash2i rarity + seeded placement + hash-ordered
+   spacing, so amenities never run out and regenerate identically on revisit.
+   Origin-district chunks and landmark rects (NOFLORA + city) are excluded.
+   Render: one instanced merged mesh per type (flat vertex colors; sign text
+   via per-type canvas texture; landmark beacon via emissiveMap). 5 draw
+   calls. castShadow=false everywhere (shadow-map budget). Colliders are
+   simple circles; the player has no foot collision (same as city buildings)
+   and the car is pushed out on contact, so nothing can trap the player.
+   Car damage (new, simple): hard hits on amenity colliders, trees and rocks
+   accumulate hull damage; armor soaks first. At 0 hull the engine is dead
+   until a gas station or garage repairs it. */
+const REST_NAMES = ['ROADSIDE DINER', 'MILE MARKER CAFE', 'THE RUSTY SPOON', 'CHUCKWAGON GRILL'];
+
+/* ---- canvas textures: white field (structure UVs sample white so vertex
+        colors survive), colored band + text strip at top for the sign quad ---- */
+function makeSignTex(text, band) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 256);
+  g.fillStyle = band; g.fillRect(0, 0, 256, 60);
+  g.fillStyle = '#ffffff'; g.font = 'bold 34px sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 128, 32);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function makePlainTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function makeBeaconTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#000000'; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#ff3020';
+  g.beginPath(); g.arc(32, 6, 10, 0, 6.2832); g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/* ---- part builders: white-patch UVs + flat vertex color per part ---- */
+const _amenC = new THREE.Color();
+function amenPaint(g, hex) {
+  _amenC.set(hex);
+  const n = g.attributes.position.count, arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { arr[i * 3] = _amenC.r; arr[i * 3 + 1] = _amenC.g; arr[i * 3 + 2] = _amenC.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  return g;
+}
+function amenUV(g, u, v) {
+  const uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, u, v);
+  return g;
+}
+/* kind: 0 box(a=w,b=h,c=d) 1 cyl(a=rTop,b=rBot,c=h) 2 cone(a=r,b=h)
+   3 disc(a=r) 4 ring(a=inner,b=outer) 5 plane(a=w,b=h, sign quad) */
+function amenPart(list, kind, a, b, c, x, y, z, hex, ry) {
+  let g;
+  if (kind === 0) g = new THREE.BoxGeometry(a, b, c);
+  else if (kind === 1) g = new THREE.CylinderGeometry(a, b, c, 10);
+  else if (kind === 2) g = new THREE.ConeGeometry(a, b, 10);
+  else if (kind === 3) { g = new THREE.CircleGeometry(a, 28); g.rotateX(-Math.PI / 2); }
+  else if (kind === 4) { g = new THREE.RingGeometry(a, b, 28); g.rotateX(-Math.PI / 2); }
+  else g = new THREE.PlaneGeometry(a, b);
+  if (ry) g.rotateY(ry);
+  g.translate(x, y, z);
+  amenUV(g, 0.5, 0.5); amenPaint(g, hex);
+  list.push(g);
+  return g;
+}
+/* merge indexed geos incl. the color attribute */
+function mergeAmenGeos(list) {
+  let vCount = 0, iCount = 0;
+  for (const g of list) { vCount += g.attributes.position.count; iCount += g.index.count; }
+  const pos = new Float32Array(vCount * 3), nor = new Float32Array(vCount * 3);
+  const uv = new Float32Array(vCount * 2), col = new Float32Array(vCount * 3);
+  const idx = new (vCount > 65535 ? Uint32Array : Uint16Array)(iCount);
+  let vo = 0, io = 0;
+  for (const g of list) {
+    const n = g.attributes.position.count;
+    pos.set(g.attributes.position.array, vo * 3);
+    nor.set(g.attributes.normal.array, vo * 3);
+    uv.set(g.attributes.uv.array, vo * 2);
+    col.set(g.attributes.color.array, vo * 3);
+    const gi = g.index.array;
+    for (let i = 0; i < gi.length; i++) idx[io + i] = gi[i] + vo;
+    vo += n; io += gi.length;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  out.setIndex(new THREE.BufferAttribute(idx, 1));
+  return out;
+}
+function vertCount(list) {
+  let n = 0;
+  for (const g of list) n += g.attributes.position.count;
+  return n;
+}
+/* sign quad: PlaneGeometry verts 0..3 are corners (0,1),(1,1),(0,0),(1,0);
+   route them to the text band (v 0.78..1) */
+function amenSignUV(geo, start) {
+  const uv = geo.attributes.uv;
+  const us = [0, 1, 0, 1], vs = [1, 1, 0.78, 0.78];
+  for (let i = 0; i < 4; i++) uv.setXY(start + i, us[i], vs[i]);
+}
+
+/* ---- type builders: everything at origin on a pad at y=0 ---- */
+function buildGasGeo() {
+  const parts = [];
+  const CONC = 0x3f4145, WHITE = 0xe8e4da, RED = 0xc23b2e;
+  amenPart(parts, 3, 11, 0, 0, 0, 0.02, 0, CONC);                  // pad
+  amenPart(parts, 4, 5.6, 6.4, 0, 0, 0.05, 0, 0x2fae5a);           // repair ring
+  for (const sx of [-4.2, 4.2]) for (const sz of [-3.2, 3.2])
+    amenPart(parts, 1, 0.12, 0.15, 5.2, sx, 2.6, sz, 0x8a8d92);    // canopy poles
+  amenPart(parts, 0, 10, 0.45, 8, 0, 5.2, 0, WHITE);               // canopy
+  amenPart(parts, 0, 10.2, 0.5, 8.2, 0, 4.85, 0, RED);             // brand band
+  for (const sx of [-3.2, 3.2]) {
+    amenPart(parts, 0, 0.9, 1.6, 0.6, sx, 0.8, 0, RED);            // pumps
+    amenPart(parts, 0, 0.7, 0.3, 0.5, sx, 1.75, 0, WHITE);         // pump tops
+  }
+  amenPart(parts, 1, 0.14, 0.18, 6.4, 5.8, 3.2, 0, 0x23252a);      // sign pole
+  const ss = vertCount(parts);
+  amenPart(parts, 5, 4.2, 1.6, 0, 5.8, 6.9, 0, 0xffffff, Math.PI / 2);
+  const geo = mergeAmenGeos(parts);
+  amenSignUV(geo, ss);
+  return geo;
+}
+function buildGarageGeo() {
+  const parts = [];
+  amenPart(parts, 3, 11, 0, 0, 0, 0.02, 0, 0x3f4145);             // pad
+  amenPart(parts, 0, 9, 3.6, 7, 0, 1.8, -0.5, 0x8a7f6a);          // hall
+  amenPart(parts, 0, 9.4, 0.35, 7.4, 0, 3.78, -0.5, 0x2e3138);    // roof
+  for (const sx of [-2.2, 2.2])
+    amenPart(parts, 0, 2.6, 2.4, 0.18, sx, 1.25, 3.05, 0x14161a); // open bays
+  amenPart(parts, 0, 3.4, 1.0, 0.18, 0, 2.9, 3.02, 0xbfe0e8);     // office glass
+  const ss = vertCount(parts);
+  amenPart(parts, 5, 5, 1.3, 0, 0, 4.6, 2.6, 0xffffff, 0);
+  const geo = mergeAmenGeos(parts);
+  amenSignUV(geo, ss);
+  return geo;
+}
+function buildRestGeo() {
+  const parts = [];
+  amenPart(parts, 3, 10, 0, 0, 0, 0.02, 0, 0x3f4145);             // pad
+  amenPart(parts, 0, 8, 3.2, 5.5, 0, 1.6, 0, 0xd9c9a8);           // storefront
+  amenPart(parts, 0, 8.4, 0.28, 7.0, 0, 3.35, 0, 0x5a5148);       // roof slab
+  amenPart(parts, 0, 8.4, 0.22, 1.8, 0, 2.55, 3.4, 0xb03a2e);     // awning
+  for (const sx of [-2.6, 0, 2.6])
+    amenPart(parts, 0, 1.9, 1.1, 0.16, sx, 1.7, 2.78, 0xcfe8ea);  // windows
+  amenPart(parts, 0, 1.1, 2.2, 0.16, -3.2, 1.1, 2.78, 0x2a2018);  // door
+  amenPart(parts, 4, 2.0, 2.7, 0, 0, 0.05, 5.6, 0x35e0c8);        // walk-in ring
+  const ss = vertCount(parts);
+  amenPart(parts, 5, 6, 1.4, 0, 0, 4.1, 1.2, 0xffffff, 0);
+  const geo = mergeAmenGeos(parts);
+  amenSignUV(geo, ss);
+  return geo;
+}
+function buildParkGeo() {
+  const parts = [];
+  const WOOD = 0x6b4a2e;
+  amenPart(parts, 3, 11, 0, 0, 0, 0.02, 0, 0x35582a);             // lawn
+  amenPart(parts, 4, 4.6, 5.4, 0, 0, 0.04, 0, 0x6b5a3e);          // path ring
+  for (const [tx, tz, s] of [[-5, -3, 1.1], [4.5, -4, 0.9], [0.5, 5.5, 1.2]]) {
+    amenPart(parts, 1, 0.14 * s, 0.2 * s, 1.9 * s, tx, 0.95 * s, tz, 0x4a3520);
+    amenPart(parts, 2, 1.5 * s, 3.0 * s, 0, tx, 3.0 * s, tz, 0x24401f);
+    amenPart(parts, 2, 1.05 * s, 2.1 * s, 0, tx, 4.4 * s, tz, 0x2d5230);
+  }
+  for (const [bx, bz] of [[-3, 2.5], [3.2, 2.8]]) {               // benches
+    amenPart(parts, 0, 1.8, 0.12, 0.5, bx, 0.55, bz, WOOD);
+    amenPart(parts, 0, 1.8, 0.55, 0.1, bx, 0.95, bz - 0.25, WOOD);
+    amenPart(parts, 0, 0.12, 0.55, 0.45, bx - 0.7, 0.28, bz, WOOD);
+    amenPart(parts, 0, 0.12, 0.55, 0.45, bx + 0.7, 0.28, bz, WOOD);
+  }
+  amenPart(parts, 1, 0.09, 0.12, 3.4, -0.5, 1.7, -5.5, 0x23252a); // lamp pole
+  amenPart(parts, 0, 0.5, 0.35, 0.5, -0.5, 3.55, -5.5, 0xffe6a8); // lamp head
+  return mergeAmenGeos(parts);
+}
+function buildLandGeo() {
+  const parts = [];
+  amenPart(parts, 3, 9, 0, 0, 0, 0.02, 0, 0x3f4145);              // pad
+  amenPart(parts, 0, 6, 2, 6, 0, 1, 0, 0x6a6d75);                 // base
+  amenPart(parts, 1, 1.1, 1.7, 26, 0, 15, 0, 0x9aa0a8);           // shaft
+  amenPart(parts, 1, 3.2, 3.4, 2.2, 0, 29.2, 0, 0x2e3440);        // deck
+  amenPart(parts, 1, 3.3, 3.3, 0.9, 0, 29.2, 0, 0xbfe0e8);        // window band
+  amenPart(parts, 1, 0.08, 0.1, 7, 0, 34.5, 0, 0x8a8d92);         // antenna
+  for (const g of parts) amenUV(g, 0.06, 0.06);                  // emissiveMap: black
+  const bs = vertCount(parts);
+  const bc = new THREE.SphereGeometry(0.4, 10, 8);               // beacon
+  bc.translate(0, 38.2, 0);
+  amenUV(bc, 0.5, 0.9);                                          // emissiveMap: red dot
+  amenPaint(bc, 0xffffff);
+  parts.push(bc);
+  return mergeAmenGeos(parts);
+}
+
+/* ---- instanced meshes: one per type, one draw call each ---- */
+const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [], land: [] } };
+const AMEN_DEF_LIST = [
+  { key: 'gas', cap: 6, tex: () => makeSignTex('GAS - REPAIR', '#c23b2e'), build: buildGasGeo, trigR: 6.5,
+    colliders: [[-4.2, -3.2, 0.35], [4.2, -3.2, 0.35], [-4.2, 3.2, 0.35], [4.2, 3.2, 0.35],
+                [-3.2, 0, 0.55], [3.2, 0, 0.55], [5.8, 0, 0.3]] },
+  { key: 'garage', cap: 6, tex: () => makeSignTex('GARAGE', '#2e6fc2'), build: buildGarageGeo, trigR: 5.5,
+    colliders: [[-2.5, -3.2, 2.3], [2.5, -3.2, 2.3], [-4.6, -0.5, 1.9], [4.6, -0.5, 1.9]] },
+  { key: 'rest', cap: 8, tex: () => makeSignTex('DINER', '#b0762a'), build: buildRestGeo, trigR: 0,
+    colliders: [[-2.5, 0, 2.4], [2.5, 0, 2.4]] },
+  { key: 'park', cap: 8, tex: makePlainTex, build: buildParkGeo, trigR: 0,
+    colliders: [[-5, -3, 0.6], [4.5, -4, 0.6], [0.5, 5.5, 0.7], [-0.5, -5.5, 0.3],
+                [-3, 2.5, 0.8], [3.2, 2.8, 0.8]] },
+  { key: 'land', cap: 3, tex: makePlainTex, build: buildLandGeo, trigR: 0, beacon: true,
+    colliders: [[0, 0, 3.6]] },
+];
+const AMEN_DEF = {};
+for (const d of AMEN_DEF_LIST) {
+  AMEN_DEF[d.key] = d;
+  let mat;
+  if (d.beacon) {
+    mat = new THREE.MeshStandardMaterial({ map: d.tex(), emissiveMap: makeBeaconTex(),
+      emissive: 0xff4030, emissiveIntensity: 2.4, vertexColors: true, roughness: 0.8 });
+  } else {
+    mat = new THREE.MeshStandardMaterial({ map: d.tex(), vertexColors: true,
+      roughness: 0.85, side: THREE.DoubleSide });
+  }
+  const mesh = new THREE.InstancedMesh(d.build(), mat, d.cap);
+  mesh.frustumCulled = false;
+  mesh.castShadow = false;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.count = 0;
+  scene.add(mesh);
+  d.mesh = mesh;
+}
+
+/* ---- deterministic per-chunk selection ---- */
+const NOGO_RECTS = NOFLORA.concat([{ x0: 36, x1: 104, z0: -104, z1: -36 }]);  // + city district
+function chunkHitsNoGo(gx, gz) {
+  const x0 = gx * CHUNK, x1 = x0 + CHUNK, z0 = gz * CHUNK, z1 = z0 + CHUNK;
+  for (const r of NOGO_RECTS)
+    if (x0 < r.x1 && x1 > r.x0 && z0 < r.z1 && z1 > r.z0) return true;
+  return false;
+}
+function amenityTypeFor(gx, gz) {
+  if (Math.abs(gx) <= 1 && Math.abs(gz) <= 1) return null;   // spawn district
+  if (chunkHitsNoGo(gx, gz)) return null;
+  const h = hash2i(gx, gz);
+  if (h % 41 === 20) return 'land';
+  if (h % 15 === 4) return 'gas';
+  if (h % 19 === 9) return 'garage';
+  if (h % 13 === 11) return 'rest';
+  if (h % 10 === 6) return 'park';
+  return null;
+}
+/* spacing: same type wins only against lower-hash neighbors in a 5x5 window;
+   purely a function of chunk coords, so it is identical on every revisit */
+function amenityAccepted(gx, gz, type) {
+  const h = hash2i(gx, gz);
+  for (let ax = gx - 2; ax <= gx + 2; ax++)
+    for (let az = gz - 2; az <= gz + 2; az++) {
+      if (ax === gx && az === gz) continue;
+      if (amenityTypeFor(ax, az) !== type) continue;
+      if (hash2i(ax, az) < h) return false;
+    }
+  return true;
+}
+function placeAmenity(gx, gz, type) {
+  const rnd = mulberry32(hash2i(gx, gz) ^ 0x51ab3d);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const x = (gx + 0.25 + rnd() * 0.5) * CHUNK;
+    const z = (gz + 0.25 + rnd() * 0.5) * CHUNK;
+    const y = terrainHeight(x, z);
+    if (y < -0.4) continue;                                        // water
+    if (Math.abs(terrainHeight(x + 9, z) - y) > 3) continue;        // too steep
+    if (Math.abs(terrainHeight(x, z + 9) - y) > 3) continue;
+    if (inNoFlora(x, z)) continue;
+    return { x, z, y, yaw: rnd() * Math.PI * 2, gx, gz, cool: 0,
+             name: type === 'rest' ? REST_NAMES[hash2i(gx, gz) % REST_NAMES.length] : null };
+  }
+  return null;
+}
+const _aE = new THREE.Euler(), _aQ = new THREE.Quaternion(),
+      _aP = new THREE.Vector3(), _aS = new THREE.Vector3(1, 1, 1),
+      _aM = new THREE.Matrix4();
+const restCool = new Array(8).fill(false);   // walk-out re-arm per restaurant slot
+function redistributeAmenities(pcx, pcz) {
+  for (const k in AMEN.active) AMEN.active[k].length = 0;
+  AMEN.colliders.length = 0;
+  for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++)
+    for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
+      const type = amenityTypeFor(gx, gz);
+      if (!type || !amenityAccepted(gx, gz, type)) continue;
+      const a = placeAmenity(gx, gz, type);
+      if (!a) continue;
+      const def = AMEN_DEF[type], arr = AMEN.active[type];
+      if (arr.length >= def.cap) continue;
+      arr.push(a);
+      const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+      for (const [ox, oz, r] of def.colliders)
+        AMEN.colliders.push({ x: a.x + ox * c + oz * s, z: a.z - ox * s + oz * c, r });
+    }
+  for (const key in AMEN.active) {
+    const def = AMEN_DEF[key], mesh = def.mesh, arr = AMEN.active[key];
+    for (let i = 0; i < arr.length; i++) {
+      const a = arr[i];
+      _aE.set(0, a.yaw, 0); _aQ.setFromEuler(_aE);
+      _aP.set(a.x, a.y, a.z);
+      _aM.compose(_aP, _aQ, _aS);
+      mesh.setMatrixAt(i, _aM);
+    }
+    mesh.count = arr.length;
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+  restCool.fill(false);
+  /* park calm: two day birds circle the first parks (birdsRoost hides them at night) */
+  const parks = AMEN.active.park;
+  for (let i = 0; i < 2 && i < birds.length; i++) {
+    if (parks.length) {
+      const pk = parks[i % parks.length];
+      birds[i].cx = pk.x; birds[i].cz = pk.z; birds[i].r = 13 + i * 4; birds[i].h = 22;
+    }
+  }
+}
+
+/* ---- car condition HUD (inside the #speedo block, driving only) ---- */
+const carCondEl = document.getElementById('carcond');
+let _carCondLast = '';
+function updateCarCondHUD() {
+  const s = 'HULL ' + Math.round(CAR.hp) + '%' + (CAR.armor > 0 ? ' ARMOR ' + Math.round(CAR.armor) : '');
+  if (s === _carCondLast) return;
+  _carCondLast = s;
+  carCondEl.textContent = s;
+  carCondEl.style.color = CAR.hp > 60 ? '#7dff9a' : CAR.hp > 25 ? '#ffd24a' : '#ff6b5e';
+}
+
+/* ---- restaurant: the shop panel with the diner menu (cheaper than the
+        shop health pack, plus a full-heal option the shops do not sell) ---- */
+const REST_ITEMS = [
+  { key: '1', label: () => 'DINER MEAL +40 HP', price: 15,
+    state: () => P.hp >= 100 ? 'NA' : 'BUY',
+    buy() { P.hp = Math.min(100, P.hp + 40); updateHpHUD(); } },
+  { key: '2', label: () => 'FULL HEAL TO 100 HP', price: 40,
+    state: () => P.hp >= 100 ? 'NA' : 'BUY',
+    buy() { P.hp = 100; updateHpHUD(); } },
+];
+let shopRest = false, shopRestSlot = -1, SHOP_LIST = SHOP_ITEMS;
+function openRest(R, slot) {
+  if (shopOpen || P.dead || CAR.driving || !playing()) return;
+  shopOpen = true; shopRest = true; shopRestSlot = slot; shopOpenIdx = -1;
+  SHOP_LIST = REST_ITEMS;
+  shopNameEl.textContent = R.name;
+  refreshShopPanel();
+  shopEl.style.display = 'block';
+  sfxShopOpen();
+}
+
+/* ---- amenity tick: restaurant walk-in (shop pattern) + landmark chip ---- */
+let amenT = 0, landT = 0;
+const landChipEl = document.getElementById('landchip');
+const landTxtEl = document.getElementById('landtxt');
+const landArrEl = document.getElementById('landarr');
+function amenTick(dt) {
+  if (!playing() || P.dead) { landChipEl.style.display = 'none'; return; }
+  const px = player.position.x, pz = player.position.z;
+  amenT += dt;
+  if (amenT >= 0.15) {
+    amenT = 0;
+    if (!shopOpen && !CAR.driving) {
+      const arr = AMEN.active.rest;
+      for (let i = 0; i < arr.length; i++) {
+        const R = arr[i];
+        const dx = R.x - px, dz = R.z - pz, d2 = dx * dx + dz * dz;
+        if (d2 < SHOP_R2) { if (!restCool[i]) openRest(R, i); }
+        else if (d2 > SHOP_REOPEN_R2) restCool[i] = false;
+      }
+    }
+  }
+  landT += dt;
+  if (landT >= 0.25) {
+    landT = 0;
+    let best = null, bd = 1e18;
+    for (const L of AMEN.active.land) {
+      const dx = L.x - px, dz = L.z - pz, d2 = dx * dx + dz * dz;
+      if (d2 < bd) { bd = d2; best = L; }
+    }
+    if (best) {
+      landChipEl.style.display = 'block';
+      camera.getWorldDirection(_mB);
+      const dx = best.x - px, dz = best.z - pz;
+      const deg = -(Math.atan2(dx, dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
+      landArrEl.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
+      landTxtEl.textContent = 'TOWER ' + Math.round(Math.sqrt(bd)) + 'M C(' + best.gx + ',' + best.gz + ')';
+    } else landChipEl.style.display = 'none';
+  }
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(amenTick));
+
+/* ---- car damage + repair hooks, called from carUpdate ---- */
+function carAmenityHit(sdt) {
+  CAR.hitCd = Math.max(0, CAR.hitCd - sdt);
+  if (CAR.hitCd > 0) return;
+  let hitR = 0, hitX = 0, hitZ = 0;
+  for (let i = 0; i < AMEN.colliders.length; i++) {
+    const c = AMEN.colliders[i];
+    const dx = CAR.pos.x - c.x, dz = CAR.pos.z - c.z, rr = c.r + 1.15;
+    if (dx * dx + dz * dz < rr * rr) { hitR = rr; hitX = c.x; hitZ = c.z; break; }
+  }
+  if (!hitR) {
+    for (let i = 0; i < coverPts.length; i++) {
+      const cp = coverPts[i];
+      const dx = CAR.pos.x - cp[0], dz = CAR.pos.z - cp[1];
+      if (dx * dx + dz * dz < 4.41) { hitR = 2.1; hitX = cp[0]; hitZ = cp[1]; break; }
+    }
+  }
+  if (!hitR) return;
+  const dx = CAR.pos.x - hitX, dz = CAR.pos.z - hitZ;
+  const d = Math.hypot(dx, dz);
+  let px = dx, pz = dz;                  // dead-center hit: push along heading
+  if (d < 0.05) { px = Math.sin(CAR.heading); pz = Math.cos(CAR.heading); }
+  else { px = dx / d; pz = dz / d; }
+  CAR.pos.x = hitX + px * hitR;          // push out, never trap
+  CAR.pos.z = hitZ + pz * hitR;
+  const sp = Math.abs(CAR.speed);
+  if (sp > 6) {
+    let dmg = Math.round((sp - 6) * 4);
+    if (CAR.armor > 0) { const soak = Math.min(CAR.armor, dmg); CAR.armor -= soak; dmg -= soak; }
+    CAR.hp = Math.max(0, CAR.hp - dmg);
+    sfxBlip(95, 0.22, 'sawtooth', 0.32);
+    toast(dmg > 0 ? 'CRASH! HULL ' + Math.round(CAR.hp) + '%' : 'ARMORED HIT');
+    updateCarCondHUD();
+  }
+  CAR.speed *= 0.35;
+  CAR.hitCd = 1.0;
+}
+function carAmenityRepair(sdt, now) {
+  for (const a of AMEN.active.gas) {
+    const dx = CAR.pos.x - a.x, dz = CAR.pos.z - a.z;
+    if (dx * dx + dz * dz < 6.5 * 6.5 && CAR.hp < 100) {
+      CAR.hp = Math.min(100, CAR.hp + 14 * sdt);
+      CAR.repT += sdt;
+      if (CAR.repT > 1.2) { CAR.repT = 0; toast('REPAIRING... ' + Math.round(CAR.hp) + '%'); }
+      if (CAR.hp >= 100) { toast('CAR REPAIRED'); sfxBlip(880, 0.12, 'square', 0.2); }
+      updateCarCondHUD();
+      break;
+    }
+  }
+  for (const a of AMEN.active.garage) {
+    const dx = CAR.pos.x - a.x, dz = CAR.pos.z - a.z;
+    if (dx * dx + dz * dz < 5.5 * 5.5 && now - a.cool > 8) {
+      a.cool = now;
+      CAR.hp = 100; CAR.armor = 50;
+      toast('GARAGE: REPAIRED + 50 ARMOR');
+      sfxBlip(660, 0.1, 'square', 0.22);
+      updateCarCondHUD();
+      break;
     }
   }
 }
@@ -4270,6 +4757,7 @@ const CAR = {
   driving: false, speed: 0, heading: 0, slip: 0,
   steer: 0, charge: 0, drifting: false, velAng: 0,
   pos: new THREE.Vector3(), hudT: 0, hintOn: false,
+  hp: 100, armor: 0, hitCd: 0, repT: 0, wreckT: 0,   // Phase 3: hull damage + armor
 };
 
 /* ---- car model: tapered body, cabin, 4 wheels (front pair steers),
@@ -4437,6 +4925,11 @@ function carUpdate(sdt, now) {
   thr = Math.max(-1, Math.min(1, thr));
   str = Math.max(-1, Math.min(1, str));
   const hb = !!(keys.Space || (IS_TOUCH && touch.sprint));
+  if (CAR.hp <= 0) {                       // Phase 3: wrecked engine, no throttle
+    thr = 0;
+    CAR.wreckT += sdt;
+    if (CAR.wreckT > 2) { CAR.wreckT = 0; toast('ENGINE DEAD - FIND A GAS STATION'); }
+  } else CAR.wreckT = 0;
 
   // ---- longitudinal: throttle, brake (input opposing motion), coast ----
   const sp = CAR.speed;
@@ -4477,6 +4970,8 @@ function carUpdate(sdt, now) {
   CAR.pos.x += Math.sin(CAR.velAng) * CAR.speed * sdt;
   CAR.pos.z += Math.cos(CAR.velAng) * CAR.speed * sdt;
   // infinite world: no clamp
+  carAmenityHit(sdt);            // Phase 3: hard hits damage the hull
+  carAmenityRepair(sdt, now);    // Phase 3: gas pad repairs, garage refits
 
   // ---- terrain follow: average height + pitch/roll from axle samples ----
   const fx = Math.sin(CAR.heading), fz = Math.cos(CAR.heading);
@@ -4528,6 +5023,7 @@ function carUpdate(sdt, now) {
   if (CAR.hudT > 0.12) {
     CAR.hudT = 0;
     spdNumEl.textContent = Math.round(Math.abs(CAR.speed) * 3.6);
+    updateCarCondHUD();          // Phase 3: hull/armor readout
   }
 }
 worldTickers.push(carUpdate);   // after dayNightTick: weather ordering intact
@@ -5315,6 +5811,7 @@ function newGame() {
   WEAPONS.smg.owned = false;     WEAPONS.smg.ammo = 120;
   curWeapon = 'rifle';
   P.hp = 100; P.dead = false; P.godT = 0;
+  CAR.hp = 100; CAR.armor = 0; CAR.hitCd = 0; updateCarCondHUD();   // Phase 3
   shopArmor = 0; updateArmorHUD();
   setHeat(0, true); W.evading = false; updateHeatHUD();
   player.position.set(0, terrainHeight(0, 0), 0);
