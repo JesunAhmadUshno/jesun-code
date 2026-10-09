@@ -189,8 +189,16 @@
   }
   #speedo #spdnum { color: #ff3d2e; font-size: 22px; font-weight: bold; }
   #drivingtag { color: #ff6b5e; font-size: 10px; letter-spacing: 4px; margin-bottom: 4px; }
+  #gaittag { color: #d8c84a; font-size: 11px; letter-spacing: 3px; margin-top: 4px; display: none; }
   #carhint {
     position: absolute; bottom: 108px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #d8c84a; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  /* ---- horse HUD: RIDE prompt mirrors the car enter-hint pattern ---- */
+  #ridehint {
+    position: absolute; bottom: 152px; left: 50%; transform: translateX(-50%);
     color: #0c0e0a; background: #d8c84a; font-size: 13px; letter-spacing: 3px;
     font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
@@ -210,6 +218,11 @@
   #exitbtn { left: 26px; bottom: 200px; display: none;
     border-color: rgba(255,107,94,.7); color: #ff9d8a; }
   #exitbtn:active { background: rgba(216,60,40,.7); color: #fff; }
+  /* ---- touch RIDE button: mirrors #exitbtn, shown only while the RIDE
+         prompt is active on touch; EXIT doubles as the dismount button ---- */
+  #ridebtn { left: 26px; bottom: 290px; display: none;
+    border-color: rgba(216,200,74,.7); color: #ffe9a8; }
+  #ridebtn:active { background: rgba(216,200,74,.7); color: #0c0e0a; }
 </style>
 </head>
 <body>
@@ -237,10 +250,11 @@
   <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
   <div id="wx"><span>☀</span> CLEAR</div>
   <div id="saved">SAVED --:--</div>
-  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H</div>
+  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div></div>
   <div id="perfchip"></div>
   <div id="toast"></div>
   <div id="carhint"></div>
+  <div id="ridehint"></div>
   <div id="shop">
     <h3 id="shopname">SHOP</h3>
     <div class="sbal">CASH $<b id="shopcash">0</b></div>
@@ -259,6 +273,7 @@
   <div class="tbtn" id="jumpbtn">JUMP</div>
   <div class="tbtn" id="sprintbtn">RUN</div>
   <div class="tbtn" id="exitbtn">EXIT</div>
+  <div class="tbtn" id="ridebtn">RIDE</div>
 </div>
 
 <div id="overlay">
@@ -1022,6 +1037,16 @@ function writeAnimalMatrices(a) {
   a.imLegs.setMatrixAt(a.iLegB, _am3);
 }
 
+/* zero-scale write: hides one animal's instances. Used for the ridden horse:
+   its ambient instances are parked while the dedicated ride rig takes over. */
+const _hideM = new THREE.Matrix4().makeScale(0, 0, 0);
+function hideAnimal(a) {
+  a.imBody.setMatrixAt(a.iBody, _hideM);
+  a.imHead.setMatrixAt(a.iHead, _hideM);
+  a.imLegs.setMatrixAt(a.iLegF, _hideM);
+  a.imLegs.setMatrixAt(a.iLegB, _hideM);
+}
+
 /* per-species animation slot layout: head pivot, hip height, leg offsets */
 const DEER_PIVOT = [0, 1.42, 0.62], DEER_HIP = 0.68, DEER_LEGZ = 0.38;
 const COW_PIVOT = [0, 1.28, 0.75], COW_HIP = 0.55, COW_LEGZ = 0.45;
@@ -1138,6 +1163,8 @@ function natureTick(dt, now) {
   const px = player.position.x, pz = player.position.z;
 
   for (const a of animals) {
+    /* the ridden horse: its instances stay hidden, the ride rig replaces them */
+    if (a.mountLocked) { hideAnimal(a); continue; }
     const p = a.pos;
     if (shotLive) {
       _nv.copy(window.__lastShotPos); _nv.y = 0;
@@ -1727,6 +1754,7 @@ function sfxSlam() {
        momentum is untouched, the punch never roots the player. --- */
 function doPunch() {
   if (CAR.driving) return;   // no melee from the driver's seat
+  if (HORSE.riding) return;   // no melee from the saddle: the pose would break
   if (!playing() || P.dead || P.punchCd > 0) return;
   P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
   P.comboWin = 0.6;
@@ -2663,6 +2691,7 @@ function sfxBusted() {
 }
 function busted() {
   if (CAR.driving) carExit();
+  if (HORSE.riding) horseExit();   // busted off the saddle too
   const seized = Math.floor(cash * 0.25);
   cash -= seized; updateCashHUD();
   setHeat(0, true);
@@ -2722,8 +2751,8 @@ function wantedTick(dt) {
     const d2 = dx * dx + dz * dz;
     if (d2 < see2) seen = true;
     if (P.godT > 0) continue;
-    if (!CAR.driving) { if (d2 < 6.25) { bust = true; break; } }
-    else if (d2 < 9 && Math.abs(CAR.speed) < 3) { bust = true; break; }
+    if (!CAR.driving && !HORSE.riding) { if (d2 < 6.25) { bust = true; break; } }
+    else if (CAR.driving && d2 < 9 && Math.abs(CAR.speed) < 3) { bust = true; break; }
   }
   if (bust) { busted(); return; }
   if (W.heat <= 0) return;
@@ -3475,8 +3504,8 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyE') carToggle();                                   // enter / exit the car
-  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else doPunch(); } // F exits while driving
+  if (e.code === 'KeyE') mountToggle();                                  // horse dismount / car / horse / car
+  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -4254,7 +4283,7 @@ carHintEl.addEventListener('click', () => { if (!CAR.driving) carEnter(); });
 /* ---- touch EXIT button: the only way out of the car on touch. Hidden by
         default (CSS) and on desktop; shown while driving on touch. ---- */
 const exitBtnEl = document.getElementById('exitbtn');
-exitBtnEl.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); carExit(); }, { passive: false });
+exitBtnEl.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); vehicleExit(); }, { passive: false });
 
 /* ---- procedural engine audio: oscillator stack pitched to RPM.
         Nodes are created once (no per-frame allocation); gain rides RPM
@@ -4312,7 +4341,7 @@ function carExit() {
   helpEl.innerHTML = HELP_FOOT;
   sfxBlip(440, 0.09, 'square', 0.18);
 }
-function carToggle() { if (CAR.driving) carExit(); else carEnter(); }
+/* E key dispatch lives with the horse section: mountToggle(). */
 
 /* ---- car ticker: physics, visuals, audio, HUD. World sim keeps running
         around it (combat, respawn, day/night, weather tickers untouched). ---- */
@@ -4433,6 +4462,300 @@ function carUpdate(sdt, now) {
 }
 worldTickers.push(carUpdate);   // after dayNightTick: weather ordering intact
 
+/* ============================ HORSE RIDING ================================
+   RDR2 flavor, arcade feel. One ambient horse becomes the mount; a dedicated
+   6-draw rig (body+saddle, neck+head, 4 legs) replaces its instances while
+   ridden. Gaits: WALK 4 / TROT 8 / CANTER 12 / GALLOP 18 m/s. Fire from the
+   saddle works; punch does not (disabled while mounted). The horse is
+   invulnerable in v1; the rider takes damage and death dismounts.          */
+
+/* ---- ride state (tuning up top, runtime below) ---- */
+const HORSE = {
+  camDist0: 11, camH: 3.4,               // chase cam wider/farther than on foot
+  riding: false, a: null,                // the ambient horse record under us
+  nearA: null, hintOn: false,            // RIDE prompt target
+  pos: new THREE.Vector3(), heading: 0,
+  speed: 0, gait: 0, gaitT: 0, gaitPhase: 0, steer: 0,
+  camDist: 11, fovT: 66, hudT: 0,
+};
+const RIDE_R2 = 2.2 * 2.2;               // mount radius, squared
+const GAIT_NAMES = ['WALK', 'TROT', 'CANTER', 'GALLOP'];
+const GAIT_SPEED = [4, 8, 12, 18];       // m/s per gait
+const STRIDE_HZ  = [1.7, 2.2, 2.5, 2.9]; // stride cycles per second per gait
+const GAIT_BEATS = [4, 2, 3, 4];         // hoofbeats per stride per gait
+const GAIT_OFF   = [                    // leg phase offsets (cycles): FL FR BL BR
+  [0.25, 0.75, 0.0, 0.5],               // walk: 4-beat lateral
+  [0.0, 0.5, 0.5, 0.0],                 // trot: diagonal pairs
+  [0.7, 0.35, 0.35, 0.0],               // canter: 3-beat
+  [0.65, 0.5, 0.15, 0.0],               // gallop: 4-beat, hind pair leads
+];
+const GAIT_AMP  = [0.38, 0.5, 0.55, 0.65];
+const GAIT_BOBF = [2, 2, 1, 1];         // body bobs per stride
+const GAIT_BOBA = [0.045, 0.06, 0.075, 0.10];
+
+/* ---- dedicated ride rig: 6 draws (body+saddle, neck+head, 4 legs).
+        Geometry/material come from the ambient horse pipeline (animalMat,
+        the shared leg slab at half width); the shared InstancedMesh is
+        never touched. ---- */
+const rideGroup = new THREE.Group();
+const rideTilt = new THREE.Group();      // terrain pitch/roll + gallop rock
+rideGroup.add(rideTilt);
+const rideBody = new THREE.Mesh(mergeAnimalParts([
+  animalBox(0.7, 0.82, 1.45, COL.horse, 0, 1.1, 0),
+  animalBox(0.12, 0.62, 0.42, COL.mane, 0, 1.68, 0.52),
+  animalBox(0.56, 0.09, 0.62, 0x7a1f1f, 0, 1.53, -0.05),   // saddle pad, Signal Red
+  animalBox(0.44, 0.13, 0.46, 0x241812, 0, 1.61, -0.05),  // saddle
+]), animalMat);
+rideBody.castShadow = true;
+rideTilt.add(rideBody);
+const rideNeck = new THREE.Group();
+rideNeck.position.set(0, 1.32, 0.62);    // neck base, inside the body front
+{
+  const neck = new THREE.Mesh(mergeAnimalParts([
+    animalBox(0.26, 0.85, 0.30, COL.horse, 0, 0.38, 0.10, -0.5, 0, 0),
+    animalBox(0.26, 0.30, 0.62, COL.horse, 0, 0.80, 0.36),
+    animalBox(0.07, 0.16, 0.07, COL.mane, 0.09, 0.97, 0.24),
+    animalBox(0.07, 0.16, 0.07, COL.mane, -0.09, 0.97, 0.24),
+  ]), animalMat);
+  neck.castShadow = true;
+  rideNeck.add(neck);
+}
+rideTilt.add(rideNeck);
+const rideLegs = [];
+{
+  const legGeo = AMESH.horseLegs.geometry;   // shared ambient slab, half width each
+  const spots = [[0.2, 0.5], [-0.2, 0.5], [0.2, -0.5], [-0.2, -0.5]];  // FL FR BL BR
+  for (const [lx, lz] of spots) {
+    const leg = new THREE.Mesh(legGeo, animalMat);
+    leg.scale.x = 0.5;
+    leg.position.set(lx, 0.72, lz);
+    leg.castShadow = false;              // body shadow grounds it; saves 4 shadow draws
+    rideTilt.add(leg);
+    rideLegs.push(leg);
+  }
+}
+rideGroup.visible = false;
+scene.add(rideGroup);
+
+/* ---- HUD refs: RIDE prompt, touch RIDE button, gait label ---- */
+const rideHintEl = document.getElementById('ridehint');
+const gaitTagEl = document.getElementById('gaittag');
+const drivingTagEl = document.getElementById('drivingtag');
+rideHintEl.textContent = IS_TOUCH ? 'TAP TO RIDE' : 'E RIDE HORSE';
+rideHintEl.addEventListener('click', () => { if (!HORSE.riding) horseEnter(); });
+const rideBtnEl = document.getElementById('ridebtn');
+rideBtnEl.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); horseEnter(); }, { passive: false });
+const HELP_RIDE = '<b>W/S</b> ride &nbsp; <b>A/D</b> steer &nbsp; <b>SHIFT</b> gallop<br>'
+  + '<b>E</b> dismount &nbsp; <b>CLICK</b> shoot from the saddle &nbsp; <b>F</b> punch off';
+
+/* ---- procedural hoofbeats: one baked clip-clop loop, nodes created once.
+        Per frame only gain (rides speed) and playbackRate (rides cadence)
+        move. Zero per-frame allocation, same pattern as the skid audio. ---- */
+let hoofSrc = null, hoofGain = null;
+function ensureHoofAudio() {
+  const a = ac(); if (!a || hoofSrc) return;
+  const dur = 2, n = Math.floor(a.sampleRate * dur);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  const taps = 8;                        // 4 taps/s at rate 1; playbackRate scales it
+  for (let k = 0; k < taps; k++) {
+    const start = Math.floor((k / taps) * n);
+    const len = Math.floor(a.sampleRate * 0.09);
+    for (let i = 0; i < len && start + i < n; i++) {
+      const t = i / len, env = Math.exp(-t * 9);
+      d[start + i] += (Math.random() * 2 - 1) * env * 0.7
+        + Math.sin(2 * Math.PI * 85 * (i / a.sampleRate)) * env * 0.5;
+    }
+  }
+  hoofSrc = a.createBufferSource(); hoofSrc.buffer = buf; hoofSrc.loop = true;
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 750; lp.Q.value = 0.6;
+  hoofGain = a.createGain(); hoofGain.gain.value = 0;
+  hoofSrc.connect(lp); lp.connect(hoofGain); hoofGain.connect(a.destination);
+  hoofSrc.start();
+}
+
+function horseEnter() {
+  if (HORSE.riding || !playing() || P.dead || CAR.driving || shopOpen) return;
+  const a = HORSE.nearA;
+  if (!a || a.mountLocked || a.fleeT > 0) return;
+  const dx = player.position.x - a.pos.x, dz = player.position.z - a.pos.z;
+  if (dx * dx + dz * dz > RIDE_R2 + 0.5) return;   // prompt went stale
+  HORSE.riding = true; HORSE.a = a;
+  a.mountLocked = true; a.fleeT = 0; a.trotT = 0; a.mode = 'idle'; a.t = 3600;  // park it
+  HORSE.pos.copy(a.pos);
+  HORSE.heading = a.rotY;
+  HORSE.speed = 0; HORSE.gait = 0; HORSE.gaitT = 0; HORSE.steer = 0; HORSE.gaitPhase = 0;
+  HORSE.camDist = HORSE.camDist0; HORSE.fovT = 66;
+  rideGroup.visible = true;
+  rideGroup.position.copy(HORSE.pos);
+  rideGroup.rotation.y = HORSE.heading;
+  rideHintEl.style.opacity = 0; HORSE.hintOn = false;
+  if (IS_TOUCH) { rideBtnEl.style.display = 'none'; exitBtnEl.style.display = 'flex'; }
+  drivingTagEl.textContent = 'RIDING';
+  speedoEl.style.display = 'block'; gaitTagEl.style.display = 'block';
+  gaitTagEl.textContent = 'WALK';
+  helpEl.innerHTML = HELP_RIDE;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  ensureHoofAudio();
+  sfxBlip(520, 0.09, 'square', 0.2);
+}
+function horseExit() {
+  if (!HORSE.riding) return;
+  HORSE.riding = false;
+  const a = HORSE.a;
+  if (a) {   // the horse stays where it was left, and stays re-mountable
+    a.pos.copy(HORSE.pos); a.pos.y = terrainHeight(HORSE.pos.x, HORSE.pos.z);
+    a.rotY = HORSE.heading;
+    a.mountLocked = false; a.mode = 'idle'; a.t = 0.5;
+    writeAnimalMatrices(a);
+    for (const m of ALL_ANIMAL_MESHES) m.instanceMatrix.needsUpdate = true;
+  }
+  HORSE.a = null;
+  rideGroup.visible = false;
+  exitBtnEl.style.display = 'none';
+  const s = Math.sin(HORSE.heading), c = Math.cos(HORSE.heading);
+  const px = HORSE.pos.x + c * 1.6, pz = HORSE.pos.z - s * 1.6;  // left side
+  player.position.set(px, terrainHeight(px, pz), pz);
+  player.rotation.y = HORSE.heading;
+  player.visible = true;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  speedoEl.style.display = 'none'; gaitTagEl.style.display = 'none';
+  drivingTagEl.textContent = 'DRIVING';
+  helpEl.innerHTML = HELP_FOOT;
+  sfxBlip(392, 0.09, 'square', 0.18);
+}
+/* E key: dismount first, then car, then mount if a prompt is live, else car */
+function mountToggle() {
+  if (HORSE.riding) horseExit();
+  else if (CAR.driving) carExit();
+  else if (HORSE.hintOn && HORSE.nearA) horseEnter();
+  else carEnter();
+}
+/* the touch EXIT button doubles as the dismount button while riding */
+function vehicleExit() { if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); }
+
+/* ---- horse ticker: prompt, controller, procedural gait, audio, HUD ---- */
+function horseUpdate(sdt, now) {
+  if (!HORSE.riding) {
+    // parked: nearest non-fleeing horse inside 2.2u shows the RIDE prompt
+    const onFoot = playing() && !P.dead && !CAR.driving && !shopOpen;
+    let best = null, bestD2 = RIDE_R2;
+    if (onFoot) {
+      for (const a of animals) {
+        if (a.kind !== 'horse' || a.mountLocked || a.fleeT > 0) continue;
+        const dx = player.position.x - a.pos.x, dz = player.position.z - a.pos.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bestD2) { bestD2 = d2; best = a; }
+      }
+    }
+    if ((best !== null) !== HORSE.hintOn) {
+      HORSE.hintOn = best !== null;
+      rideHintEl.style.opacity = HORSE.hintOn ? 1 : 0;
+      if (IS_TOUCH) rideBtnEl.style.display = HORSE.hintOn ? 'flex' : 'none';
+    }
+    HORSE.nearA = best;
+    if (hoofGain) hoofGain.gain.value *= 0.9;
+    return;
+  }
+  if (P.dead) { horseExit(); return; }   // death always ejects: no riding while dead
+
+  // ---- input: WASD/arrows on desktop, joystick on touch, SHIFT/RUN = gallop ----
+  let thr = 0, str = 0, brake = false;
+  if (keys.KeyW || keys.ArrowUp) thr += 1;
+  if (keys.KeyS || keys.ArrowDown) brake = true;
+  if (keys.KeyD || keys.ArrowRight) str += 1;
+  if (keys.KeyA || keys.ArrowLeft) str -= 1;
+  if (IS_TOUCH) { thr += -touch.moveY; str += touch.moveX; if (touch.moveY > 0.5) brake = true; }
+  thr = Math.max(0, Math.min(1, thr));
+  str = Math.max(-1, Math.min(1, str));
+  const sprint = !!(keys.ShiftLeft || keys.ShiftRight || touch.sprint);
+
+  // ---- gaits: hold forward to step up through them, sprint unlocks gallop ----
+  const maxGait = sprint ? 3 : 2;
+  if (HORSE.gait > maxGait) { HORSE.gait = maxGait; HORSE.gaitT = 0; }
+  const pushing = thr > 0.15 && !brake;
+  if (pushing) {
+    HORSE.gaitT += sdt;
+    if (HORSE.gaitT > 1.1 && HORSE.gait < maxGait) { HORSE.gait++; HORSE.gaitT = 0; }
+  } else HORSE.gaitT = 0;
+  const tgt = pushing ? GAIT_SPEED[HORSE.gait] : 0;
+  const rate = brake ? 15 : (tgt > HORSE.speed ? 5.5 : 9);
+  const dv = tgt - HORSE.speed;
+  HORSE.speed += Math.max(-rate * sdt, Math.min(rate * sdt, dv));
+  /* gait follows speed back down only when coasting: while pushing, speed is
+     still ramping up to the new gait and must not be stepped back down */
+  if (!pushing)
+    while (HORSE.gait > 0 && HORSE.speed < GAIT_SPEED[HORSE.gait] - 2.6)
+      { HORSE.gait--; HORSE.gaitT = 0; }
+
+  // ---- steering: smoothed, speed-tamed like the car ----
+  HORSE.steer += (str - HORSE.steer) * Math.min(1, 8 * sdt);
+  const spdN = Math.min(1, HORSE.speed / GAIT_SPEED[3]);
+  const turnMax = 1.7 + (0.55 - 1.7) * spdN;
+  HORSE.heading += HORSE.steer * turnMax * (0.35 + 0.65 * Math.min(1, HORSE.speed / 2)) * sdt;
+
+  // ---- integrate; infinite world, no clamp ----
+  HORSE.pos.x += Math.sin(HORSE.heading) * HORSE.speed * sdt;
+  HORSE.pos.z += Math.cos(HORSE.heading) * HORSE.speed * sdt;
+
+  // ---- terrain follow: average height, pitch/roll from axle samples ----
+  const fx = Math.sin(HORSE.heading), fz = Math.cos(HORSE.heading);
+  const hF = terrainHeight(HORSE.pos.x + fx * 1.2, HORSE.pos.z + fz * 1.2);
+  const hB = terrainHeight(HORSE.pos.x - fx * 1.2, HORSE.pos.z - fz * 1.2);
+  const hR = terrainHeight(HORSE.pos.x + fz * 0.5, HORSE.pos.z - fx * 0.5);
+  const hL = terrainHeight(HORSE.pos.x - fz * 0.5, HORSE.pos.z + fx * 0.5);
+  HORSE.pos.y = (hF + hB + hR + hL) * 0.25;
+  rideGroup.position.copy(HORSE.pos);
+  rideGroup.rotation.y = HORSE.heading;
+
+  // ---- procedural gait: leg phase offsets, body bob/pitch, head-turn-into-turns ----
+  const gi = HORSE.gait;
+  const rideAmt = Math.min(1, HORSE.speed / 3);
+  if (HORSE.speed > 0.3) HORSE.gaitPhase += sdt * STRIDE_HZ[gi];
+  const ph = HORSE.gaitPhase * Math.PI * 2;
+  const amp = GAIT_AMP[gi] * rideAmt, offs = GAIT_OFF[gi];
+  for (let i = 0; i < 4; i++) {
+    const lt = -amp * Math.sin(ph + offs[i] * Math.PI * 2);
+    rideLegs[i].rotation.x += (lt - rideLegs[i].rotation.x) * Math.min(1, 12 * sdt);
+  }
+  const bob = GAIT_BOBA[gi] * rideAmt * Math.sin(GAIT_BOBF[gi] * ph);
+  rideBody.position.y = bob;
+  rideTilt.rotation.x = Math.atan2(hB - hF, 2.4) + (gi === 3 ? 0.10 : 0.03) * rideAmt * Math.sin(ph);
+  rideTilt.rotation.z = Math.atan2(hR - hL, 1.0);
+  rideNeck.rotation.y = HORSE.steer * 0.45;
+  rideNeck.rotation.x = -0.04 + 0.05 * rideAmt * Math.sin(GAIT_BOBF[gi] * ph + 1.2) - (gi === 3 ? 0.12 : 0);
+
+  // ---- the rider sits the saddle: glued position, heading, and pose ----
+  player.position.set(HORSE.pos.x, HORSE.pos.y + 1.68 + bob - 0.95, HORSE.pos.z);
+  player.rotation.y = HORSE.heading;
+  legL.rotation.set(-1.15, 0, -0.45); legR.rotation.set(-1.15, 0, 0.45);
+  kneeL.rotation.x = 1.85; kneeR.rotation.x = 1.85;
+  armL.rotation.set(-0.8, 0, -0.14); armR.rotation.set(-0.8, 0, 0.14);
+  elbowL.rotation.x = -0.5; elbowR.rotation.x = -0.5;
+
+  // ---- camera feel: pullback with speed, FOV kick at gallop ----
+  HORSE.camDist = HORSE.camDist0 + spdN * 1.6;
+  HORSE.fovT = (gi === 3 && HORSE.speed > 12) ? 72 : 66;
+
+  // ---- hoofbeats: gain rides speed, playbackRate rides gait cadence ----
+  if (hoofGain) {
+    if (AC && AC.state === 'running') {
+      const tgtG = HORSE.speed > 0.5 ? 0.05 + 0.10 * spdN : 0;
+      hoofGain.gain.value += (tgtG - hoofGain.gain.value) * Math.min(1, 5 * sdt);
+      const bps = STRIDE_HZ[gi] * GAIT_BEATS[gi] / 4;
+      hoofSrc.playbackRate.value += (bps - hoofSrc.playbackRate.value) * Math.min(1, 4 * sdt);
+    } else hoofGain.gain.value *= 0.9;
+  }
+
+  // ---- HUD speedo + gait label, throttled like the car ----
+  HORSE.hudT += sdt;
+  if (HORSE.hudT > 0.12) {
+    HORSE.hudT = 0;
+    spdNumEl.textContent = Math.round(HORSE.speed * 3.6);
+    gaitTagEl.textContent = GAIT_NAMES[gi];
+  }
+}
+worldTickers.push(horseUpdate);
+
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
 const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
@@ -4518,8 +4841,8 @@ function tick() {
   const maxSpeed = sprint ? SPRINT : WALK;
 
   /* --- accelerate / decelerate (no ice-skating, no teleport).
-         Skipped while driving: the car ticker owns motion instead. --- */
-  if (!CAR.driving) {
+         Skipped while driving or riding: the vehicle ticker owns motion instead. --- */
+  if (!CAR.driving && !HORSE.riding) {
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize().multiplyScalar(maxSpeed);
       tmpV.copy(wishDir).sub(P.vel);
@@ -4539,16 +4862,16 @@ function tick() {
   updateTerrainChunks();
   updateSkyRig();
 
-  /* --- face travel direction, smooth turn --- */
+  /* --- face travel direction, smooth turn (the rider faces the horse heading) --- */
   const speed = Math.hypot(P.vel.x, P.vel.z);
-  if (!CAR.driving && speed > 0.6) {
+  if (!CAR.driving && !HORSE.riding && speed > 0.6) {
     const targetYaw = Math.atan2(P.vel.x, P.vel.z);
     player.rotation.y = angleLerp(player.rotation.y, targetYaw, 1 - Math.exp(-12 * sdt));
   }
 
-  /* --- jump + gravity, collide with terrain (skipped while driving) --- */
+  /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if (!CAR.driving) {
+  if (!CAR.driving && !HORSE.riding) {
     if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -4557,8 +4880,9 @@ function tick() {
     }
   }
 
-  /* --- procedural walk cycle (frozen while driving: the driver is seated) --- */
-  if (!CAR.driving) {
+  /* --- procedural walk cycle (frozen while driving: the driver is seated;
+         frozen while riding: the horse ticker poses the rider) --- */
+  if (!CAR.driving && !HORSE.riding) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -4595,16 +4919,20 @@ function tick() {
   player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob
   }   // end: walk cycle + punch anim skipped while driving
 
-  /* --- chase cam while driving, over-shoulder on foot --- */
-  if (CAR.driving) {
+  /* --- chase cam while driving or riding, over-shoulder on foot --- */
+  if (CAR.driving || HORSE.riding) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
-    const driftBlend = Math.min(1, Math.abs(CAR.slip) / CAR.slipMax);
-    const camAng = CAR.heading + CAR.slip * driftBlend;
-    lookTarget.copy(CAR.pos); lookTarget.y += 1.6;
+    const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
+    const camAng = (CAR.driving ? CAR.heading : HORSE.heading)
+      + (CAR.driving ? CAR.slip * driftBlend : 0);
+    const vPos = CAR.driving ? CAR.pos : HORSE.pos;
+    const vDist = CAR.driving ? CAR.camDist : HORSE.camDist;
+    const vH = CAR.driving ? CAR.camH : HORSE.camH;
+    lookTarget.copy(vPos); lookTarget.y += CAR.driving ? 1.6 : 2.1;
     camTargetPos.set(
-      lookTarget.x - Math.sin(camAng) * CAR.camDist,
-      lookTarget.y + CAR.camH,
-      lookTarget.z - Math.cos(camAng) * CAR.camDist
+      lookTarget.x - Math.sin(camAng) * vDist,
+      lookTarget.y + vH,
+      lookTarget.z - Math.cos(camAng) * vDist
     );
     const camGround = terrainHeight(camTargetPos.x, camTargetPos.z) + 0.5;
     if (camTargetPos.y < camGround) camTargetPos.y = camGround;
@@ -4625,8 +4953,8 @@ function tick() {
   camPos.lerp(camTargetPos, 1 - Math.exp(-11 * dt));   // smooth follow
   camera.position.copy(camPos);
   }
-  /* wider FOV while driving, eases back to normal on exit */
-  const fovT = CAR.driving ? CAR.fovDrive : CAR.fovWalk;
+  /* wider FOV while driving or galloping, eases back to normal after */
+  const fovT = CAR.driving ? CAR.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk);
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
@@ -4634,7 +4962,7 @@ function tick() {
   /* --- melee camera punch: tiny shake (2-3 frames) on connect, bigger on the
          3rd hit. Touches only the camera offset: pointer lock and touch-drag
          look (camYaw/camPitch) are never disturbed. --- */
-  if (P.shakeT > 0 && !CAR.driving) {
+  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding) {
     P.shakeT -= dt;
     const m = P.shakeMag * Math.max(0, P.shakeT / Math.max(P.shakeDur, 0.001));
     camera.position.x += (Math.random() * 2 - 1) * m;
@@ -4665,7 +4993,7 @@ function tick() {
   /* --- HUD position readout --- */
   if ((hudTick += dt) > 0.12) {
     hudTick = 0;
-    const mode = CAR.driving ? 'DRIVE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE');
+    const mode = CAR.driving ? 'DRIVE' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE'));
     posEl.textContent = 'X ' + player.position.x.toFixed(0) + '  Z ' + player.position.z.toFixed(0)
       + '  [' + Math.floor(player.position.x / CHUNK) + ',' + Math.floor(player.position.z / CHUNK) + ']'
       + '  ' + mode;
@@ -4678,6 +5006,7 @@ function tick() {
   if (P.godT > 0) P.godT -= sdt;
   if (P.dead) {
     if (CAR.driving) carExit();   // death always ejects: no driving while dead
+    if (HORSE.riding) horseExit(); // ...and no riding while dead either
     P.deadT += sdt;
     if (P.deadT > 1.2) {   // redeploy at spawn with full health
       player.position.set(0, terrainHeight(0, 0), 0);
