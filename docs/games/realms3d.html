@@ -294,6 +294,14 @@
     letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
     pointer-events: none;
   }
+  /* ---- farming HUD (Phase 5): HARVEST prompt mirrors the tame-hint
+         pattern; GROWING is informational. DOM only, zero draw calls. ---- */
+  #farmhint {
+    position: absolute; bottom: 272px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #ffd24a; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
 
   /* ---- lightning flash: DOM layer above the canvas only, capped under 0.18
          opacity, pointer-events none, no layout impact ---- */
@@ -371,6 +379,7 @@
   <div id="schint"></div>
   <div id="pethint"></div>
   <div id="petchip">PET</div>
+  <div id="farmhint"></div>
   <div id="emotehint"></div>
   <div id="shop">
     <h3 id="shopname">SHOP</h3>
@@ -707,6 +716,7 @@ function updateTerrainChunks() {
   if (typeof redistributeOwls === 'function') redistributeOwls(pcx, pcz);
   if (typeof redistributeAmenities === 'function') redistributeAmenities(pcx, pcz);
   if (typeof redistributeBuildings === 'function') redistributeBuildings(pcx, pcz);
+  if (typeof redistributeFarm === 'function') redistributeFarm(pcx, pcz);   // Phase 5 farming
   return true;
 }
 /* sky rig follows the player so the infinite world never shows a void */
@@ -826,14 +836,17 @@ const FLORA = {};
    covers one extra chunk ring so a pad near a chunk edge still clears flora
    in the neighboring chunk. amenityCenterFor is side-effect free, so the
    flora pass and the amenity pass always agree. */
-const _floraNoGo = new Map();        // "gx,gz" -> amenity/building center or null
+const _floraNoGo = new Map();        // "gx,gz" -> amenity/building/farm-plot center or null
 const _treePts = [];                 // flat [x,z,...] of accepted trees, current chunk
 const _treePtsByChunk = new Map();   // "gx,gz" -> flat [x,z,...] (tree pass feeds rock pass)
 function rebuildFloraNoGo(pcx, pcz) {
   _floraNoGo.clear();
   for (let gx = pcx - HALFGRID - 1; gx <= pcx + HALFGRID + 1; gx++)
     for (let gz = pcz - HALFGRID - 1; gz <= pcz + HALFGRID + 1; gz++)
-      _floraNoGo.set(gx + ',' + gz, amenityCenterFor(gx, gz) || bldgCenterFor(gx, gz));
+      /* Phase 5 farming: farm plots clear flora around themselves too, so
+         trees never sprout inside a tilled plot. farmPlotCenterFor is a
+         hoisted function declaration: safe to call here at runtime. */
+      _floraNoGo.set(gx + ',' + gz, amenityCenterFor(gx, gz) || bldgCenterFor(gx, gz) || farmPlotCenterFor(gx, gz));
 }
 /* true when (x,z) is inside the 14m clear zone of any amenity center in the
    chunk or one of its 8 neighbors */
@@ -5908,12 +5921,16 @@ for (const d of AMEN_DEF_LIST) {
 /* ---- zone pads: one instanced ground disc per active amenity (exactly +1
    draw call). Per-instance muted color marks the zone type, readable from
    a distance. polygonOffset kills z-fighting with the terrain. */
+/* Phase 5 farming: plot cap declared early because the ZONE_PADS capacity
+   math below needs it. Farm plots reuse this mesh: zero new draw sites. */
+const FARM_PLOT_CAP = 6;
 const ZONE_PAD_COLORS = {
   gas:    new THREE.Color(0x9c8f3f),   // muted yellow
   garage: new THREE.Color(0x6e7278),   // steel gray
   rest:   new THREE.Color(0x9c4a38),   // warm brick red
   park:   new THREE.Color(0x3f7a3a),   // park green
   land:   new THREE.Color(0xb8b4ac),   // off-white
+  farm:   new THREE.Color(0x5a4128),   // tilled soil brown (Phase 5 farming)
 };
 let ZONE_PADS;
 {
@@ -5922,7 +5939,7 @@ let ZONE_PADS;
   const pm = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const mesh = new THREE.InstancedMesh(pg, pm,
-    AMEN_DEF_LIST.reduce((n, d) => n + d.cap, 0));   // 31: sum of per-type caps
+    AMEN_DEF_LIST.reduce((n, d) => n + d.cap, 0) + FARM_PLOT_CAP);   // 31 + 6 farm plots (Phase 5 farming, zero new draws)
   mesh.frustumCulled = false;
   mesh.castShadow = false;
   mesh.receiveShadow = true;
@@ -6355,6 +6372,7 @@ function bldgTypeFor(gx, gz) {
   if (chunkHitsNoGo(gx, gz)) return null;
   if (amenityCenterFor(gx, gz)) return null;                // amenity chunks stay amenity chunks
   const h = hash2i(gx, gz);
+  if (chunkBiome(gx, gz) === 'farm' && h % 3 === 0) return null;   // Phase 5 farming: farm-plot chunks keep their plots
   if (chunkBiome(gx, gz) === 'farm' && h % 6 === 2) return 'barn';
   if (h % 7 === 1) return 'store';
   if (h % 8 === 2) return 'house';
@@ -6525,6 +6543,333 @@ function resolveBldgFoot() {
   }
 }
 
+/* ================== FARMING PLOTS (Phase 5 food/farming) ==================
+   Seeded farming plots on farm-biome chunks of the infinite world. The crop
+   field is ONE InstancedMesh of low-poly corn plants: the only new IM literal
+   of this feature (+1 draw). The tilled pad reuses the ZONE_PADS amenity mesh
+   (capacity +FARM_PLOT_CAP, zero new draws).
+   Growth stages are a pure function of chunk coords, plant index and the farm
+   clock (seeded hash only, no unseeded randomness). GPU wind sway runs in the vertex
+   shader via onBeforeCompile, so the whole field costs zero CPU per tick.
+   E harvests a mature plot within 3m of its edge: +$15..$23 by ripe row
+   count, reusing the sfxBlip idiom. Only mature plots harvest; the rest show
+   NOT RIPE YET. Foot-only rect collision (vehicles pass over crops). Crops
+   get a night emissive ramp from the day/night tick: readable, zero new
+   lights. */
+const FARM_ROWS = 4, FARM_COLS = 6, FARM_PER_PLOT = FARM_ROWS * FARM_COLS;   // 24 plants
+const FARM_CROP_CAP = FARM_PLOT_CAP * FARM_PER_PLOT;                         // 144 instances
+const FARM_STAGE_LEN = 75;      // seconds per growth stage (sprout/growing/mature)
+const FARM_COOL = 60;           // seconds of forced sprout after a harvest
+const FARM_MATURE_NEED = 8;     // mature plants that call a plot ripe
+const FARM_PLOT_HX = 5, FARM_PLOT_HZ = 3.5;   // tilled rect half extents
+const FARM_HARVEST_R = 3;       // E reach from the plot edge
+const FPLOT = { active: [], foot: [], seed: new Array(FARM_CROP_CAP).fill(null),
+  harvestT: new Map(), t: 0, nearIdx: -1, nearMature: false, stageT: 0, hintState: '' };
+
+/* corn-like plant: tapered stalk + 4 drooping cross-plane leaves + a
+   golden head. Baked vertex colors, pseudo-AO darkens the base. */
+function buildCropGeo() {
+  const parts = [];
+  const stalk = new THREE.CylinderGeometry(0.035, 0.075, 1.15, 5);
+  stalk.translate(0, 0.575, 0);
+  amenUV(stalk, 0.5, 0.5); amenPaint(stalk, 0x3e7a28);
+  parts.push(stalk);
+  for (let i = 0; i < 4; i++) {
+    const leaf = new THREE.PlaneGeometry(0.66, 0.22);
+    leaf.translate(0.33, 0, 0);
+    leaf.rotateZ(0.55);                                // droop
+    leaf.rotateY(i * (Math.PI / 2) + 0.35);
+    leaf.translate(0, 0.42 + (i % 2) * 0.3, 0);
+    amenUV(leaf, 0.5, 0.5); amenPaint(leaf, 0x5da83a);
+    parts.push(leaf);
+  }
+  const head = new THREE.ConeGeometry(0.1, 0.36, 6);
+  head.translate(0, 1.3, 0);
+  amenUV(head, 0.5, 0.5); amenPaint(head, 0xcfa53e);
+  parts.push(head);
+  const g = mergeAmenGeos(parts);
+  const pos = g.attributes.position, col = g.attributes.color;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const ao = 0.55 + 0.45 * Math.min(1, Math.max(0, y / 1.45));
+    col.setXYZ(i, col.getX(i) * ao, col.getY(i) * ao, col.getZ(i) * ao);
+  }
+  return g;
+}
+
+/* wind clock: one uniform write per tick, the sway itself is shader-side */
+const CROP_TIME = { value: 0 };
+const CROP_MAT = new THREE.MeshStandardMaterial({
+  vertexColors: true, roughness: 0.9, metalness: 0,
+  side: THREE.DoubleSide, emissive: 0x334d14, emissiveIntensity: 0,
+});
+/* stolen like an artist: the A Bug's Life grass trick (phase from instance
+   world pos, displacement ramping with height) injected at begin_vertex via
+   onBeforeCompile, the standard three.js vegetation-sway idiom. */
+CROP_MAT.onBeforeCompile = (sh) => {
+  sh.uniforms.uCropTime = CROP_TIME;
+  sh.vertexShader = sh.vertexShader
+    .replace('#include <common>', '#include <common>\nuniform float uCropTime;')
+    .replace('#include <begin_vertex>', `#include <begin_vertex>
+#ifdef USE_INSTANCING
+      {
+        float ph = instanceMatrix[3][0] * 0.35 + instanceMatrix[3][2] * 0.23;
+        float sw = sin(uCropTime * 2.1 + ph) * 0.055 +
+                   sin(uCropTime * 3.9 + ph * 1.7) * 0.028;
+        float bend = smoothstep(0.0, 1.45, transformed.y);
+        transformed.x += sw * bend;
+        transformed.z += sw * 0.6 * bend;
+      }
+#endif`);
+};
+const CROP_IM = new THREE.InstancedMesh(buildCropGeo(), CROP_MAT, FARM_CROP_CAP);
+CROP_IM.frustumCulled = false;   // chunk-scoped counts bound the draw, same as the other field meshes
+CROP_IM.castShadow = false;
+CROP_IM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+CROP_IM.setColorAt(0, new THREE.Color(1, 1, 1));   // allocate the instanceColor buffer
+CROP_IM.instanceColor.setUsage(THREE.DynamicDrawUsage);
+CROP_IM.count = 0;
+scene.add(CROP_IM);
+
+/* ---- deterministic per-chunk selection ----
+   Farm-biome chunks only, no amenity, no building (bldgTypeFor already yields
+   farm-plot chunks to us), pure function of chunk coords. */
+function placeFarmPlot(gx, gz) {
+  const rnd = mulberry32(hash2i(gx, gz) ^ 0xfa12e5);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const x = (gx + 0.25 + rnd() * 0.5) * CHUNK;
+    const z = (gz + 0.25 + rnd() * 0.5) * CHUNK;
+    const y = terrainHeight(x, z);
+    if (y < -0.4) continue;                                        // water
+    if (Math.abs(terrainHeight(x + 7, z) - y) > 2.5) continue;      // too steep
+    if (Math.abs(terrainHeight(x, z + 7) - y) > 2.5) continue;
+    if (inNoFlora(x, z)) continue;
+    if (nearFarmNoGo(x, z)) continue;                              // clear of amenities/buildings
+    return { x, z, y, yaw: rnd() * Math.PI * 2, gx, gz };
+  }
+  return null;
+}
+/* 14m clear of amenity and building centers, same radius the flora pass uses */
+function nearFarmNoGo(x, z) {
+  const gx = Math.floor(x / CHUNK), gz = Math.floor(z / CHUNK);
+  for (let ax = gx - 1; ax <= gx + 1; ax++)
+    for (let az = gz - 1; az <= gz + 1; az++) {
+      const a = amenityCenterFor(ax, az) || bldgCenterFor(ax, az);
+      if (!a) continue;
+      const dx = x - a.x, dz = z - a.z;
+      if (dx * dx + dz * dz < 196) return true;
+    }
+  return false;
+}
+function farmPlotCenterFor(gx, gz) {
+  if (Math.abs(gx) <= 1 && Math.abs(gz) <= 1) return null;   // spawn district
+  if (chunkHitsNoGo(gx, gz)) return null;
+  if (chunkBiome(gx, gz) !== 'farm') return null;
+  if (hash2i(gx, gz) % 3 !== 0) return null;                // rarity: ~1 in 3 farm chunks
+  if (amenityCenterFor(gx, gz)) return null;                // amenity chunks stay amenity chunks
+  return placeFarmPlot(gx, gz);
+}
+
+/* ---- growth stages: pure function of (chunk, plant index, farm clock).
+   A post-harvest cooldown forces sprout for FARM_COOL seconds. ---- */
+function cropStageFor(gx, gz, k, tNow) {
+  const hv = FPLOT.harvestT.get(gx + ',' + gz);
+  if (hv !== undefined && tNow - hv < FARM_COOL) return 0;
+  const ph = (hash2i(gx * 7 + k, gz * 13 + k * 3) % 1000) / 1000;
+  return Math.floor(((tNow / FARM_STAGE_LEN) + ph * 3) % 3);   // 0 sprout, 1 growing, 2 mature
+}
+const FARM_STAGE_SCALE = [0.38, 0.68, 1.0];
+const FARM_STAGE_COL = [new THREE.Color(0x9ae06a),   // sprout: bright green
+                        new THREE.Color(0x5da83a),   // growing: leaf green
+                        new THREE.Color(0xd8b84a)];  // mature: golden
+/* repaint every active crop instance (scale + tint by stage); 1 Hz, chunk-scoped */
+function farmPaintCrops() {
+  const t = FPLOT.t;
+  for (let i = 0; i < CROP_IM.count; i++) {
+    const sd = FPLOT.seed[i];
+    if (!sd) continue;
+    const st = cropStageFor(sd.gx, sd.gz, sd.k, t);
+    const sc = FARM_STAGE_SCALE[st];
+    _aE.set(0, sd.yaw, 0); _aQ.setFromEuler(_aE);
+    _aP.set(sd.x, sd.y, sd.z); _aS.set(sc, sc, sc);
+    _aM.compose(_aP, _aQ, _aS);
+    CROP_IM.setMatrixAt(i, _aM);
+    CROP_IM.setColorAt(i, FARM_STAGE_COL[st]);
+  }
+  CROP_IM.instanceMatrix.needsUpdate = true;
+  if (CROP_IM.instanceColor) CROP_IM.instanceColor.needsUpdate = true;
+}
+function farmPlotMatureCount(p, tNow) {
+  let m = 0;
+  for (let i = 0; i < CROP_IM.count; i++) {
+    const sd = FPLOT.seed[i];
+    if (sd && sd.gx === p.gx && sd.gz === p.gz &&
+        cropStageFor(sd.gx, sd.gz, sd.k, tNow) === 2) m++;
+  }
+  return m;
+}
+
+/* redistribute on chunk crossing: pads reuse ZONE_PADS (zero new draws),
+   crops fill the one crop InstancedMesh (chunk-scoped counts). */
+function redistributeFarm(pcx, pcz) {
+  FPLOT.active.length = 0;
+  FPLOT.foot.length = 0;
+  for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++)
+    for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
+      if (FPLOT.active.length >= FARM_PLOT_CAP) break;
+      const p = farmPlotCenterFor(gx, gz);
+      if (!p) continue;
+      FPLOT.active.push(p);
+      FPLOT.foot.push(p);
+    }
+  /* tilled pads: appended after the amenity discs on the shared ZONE_PADS
+     mesh, ellipse-scaled to the 10x7 plot rect */
+  let pi = ZONE_PADS.count;
+  for (const p of FPLOT.active) {
+    if (pi >= ZONE_PADS.instanceMatrix.count) break;   // capacity guard
+    dummy.position.set(p.x, p.y + 0.06, p.z);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(0.62, 1, 0.45);
+    dummy.updateMatrix();
+    ZONE_PADS.setMatrixAt(pi, dummy.matrix);
+    ZONE_PADS.setColorAt(pi, ZONE_PAD_COLORS.farm);
+    pi++;
+  }
+  ZONE_PADS.count = pi;
+  ZONE_PADS.instanceMatrix.needsUpdate = true;
+  if (ZONE_PADS.instanceColor) ZONE_PADS.instanceColor.needsUpdate = true;
+  /* crops: 24 per plot in 4 seeded rows; instance index maps
+     plot j -> [j*24, j*24+24) */
+  let ci = 0;
+  for (const p of FPLOT.active) {
+    const rnd = mulberry32(hash2i(p.gx, p.gz) ^ 0xc20d15);
+    const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    for (let r = 0; r < FARM_ROWS && ci < FARM_CROP_CAP; r++)
+      for (let q = 0; q < FARM_COLS && ci < FARM_CROP_CAP; q++) {
+        const k = r * FARM_COLS + q;
+        const lx = -4 + q * 1.6 + (rnd() - 0.5) * 0.5;
+        const lz = -2.4 + r * 1.6 + (rnd() - 0.5) * 0.5;
+        const wx = p.x + lx * c + lz * s, wz = p.z - lx * s + lz * c;
+        FPLOT.seed[ci] = { gx: p.gx, gz: p.gz, k, x: wx,
+                           y: terrainHeight(wx, wz), z: wz, yaw: rnd() * 6.2832 };
+        ci++;
+      }
+  }
+  for (let i = ci; i < FARM_CROP_CAP; i++) FPLOT.seed[i] = null;
+  CROP_IM.count = ci;
+  farmPaintCrops();
+}
+
+/* harvest: $15 + $2 per ripe row ($15..$23), plot resets to sprout */
+function farmHarvest(j) {
+  const p = FPLOT.active[j];
+  if (!p) return;
+  const tNow = FPLOT.t, base = j * FARM_PER_PLOT;
+  let rows = 0;
+  for (let r = 0; r < FARM_ROWS; r++) {
+    let m = 0;
+    for (let q = 0; q < FARM_COLS; q++) {
+      const sd = FPLOT.seed[base + r * FARM_COLS + q];
+      if (sd && cropStageFor(sd.gx, sd.gz, sd.k, tNow) === 2) m++;
+    }
+    if (m >= 3) rows++;
+  }
+  const reward = 15 + rows * 2;
+  cash += reward; updateCashHUD();
+  FPLOT.harvestT.set(p.gx + ',' + p.gz, tNow);
+  farmPaintCrops();                                    // immediate sprout look
+  toast('HARVEST +$' + reward);
+  sfxBlip(660, 0.12, 'square', 0.25);                  // existing idiom, no new nodes
+  setTimeout(() => sfxBlip(880, 0.16, 'square', 0.25), 120);
+}
+/* E press: harvest a ripe plot, or say so when it is not ripe yet.
+   Vehicle/tame prompts win the press, so mounts and pets keep priority. */
+function farmTryHarvest() {
+  if (FPLOT.nearIdx < 0) return false;
+  if (!playing() || P.dead || shopOpen) return false;
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
+      BIKE.driving || BC.driving || SC.driving) return false;
+  if (HORSE.hintOn || BUS.hintOn || TX.hintOn || BIKE.hintOn || BC.hintOn ||
+      SC.hintOn || PET.hintOn) return false;
+  if (FPLOT.nearMature) farmHarvest(FPLOT.nearIdx);
+  else { toast('NOT RIPE YET'); sfxBlip(240, 0.1, 'square', 0.12); }
+  return true;
+}
+/* distance from (px,pz) to the plot rect, in plot-local space */
+function farmRectDist(p, px, pz) {
+  const dx = px - p.x, dz = pz - p.z;
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  const lx = dx * c - dz * s, lz = dx * s + dz * c;
+  const qx = Math.max(Math.abs(lx) - FARM_PLOT_HX, 0);
+  const qz = Math.max(Math.abs(lz) - FARM_PLOT_HZ, 0);
+  return Math.hypot(qx, qz);
+}
+/* ---- foot collision: the player cannot walk through the crops.
+        Rect push-out, zero allocation, runs only on foot. ---- */
+function resolveFarmFoot() {
+  const px = player.position.x, pz = player.position.z;
+  for (let i = 0; i < FPLOT.foot.length; i++) {
+    const p = FPLOT.foot[i];
+    const dx = px - p.x, dz = pz - p.z;
+    const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const lx = dx * c - dz * s, lz = dx * s + dz * c;
+    const m = 0.45;
+    const ex = FARM_PLOT_HX + m - Math.abs(lx), ez = FARM_PLOT_HZ + m - Math.abs(lz);
+    if (ex <= 0 || ez <= 0) continue;
+    let nlx = lx, nlz = lz;
+    if (ex < ez) nlx = (lx >= 0 ? 1 : -1) * (FARM_PLOT_HX + m);
+    else nlz = (lz >= 0 ? 1 : -1) * (FARM_PLOT_HZ + m);
+    player.position.x = p.x + nlx * c + nlz * s;
+    player.position.z = p.z - nlx * s + nlz * c;
+  }
+}
+
+/* ---- farm ticker: wind clock + 1 Hz stage paint + E/hint proximity ---- */
+const farmHintEl = document.getElementById('farmhint');
+farmHintEl.addEventListener('click', () => {
+  if (FPLOT.nearMature && FPLOT.nearIdx >= 0) farmHarvest(FPLOT.nearIdx);
+});
+let farmTickT = 0;
+function farmTick(dt) {
+  FPLOT.t += dt;
+  CROP_TIME.value = FPLOT.t;                       // shader sway, zero CPU per crop
+  FPLOT.stageT += dt;
+  if (FPLOT.stageT >= 1) { FPLOT.stageT = 0; farmPaintCrops(); }
+  farmTickT += dt;
+  if (farmTickT < 0.15) return;
+  farmTickT = 0;
+  const onFoot = playing() && !P.dead && !shopOpen &&
+    !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding &&
+    !BIKE.driving && !BC.driving && !SC.driving;
+  FPLOT.nearIdx = -1; FPLOT.nearMature = false;
+  if (onFoot) {
+    const px = player.position.x, pz = player.position.z;
+    let bd = FARM_HARVEST_R;
+    for (let j = 0; j < FPLOT.active.length; j++) {
+      const d = farmRectDist(FPLOT.active[j], px, pz);
+      if (d < bd) { bd = d; FPLOT.nearIdx = j; }
+    }
+    if (FPLOT.nearIdx >= 0)
+      FPLOT.nearMature = farmPlotMatureCount(FPLOT.active[FPLOT.nearIdx], FPLOT.t) >= FARM_MATURE_NEED;
+  }
+  const want = FPLOT.nearIdx < 0 ? '' : (FPLOT.nearMature ? 'ready' : 'growing');
+  if (want === FPLOT.hintState) return;
+  FPLOT.hintState = want;
+  if (want === '') { farmHintEl.style.opacity = 0; return; }
+  farmHintEl.style.opacity = 1;
+  if (want === 'ready') {
+    farmHintEl.textContent = 'HARVEST [E]';
+    farmHintEl.style.color = '#0c0e0a';
+    farmHintEl.style.background = '#ffd24a';
+  } else {
+    farmHintEl.textContent = 'GROWING...';
+    farmHintEl.style.color = '#8b937a';
+    farmHintEl.style.background = 'rgba(10,12,10,.6)';
+  }
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(farmTick));
+
 /* ============================ CAMERA (OVER-SHOULDER) ====================== */
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 500);
 let camYaw = Math.PI, camPitch = 0.32;               // start behind player
@@ -6548,7 +6893,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyE') mountToggle();                                  // horse dismount / car / horse / car
+  if (e.code === 'KeyE') { if (!farmTryHarvest()) mountToggle(); }        // farm harvest wins over mounts near a plot
   if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
@@ -7335,6 +7680,10 @@ function dayNightTick(dt, now) {
      zero new lights) */
   const winI = 2.2 * (1 - dayness);
   for (let i = 0; i < BLDG_WIN_MATS.length; i++) BLDG_WIN_MATS[i].emissiveIntensity = winI;
+
+  /* Phase 5 farming: crops stay readable at night (emissive ramp only, zero
+     new lights; fog still applies through the standard material) */
+  CROP_MAT.emissiveIntensity = 0.5 * (1 - dayness);
 
   /* clouds dim at night */
   if (DNF.cloudMat) DNF.cloudMat.opacity = 0.8 * (0.25 + 0.75 * dayness);
@@ -10094,6 +10443,7 @@ function tick() {
 
     player.position.addScaledVector(P.vel, sdt);
     resolveBldgFoot();   // rural buildings block the player on foot
+    resolveFarmFoot();   // Phase 5 farming: crops block the player on foot
   }
 
   /* --- infinite world: no walls. Chunks recycle around the player. --- */

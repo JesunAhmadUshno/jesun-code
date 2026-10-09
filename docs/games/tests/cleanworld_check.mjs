@@ -30,6 +30,7 @@ globalThis.__R3D = {
   updateTerrainChunks, redistributeFlora, redistributeAmenities,
   amenityCenterFor, amenityTypeFor, amenityAccepted, terrainHeight, inNoFlora,
   FLORA, AMEN, AMEN_DEF, ZONE_PADS, ZONE_PAD_COLORS,
+  FPLOT,   // 2026-10-09 farming: farm plots reuse ZONE_PADS
   CHUNK, HALFGRID, player, coverPts,
 };
 `;
@@ -201,8 +202,10 @@ console.log('measured: trees=' + trees.length + ' rocks=' + rocks.length +
   let total = 0;
   for (const k in G.AMEN.active) total += G.AMEN.active[k].length;
   goChunk(samples[2][0], samples[2][1]);   // settle on last sample
-  check('pads count == active amenities', G.ZONE_PADS.count === total,
-    'pads=' + G.ZONE_PADS.count + ' amenities=' + total);
+  /* 2026-10-09 farming: farm plots reuse ZONE_PADS, so pads == amenities + farm plots */
+  const farmPlots = G.FPLOT ? G.FPLOT.active.length : 0;
+  check('pads count == active amenities + farm plots', G.ZONE_PADS.count === total + farmPlots,
+    'pads=' + G.ZONE_PADS.count + ' amenities=' + total + ' farm=' + farmPlots);
   check('pads instanceColor allocated', !!G.ZONE_PADS.instanceColor);
   const allowed = new Set(Object.values(G.ZONE_PAD_COLORS).map(c => c.getHexString()));
   const arr = G.ZONE_PADS.instanceColor.array;
