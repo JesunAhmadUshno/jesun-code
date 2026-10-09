@@ -69,6 +69,7 @@ globalThis.__R3D = {
   taxiEnter, taxiExit, txRebuild, txDoorWorld, crRebuild, ambRebuild,
   CR, TX, AMB, HORSE, emBodyIM, toastEl, W,
   bikeEnter, bikeExit, bikeRebuild, BIKE, bikeBodyIM, bikeHintEl,
+  bcEnter, bcExit, bcRebuild, BC, bcBodyIM, bcHintEl,
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
@@ -588,10 +589,10 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 
   /* 10a. draw-call budget: the bike adds the single allowed InstancedMesh
          (41 after the PERF-2 consolidation: 46 -> 41; flora 7->3 meshes,
-         lootBoxes folded into the shared pickupBoxes mesh), one render
-         site per tick */
+         lootBoxes folded into the shared pickupBoxes mesh), then the bicycle
+         adds its one (41 -> 42); one render site per tick */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('wildlife: exactly one new InstancedMesh vs main (41: the bike body)', imCount === 41, 'count=' + imCount);
+  check('wildlife: exactly one new InstancedMesh vs main (42: the bike body + the bicycle body)', imCount === 42, 'count=' + imCount);
   globalThis.__renderCount = 0; frame(30);
   check('wildlife: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
@@ -747,8 +748,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('bike: one shared body InstancedMesh holds all three slots',
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('bike: InstancedMesh count is 40 or 41 (one allowed for the bike; 46 -> 41 after PERF-2)',
-    imCount2 === 40 || imCount2 === 41, 'count=' + imCount2);
+  check('bike: InstancedMesh count is 41 or 42 (one allowed for the bike, one for the bicycle; 46 -> 41 after PERF-2)',
+    imCount2 === 41 || imCount2 === 42, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -829,6 +830,107 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   globalThis.__renderCount = 0;
   frame(30);
   check('bike: exactly one render per tick', globalThis.__renderCount === 30,
+    'renders=' + globalThis.__renderCount);
+}
+
+/* ================= 12. BICYCLE (Phase 5) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.CAR.driving = false; G.HORSE.riding = false;
+  G.BUS.driving = false; G.BUS.riding = false; G.TX.riding = false;
+  G.BIKE.driving = false; G.BC.driving = false;
+  G.player.visible = true;
+  G.player.position.set(0, groundY(0, 0), 0);          // anchor chunk (0,0)
+  frame(3);                                            // bcUpdate seeds the 3 slots
+  check('bicycle: three seeded slots placed near amenities',
+    G.BC.slots.length === 3 && G.BC.slots.every(s => s.placed === true),
+    G.BC.slots.map(s => '(' + s.x.toFixed(0) + ',' + s.z.toFixed(0) + ')').join(' '));
+  check('bicycle: one shared body InstancedMesh holds all three slots',
+    G.bcBodyIM.isInstancedMesh === true);
+  const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
+  check('bicycle: InstancedMesh count is 42 (one allowed for the bicycle: 41 -> 42)',
+    imCount3 === 42, 'count=' + imCount3);
+
+  /* determinism on revisit: same player spot, forced rebuild, identical pads */
+  const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
+  G.BC.anchorCx = 1e9; G.BC.anchorCz = 1e9; G.BC.key = '';   // force rebuild
+  frame(1);
+  const bcSamePose = (s, p) =>
+    Math.abs(s.x - p[0]) < 1e-9 && Math.abs(s.z - p[1]) < 1e-9 && Math.abs(s.yaw - p[2]) < 1e-9;
+  check('bicycle: pads are deterministic on rebuild',
+    G.BC.slots.every((s, i) => bcSamePose(s, bcPoses[i])));
+
+  /* hysteresis: move slot 0 away, stand on it, rebuild must keep it there */
+  const bcS0 = G.BC.slots[0];
+  bcS0.x += 30; bcS0.z += 30;
+  G.player.position.set(bcS0.x, groundY(bcS0.x, bcS0.z), bcS0.z);
+  G.BC.anchorCx = 1e9; G.BC.anchorCz = 1e9; G.BC.key = '';
+  frame(1);
+  check('bicycle: pad sticks under the player (no chunk-cross pop)',
+    Math.abs(G.BC.slots[0].x - bcS0.x) < 1e-9 && Math.abs(G.BC.slots[0].z - bcS0.z) < 1e-9);
+
+  /* ride: E near the bicycle enters */
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.BC.anchorCx = 1e9; G.BC.anchorCz = 1e9; G.BC.key = '';
+  frame(2);
+  const bcx = G.BC.slots[0].x, bcz = G.BC.slots[0].z;
+  G.player.position.set(bcx, groundY(bcx, bcz), bcz);   // exactly on slot 0: nearest wins
+  frame(2);
+  check('bicycle: RIDE hint appears near a parked bicycle',
+    G.BC.hintOn === true && G.BC.nearIdx === 0 && G.bcHintEl.style.opacity === 1);
+  G.bcEnter();                                       // real entry
+  check('bicycle: E near bicycle enters (BC.driving true)',
+    G.BC.driving === true && G.player.visible === false);
+  check('bicycle: mount toast fires', G.toastEl.textContent === 'BICYCLE');
+
+  /* pedal moves the bicycle */
+  const bcStart = G.BC.pos.clone();
+  G.keys.KeyW = true;
+  frame(120);                                          // ~2 s of pedaling
+  G.keys.KeyW = false;
+  const bcMoved = G.BC.pos.distanceTo(bcStart);
+  check('bicycle: 120 frames of pedal moves the bicycle', bcMoved > 5, 'moved=' + bcMoved.toFixed(2) + 'u');
+
+  /* lean changes sign with left/right steering (motorcycle sign convention) */
+  G.BC.speed = 12;
+  G.keys.KeyW = true; G.keys.KeyD = true;
+  frame(60);
+  const bcLeanR = G.BC.lean;
+  G.keys.KeyD = false; G.keys.KeyA = true;
+  frame(60);
+  const bcLeanL = G.BC.lean;
+  G.keys.KeyA = false; G.keys.KeyW = false;
+  check('bicycle: lean changes sign with left/right steering',
+    bcLeanR < -0.05 && bcLeanL > 0.05,
+    'leanR=' + bcLeanR.toFixed(3) + ' leanL=' + bcLeanL.toFixed(3));
+
+  /* pedal-mash drains the stamina gauge; empty stamina forces the coast */
+  G.BC.stam = 1; G.BC.exhausted = false; G.BC.mashT = 0; G.BC.prevShift = false;
+  G.BC.speed = 8;
+  for (let k = 0; k < 9; k++) { G.keys.ShiftLeft = true; frame(1); G.keys.ShiftLeft = false; frame(1); }
+  check('bicycle: repeated SHIFT mashing drains stamina',
+    G.BC.stam < 0.3, 'stam=' + G.BC.stam.toFixed(2));
+  check('bicycle: empty stamina forces the coast (exhausted)',
+    G.BC.exhausted === true);
+
+  /* wheelie: hard pedal from standstill pitches the front up */
+  G.BC.stam = 1; G.BC.exhausted = false; G.BC.speed = 0; G.BC.wheelieT = 0;
+  G.keys.KeyW = true;
+  frame(5);
+  check('bicycle: wheelie lifts on hard pedal from standstill',
+    G.BC.wheelieT > 0, 'wheelieT=' + G.BC.wheelieT.toFixed(2));
+  G.keys.KeyW = false;
+
+  /* exit returns the player on foot */
+  G.bcExit();                                        // real exit
+  check('bicycle: exit returns player on foot',
+    G.BC.driving === false && G.player.visible === true);
+  check('bicycle: dismount toast fires', G.toastEl.textContent === 'ON FOOT');
+
+  /* draw-call budget: exactly one renderer.render per tick */
+  globalThis.__renderCount = 0;
+  frame(30);
+  check('bicycle: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
 }
 
