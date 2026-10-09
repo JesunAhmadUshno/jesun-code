@@ -691,6 +691,8 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
   barn.position.set(bx, terrainHeight(bx, bz), bz);
   barn.rotation.y = 0.35;
   barn.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+  door.castShadow = false;   /* PERF-1f: door shadow unreadable against the
+     barn-body shadow; saves 1 shadow draw. Door still receives shadows. */
   scene.add(barn);
 
   /* hay bales: cylinders lying on their sides, merged into one mesh (one draw
@@ -1322,9 +1324,12 @@ const GEO = {
   mouth: new THREE.BoxGeometry(0.07, 0.012, 0.01),
   hair:  new THREE.SphereGeometry(0.145, 14, 10, 0, Math.PI * 2, 0, 1.35),
 };
-function pm(geo, mat, x, y, z, parent) {
+/* PERF-1f: noShadow skips the shadow pass for visually negligible parts
+   (face micro-detail). Their shadows are unreadable at any distance; the
+   head/body shadow already grounds the player. */
+function pm(geo, mat, x, y, z, parent, noShadow) {
   const m = new THREE.Mesh(geo, mat);
-  m.position.set(x, y, z); m.castShadow = true;
+  m.position.set(x, y, z); m.castShadow = !noShadow;
   (parent || player).add(m);
   return m;
 }
@@ -1360,10 +1365,12 @@ const fistR = pm(GEO.fist, MAT.skin, 0, -0.36, 0, elbowR);
 player.add(armL, armR);
 /* Head with face (faces +z, player-forward) */
 pm(GEO.head, MAT.skin, 0, 1.68, 0);
-pm(GEO.eye, MAT.eye, -0.052, 1.70, 0.125); pm(GEO.eye, MAT.eye, 0.052, 1.70, 0.125);
-pm(GEO.pup, MAT.pup, -0.052, 1.70, 0.14);  pm(GEO.pup, MAT.pup, 0.052, 1.70, 0.14);
-pm(GEO.nose, MAT.skin, 0, 1.655, 0.135);
-pm(GEO.mouth, MAT.mouth, 0, 1.615, 0.128);
+/* PERF-1f: face micro-parts skip the shadow pass (6 shadow draws saved).
+   Eyes, pupils, nose, mouth cast no readable shadow; hair keeps its own. */
+pm(GEO.eye, MAT.eye, -0.052, 1.70, 0.125, null, true); pm(GEO.eye, MAT.eye, 0.052, 1.70, 0.125, null, true);
+pm(GEO.pup, MAT.pup, -0.052, 1.70, 0.14, null, true);  pm(GEO.pup, MAT.pup, 0.052, 1.70, 0.14, null, true);
+pm(GEO.nose, MAT.skin, 0, 1.655, 0.135, null, true);
+pm(GEO.mouth, MAT.mouth, 0, 1.615, 0.128, null, true);
 pm(GEO.hair, MAT.hair, 0, 1.685, -0.008);  // short hair cap
 scene.add(player);
 /* natural elbow bend */
@@ -1577,7 +1584,10 @@ const gun = new THREE.Group();
   const mGrip = new THREE.MeshStandardMaterial({ color: 0x4a3220, roughness: 0.8 });
   const gp = (w, h, d, m, x, y, z) => {
     const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-    q.position.set(x, y, z); q.castShadow = true; gun.add(q);
+    /* PERF-1f: rifle micro-parts skip the shadow pass (5 shadow draws saved).
+       Their shadows are unreadable thin lines; the player-body shadow
+       already grounds the gun. */
+    q.position.set(x, y, z); q.castShadow = false; gun.add(q);
   };
   gp(0.09, 0.13, 0.55, mGun, 0, 0, 0.1);     // receiver
   gp(0.05, 0.05, 0.5, mGun, 0, 0.02, 0.6);   // barrel
@@ -3927,7 +3937,9 @@ for (const [sx, sz, steer] of [[-1, 1.35, 1], [1, 1.35, 1], [-1, -1.35, 0], [1, 
   const pivot = new THREE.Group();
   pivot.position.set(sx * 0.98, CAR.wheelR, sz);
   const w = new THREE.Mesh(wheelGeo, carWheelM);
-  w.castShadow = true;
+  /* PERF-1f: wheels tuck under the body; body+cabin shadows already ground
+     the car. Saves 4 shadow draws. */
+  w.castShadow = false;
   pivot.add(w); carTilt.add(pivot);
   wheels.push(w); if (steer) steerPivots.push(pivot);
 }
@@ -4132,12 +4144,29 @@ function angleLerp(a, b, t) {
 
 /* ================= PERF OVERLAY (developer) ================================
    KeyP toggles a DOM-only HUD chip with live renderer stats: FPS averaged over
-   1 s, renderer.info.render.calls, triangles, and memory geometries/textures.
+   1 s, renderer.info.render.calls, triangles, memory geometries/textures, plus
+   per-pass draw-call estimates MAIN~ (main pass) and SHDW~ (shadow pass).
    Hidden by default; zero gameplay effect when off. The DOM chip adds no
    WebGL draw calls. Text updates at most once per second, only while visible;
    per frame the tick only increments a counter. */
 const perfEl = document.getElementById('perfchip');
 let perfOn = false, perfFrames = 0, perfT0 = 0, perfLastUpd = 0;
+/* PERF-1f: per-pass attribution. autoReset=false keeps renderer.info
+   cumulative across the whole frame (main + shadow passes); tick() calls
+   renderer.info.reset() before each render. Guarded: headless/stub
+   renderers may lack .info. */
+if (renderer.info) renderer.info.autoReset = false;
+/* Init snapshot: every castShadow mesh re-renders once per shadow-casting
+   light in the shadow pass, so SHDW_EST = casters x shadowLights. Labeled
+   EST because the shadow camera culls distant casters, so the live shadow
+   cost is usually lower. MAIN_EST = live CALLS - SHDW_EST, computed at
+   each overlay update. */
+let perfCasters = 0, perfShadowLights = 0;
+scene.traverse(o => {
+  if (o.isMesh && o.castShadow === true) perfCasters++;
+  else if (o.isLight && o.castShadow === true) perfShadowLights++;
+});
+const SHDW_EST = perfCasters * perfShadowLights;
 function togglePerf() {
   perfOn = !perfOn;
   perfEl.style.display = perfOn ? 'block' : 'none';
@@ -4370,20 +4399,25 @@ function tick() {
   /* --- world expansion tickers (city/nature/people workers) --- */
   for (const fn of worldTickers) fn(sdt, now);
 
+  /* PERF-1f: reset counters at frame start so CALLS is the true per-frame
+     total across the main pass and the shadow-map pass. */
+  if (renderer.info) renderer.info.reset();
   renderer.render(scene, camera);
 
   /* --- perf overlay sampling: counter only, text at most 1 Hz while visible --- */
-  if (perfOn) {
+  if (perfOn && renderer.info) {
     perfFrames++;
     const pt = performance.now();
     if (pt - perfLastUpd >= 1000) {
       const info = renderer.info.render, mem = renderer.info.memory;
+      const mainEst = Math.max(0, info.calls - SHDW_EST);
       perfEl.textContent =
         'FPS ' + Math.round(perfFrames * 1000 / (pt - perfT0)) +
         '  CALLS ' + info.calls +
         '  TRIS ' + info.triangles +
         '\nGEO ' + mem.geometries +
-        '  TEX ' + mem.textures;
+        '  TEX ' + mem.textures +
+        '\nMAIN~' + mainEst + ' EST  SHDW~' + SHDW_EST + ' EST';
       perfFrames = 0; perfT0 = pt; perfLastUpd = pt;
     }
   }
