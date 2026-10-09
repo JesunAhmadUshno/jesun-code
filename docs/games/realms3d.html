@@ -89,6 +89,13 @@
   #combat b { color: #ff6b5e; }
   #combat #kills { color: #d8c84a; }
   #combat #cash { color: #7dff9a; }
+  #weap {
+    position: absolute; top: 128px; right: 18px; color: #c9d2b8; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 6px 12px;
+    letter-spacing: 2px; text-align: right; line-height: 1.6; pointer-events: auto;
+  }
+  #weap b { color: #d8c84a; }
+  body.touch #weap { border-color: #d8c84a; }
 
   /* ---- mission HUD: tracker (left, under health) + compass arrow ---- */
   #mtracker {
@@ -164,10 +171,12 @@
   <div id="cross"><div class="ring"></div><div class="dot"></div></div>
   <div id="help">
     <b>WASD</b> move &nbsp; <b>MOUSE</b> look &nbsp; <b>SHIFT</b> sprint<br>
-    <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>F</b> punch &nbsp; <b>R-CLICK</b> punch &nbsp; <b>ESC</b> release mouse
+    <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>F</b> punch &nbsp; <b>R-CLICK</b> punch &nbsp; <b>ESC</b> release mouse<br>
+    <b>1/2/3</b> weapons
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b></div>
+  <div id="weap"><span id="wname">RIFLE</span> <b id="wammo">&infin;</b></div>
   <div id="mtracker"><div id="mtitle"></div><div id="mobj"></div></div>
   <div id="marrow"><div id="marr">▲</div><div id="mdist"></div></div>
   <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
@@ -1544,21 +1553,32 @@ const raycaster = new THREE.Raycaster();
 raycaster.far = 90;
 const screenCenter = new THREE.Vector2(0, 0);
 const tmpV2 = new THREE.Vector3(), tmpEnd = new THREE.Vector3();
+const jitterPt = new THREE.Vector2();   // per-pellet spread offset, zero alloc
 function shoot() {
   if (!playing() || P.dead || fireCd > 0) return;
-  fireCd = 0.13;   // ~8 rounds/sec, infinite ammo
-  sfxShot();
+  let w = WEAPONS[curWeapon];
+  if (w.ammo <= 0) {   // dry weapon: fall back to the rifle, never soft-lock
+    curWeapon = 'rifle'; w = WEAPONS.rifle; updateWeaponHUD();
+  }
+  fireCd = w.cd;
+  if (curWeapon === 'rifle') sfxShot(); else sfxBoom(curWeapon === 'shotgun');
   window.__lastShotAt = performance.now();   // NPCs/animals can read this to flee
   window.__lastShotPos = player.position.clone();
-  muzzleFlash.intensity = 26;
+  muzzleFlash.intensity = curWeapon === 'shotgun' ? 44 : curWeapon === 'smg' ? 18 : 26;
+  if (curWeapon !== 'rifle') { w.ammo--; updateWeaponHUD(); }
   muzzle.getWorldPosition(tmpV2);
-  raycaster.setFromCamera(screenCenter, camera);
-  const hits = raycaster.intersectObjects(
-    hitMeshes.filter(m => m.userData.enemy.state !== 'dead'), false);
-  let end;
-  if (hits.length) { end = hits[0].point; damageEnemy(hits[0].object.userData.enemy, 1); }
-  else { end = raycaster.ray.at(90, tmpEnd); }
-  fireTracer(tmpV2, end);
+  const targets = hitMeshes.filter(m => m.userData.enemy.state !== 'dead');
+  for (let p = 0; p < w.pellets; p++) {   // shotgun fans 6 pellets per trigger pull
+    if (w.spread > 0) jitterPt.set((Math.random() * 2 - 1) * w.spread,
+                                   (Math.random() * 2 - 1) * w.spread);
+    else jitterPt.set(0, 0);
+    raycaster.setFromCamera(jitterPt, camera);
+    const hits = raycaster.intersectObjects(targets, false);
+    let end;
+    if (hits.length) { end = hits[0].point; damageEnemy(hits[0].object.userData.enemy, w.dmg); }
+    else { end = raycaster.ray.at(90, tmpEnd); }
+    fireTracer(tmpV2, end);
+  }
 }
 
 function hurtPlayer(d) {
@@ -1567,7 +1587,8 @@ function hurtPlayer(d) {
   sfxHurt();
   dmgV = 0.85;
   updateHpHUD();
-  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; toast('ELIMINATED'); missionOnDeath(); updateHpHUD(); }
+  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; toast('ELIMINATED'); missionOnDeath();
+    curWeapon = 'rifle'; updateWeaponHUD(); updateHpHUD(); }
 }
 
 /* --- shooter fires: tracer from its gun, procedural bang, 55% hit (fair) --- */
@@ -2051,6 +2072,260 @@ function missionTick(dt) {
   } else if (!t) { marrowEl.style.display = 'none'; mArrowT = 0; }
 }
 
+/* ============================ LOOT: PHASE 2 PICKUPS =======================
+   Weapon pickups (shotgun, SMG) + health packs + ammo crates.
+   Rendered as 5 instanced meshes (rings, icons, gun props, crates, crosses)
+   = 5 draw calls. Rings pulse via one shared material; icons and gun props
+   bob and spin from preallocated temps (zero per-frame allocation in the
+   tick). Pickup radius checks are throttled to 0.15s and run on foot only. */
+const WEAPONS = {
+  rifle:   { label: 'RIFLE',   dmg: 1, cd: 0.13,  pellets: 1, spread: 0,
+             ammo: Infinity, max: Infinity, owned: true },
+  shotgun: { label: 'SHOTGUN', dmg: 1, cd: 0.85,  pellets: 6, spread: 0.09,
+             ammo: 8,   max: 24,  owned: false },
+  smg:     { label: 'SMG',     dmg: 1, cd: 0.065, pellets: 1, spread: 0.025,
+             ammo: 120, max: 240, owned: false },
+};
+let curWeapon = 'rifle';
+const wnameEl = document.getElementById('wname'), wammoEl = document.getElementById('wammo');
+function updateWeaponHUD() {
+  const w = WEAPONS[curWeapon];
+  wnameEl.textContent = w.label;
+  wammoEl.textContent = curWeapon === 'rifle' ? '∞' : w.ammo;
+}
+function selectWeapon(name) {
+  if (!WEAPONS[name] || !WEAPONS[name].owned || name === curWeapon) return;
+  curWeapon = name; updateWeaponHUD(); sfxBlip(500, 0.08, 'square', 0.18);
+}
+/* pickup jingle: rising arpeggio on the same sfxBlip idiom as combat */
+function sfxPickup() {
+  sfxBlip(523, 0.09, 'square', 0.22);
+  setTimeout(() => sfxBlip(659, 0.09, 'square', 0.22), 80);
+  setTimeout(() => sfxBlip(880, 0.14, 'square', 0.22), 160);
+}
+/* gunfire variants: same noise-buffer idiom as sfxShot (no files) */
+function sfxBoom(deep) {
+  const a = ac(); if (!a) return;
+  const dur = deep ? 0.32 : 0.14, n = Math.floor(a.sampleRate * dur);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.8); }
+  const s = a.createBufferSource(); s.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(deep ? 1400 : 4200, a.currentTime);
+  f.frequency.exponentialRampToValueAtTime(120, a.currentTime + dur);
+  const g = a.createGain(); g.gain.value = deep ? 0.65 : 0.34;
+  s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+}
+
+const LOOT = [
+  { kind: 'weapon', w: 'shotgun', x: 58,  z: -58 },   // near city
+  { kind: 'weapon', w: 'shotgun', x: -60, z: 2 },     // near farm
+  { kind: 'weapon', w: 'smg', x: -14, z: 4 },         // near spawn
+  { kind: 'weapon', w: 'smg', x: -52, z: -62 },       // near forest
+  { kind: 'health', x: 74,  z: -78 },                 // city
+  { kind: 'health', x: -78, z: 16 },                  // farm
+  { kind: 'health', x: -66, z: -78 },                 // forest
+  { kind: 'health', x: -8,  z: 10 },                  // spawn
+  { kind: 'ammo', x: 66, z: -66 },                    // city
+  { kind: 'ammo', x: -62, z: 12 },                    // farm
+  { kind: 'ammo', x: 2,  z: -12 },                    // spawn
+];
+const LOOT_COL = {
+  shotgun: new THREE.Color(0xd86a2a), smg: new THREE.Color(0x3aa8d8),
+  health:  new THREE.Color(0x3fae5a), ammo: new THREE.Color(0xc9a86a),
+};
+function lootColor(L) { return L.kind === 'weapon' ? LOOT_COL[L.w] : LOOT_COL[L.kind]; }
+
+/* cross geometry: two merged boxes (plus sign) for the health pack tops */
+function makeCrossGeo() {
+  const h = new THREE.BoxGeometry(0.56, 0.17, 0.17);
+  const v = new THREE.BoxGeometry(0.17, 0.56, 0.17);
+  const hp = h.attributes.position.array, vp = v.attributes.position.array;
+  const hn = h.attributes.normal.array,   vn = v.attributes.normal.array;
+  const hi = h.index.array,               vi = v.index.array;
+  const g = new THREE.BufferGeometry();
+  const pos = new Float32Array(hp.length + vp.length);
+  pos.set(hp, 0); pos.set(vp, hp.length);
+  const nor = new Float32Array(hn.length + vn.length);
+  nor.set(hn, 0); nor.set(vn, hn.length);
+  const idx = new Uint16Array(hi.length + vi.length);
+  idx.set(hi, 0);
+  const off = hp.length / 3;
+  for (let i = 0; i < vi.length; i++) idx[hi.length + i] = vi[i] + off;
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  return g;
+}
+
+const lootRingGeo = new THREE.RingGeometry(1.6, 2.1, 28);
+lootRingGeo.rotateX(-Math.PI / 2);
+const lootRingMat = new THREE.MeshStandardMaterial({ color: 0xffffff,
+  emissive: 0xffffff, emissiveIntensity: 0.25, transparent: true, opacity: 0.8,
+  side: THREE.DoubleSide, depthWrite: false });
+const lootRings = new THREE.InstancedMesh(lootRingGeo, lootRingMat, LOOT.length);
+const lootIconGeo = new THREE.OctahedronGeometry(0.5);
+const lootIconMat = new THREE.MeshStandardMaterial({ color: 0xffffff,
+  emissive: 0xffffff, emissiveIntensity: 0.28, roughness: 0.3 });
+const lootIcons = new THREE.InstancedMesh(lootIconGeo, lootIconMat, LOOT.length);
+const lootGunGeo = new THREE.BoxGeometry(0.16, 0.3, 1.25);
+const lootGunMat = new THREE.MeshStandardMaterial({ color: 0xffffff,
+  emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 0.5 });
+const lootGuns = new THREE.InstancedMesh(lootGunGeo, lootGunMat, 4);
+const lootBoxGeo = new THREE.BoxGeometry(0.75, 0.75, 0.75);
+const lootBoxMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
+const lootBoxes = new THREE.InstancedMesh(lootBoxGeo, lootBoxMat, 7);
+const lootCrossMat = new THREE.MeshStandardMaterial({ color: 0xeaffea,
+  emissive: 0x7dff9a, emissiveIntensity: 0.9, roughness: 0.4 });
+const lootCrosses = new THREE.InstancedMesh(makeCrossGeo(), lootCrossMat, 4);
+for (const m of [lootRings, lootIcons, lootGuns, lootBoxes, lootCrosses])
+  { m.frustumCulled = false; scene.add(m); }
+
+/* place every loot item once; remember each item's instance slots */
+let _gunIdx = 0, _boxIdx = 0, _crossIdx = 0;
+for (let i = 0; i < LOOT.length; i++) {
+  const L = LOOT[i];
+  L.baseY = terrainHeight(L.x, L.z);
+  L.taken = false; L.respawnT = 0;
+  const c = lootColor(L);
+  _mDummy.rotation.set(0, 0, 0); _mDummy.scale.set(1, 1, 1);
+  _mDummy.position.set(L.x, L.baseY + 0.08, L.z); _mDummy.updateMatrix();
+  lootRings.setMatrixAt(i, _mDummy.matrix); lootRings.setColorAt(i, c);
+  _mDummy.position.set(L.x, L.baseY + 2.2, L.z); _mDummy.updateMatrix();
+  lootIcons.setMatrixAt(i, _mDummy.matrix); lootIcons.setColorAt(i, c);
+  if (L.kind === 'weapon') {
+    L.gunIdx = _gunIdx++;
+    _mDummy.position.set(L.x, L.baseY + 1.15, L.z); _mDummy.updateMatrix();
+    lootGuns.setMatrixAt(L.gunIdx, _mDummy.matrix);
+    lootGuns.setColorAt(L.gunIdx, c);
+  } else {
+    L.boxIdx = _boxIdx++;
+    _mDummy.position.set(L.x, L.baseY + 0.4, L.z); _mDummy.updateMatrix();
+    lootBoxes.setMatrixAt(L.boxIdx, _mDummy.matrix);
+    lootBoxes.setColorAt(L.boxIdx, c);
+    if (L.kind === 'health') {
+      L.crossIdx = _crossIdx++;
+      _mDummy.position.set(L.x, L.baseY + 0.86, L.z);
+      _mDummy.rotation.set(0, i * 0.9, 0); _mDummy.updateMatrix();
+      lootCrosses.setMatrixAt(L.crossIdx, _mDummy.matrix);
+      _mDummy.rotation.set(0, 0, 0);
+    }
+  }
+}
+lootRings.instanceColor.needsUpdate = true;
+lootIcons.instanceColor.needsUpdate = true;
+lootGuns.instanceColor.needsUpdate = true;
+lootBoxes.instanceColor.needsUpdate = true;
+updateWeaponHUD();
+
+function hideLoot(L) {
+  lootRings.setMatrixAt(LOOT.indexOf(L), M_HIDE);
+  lootIcons.setMatrixAt(LOOT.indexOf(L), M_HIDE);
+  if (L.kind === 'weapon') lootGuns.setMatrixAt(L.gunIdx, M_HIDE);
+  else {
+    lootBoxes.setMatrixAt(L.boxIdx, M_HIDE);
+    if (L.kind === 'health') lootCrosses.setMatrixAt(L.crossIdx, M_HIDE);
+  }
+  lootRings.instanceMatrix.needsUpdate = true;
+  lootIcons.instanceMatrix.needsUpdate = true;
+  lootGuns.instanceMatrix.needsUpdate = true;
+  lootBoxes.instanceMatrix.needsUpdate = true;
+  lootCrosses.instanceMatrix.needsUpdate = true;
+}
+function showLoot(L) {
+  const i = LOOT.indexOf(L), c = lootColor(L);
+  _mDummy.rotation.set(0, 0, 0); _mDummy.scale.set(1, 1, 1);
+  _mDummy.position.set(L.x, L.baseY + 0.08, L.z); _mDummy.updateMatrix();
+  lootRings.setMatrixAt(i, _mDummy.matrix);
+  _mDummy.position.set(L.x, L.baseY + 2.2, L.z); _mDummy.updateMatrix();
+  lootIcons.setMatrixAt(i, _mDummy.matrix);
+  if (L.kind === 'weapon') {
+    _mDummy.position.set(L.x, L.baseY + 1.15, L.z); _mDummy.updateMatrix();
+    lootGuns.setMatrixAt(L.gunIdx, _mDummy.matrix);
+  } else {
+    _mDummy.position.set(L.x, L.baseY + 0.4, L.z); _mDummy.updateMatrix();
+    lootBoxes.setMatrixAt(L.boxIdx, _mDummy.matrix);
+    if (L.kind === 'health') {
+      _mDummy.position.set(L.x, L.baseY + 0.86, L.z);
+      _mDummy.rotation.set(0, i * 0.9, 0); _mDummy.updateMatrix();
+      lootCrosses.setMatrixAt(L.crossIdx, _mDummy.matrix);
+      _mDummy.rotation.set(0, 0, 0);
+    }
+  }
+  lootRings.instanceMatrix.needsUpdate = true;
+  lootIcons.instanceMatrix.needsUpdate = true;
+  lootGuns.instanceMatrix.needsUpdate = true;
+  lootBoxes.instanceMatrix.needsUpdate = true;
+  lootCrosses.instanceMatrix.needsUpdate = true;
+}
+
+function pickupLoot(L) {
+  if (L.kind === 'weapon') {
+    const w = WEAPONS[L.w];
+    if (w.owned) {                                  // re-grab tops up shells
+      w.ammo = Math.min(w.max, w.ammo + (L.w === 'shotgun' ? 8 : 60));
+      toast(L.w === 'shotgun' ? 'SHOTGUN SHELLS' : 'SMG AMMO');
+    } else {
+      w.owned = true; curWeapon = L.w;
+      toast(L.w === 'shotgun' ? 'SHOTGUN ACQUIRED' : 'SMG ACQUIRED');
+    }
+    L.taken = true; L.respawnT = 0;                 // weapon spots never respawn
+    hideLoot(L); sfxPickup(); updateWeaponHUD();
+  } else if (L.kind === 'health') {
+    if (P.hp >= 100) return;                        // full health: leave it
+    P.hp = Math.min(100, P.hp + 50);
+    updateHpHUD(); toast('+50 HP');
+    L.taken = true; L.respawnT = 60; hideLoot(L); sfxPickup();
+  } else {                                          // ammo crate
+    const w = WEAPONS[curWeapon];
+    if (curWeapon === 'rifle' || w.ammo >= w.max) return;   // nothing to refill
+    w.ammo = w.max;
+    toast('AMMO REFILLED'); sfxPickup(); updateWeaponHUD();
+    L.taken = true; L.respawnT = 45; hideLoot(L);
+  }
+}
+
+let lootCheckT = 0;
+function lootTick(dt) {
+  const now = performance.now() / 1000;
+  /* bob and spin icons and gun props (zero allocation: shared _mDummy) */
+  for (let i = 0; i < LOOT.length; i++) {
+    const L = LOOT[i];
+    if (L.taken) continue;
+    _mDummy.position.set(L.x, L.baseY + 2.2 + Math.sin(now * 2 + i * 1.7) * 0.25, L.z);
+    _mDummy.rotation.set(0, now * 1.8 + i, 0);
+    _mDummy.scale.set(1, 1, 1);
+    _mDummy.updateMatrix(); lootIcons.setMatrixAt(i, _mDummy.matrix);
+    if (L.kind === 'weapon') {
+      _mDummy.position.set(L.x, L.baseY + 1.15 + Math.sin(now * 2.4 + i) * 0.15, L.z);
+      _mDummy.rotation.set(0, now * 2.2 + i * 2.1, 0);
+      _mDummy.updateMatrix(); lootGuns.setMatrixAt(L.gunIdx, _mDummy.matrix);
+    }
+  }
+  lootIcons.instanceMatrix.needsUpdate = true;
+  lootGuns.instanceMatrix.needsUpdate = true;
+  lootRingMat.opacity = 0.55 + 0.3 * Math.sin(now * 3);
+  /* respawn timers for health (60s) and ammo (45s) */
+  for (let i = 0; i < LOOT.length; i++) {
+    const L = LOOT[i];
+    if (L.taken && L.respawnT > 0) {
+      L.respawnT -= dt;
+      if (L.respawnT <= 0) { L.taken = false; showLoot(L); }
+    }
+  }
+  if (!playing() || P.dead || CAR.driving) return;   // pickups are on-foot only
+  lootCheckT += dt;
+  if (lootCheckT < 0.15) return;                      // radius checks throttled
+  lootCheckT = 0;
+  const px = player.position.x, pz = player.position.z;
+  for (let i = 0; i < LOOT.length; i++) {
+    const L = LOOT[i];
+    if (L.taken) continue;
+    const dx = L.x - px, dz = L.z - pz;
+    if (dx * dx + dz * dz < 4) { pickupLoot(L); break; }   // 2u radius
+  }
+}
+
 /* ============================ CAMERA (OVER-SHOULDER) ====================== */
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 500);
 let camYaw = Math.PI, camPitch = 0.32;               // start behind player
@@ -2066,6 +2341,9 @@ addEventListener('keydown', e => {
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyE') carToggle();                                   // enter / exit the car
   if (e.code === 'KeyF') { if (CAR.driving) carExit(); else doPunch(); } // F exits while driving
+  if (e.code === 'Digit1') selectWeapon('rifle');
+  if (e.code === 'Digit2') selectWeapon('shotgun');
+  if (e.code === 'Digit3') selectWeapon('smg');
 });
 addEventListener('keyup', e => keys[e.code] = false);
 
@@ -2185,6 +2463,13 @@ if (IS_TOUCH) {
   fireBtn.addEventListener('touchstart', e => {
     e.preventDefault(); e.stopPropagation();
     shoot();
+  }, { passive: false });
+
+  const weapBtn = document.getElementById('weap');   // tap weapon HUD to cycle owned weapons
+  weapBtn.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation();
+    const order = ['rifle', 'shotgun', 'smg'].filter(n => WEAPONS[n].owned);
+    selectWeapon(order[(order.indexOf(curWeapon) + 1) % order.length]);
   }, { passive: false });
 
   const punchBtn = document.getElementById('punchbtn');
@@ -3134,6 +3419,7 @@ function tick() {
   }
   for (const e of enemies) updateEnemy(e, sdt, performance.now() / 1000);
   missionTick(sdt);
+  lootTick(sdt);
   muzzle.getWorldPosition(muzzleFlash.position);
   muzzleFlash.intensity *= Math.exp(-26 * sdt);
   for (const t of tracers) {
