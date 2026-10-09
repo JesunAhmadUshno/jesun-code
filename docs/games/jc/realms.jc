@@ -1889,14 +1889,8 @@ to rebuild_dl
                 sy is (f["y"] - camy) * 8 - rise + G["shy"]
                 push ["text", sx, sy, f["t"], f["c"], 8] to dl
     hpf is (G["hp"] * 100) / G["maxhp"]
-    if hpf is less than 30 then
-        note Low-HP warning: red pulsing vignette border.
-        tm is G["tick"] % 8
-        pulse is 2 + ipart with tm / 4
-        push ["rect", 0, 0, 192, pulse, "c02020"] to dl
-        push ["rect", 0, 128 - pulse, 192, pulse, "c02020"] to dl
-        push ["rect", 0, 0, pulse, 128, "c02020"] to dl
-        push ["rect", 192 - pulse, 0, pulse, 128, "c02020"] to dl
+    note Low-HP vignette lives in the driver (realms.html #vignette overlay)
+    note so it pulses in 2D and 3D FPP alike. This dl only carries the world.
     if G["flash"] is greater than 0 then
         G["flash"] is G["flash"] - 1
         push ["rect", 0, 0, 192, 128, "ffffff"] to dl

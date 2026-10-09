@@ -12,17 +12,26 @@
   #wrap { position:relative; width:100%; max-width:768px; }
   canvas { width:100%; height:auto; display:block; background:#111; border:2px solid #3a3a4a; border-radius:6px; image-rendering:pixelated; image-rendering:crisp-edges; }
   #gl { position:absolute; inset:0; width:100%; height:100%; image-rendering:auto; display:none; border-radius:6px; }
-  #hud { display:flex; flex-wrap:wrap; gap:8px 16px; background:#14141c; border:1px solid #3a3a4a; border-radius:6px; padding:8px 12px; margin-top:8px; font-size:14px; width:100%; max-width:768px; }
+  #hud { display:flex; flex-wrap:wrap; gap:8px 16px; background:#14141c; border:1px solid #3a3a4a; border-radius:6px; padding:10px 12px; margin-top:8px; font-size:14px; width:100%; max-width:768px; }
   #hud b { color:#ffd75e; }
-  #hpbar { width:110px; height:12px; background:#3a0d0d; border:1px solid #666; border-radius:3px; display:inline-block; vertical-align:middle; }
-  #hpfill { height:100%; background:linear-gradient(90deg,#e03030,#ff7a5e); border-radius:2px; width:100%; transition:width .2s; }
+  #hpbar { width:140px; height:16px; background:#3a0d0d; border:1px solid #666; border-radius:4px; display:inline-block; vertical-align:middle; }
+  #hpfill { height:100%; background:linear-gradient(90deg,#e03030,#ff7a5e); border-radius:3px; width:100%; transition:width .2s; }
+  #hptext { font-weight:bold; font-size:15px; }
+  #hud.lowhp #hptext { color:#ff6a6a; }
   #mission { color:#8fd6ff; width:100%; }
   #quest { color:#ffe75a; width:100%; font-size:13px; }
+  #quest .chiplabel { display:inline-block; font-size:10px; font-weight:bold; letter-spacing:2px; color:#111; background:#ffe75a; border-radius:3px; padding:2px 7px; margin-right:8px; vertical-align:1px; }
   #bossbar { position:absolute; top:6px; left:50%; transform:translateX(-50%); width:72%; z-index:5; text-align:center; pointer-events:none; }
-  #bossname { font-size:11px; color:#ff8a8a; letter-spacing:2px; text-shadow:0 1px 3px #000; }
-  #bosstrack { height:8px; background:#3a0d0d; border:1px solid #a02020; border-radius:4px; overflow:hidden; margin-top:2px; }
+  #bossname { font-size:13px; font-weight:bold; color:#ff8a8a; letter-spacing:2px; text-shadow:0 1px 3px #000; }
+  #bosstrack { height:12px; background:#3a0d0d; border:1px solid #a02020; border-radius:6px; overflow:hidden; margin-top:3px; }
   #bossfill { height:100%; background:linear-gradient(90deg,#c02020,#ff5a5a); width:100%; transition:width .2s; }
-  #log { width:100%; max-width:768px; height:84px; overflow:hidden; background:#0d0d13; border:1px solid #3a3a4a; border-radius:6px; margin-top:8px; padding:8px 12px; font-size:13px; line-height:1.5; }
+  #bossbar.low #bossname { animation:bosslow 1s ease-in-out infinite; }
+  @keyframes bosslow { 0%,100% { color:#ff8a8a; } 50% { color:#ff2020; } }
+  #vignette { position:absolute; inset:0; z-index:4; pointer-events:none; border-radius:6px; opacity:0;
+    background:radial-gradient(ellipse at center, transparent 52%, rgba(224,32,32,.55) 100%); }
+  #vignette.on { animation:vpulse 1.4s ease-in-out infinite; }
+  @keyframes vpulse { 0%,100% { opacity:.35; } 50% { opacity:.9; } }
+  #log { width:100%; max-width:768px; height:76px; overflow:hidden; background:#0d0d13; border:1px solid #3a3a4a; border-radius:6px; margin-top:8px; padding:8px 12px; font-size:13px; line-height:1.55; }
   #log div:last-child { color:#ffd75e; }
   .overlay { position:absolute; inset:0; background:rgba(5,5,10,.93); display:flex; flex-direction:column; align-items:center; justify-content:safe center; text-align:center; border-radius:6px; padding:20px; z-index:10; overflow-y:auto; }
   .overlay h2 { color:#ffd75e; letter-spacing:3px; margin-bottom:12px; }
@@ -46,6 +55,18 @@
     #diffrow button { min-width:0; flex:1; max-width:120px; min-height:48px; font-size:14px; padding:8px 6px; }
     #startBtn { font-size:18px; }
   }
+  @media (max-width:520px) {
+    #hud { font-size:16px; gap:10px 16px; padding:12px; }
+    #hpbar { width:150px; height:20px; }
+    #hptext { font-size:17px; }
+    #hud span { line-height:1.7; }
+    #mission { font-size:14px; }
+    #quest { font-size:14px; }
+    #bossname { font-size:14px; }
+    #bosstrack { height:14px; }
+    #mutebtn { min-height:40px; font-size:13px !important; padding:6px 14px !important; }
+    #log { font-size:14px; height:80px; }
+  }
   .hidden { display:none !important; }
   #touch { display:none; width:100%; max-width:768px; margin-top:8px; justify-content:space-between; }
   #dpad { display:grid; grid-template-columns:repeat(3,64px); grid-template-rows:repeat(3,64px); gap:6px; }
@@ -68,6 +89,7 @@
   <canvas id="gl" width="576" height="384"></canvas>
   <canvas id="game" width="192" height="128"></canvas>
   <div id="bossbar" class="hidden"><span id="bossname"></span><div id="bosstrack"><div id="bossfill"></div></div></div>
+  <div id="vignette"></div>
   <div id="loading" class="overlay">
     <h2>SUMMONING THE DELVE</h2>
     <p id="loadmsg">Loading the Jesun.Code interpreter...</p>
@@ -137,7 +159,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261008q';
+var APP_VERSION='20261009a';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -791,6 +813,9 @@ function updateHUD(h, msgs){
   if(!window.GLWhyShown && h && h.mode==='fpp'){ window.GLWhyShown=true; msgs=msgs.concat(['3D status: GL_OK='+window.GL_OK+' ('+window.GL_WHY+')']); }
   document.getElementById('hpfill').style.width=Math.max(0,Math.min(100,h.hp/h.maxhp*100))+'%';
   document.getElementById('hptext').textContent=h.hp+'/'+h.maxhp;
+  var lowhp=h.maxhp>0&&h.hp/h.maxhp<0.30;
+  document.getElementById('hud').classList.toggle('lowhp',lowhp);
+  document.getElementById('vignette').classList.toggle('on',lowhp);
   document.getElementById('depth').textContent=h.depth;
   document.getElementById('gold').textContent=h.gold;
   document.getElementById('potions').textContent=h.potions;
@@ -800,14 +825,17 @@ function updateHUD(h, msgs){
   document.getElementById('realm').textContent=h.realm;
   document.getElementById('diff').textContent=h.diff;
   document.getElementById('mission').textContent='Mission: '+h.mission;
-  document.getElementById('quest').textContent=h.quest?('Objective: '+h.quest):'';
+  var q=document.getElementById('quest');
+  if(h.quest){ q.innerHTML='<b class="chiplabel">OBJECTIVE</b>'+esc(h.quest); q.style.display=''; }
+  else { q.style.display='none'; }
   var bb=document.getElementById('bossbar');
   if(h.bosshp>0){
     bb.classList.remove('hidden');
     document.getElementById('bossname').textContent=h.bossname||'BOSS';
     document.getElementById('bossfill').style.width=Math.max(0,Math.min(100,h.bosshp/h.bossmax*100))+'%';
+    bb.classList.toggle('low',h.bossmax>0&&h.bosshp/h.bossmax<0.30);
   } else bb.classList.add('hidden');
-  document.getElementById('log').innerHTML=msgs.map(function(m){ return '<div>'+esc(m)+'</div>'; }).join('');
+  document.getElementById('log').innerHTML=msgs.slice(-3).map(function(m){ return '<div>'+esc(m)+'</div>'; }).join('');
 }
 
 function parseRes(raw){ var s=(raw&&raw.toJs)?raw.toJs():raw; return JSON.parse(s); }
