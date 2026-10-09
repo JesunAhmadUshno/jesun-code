@@ -70,6 +70,7 @@ globalThis.__R3D = {
   CR, TX, AMB, HORSE, emBodyIM, toastEl, W,
   bikeEnter, bikeExit, bikeRebuild, BIKE, bikeBodyIM, bikeHintEl,
   bcEnter, bcExit, bcRebuild, BC, bcBodyIM, bcHintEl,
+  scEnter, scExit, scRebuild, SC, scBodyIM, scHintEl,
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
@@ -590,9 +591,10 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   /* 10a. draw-call budget: the bike adds the single allowed InstancedMesh
          (41 after the PERF-2 consolidation: 46 -> 41; flora 7->3 meshes,
          lootBoxes folded into the shared pickupBoxes mesh), then the bicycle
-         adds its one (41 -> 42); one render site per tick */
+         adds its one (41 -> 42), then the scooter adds its one (42 -> 43);
+         one render site per tick */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('wildlife: exactly one new InstancedMesh vs main (42: the bike body + the bicycle body)', imCount === 42, 'count=' + imCount);
+  check('wildlife: exactly one new InstancedMesh vs main (43: the bike body + the bicycle body + the scooter body)', imCount === 43, 'count=' + imCount);
   globalThis.__renderCount = 0; frame(30);
   check('wildlife: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
@@ -748,8 +750,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('bike: one shared body InstancedMesh holds all three slots',
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('bike: InstancedMesh count is 41 or 42 (one allowed for the bike, one for the bicycle; 46 -> 41 after PERF-2)',
-    imCount2 === 41 || imCount2 === 42, 'count=' + imCount2);
+  check('bike: InstancedMesh count is 42 or 43 (one allowed for the bike, one for the bicycle, one for the scooter; 46 -> 41 after PERF-2)',
+    imCount2 === 42 || imCount2 === 43, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -848,8 +850,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('bicycle: one shared body InstancedMesh holds all three slots',
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('bicycle: InstancedMesh count is 42 (one allowed for the bicycle: 41 -> 42)',
-    imCount3 === 42, 'count=' + imCount3);
+  check('bicycle: InstancedMesh count is 43 (one allowed for the bicycle: 41 -> 42; the scooter makes 43)',
+    imCount3 === 43, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -931,6 +933,112 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   globalThis.__renderCount = 0;
   frame(30);
   check('bicycle: exactly one render per tick', globalThis.__renderCount === 30,
+    'renders=' + globalThis.__renderCount);
+}
+
+/* ================= 13. SCOOTER (Phase 5) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.CAR.driving = false; G.HORSE.riding = false;
+  G.BUS.driving = false; G.BUS.riding = false; G.TX.riding = false;
+  G.BIKE.driving = false; G.BC.driving = false; G.SC.driving = false;
+  G.player.visible = true;
+  G.player.position.set(0, groundY(0, 0), 0);          // anchor chunk (0,0)
+  frame(3);                                            // scUpdate seeds the 3 slots
+  check('scooter: three seeded slots placed near amenities',
+    G.SC.slots.length === 3 && G.SC.slots.every(s => s.placed === true),
+    G.SC.slots.map(s => '(' + s.x.toFixed(0) + ',' + s.z.toFixed(0) + ')').join(' '));
+  check('scooter: one shared body InstancedMesh holds all three slots',
+    G.scBodyIM.isInstancedMesh === true);
+  const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
+  check('scooter: InstancedMesh count is 43 (one allowed for the scooter: 42 -> 43)',
+    imCount4 === 43, 'count=' + imCount4);
+
+  /* determinism on revisit: same player spot, forced rebuild, identical pads */
+  const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
+  G.SC.anchorCx = 1e9; G.SC.anchorCz = 1e9; G.SC.key = '';   // force rebuild
+  frame(1);
+  const scSamePose = (s, p) =>
+    Math.abs(s.x - p[0]) < 1e-9 && Math.abs(s.z - p[1]) < 1e-9 && Math.abs(s.yaw - p[2]) < 1e-9;
+  check('scooter: pads are deterministic on rebuild',
+    G.SC.slots.every((s, i) => scSamePose(s, scPoses[i])));
+
+  /* hysteresis: move slot 0 away, stand on it, rebuild must keep it there */
+  const scS0 = G.SC.slots[0];
+  scS0.x += 30; scS0.z += 30;
+  G.player.position.set(scS0.x, groundY(scS0.x, scS0.z), scS0.z);
+  G.SC.anchorCx = 1e9; G.SC.anchorCz = 1e9; G.SC.key = '';
+  frame(1);
+  check('scooter: pad sticks under the player (no chunk-cross pop)',
+    Math.abs(G.SC.slots[0].x - scS0.x) < 1e-9 && Math.abs(G.SC.slots[0].z - scS0.z) < 1e-9);
+
+  /* ride: E near the scooter enters */
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.SC.anchorCx = 1e9; G.SC.anchorCz = 1e9; G.SC.key = '';
+  frame(2);
+  const scx = G.SC.slots[0].x, scz = G.SC.slots[0].z;
+  G.player.position.set(scx, groundY(scx, scz), scz);   // exactly on slot 0: nearest wins
+  frame(2);
+  check('scooter: RIDE hint appears near a parked scooter',
+    G.SC.hintOn === true && G.SC.nearIdx === 0 && G.scHintEl.style.opacity === 1);
+  G.scEnter();                                       // real entry
+  check('scooter: E near scooter enters (SC.driving true)',
+    G.SC.driving === true && G.player.visible === false);
+  check('scooter: mount toast fires', G.toastEl.textContent === 'SCOOTER');
+
+  /* kick-push: press edges (not holds) add speed bursts */
+  const scStart = G.SC.pos.clone();
+  for (let k = 0; k < 4; k++) { G.keys.KeyW = true; frame(1); G.keys.KeyW = false; frame(24); }
+  G.keys.KeyW = false;
+  const scMoved = G.SC.pos.distanceTo(scStart);
+  check('scooter: kick presses move the scooter', scMoved > 5, 'moved=' + scMoved.toFixed(2) + 'u');
+
+  /* coast decay between kicks: no input, speed falls */
+  const scCoastSpd = G.SC.speed;
+  frame(120);
+  check('scooter: speed coasts down between kicks',
+    G.SC.speed < scCoastSpd * 0.6, 'from=' + scCoastSpd.toFixed(2) + ' to=' + G.SC.speed.toFixed(2));
+
+  /* lean changes sign with left/right steering (bicycle sign convention).
+     Teleport back to the slot and face away from the amenity so the free
+     run cannot eat the speed on a collider; refresh speed before each
+     phase so the lean target stays well above the threshold. */
+  G.SC.pos.set(G.SC.slots[0].x, G.SC.slots[0].y, G.SC.slots[0].z);
+  G.SC.heading = Math.atan2(Math.cos(G.SC.slots[0].yaw), Math.sin(G.SC.slots[0].yaw));
+  G.SC.hitCd = 0; G.SC.lean = 0; G.SC.steer = 0;
+  G.SC.speed = 18;
+  G.keys.KeyW = false; G.keys.KeyD = true;
+  frame(45);
+  const scLeanR = G.SC.lean;
+  G.SC.speed = 18;
+  G.keys.KeyD = false; G.keys.KeyA = true;
+  frame(45);
+  const scLeanL = G.SC.lean;
+  G.keys.KeyA = false;
+  check('scooter: lean changes sign with left/right steering',
+    scLeanR < -0.05 && scLeanL > 0.05,
+    'leanR=' + scLeanR.toFixed(3) + ' leanL=' + scLeanL.toFixed(3));
+
+  /* bunny-hop: SPACE press edge pops the scooter vertically while riding */
+  G.keys.Space = true;
+  frame(1);
+  G.keys.Space = false;
+  frame(8);
+  check('scooter: SPACE bunny-hop pops while riding',
+    G.SC.hopY > 0.1, 'hopY=' + G.SC.hopY.toFixed(2));
+  frame(60);                                           // lands cleanly
+  check('scooter: bunny-hop lands back on the ground', G.SC.hopY === 0);
+
+  /* exit returns the player on foot */
+  G.scExit();                                        // real exit
+  check('scooter: exit returns player on foot',
+    G.SC.driving === false && G.player.visible === true);
+  check('scooter: dismount toast fires', G.toastEl.textContent === 'ON FOOT');
+
+  /* draw-call budget: exactly one renderer.render per tick */
+  globalThis.__renderCount = 0;
+  frame(30);
+  check('scooter: exactly one render per tick', globalThis.__renderCount === 30,
     'renders=' + globalThis.__renderCount);
 }
 
