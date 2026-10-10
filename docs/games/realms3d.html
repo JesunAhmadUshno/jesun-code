@@ -21614,7 +21614,7 @@ function newGame() {
   if (MS.state === 'ACTIVE') hideMissionProps();
   MS.state = 'IDLE'; MS.idx = -1; MS.phase = 0; MS.prog = 0; MS.giverT = 0;
   for (let i = 0; i < MS.done.length; i++) MS.done[i] = false;
-  cash = 0; kills = 0;
+  cash = 0; kills = 0; bankBal = 0;   // Phase 5 bank: a new game starts broke
   SOCCER.goals = 0; updateSoccerChip(true);   // Phase 5 soccer: new session, new tally
   HOOPS.pts = 0; HOOPS.streak = 0; HOOPS.shots = 0; updateHoopsChip(true);  // Phase 5 hoops
   TENNIS.pts = 0; TENNIS.rally = 0; updateTennisChip(true);  // Phase 5 tennis: new session, new tally
