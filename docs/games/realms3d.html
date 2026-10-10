@@ -539,6 +539,30 @@
     letter-spacing: 2px; display: none; pointer-events: none;
   }
   #firearr { display: inline-block; color: #ff7a3c; font-size: 14px; }
+  /* ---- landmark theater HUD (Phase 5): bearing chip mirrors #hospchip,
+         stacked below #firechip in the top-left stack (#firechip already
+         owns the slot directly under #hospchip) so live chips never
+         overlap. DOM only, zero draw calls. The #thallhint door prompt and
+         the #tshowhint show/exit prompt mirror the #hospheal pattern
+         (clickable, touch-friendly). ---- */
+  #thallchip {
+    position: absolute; top: 555px; left: 18px; color: #f2e4f4; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #8a5a8e; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #thallarr { display: inline-block; color: #d8a0e0; font-size: 14px; }
+  #thallhint {
+    position: absolute; bottom: 758px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #e8c8e0; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #tshowhint {
+    position: absolute; bottom: 848px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #f0d8a8; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
   #hospheal {
     position: absolute; bottom: 722px; left: 50%; transform: translateX(-50%);
     color: #0c0e0a; background: #9be8e0; font-size: 13px; letter-spacing: 3px;
@@ -908,7 +932,10 @@
   <div id="lmausechip"><span id="lmausearr">^</span> <span id="lmauusetxt"></span></div>
   <div id="hospchip"><span id="hosparr">^</span> <span id="hosptxt"></span></div>
   <div id="firechip"><span id="firearr">^</span> <span id="firetxt"></span></div>
+  <div id="thallchip"><span id="thallarr">^</span> <span id="thalltxt"></span></div>
   <div id="hospheal"></div>
+  <div id="thallhint"></div>
+  <div id="tshowhint"></div>
 </div>
 
 <div id="dmgflash"></div>
@@ -5594,6 +5621,7 @@ function busted() {
   if (CIVIC.state) civicExit();   // Phase 5 civic: busted out of the menu too
   if (WORSHIP.state) worshipExit();   // Phase 5 worship: busted out of the chapel too
   if (APARTMENT.state) apartmentExit();   // Phase 5 apartments: busted out of the unit too
+  if (THEATERHALL.inHall) theaterHallExit();   // Phase 5 theater hall: busted out of the screening too
   if (TX.riding) taxiExit();   // busted out of the taxi too
   if (BIKE.driving) bikeExit();   // busted off the bike too
   if (FT.driving) ftExit();   // busted out of the fire truck too
@@ -7489,8 +7517,383 @@ function hospTick(dt) {
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(hospTick));
 
+/* ================= PHASE 5: LANDMARK THEATER v1 (buildings/places) ================
+   One seeded landmark theater per rare chunk (the 'theater' amenity type: own
+   hash residue h%53===31 checked after every existing type including 'hosp',
+   cross-type winner-take-all spacing via amenityCenterFor, 14m flora clear
+   zone via the shared rebuildFloraNoGo pass). Bespoke merged geometry,
+   exactly +1 draw call (the 'theater' InstancedMesh built by the shared
+   AMEN_DEF loop below): stucco lobby box + auditorium mass with a brand
+   band, a marquee canopy with a 'THEATER' sign board (makeSignTex text band)
+   and two rows of marquee bulbs that sample the WIN_GLOW_TEX warm rect via
+   amenGlowUV (the existing day/night emissive ramp lights them at night;
+   zero new runtime lights), poster boards, a ticket booth, and a hedge-ring
+   perimeter with a front entrance gap (the stadium-gate idiom). The building
+   fits inside the 14m amenity flora clear zone (pad radius 13). Gameplay:
+   walk in through the entrance gap to the door, ENTER [E] teleports the
+   player to the cached screening room (built once, parked at y=-300, one
+   merged mesh + one screen quad, both visible=false until entered: zero net
+   draws when cached). The room holds merged seat rows, a stage, red
+   curtains, and one big NOW SHOWING screen, lit by constant emissive (no
+   new runtime lights; never a black doorway). Inside, WATCH SHOW [E] costs
+   $5, advances game time 2 hours through the day/night tick, restores +25
+   HP, and plays a short WebAudio jingle; EXIT [E] teleports back to the
+   door. The HUD prompt and the post-show toast keep the mechanic visible:
+   no silent mechanics. Pure seeded math, no RNG anywhere in this block.
+   Naming note: the street-performer venue system already owns the THEATER
+   const, the #theaterchip div, and the #theaterhint div, so this landmark
+   uses the THEATERHALL namespace, the #thallchip bearing chip, and the
+   #thallhint / #tshowhint prompts (no collisions). */
+const LMTH_R = 13, LMTH_SEGS = 16, LMTH_GATE_K = 4;   // gate at angle PI/2 (front, +Z)
+const LMTH_CHIP_R2 = 500 * 500;             // chip shows within 500m
+const LMTH_DOOR = [0, 6.8];                 // door trigger, park-local (just outside the doors)
+const LMTH_DOOR_R2 = 3.5 * 3.5;             // door prompt radius
+const THEATER_ROOM_Y = -300;                // the cached screening room sits far below the world
+const THEATER_SHOW_COST = 5;
+const THEATER_SHOW_HEAL = 25;
+const THEATER_SHOW_HOURS = 2;
+/* radial colliders, park-local [x, z, r]: hedge-ring wall (gate gap open),
+   lobby/auditorium edges (the door column x=0 stays open), marquee posts,
+   poster boards, door posts, ticket booth, gate posts. Mirrors the
+   LMHOSP_COL idiom. */
+const LMTHEATER_COL = [];
+for (let _tk = 0; _tk < LMTH_SEGS; _tk++) {
+  if (_tk === LMTH_GATE_K) continue;        // entrance gap stays walkable
+  const _ta = _tk / LMTH_SEGS * Math.PI * 2;
+  LMTHEATER_COL.push([LMTH_R * Math.cos(_ta), LMTH_R * Math.sin(_ta), 2.2]);
+}
+for (const _tz of [-9, -2, 6]) for (const _tx of [-8, -4, 4, 8]) LMTHEATER_COL.push([_tx, _tz, 2.6]);
+for (const _px of [-4.2, 4.2]) LMTHEATER_COL.push([_px, 8.4, 0.4]);   // marquee posts
+for (const _px of [-5.5, 5.5]) LMTHEATER_COL.push([_px, 6.3, 0.9]);   // poster boards
+for (const _px of [-1.9, 1.9]) LMTHEATER_COL.push([_px, 6.0, 0.5]);   // door posts
+LMTHEATER_COL.push([6.5, 9.5, 1.3]);                                 // ticket booth
+for (const _sx of [-2.6, 2.6]) LMTHEATER_COL.push([_sx, 12.74, 0.5]); // gate posts
+function buildLandmarkTheaterGeo() {
+  const parts = [];
+  const STUCCO = 0xd8cfae, CONC = 0x565a60, TRIM = 0x8a1f2d, DARK = 0x241f1c,
+        CREAM = 0xf2ede0, GOLD = 0xc9a227, PADM = 0x3f4145, HEDGE = 0x2f6b46;
+  amenPart(parts, 3, 13, 0, 0, 0, 0.02, 0, PADM);                  // ground pad disc
+  /* lobby box + auditorium mass + brand band */
+  amenPart(parts, 0, 16, 4.5, 8, 0, 2.25, 2, STUCCO);
+  amenPart(parts, 0, 16.4, 0.5, 8.4, 0, 4.7, 2, TRIM);
+  amenPart(parts, 0, 13, 6.5, 11, 0, 3.25, -3.5, CREAM);
+  amenPart(parts, 0, 13.4, 0.5, 11.4, 0, 6.7, -3.5, CONC);
+  amenPart(parts, 0, 13.2, 1.0, 11.2, 0, 6.1, -3.5, TRIM);
+  /* entrance: dark doorway plane (visual only; entry is the E teleport),
+     glowing transom, door posts, step */
+  const _door = amenPart(parts, 5, 3.6, 3.2, 0, 0, 1.6, 6.06, DARK);
+  amenUV(_door, 0.5, 0.5);
+  const _transom = new THREE.PlaneGeometry(3.6, 0.5);
+  _transom.translate(0, 3.5, 6.06);
+  amenGlowUV(_transom); amenPaint(_transom, 0xffe9c0); parts.push(_transom);
+  for (const _dx of [-1.9, 1.9]) amenPart(parts, 0, 0.4, 3.4, 0.4, _dx, 1.7, 6.0, TRIM);
+  amenPart(parts, 0, 4.6, 0.25, 1.2, 0, 0.12, 6.4, CONC);
+  /* marquee: canopy + posts, sign board (text band), two bulb rows that
+     glow at night through the shared day/night emissive ramp */
+  amenPart(parts, 0, 9, 0.4, 3, 0, 3.6, 7.2, TRIM);
+  for (const _px of [-4.2, 4.2]) amenPart(parts, 0, 0.3, 3.6, 0.3, _px, 1.8, 8.4, CONC);
+  const _mq = amenPart(parts, 5, 8, 2, 0, 0, 5.2, 6.05, 0xffffff);
+  amenSignUV(_mq, 0);                                            // sign-text band of makeSignTex
+  for (let _bi = 0; _bi < 9; _bi++) {
+    const _bx = -3.2 + _bi * 0.8;
+    for (const _by of [4.1, 6.3]) {
+      const _bq = new THREE.PlaneGeometry(0.32, 0.32);
+      _bq.translate(_bx, _by, 6.06);
+      amenGlowUV(_bq); amenPaint(_bq, 0xfff2c8);
+      parts.push(_bq);
+    }
+  }
+  /* poster boards + ticket booth */
+  for (const _px of [-5.5, 5.5]) {
+    amenPart(parts, 0, 2.0, 2.6, 0.18, _px, 1.5, 6.3, CONC);
+    amenPart(parts, 0, 1.7, 2.3, 0.2, _px, 1.5, 6.3, GOLD);
+  }
+  amenPart(parts, 0, 2.2, 2.6, 2.2, 6.5, 1.3, 9.5, STUCCO);
+  amenPart(parts, 0, 2.5, 0.3, 2.5, 6.5, 2.75, 9.5, TRIM);
+  /* hedge-ring perimeter wall: the entrance segment stays open */
+  for (let _k = 0; _k < LMTH_SEGS; _k++) {
+    if (_k === LMTH_GATE_K) continue;
+    const _a = _k / LMTH_SEGS * Math.PI * 2;
+    const _w = (2 * Math.PI * LMTH_R / LMTH_SEGS) * 1.02;
+    amenPart(parts, 0, _w, 1.2, 0.7,
+             LMTH_R * Math.cos(_a), 0.6, LMTH_R * Math.sin(_a),
+             HEDGE, -_a - Math.PI / 2);
+  }
+  for (const _sx of [-2.6, 2.6]) amenPart(parts, 0, 0.5, 2.6, 0.5, _sx, 1.3, 12.74, CREAM);
+  return mergeAmenGeos(parts);
+}
+/* ---- the cached screening room: one merged mesh, built once, parked at
+        y=THEATER_ROOM_Y under the active theater (zero net draws when
+        cached: visible=false until entered). Seat rows, stage, red
+        curtains, sconces; the NOW SHOWING screen is a second small mesh
+        parented to the room. Lit by constant emissive (fully lit, never a
+        black doorway); zero new runtime lights. ---- */
+function buildTheaterHallGeo() {
+  const parts = [];
+  const CARPET = 0x5a1f28, WALL = 0x3a3230, CEIL = 0x2a2523, STAGEW = 0x6b4a2e,
+        CURTAIN = 0x8a1f2d, SEAT = 0x6a2230, SEATD = 0x3a2026,
+        TRIMH = 0xc9a227, SCONCE = 0xffe0b0;
+  amenPart(parts, 0, 26, 0.4, 24, 0, -0.2, 2, CARPET);           // floor (z -10..14)
+  amenPart(parts, 0, 26, 9, 0.6, 0, 4.5, 13.7, WALL);           // back wall
+  amenPart(parts, 0, 26, 9, 0.6, 0, 4.5, -9.7, WALL);           // front wall
+  amenPart(parts, 0, 0.6, 9, 24, -12.7, 4.5, 2, WALL);          // side walls
+  amenPart(parts, 0, 0.6, 9, 24, 12.7, 4.5, 2, WALL);
+  amenPart(parts, 0, 26, 0.4, 24, 0, 9.2, 2, CEIL);             // ceiling
+  amenPart(parts, 0, 12, 1.2, 4.5, 0, 0.6, -7, STAGEW);         // stage
+  amenPart(parts, 0, 12.4, 0.25, 4.9, 0, 1.32, -7, TRIMH);      // stage lip
+  amenPart(parts, 0, 2.2, 6.5, 0.7, -7.1, 3.85, -8.9, CURTAIN); // red curtains
+  amenPart(parts, 0, 2.2, 6.5, 0.7, 7.1, 3.85, -8.9, CURTAIN);
+  amenPart(parts, 0, 16.5, 1.8, 0.7, 0, 7.6, -8.9, CURTAIN);    // valance
+  for (let _r = 0; _r < 3; _r++)                                // three seat rows
+    for (let _i = 0; _i < 8; _i++) {
+      const _sx = -6.3 + _i * 1.8, _sz = -1 + _r * 2.4;
+      amenPart(parts, 0, 0.95, 0.18, 0.95, _sx, 0.62, _sz, SEAT);
+      amenPart(parts, 0, 0.95, 1.05, 0.18, _sx, 1.15, _sz + 0.42, SEAT);
+      amenPart(parts, 0, 0.8, 0.5, 0.8, _sx, 0.28, _sz, SEATD);
+    }
+  for (const _wx of [-12.3, 12.3]) for (const _wz of [-4, 4])
+    amenPart(parts, 0, 0.25, 1.4, 0.5, _wx, 4.2, _wz, SCONCE);  // sconces
+  return mergeAmenGeos(parts);
+}
+function makeTheaterScreenTex() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 144;
+  const g = c.getContext('2d');
+  g.fillStyle = '#0a1626'; g.fillRect(0, 0, 256, 144);
+  g.fillStyle = '#c9a227';
+  g.fillRect(6, 6, 244, 4); g.fillRect(6, 134, 244, 4);
+  g.fillRect(6, 6, 4, 132); g.fillRect(246, 6, 4, 132);
+  g.fillStyle = '#f2ede0'; g.font = 'bold 26px sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('NOW SHOWING', 128, 62);
+  g.fillStyle = '#8a9cc8'; g.font = '15px sans-serif';
+  g.fillText('A REALMS PICTURE', 128, 96);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const theaterHallMesh = new THREE.Mesh(buildTheaterHallGeo(),
+  new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xfff1d8,
+    emissiveIntensity: 0.7, roughness: 0.9, side: THREE.DoubleSide }));
+theaterHallMesh.castShadow = false;
+theaterHallMesh.frustumCulled = false;
+theaterHallMesh.visible = false;          // cached: zero net draws until entered
+const theaterHallScreen = new THREE.Mesh(new THREE.PlaneGeometry(8.5, 4.8),
+  new THREE.MeshBasicMaterial({ map: makeTheaterScreenTex() }));
+theaterHallScreen.position.set(0, 4.3, -9.35);
+theaterHallScreen.frustumCulled = false;
+theaterHallMesh.add(theaterHallScreen);   // rides the room when it parks under a theater
+scene.add(theaterHallMesh);
+/* ---- landmark theater gameplay: ENTER the cached screening room, WATCH
+        SHOW ($5, +2 game hours, +25 HP, jingle), EXIT back to the door.
+        The E chain (after the hospital heal) runs WATCH SHOW first, then
+        EXIT, so E never traps: a broke visitor is denied the show and
+        offered the exit. HUD prompts + toasts + sfx: no silent mechanics. ---- */
+const THEATERHALL = {
+  inHall: false, hintEnter: false, showOn: false, nearIdx: -1,
+  doorX: 0, doorZ: 0,
+  seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the stage (-Z)
+  hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
+  hallPos: new THREE.Vector3(),
+  tickT: 0, chipT: 0,
+};
+const thallhintEl = document.getElementById('thallhint');
+const tshowhintEl = document.getElementById('tshowhint');
+const thallChipEl = document.getElementById('thallchip');
+const thallTxtEl = document.getElementById('thalltxt');
+const thallArrEl = document.getElementById('thallarr');
+thallhintEl.textContent = 'ENTER [E]';   // the tick corrects this for touch (IS_TOUCH is declared later)
+thallhintEl.addEventListener('click', () => { if (THEATERHALL.hintEnter) theaterHallEnter(); });
+tshowhintEl.addEventListener('click', () => { if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); });
+function theaterHallDoorWorld(a) {   // door trigger in world coords (the redistributeAmenities yaw idiom)
+  const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+  return { x: a.x + LMTH_DOOR[0] * c + LMTH_DOOR[1] * s,
+           z: a.z - LMTH_DOOR[0] * s + LMTH_DOOR[1] * c };
+}
+function theaterJingle() {   // short show jingle: C-E-G-C arpeggio, the sfxBusted setTimeout idiom
+  sfxBlip(523, 0.12, 'triangle', 0.22);
+  setTimeout(() => sfxBlip(659, 0.12, 'triangle', 0.22), 140);
+  setTimeout(() => sfxBlip(784, 0.12, 'triangle', 0.22), 280);
+  setTimeout(() => sfxBlip(1047, 0.26, 'triangle', 0.22), 420);
+}
+function theaterHallEnter() {
+  if (THEATERHALL.inHall || THEATER.watching || AMUSE.riding || STADIUM.watching || CIVIC.state || WORSHIP.state || APARTMENT.state
+      || SLOT.playing || PIANO.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || FT.driving || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  emoteCancel();   // no emotes while inside
+  const i = THEATERHALL.nearIdx;
+  if (i < 0) return;
+  const arr = AMEN.active.theater;
+  if (i >= arr.length) return;
+  const a = arr[i];
+  const d = theaterHallDoorWorld(a);
+  const dx = player.position.x - d.x, dz = player.position.z - d.z;
+  if (dx * dx + dz * dz > LMTH_DOOR_R2) return;
+  THEATERHALL.inHall = true; THEATERHALL.showOn = true;
+  THEATERHALL.hintEnter = false; thallhintEl.style.opacity = 0;   // door prompt off: E now watches
+  THEATERHALL.doorX = player.position.x; THEATERHALL.doorZ = player.position.z;
+  THEATERHALL.seatX = a.x; THEATERHALL.seatZ = a.z + 5.2; THEATERHALL.seatYaw = Math.PI;
+  THEATERHALL.hallPos.set(a.x, THEATER_ROOM_Y, a.z + 5.2);
+  player.position.set(THEATERHALL.seatX, THEATER_ROOM_Y, THEATERHALL.seatZ);
+  player.rotation.y = THEATERHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0; P.grounded = true;
+  player.visible = true;
+  theaterHallMesh.position.set(a.x, THEATER_ROOM_Y, a.z);   // park the cached room under this theater
+  theaterHallMesh.visible = true;
+  thallhintEl.style.opacity = 0; THEATERHALL.hintEnter = false; THEATERHALL.nearIdx = -1;
+  carHintEl.style.opacity = 0; CAR.hintOn = false;
+  busHintEl.style.opacity = 0; BUS.hintOn = false;
+  txHintEl.style.opacity = 0; TX.hintOn = false;
+  rideHintEl.style.opacity = 0; HORSE.hintOn = false;
+  bikeHintEl.style.opacity = 0; BIKE.hintOn = false;
+  bcHintEl.style.opacity = 0; BC.hintOn = false;
+  scHintEl.style.opacity = 0; SC.hintOn = false;
+  boatHintEl.style.opacity = 0; BOAT.hintOn = false;
+  heliHintEl.style.opacity = 0; HELI.hintOn = false;
+  planeHintEl.style.opacity = 0; PLANE.hintOn = false;
+  trainHintEl.style.opacity = 0; TRAIN.hintOn = false;
+  ftHintEl.style.opacity = 0; FT.hintOn = false;
+  petHintEl.style.opacity = 0; PET.hintOn = false;
+  pianoHintEl.style.opacity = 0; PIANO.hintOn = false;
+  casinohintEl.style.opacity = 0; SLOT.hintOn = false;
+  civichintEl.style.opacity = 0; CIVIC.hintOn = false;
+  worshiphintEl.style.opacity = 0; WORSHIP.hintOn = false;
+  apthintEl.style.opacity = 0; APARTMENT.hintOn = false;
+  stadiumHintEl.style.opacity = 0; STADIUM.hintOn = false;
+  amuseHintEl.style.opacity = 0; AMUSE.hintOn = false;
+  theaterHintEl.style.opacity = 0; THEATER.hintOn = false;
+  hosphealEl.style.opacity = 0; HOSP.hintOn = false;
+  if (IS_TOUCH) {
+    exitBtnEl.style.display = 'flex';              // touch exit path
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'none';   // JUMP/FIRE/PUNCH hidden while inside
+  }
+  helpEl.innerHTML = HELP_THEATERHALL;
+  toast('THEATER');
+  sfxBlip(523, 0.09, 'triangle', 0.2);
+}
+function theaterHallExit() {
+  if (!THEATERHALL.inHall) return;
+  THEATERHALL.inHall = false; THEATERHALL.showOn = false; THEATERHALL.nearIdx = -1;
+  theaterHallMesh.visible = false;
+  tshowhintEl.style.opacity = 0;
+  exitBtnEl.style.display = 'none';
+  if (IS_TOUCH) {
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'flex';
+  }
+  /* back to the door, never inside the walls */
+  player.position.set(THEATERHALL.doorX, terrainHeight(THEATERHALL.doorX, THEATERHALL.doorZ), THEATERHALL.doorZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = true;
+  helpEl.innerHTML = HELP_FOOT;
+  toast('ON FOOT');
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+function theaterWatchShow() {
+  if (!THEATERHALL.inHall || !THEATERHALL.showOn) return;
+  if (cash < THEATER_SHOW_COST) { sfxDenied(); toast('NOT ENOUGH CASH'); }   // the shop denied idiom
+  else {
+    cash -= THEATER_SHOW_COST; updateCashHUD(); floatCash('-$' + THEATER_SHOW_COST);   // the cash idiom
+    P.hp = Math.min(100, P.hp + THEATER_SHOW_HEAL); updateHpHUD();   // the diner heal idiom
+    dayPhase = (dayPhase + THEATER_SHOW_HOURS / 24) % 1;   // 2 game hours through the day/night tick
+    theaterJingle();
+    toast('ENJOY THE SHOW');
+  }
+  THEATERHALL.showOn = false;   // one show per visit: E now exits, never traps
+  tshowhintEl.textContent = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';   // flip now, not on the 0.25s tick
+}
+const HELP_THEATERHALL = '<b>E</b> show/exit &nbsp; <b>TOUCH</b> tap show/exit';
+function theaterHallTick(dt) {
+  if (!playing() || P.dead) {
+    if (THEATERHALL.inHall) theaterHallExit();   // death always ejects: no show while dead
+    THEATERHALL.hintEnter = false; thallhintEl.style.opacity = 0;
+    THEATERHALL.showOn = false; tshowhintEl.style.opacity = 0;
+    thallChipEl.style.display = 'none';
+    return;
+  }
+  THEATERHALL.tickT += dt;
+  if (THEATERHALL.inHall) {
+    /* frozen at the room seat, facing the stage: the locomotion skip-chain
+       (tick) and the gravity guard own the rest of the freeze */
+    player.position.set(THEATERHALL.seatX, THEATER_ROOM_Y, THEATERHALL.seatZ);
+    player.rotation.y = THEATERHALL.seatYaw;
+    P.vel.set(0, 0, 0); P.vy = 0;
+    /* the room is exclusive: no other prompt can arm while inside (their
+       ticks run before this one and would re-arm on the door x/z) */
+    CAR.hintOn = false; BUS.hintOn = false; TX.hintOn = false; HORSE.hintOn = false;
+    BIKE.hintOn = false; BC.hintOn = false; SC.hintOn = false; BOAT.hintOn = false;
+    HELI.hintOn = false; PLANE.hintOn = false; TRAIN.hintOn = false; FT.hintOn = false;
+    SLOT.hintOn = false; PIANO.hintOn = false; THEATER.hintOn = false; CIVIC.hintOn = false;
+    WORSHIP.hintOn = false; APARTMENT.hintOn = false; AMUSE.hintOn = false; STADIUM.hintOn = false;
+    HOSP.hintOn = false; PET.hintOn = false;
+    carHintEl.style.opacity = 0; busHintEl.style.opacity = 0; txHintEl.style.opacity = 0;
+    rideHintEl.style.opacity = 0; bikeHintEl.style.opacity = 0; bcHintEl.style.opacity = 0;
+    scHintEl.style.opacity = 0; boatHintEl.style.opacity = 0; heliHintEl.style.opacity = 0;
+    planeHintEl.style.opacity = 0; trainHintEl.style.opacity = 0; ftHintEl.style.opacity = 0;
+    casinohintEl.style.opacity = 0; pianoHintEl.style.opacity = 0; theaterHintEl.style.opacity = 0;
+    civichintEl.style.opacity = 0; worshiphintEl.style.opacity = 0; apthintEl.style.opacity = 0;
+    amuseHintEl.style.opacity = 0; stadiumHintEl.style.opacity = 0; hosphealEl.style.opacity = 0;
+    petHintEl.style.opacity = 0;
+    if (THEATERHALL.tickT >= 0.25) {
+      THEATERHALL.tickT = 0;
+      const showTxt = IS_TOUCH ? 'TAP TO WATCH' : 'WATCH SHOW [E]';
+      const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
+      const txt = THEATERHALL.showOn ? showTxt : exitTxt;
+      if (tshowhintEl.textContent !== txt) tshowhintEl.textContent = txt;
+      tshowhintEl.style.opacity = 1;
+    }
+    thallChipEl.style.display = 'none';
+    return;
+  }
+  if (THEATERHALL.tickT >= 0.25) {
+    THEATERHALL.tickT = 0;
+    const onFoot = !shopOpen && !CAR.driving && !FT.driving && !BUS.driving && !BUS.riding && !TX.riding && !HORSE.riding
+      && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying
+      && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CIVIC.state
+      && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching;
+    let best = -1;
+    if (onFoot) {
+      const px = player.position.x, pz = player.position.z;
+      for (let i = 0; i < AMEN.active.theater.length; i++) {
+        const a = AMEN.active.theater[i];
+        const d = theaterHallDoorWorld(a);
+        const dx = d.x - px, dz = d.z - pz;
+        if (dx * dx + dz * dz < LMTH_DOOR_R2) { best = i; break; }
+      }
+    }
+    THEATERHALL.nearIdx = best;
+    if ((best >= 0) !== THEATERHALL.hintEnter) {
+      THEATERHALL.hintEnter = best >= 0;
+      thallhintEl.style.opacity = THEATERHALL.hintEnter ? 1 : 0;
+    }
+    const enterTxt = IS_TOUCH ? 'TAP TO ENTER' : 'ENTER [E]';
+    if (thallhintEl.textContent !== enterTxt) thallhintEl.textContent = enterTxt;
+  }
+  /* bearing chip (landchip idiom): nearest active theater within 500m */
+  THEATERHALL.chipT += dt;
+  if (THEATERHALL.chipT >= 0.25) {
+    THEATERHALL.chipT = 0;
+    const px = player.position.x, pz = player.position.z;
+    let hb = null, hd = 1e18;
+    for (const H of AMEN.active.theater) {
+      const dx = H.x - px, dz = H.z - pz, d2 = dx * dx + dz * dz;
+      if (d2 < hd) { hd = d2; hb = H; }
+    }
+    if (hb && hd < LMTH_CHIP_R2) {
+      thallChipEl.style.display = 'block';
+      camera.getWorldDirection(_mB);
+      const dx = hb.x - px, dz = hb.z - pz;
+      const deg = -(Math.atan2(dx, dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
+      thallArrEl.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
+      thallTxtEl.textContent = 'THEATER ' + Math.round(Math.sqrt(hd)) + 'M';
+    } else thallChipEl.style.display = 'none';
+  }
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(theaterHallTick));
+
 /* ---- instanced meshes: one per type, one draw call each ---- */
-const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [], land: [], stad: [], amuse: [], hosp: [] } };
+const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [], land: [], stad: [], amuse: [], hosp: [], theater: [] } };
 const AMEN_DEF_LIST = [
   { key: 'gas', cap: 6, tex: () => makeSignTex('GAS - REPAIR', '#c23b2e'), build: buildGasGeo, trigR: 6.5,
     colliders: [[-4.2, -3.2, 0.35], [4.2, -3.2, 0.35], [-4.2, 3.2, 0.35], [4.2, 3.2, 0.35],
@@ -7512,6 +7915,8 @@ const AMEN_DEF_LIST = [
     colliders: LMAUSE_COL },
   { key: 'hosp', cap: 2, tex: makePlainTex, build: buildLandmarkHospGeo, trigR: 0, glow: true,
     colliders: LMHOSP_COL },
+  { key: 'theater', cap: 2, tex: () => makeSignTex('THEATER', '#8a1f2d'), build: buildLandmarkTheaterGeo, trigR: 0, glow: true,
+    colliders: LMTHEATER_COL },
 ];
 /* window-glow texture: black field, one warm rect. Window quads sample the
    rect (glow at night); every other part samples black (never glows). Moved
@@ -7572,6 +7977,7 @@ const ZONE_PAD_COLORS = {
   stad:   new THREE.Color(0x8a3a44),   // arena red (Phase 5 landmark stadium)
   amuse:  new THREE.Color(0x7a5a9e),   // midway violet (Phase 5 landmark amusement park)
   hosp:   new THREE.Color(0xdfe8ee),   // hospital pale blue (Phase 5 landmark hospital)
+  theater: new THREE.Color(0xa88a3a),   // theater marquee gold (Phase 5 landmark theater)
   farm:   new THREE.Color(0x5a4128),   // tilled soil brown (Phase 5 farming)
 };
 let ZONE_PADS;
@@ -7664,6 +8070,10 @@ function amenityTypeFor(gx, gz) {
      so it never displaces an existing amenity type; only previously-null
      chunks change. */
   if (h % 47 === 23) return 'hosp';
+  /* Phase 5 landmark theater: rare theater chunk. Checked after 'hosp'
+     so it never displaces an existing amenity type; only previously-null
+     chunks change. */
+  if (h % 53 === 31) return 'theater';
   return null;
 }
 /* spacing: winner-take-all across ALL amenity types in the 3x3 chunk
@@ -8743,6 +9153,15 @@ function redistributeBuildings(pcx, pcz) {
     for (const col of AMEN_DEF.hosp.colliders)
       BLDG.foot.push({ x: a.x + col[0] * c + col[1] * s, z: a.z - col[0] * s + col[1] * c, r: col[2] });
   }
+  /* Phase 5 landmark theater: the walls block the player on foot too
+     (rural-building foot idiom). The entrance gap and the door column
+     stay walkable. Vehicles already resolve via AMEN.colliders, filled
+     by redistributeAmenities just above. */
+  for (const a of AMEN.active.theater) {
+    const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+    for (const col of AMEN_DEF.theater.colliders)
+      BLDG.foot.push({ x: a.x + col[0] * c + col[1] * s, z: a.z - col[0] * s + col[1] * c, r: col[2] });
+  }
   for (const m of bldgMeshes) m.count = 0;   // shared meshes start empty each redistribute
   /* shared fleets take cumulative slot offsets per mesh: casino rides the
      store mesh at [nStores, nStores + nCasino); the four civic types share
@@ -8784,7 +9203,7 @@ function redistributeBuildings(pcx, pcz) {
    health with cash, walk out to re-arm. No new economy code. */
 let shopBldg = false, shopBldgSlot = -1;
 function openBldgStore(S, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || FT.driving || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching || !playing()) return;
+  if (shopOpen || P.dead || THEATERHALL.inHall || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || FT.driving || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching || !playing()) return;
   shopOpen = true; shopBldg = true; shopBldgSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;
   shopNameEl.textContent = S.name;
@@ -9614,7 +10033,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
+  if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
@@ -11370,7 +11789,8 @@ function updateRain(dt, rainAmt, wind) {
   /* FT is declared later in the module; this ticker runs after full
      evaluation, so the reference is live. */
   const spraying = FT.driving && FT.spraying;
-  rain.visible = rainAmt > 0 || spraying;
+  /* the screening room sits below the world: no rain indoors */
+  rain.visible = (rainAmt > 0 || spraying) && !THEATERHALL.inHall;
   if (!rain.visible) return;
   if (rainAmt > 0) {
     const speed = rainAmt === 2 ? 27 : 20;             // storm falls faster
@@ -12353,7 +12773,7 @@ function mountToggle() {
   else carEnter();
 }
 /* the touch EXIT button doubles as the dismount button while riding */
-function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (FT.driving) ftExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); else if (APARTMENT.state) apartmentExit(); }
+function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (THEATER.watching) theaterExit(); else if (THEATERHALL.inHall) theaterHallExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (FT.driving) ftExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); else if (APARTMENT.state) apartmentExit(); }
 
 /* ---- horse ticker: prompt, controller, procedural gait, audio, HUD ---- */
 function horseUpdate(sdt, now) {
@@ -12639,7 +13059,9 @@ function busRebuildRoute(pcx, pcz) {
          bus routes identical to before the park; a park stop is a later item) */
       /* Phase 5 landmark hospital: not a transit stop in v1 (keeps bus
          routes identical to before the hospital; a hospital stop is a later item) */
-      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });
+      /* Phase 5 landmark theater: not a transit stop in v1 (keeps bus
+         routes identical to before the theater; a theater stop is a later item) */
+      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -13187,7 +13609,9 @@ function ambRebuild(pcx, pcz) {
       const a = amenityCenterFor(gx, gz);
       /* Phase 5 landmark hospital: not an ambulance anchor in v1 (keeps
          anchors identical to before the hospital; a hospital anchor is a later item) */
-      if (!a || a.type === 'hosp') continue;
+      /* Phase 5 landmark theater: not an ambulance anchor in v1 (keeps
+         anchors identical to before the theater; a theater anchor is a later item) */
+      if (!a || a.type === 'hosp' || a.type === 'theater') continue;
       const d2 = (a.x - px) * (a.x - px) + (a.z - pz) * (a.z - pz);
       if (d2 < abd) { abd = d2; anyBest = a; }
       if (a.type === 'rest' && d2 < bd) { bd = d2; best = a; }
@@ -13261,7 +13685,9 @@ function txRebuild(pcx, pcz) {
          taxi routes identical to before the park; a park stop is a later item) */
       /* Phase 5 landmark hospital: not a transit stop in v1 (keeps taxi
          routes identical to before the hospital; a hospital stop is a later item) */
-      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type });
+      /* Phase 5 landmark theater: not a transit stop in v1 (keeps taxi
+         routes identical to before the theater; a theater stop is a later item) */
+      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type });
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -13842,7 +14268,9 @@ function bikeRebuild(pcx, pcz) {
       const a = amenityCenterFor(gx, gz);
       /* Phase 5 landmark hospital: not a bike pad anchor in v1 (keeps pads
          identical to before the hospital; a hospital pad is a later item) */
-      if (a && a.type !== 'hosp') found.push(a);
+      /* Phase 5 landmark theater: not a bike pad anchor in v1 (keeps pads
+         identical to before the theater; a theater pad is a later item) */
+      if (a && a.type !== 'hosp' && a.type !== 'theater') found.push(a);
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -14222,7 +14650,9 @@ function bcRebuild(pcx, pcz) {
       const a = amenityCenterFor(gx, gz);
       /* Phase 5 landmark hospital: not a bike pad anchor in v1 (keeps pads
          identical to before the hospital; a hospital pad is a later item) */
-      if (a && a.type !== 'hosp') found.push(a);
+      /* Phase 5 landmark theater: not a bike pad anchor in v1 (keeps pads
+         identical to before the theater; a theater pad is a later item) */
+      if (a && a.type !== 'hosp' && a.type !== 'theater') found.push(a);
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -14584,9 +15014,9 @@ function scRebuild(pcx, pcz) {
   for (let gx = pcx - SC_SCAN; gx <= pcx + SC_SCAN; gx++)
     for (let gz = pcz - SC_SCAN; gz <= pcz + SC_SCAN; gz++) {
       const a = amenityCenterFor(gx, gz);
-      /* Phase 5 landmark hospital: not a scooter pad anchor in v1 (keeps
-         pads identical to before the hospital; a hospital pad is a later item) */
-      if (a && a.type !== 'hosp') found.push(a);
+      /* Phase 5 landmark theater: not a scooter pad anchor in v1 (keeps
+         pads identical to before the theater; a theater pad is a later item) */
+      if (a && a.type !== 'hosp' && a.type !== 'theater') found.push(a);
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -19013,7 +19443,7 @@ function tick() {
 
   /* --- accelerate / decelerate (no ice-skating, no teleport).
          Skipped while driving or riding: the vehicle ticker owns motion instead. --- */
-  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
+  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize().multiplyScalar(maxSpeed);
       tmpV.copy(wishDir).sub(P.vel);
@@ -19044,7 +19474,7 @@ function tick() {
 
   /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
+  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
     if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -19055,7 +19485,7 @@ function tick() {
 
   /* --- procedural walk cycle (frozen while driving: the driver is seated;
          frozen while riding: the horse ticker poses the rider) --- */
-  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
+  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -19098,7 +19528,7 @@ function tick() {
 
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
   const inBus = BUS.driving || BUS.riding;
-  const inVeh = CAR.driving || FT.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching || HORSE.riding || inBus || TX.riding;
+  const inVeh = CAR.driving || FT.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || THEATERHALL.inHall || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching || HORSE.riding || inBus || TX.riding;
   if (IS_TOUCH) {   // emote button lives only on touch; hide while driving/riding/dead
     const emShow = !inVeh && !P.dead && playing();
     if (emShow !== EMO.btnOn) { EMO.btnOn = emShow; emoteBtnEl.style.display = emShow ? 'flex' : 'none'; }
@@ -19106,19 +19536,22 @@ function tick() {
   if (inVeh) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
     const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
-    const camAng = (APARTMENT.state ? APARTMENT.camAng : WORSHIP.state ? WORSHIP.camAng : CIVIC.state ? CIVIC.camAng : (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (AMUSE.riding ? AMUSE.camAng : (STADIUM.watching ? STADIUM.camAng : (THEATER.watching ? THEATER.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (FT.driving ? FT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading))))))))))))))))
+    const camAng = (THEATERHALL.inHall ? THEATERHALL.hallCamAng : APARTMENT.state ? APARTMENT.camAng : WORSHIP.state ? WORSHIP.camAng : CIVIC.state ? CIVIC.camAng : (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (AMUSE.riding ? AMUSE.camAng : (STADIUM.watching ? STADIUM.camAng : (THEATER.watching ? THEATER.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (FT.driving ? FT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading))))))))))))))))
       + (CAR.driving ? CAR.slip * driftBlend : 0));
-    const vPos = APARTMENT.state ? APARTMENT.pos : WORSHIP.state ? WORSHIP.pos : CIVIC.state ? CIVIC.pos : (SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (AMUSE.riding ? AMUSE.pos : (STADIUM.watching ? STADIUM.pos : (THEATER.watching ? THEATER.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (FT.driving ? FT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos))))))))))))))));
-    const vDist = APARTMENT.state ? APARTMENT.camDist : WORSHIP.state ? WORSHIP.camDist : CIVIC.state ? CIVIC.camDist : (SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (AMUSE.riding ? AMUSE.camDist : (STADIUM.watching ? STADIUM.camDist : (THEATER.watching ? THEATER.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (FT.driving ? FT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist))))))))))))))));
-    const vH = APARTMENT.state ? APARTMENT.camH : WORSHIP.state ? WORSHIP.camH : CIVIC.state ? CIVIC.camH : (SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (AMUSE.riding ? AMUSE.camH : (STADIUM.watching ? STADIUM.camH : (THEATER.watching ? THEATER.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (FT.driving ? FT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH))))))))))))))));
-    lookTarget.copy(vPos); lookTarget.y += APARTMENT.state ? 1.2 : WORSHIP.state ? 1.2 : CIVIC.state ? 1.2 : (SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (AMUSE.riding ? 1.6 : (STADIUM.watching ? 1.2 : (THEATER.watching ? 1.6 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (FT.driving ? 1.8 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1))))))))))))));
+    const vPos = THEATERHALL.inHall ? THEATERHALL.hallPos : APARTMENT.state ? APARTMENT.pos : WORSHIP.state ? WORSHIP.pos : CIVIC.state ? CIVIC.pos : (SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (AMUSE.riding ? AMUSE.pos : (STADIUM.watching ? STADIUM.pos : (THEATER.watching ? THEATER.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (FT.driving ? FT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos))))))))))))))));
+    const vDist = THEATERHALL.inHall ? THEATERHALL.hallCamDist : APARTMENT.state ? APARTMENT.camDist : WORSHIP.state ? WORSHIP.camDist : CIVIC.state ? CIVIC.camDist : (SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (AMUSE.riding ? AMUSE.camDist : (STADIUM.watching ? STADIUM.camDist : (THEATER.watching ? THEATER.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (FT.driving ? FT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist))))))))))))))));
+    const vH = THEATERHALL.inHall ? THEATERHALL.hallCamH : APARTMENT.state ? APARTMENT.camH : WORSHIP.state ? WORSHIP.camH : CIVIC.state ? CIVIC.camH : (SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (AMUSE.riding ? AMUSE.camH : (STADIUM.watching ? STADIUM.camH : (THEATER.watching ? THEATER.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (FT.driving ? FT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH))))))))))))))));
+    lookTarget.copy(vPos); lookTarget.y += THEATERHALL.inHall ? 1.5 : APARTMENT.state ? 1.2 : WORSHIP.state ? 1.2 : CIVIC.state ? 1.2 : (SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (AMUSE.riding ? 1.6 : (STADIUM.watching ? 1.2 : (THEATER.watching ? 1.6 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (FT.driving ? 1.8 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1))))))))))))));
     camTargetPos.set(
       lookTarget.x - Math.sin(camAng) * vDist,
       lookTarget.y + vH,
       lookTarget.z - Math.cos(camAng) * vDist
     );
-    const camGround = terrainHeight(camTargetPos.x, camTargetPos.z) + 0.5;
-    if (camTargetPos.y < camGround) camTargetPos.y = camGround;
+    /* the screening room sits below the world: no terrain clamp inside it */
+    if (!THEATERHALL.inHall) {
+      const camGround = terrainHeight(camTargetPos.x, camTargetPos.z) + 0.5;
+      if (camTargetPos.y < camGround) camTargetPos.y = camGround;
+    }
     camPos.lerp(camTargetPos, 1 - Math.exp(-6 * dt));   // looser follow than on foot
     camera.position.copy(camPos);
   } else {
@@ -19137,7 +19570,7 @@ function tick() {
   camera.position.copy(camPos);
   }
   /* wider FOV while driving or galloping, eases back to normal after */
-  const fovT = APARTMENT.state ? CAR.fovWalk : WORSHIP.state ? CAR.fovWalk : CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (AMUSE.riding ? CAR.fovWalk : (STADIUM.watching ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (FT.driving ? FT.fovDrive : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk))))))))))))))));
+  const fovT = THEATERHALL.inHall ? CAR.fovWalk : APARTMENT.state ? CAR.fovWalk : WORSHIP.state ? CAR.fovWalk : CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (AMUSE.riding ? CAR.fovWalk : (STADIUM.watching ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (FT.driving ? FT.fovDrive : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk))))))))))))))));
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
@@ -19436,8 +19869,12 @@ function migrateSave(env) {
 /* compact payload, under 300 bytes JSON. sg/sm: -1 = not owned, else ammo. */
 function collectSave() {
   const r2 = v => Math.round(v * 100) / 100;
+  /* a save inside the screening room stores the theater door: the room is
+     session-only and the player reloads on foot at the door */
+  const sx = THEATERHALL.inHall ? THEATERHALL.doorX : player.position.x;
+  const sz = THEATERHALL.inHall ? THEATERHALL.doorZ : player.position.z;
   return {
-    x: r2(player.position.x), z: r2(player.position.z),
+    x: r2(sx), z: r2(sz),
     cash: cash | 0, kills: kills | 0,
     sg: WEAPONS.shotgun.owned ? (WEAPONS.shotgun.ammo | 0) : -1,
     sm: WEAPONS.smg.owned ? (WEAPONS.smg.ammo | 0) : -1,
