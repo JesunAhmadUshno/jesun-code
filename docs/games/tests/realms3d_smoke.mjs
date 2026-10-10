@@ -179,6 +179,15 @@ globalThis.__R3D = {
   diceChipEl, dicePanelEl, diceHistEl, diceStatusEl, diceZonesEl, diceZoneEls,
   diceBetEl, diceClearEl, diceRollEl, diceBigWinEl,
   DICE_BETS, DICE_ZONES, DICE_HASH_A, DICE_HASH_B, HELP_LMDICE,
+  /* Phase 5 landmark casino poker v1 (fifth table game: video poker) */
+  CASINOPOKER, casinoPokerSit, casinoPokerStand,
+  pokerRank, pokerSuit, pokerIsRed, pokerCardStr, pokerBuildShoe, pokerShoeSeed, pokerDraw,
+  pokerEval, pokerPayFor, pokerNearBig, pokerDeal, pokerToggleHold, pokerCardBtn,
+  pokerDrawHand, pokerFinishDraw, pokerSettle, pokerUpdate, pokerCycleBet, pokerRender,
+  pokerPayRows, pokerWinSting,
+  pokerChipEl, pokerPanelEl, pokerPayEl, pokerCardsEl, pokerStatusEl,
+  pokerBetEl, pokerDealEl, pokerDrawEl, pokerBigWinEl,
+  POKER_BETS, POKER_PAY, POKER_HASH_A, POKER_HASH_B, HELP_LMPOKER,
   LMCASINO_COL, LMCAS_R, LMCAS_SEGS, LMCAS_GATE_K, LMCAS_CHIP_R2, LMCAS_DOOR, LMCAS_DOOR_R2,
   CASINO_ROOM_Y, LMCS_BETS, LMCS_SYMS, LMCS_WILD, LMCS_SEVEN, LMCS_LINES, LMCS_TAPE, LMCS_OUT_AT,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
@@ -2377,9 +2386,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('food-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('food-static: audio nodes pin (17 osc, 30 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain)',
-    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
-    (html.match(/\.createGain\(/g) || []).length === 30 &&
+  check('food-static: audio nodes pin (18 osc, 31 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain, +1 poker osc, +1 poker gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18 &&
+    (html.match(/\.createGain\(/g) || []).length === 31 &&
     (html.match(/AudioContext/g) || []).length === 2);
   {
     const foodSrc = html.slice(
@@ -2607,9 +2616,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('farmv1-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('farmv1-static: audio nodes pin (17 osc, 30 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain)',
-    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
-    (html.match(/\.createGain\(/g) || []).length === 30 &&
+  check('farmv1-static: audio nodes pin (18 osc, 31 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain, +1 poker osc, +1 poker gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18 &&
+    (html.match(/\.createGain\(/g) || []).length === 31 &&
     (html.match(/AudioContext/g) || []).length === 2);
   check('farmv1-static: no TODO/FIXME markers', !/\b(TODO|FIXME)\b/.test(html));
   check('farmv1-static: no em dashes', !html.includes('—'));
@@ -4119,9 +4128,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
-  check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',
-    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
-    (html.match(/\.createGain\(/g) || []).length === 30);
+  check('theater-static: audio nodes pin unchanged (18 osc, 31 gain: music reuses sfxBlip; poker sting schedules on the audio clock: +1 osc, +1 gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18 &&
+    (html.match(/\.createGain\(/g) || []).length === 31);
   check('theater-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('theater-static: guard coverage (positive chains)',
@@ -4530,9 +4539,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('stadium-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
-  check('stadium-static: audio nodes pin unchanged (17 osc, 30 gain: cheer reuses sfxBlip)',
-    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
-    (html.match(/\.createGain\(/g) || []).length === 30);
+  check('stadium-static: audio nodes pin unchanged (18 osc, 31 gain: cheer reuses sfxBlip; poker sting: +1 osc, +1 gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18 &&
+    (html.match(/\.createGain\(/g) || []).length === 31);
   check('stadium-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('stadium-static: guard coverage (positive chains)',
@@ -4675,9 +4684,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('amuse-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
-  check('amuse-static: audio nodes pin unchanged (17 osc, 30 gain: chimes reuse sfxBlip)',
-    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
-    (html.match(/\.createGain\(/g) || []).length === 30);
+  check('amuse-static: audio nodes pin unchanged (18 osc, 31 gain: chimes reuse sfxBlip; poker sting: +1 osc, +1 gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18 &&
+    (html.match(/\.createGain\(/g) || []).length === 31);
   check('amuse-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('amuse-static: guard coverage (positive chains)',
@@ -6850,7 +6859,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('roul-static: single keydown listener (Q rides the existing one)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1
-    && html.includes("switch the table seat: slots, cards, roulette or dice"));
+    && html.includes("switch the table seat: slots, cards, roulette, dice or poker"));
   check('roul-static: #roulchip pins its own top-left slot (no chip overlap)',
     html.includes('#roulchip {') && html.includes('top: 720px'));
 
@@ -7114,7 +7123,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
   G.closeShop(); G.casinoHallEnter();
   check('dice: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
-  /* the 4-cycle: slots -> cards -> roulette -> dice -> slots */
+  /* the 5-cycle: slots -> cards -> roulette -> dice -> poker -> slots */
   G.CASINOHALL.seatKind = 'slots';
   G.casinoSeatToggle();
   check('dice: seat cycle slots -> cards', G.CASINOHALL.seatKind === 'bj');
@@ -7123,7 +7132,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.casinoSeatToggle();
   check('dice: seat cycle roulette -> dice', G.CASINOHALL.seatKind === 'dice');
   G.casinoSeatToggle();
-  check('dice: seat cycle dice -> slots (the 4-cycle closes)', G.CASINOHALL.seatKind === 'slots');
+  check('dice: seat cycle dice -> poker (the 5-cycle)', G.CASINOHALL.seatKind === 'poker');
+  G.casinoSeatToggle();
+  check('dice: seat cycle poker -> slots (the 5-cycle closes)', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 4 && G.CASINOHALL.seatKind !== 'dice'; q++) G.casinoSeatToggle();
   frame(20);
   check('dice: PLAY DICE prompt shows inside',
@@ -7239,6 +7250,254 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.CASINOHALL.inHall === false && G.CASINODICE.playing === false
     && G.dicePanelEl.style.display === 'none' && G.diceChipEl.style.display === 'none');
   G.P.dead = false;
+
+  /* leave the world as the next block expects: player at origin, FT rebuilt there */
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.FT.routeKey = ''; G.FT.driving = false; G.ftRebuild(0, 0);
+}
+
+/* ================= PHASE 5: LANDMARK CASINO POKER v1 ("VIDEO POKER") ================= */
+{
+  /* --- static pins: the poker block is seeded-only, DOM-only, chip-clean --- */
+  const pokerSrc = html.slice(html.indexOf('CASINO POKER v1'), html.indexOf('PHASE 5: LANDMARK FIRE STATION v1'));
+  check('poker: the poker block holds zero Math.random lines (seeded idiom only)',
+    pokerSrc.length > 8000 && !/Math\.random/.test(pokerSrc), pokerSrc.length + ' chars');
+  check('poker: the poker block adds zero InstancedMesh literals (pin holds at 48)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('poker: #pokerchip owns the next free top-left slot (819px, no overlap)',
+    (html.match(/top: 819px; left: 18px/g) || []).length === 1);
+  check('poker: no placeholder or em dash text in the poker block',
+    !/\b(TODO|FIXME|placeholder)\b/i.test(pokerSrc) && !pokerSrc.includes('—'));
+  check('poker: one keydown listener only (1-5 extends it, no new listener)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('poker: the cabinet strip is merged into the hall mesh (zero new draws)',
+    /video-poker cabinets \(casino poker v1\)/.test(html) && /amenPart\(parts, 0, 0\.9, 2\.2, 1\.4, -11\.5/.test(html));
+
+  /* --- 9/6 evaluation on rigged hands (card ids: rank=(c%13)+1, suit=c/13|0) --- */
+  check('poker: royal flush evaluates (10-J-Q-K-A suited)',
+    G.pokerEval([9, 10, 11, 12, 0]).join('|') === 'ROYAL FLUSH|250');
+  check('poker: straight flush evaluates',
+    G.pokerEval([17, 18, 19, 20, 21]).join('|') === 'STRAIGHT FLUSH|50');
+  check('poker: four of a kind evaluates',
+    G.pokerEval([0, 13, 26, 39, 1]).join('|') === 'FOUR OF A KIND|25');
+  check('poker: full house evaluates',
+    G.pokerEval([12, 25, 38, 11, 24]).join('|') === 'FULL HOUSE|9');
+  check('poker: flush evaluates',
+    G.pokerEval([13, 15, 17, 19, 21]).join('|') === 'FLUSH|6');
+  check('poker: the wheel (A-2-3-4-5) is a straight',
+    G.pokerEval([0, 14, 28, 42, 4]).join('|') === 'STRAIGHT|4');
+  check('poker: broadway offsuit is a straight, not a flush',
+    G.pokerEval([9, 23, 37, 51, 0]).join('|') === 'STRAIGHT|4');
+  check('poker: three of a kind evaluates',
+    G.pokerEval([6, 19, 32, 0, 25]).join('|') === 'THREE OF A KIND|3');
+  check('poker: two pair evaluates',
+    G.pokerEval([0, 13, 12, 25, 1]).join('|') === 'TWO PAIR|2');
+  check('poker: pair of aces is jacks-or-better',
+    G.pokerEval([0, 13, 5, 20, 35]).join('|') === 'JACKS OR BETTER|1');
+  check('poker: pair of queens is jacks-or-better',
+    G.pokerEval([11, 24, 3, 18, 33]).join('|') === 'JACKS OR BETTER|1');
+  check('poker: pair of tens is no hand (below jacks)',
+    G.pokerEval([9, 22, 3, 18, 33]).join('|') === 'NO HAND|0');
+  check('poker: junk is no hand',
+    G.pokerEval([0, 16, 30, 45, 11]).join('|') === 'NO HAND|0');
+
+  /* --- payout scaling on the cash economy --- */
+  check('poker: max-bet royal pays the 800 bonus ($25 -> $4000)',
+    G.pokerPayFor('ROYAL FLUSH', 250, 2) === 4000);
+  check('poker: royal scales at lower tiers ($10 -> $2500)',
+    G.pokerPayFor('ROYAL FLUSH', 250, 1) === 2500);
+  check('poker: quads pay 25x the bet ($10 -> $250)',
+    G.pokerPayFor('FOUR OF A KIND', 25, 1) === 250);
+  check('poker: jacks-or-better returns the bet ($5 -> $5)',
+    G.pokerPayFor('JACKS OR BETTER', 1, 0) === 5);
+
+  /* --- the honest shoe: seeded, full 52, reshuffles under 15 --- */
+  const pShoeA = G.pokerBuildShoe(1234), pShoeB = G.pokerBuildShoe(1234);
+  check('poker: the shoe is a full honest 52',
+    pShoeA.length === 52 && [...pShoeA].sort((a, b) => a - b).every((c, i) => c === i));
+  check('poker: the same seed replays the same shoe (deterministic)',
+    pShoeA.every((c, i) => c === pShoeB[i]));
+  check('poker: a different seed shuffles differently',
+    !G.pokerBuildShoe(1235).every((c, i) => c === pShoeA[i]));
+  check('poker: the shoe seed lives in the fresh hash space (6529, 7)',
+    G.POKER_HASH_A === 6529 && G.POKER_HASH_B === 7 && G.pokerShoeSeed() !== 0);
+  G.CASINOPOKER.shoe = []; for (let i = 0; i < 14; i++) G.CASINOPOKER.shoe.push(i);
+  G.pokerDraw();
+  check('poker: the shoe reshuffles when under 15 cards',
+    G.CASINOPOKER.shoe.length === 51, 'shoe=' + G.CASINOPOKER.shoe.length);
+
+  /* --- the drumroll moment: near-big hands --- */
+  check('poker: 4 to a royal is a near-big hand', G.pokerNearBig([9, 10, 11, 12]) === true);
+  check('poker: 4 to a straight flush is a near-big hand', G.pokerNearBig([17, 18, 19, 20]) === true);
+  check('poker: three of a kind (drawing to quads) is a near-big hand', G.pokerNearBig([0, 13, 26, 5]) === true);
+  check('poker: a rag 4-card is not a near-big hand', G.pokerNearBig([0, 14, 28, 42]) === false);
+
+  /* --- enter the hall and run the 5-cycle --- */
+  let pokerd = null;
+  pokerouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'casino') { pokerd = a; break pokerouter; }
+    }
+  check('poker: a seeded casino chunk exists in the scan window', !!pokerd);
+  const probsP = consoleProblems.length;
+  G.P.dead = false; G.P.godT = 0;
+  const pokerdoor = G.casinoHallDoorWorld(pokerd);
+  G.player.position.set(pokerdoor.x, groundY(pokerdoor.x, pokerdoor.z), pokerdoor.z);
+  frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
+  G.closeShop(); G.casinoHallEnter();
+  check('poker: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
+  /* the 5-cycle: slots -> cards -> roulette -> dice -> poker -> slots */
+  G.CASINOHALL.seatKind = 'slots';
+  const pCyc = ['bj', 'roul', 'dice', 'poker', 'slots'];
+  const pCycNames = ['cards', 'roulette', 'dice', 'poker', 'slots'];
+  for (let q = 0; q < 5; q++) {
+    G.casinoSeatToggle();
+    check('poker: seat cycle lands ' + pCycNames[q], G.CASINOHALL.seatKind === pCyc[q]);
+  }
+  for (let q = 0; q < 4 && G.CASINOHALL.seatKind !== 'poker'; q++) G.casinoSeatToggle();   // back to the poker seat
+  frame(20);
+  check('poker: PLAY POKER prompt shows inside',
+    G.casinoslothintEl.style.opacity == 1 && /PLAY POKER/.test(G.casinoslothintEl.textContent),
+    G.casinoslothintEl.textContent);
+  check('poker: the toggle chip names the seat',
+    /TABLE: POKER/.test(G.casinobjselEl.textContent), G.casinobjselEl.textContent);
+
+  /* --- E sits at the poker stool --- */
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('poker: KeyE sits at the poker stool (panel opens)',
+    G.CASINOHALL.seated === true && G.CASINOPOKER.playing === true
+    && G.pokerPanelEl.style.display === 'block',
+    'seated=' + G.CASINOHALL.seated);
+  check('poker: sit parks the player at the west-wall stool, facing the cabinets',
+    Math.abs(G.player.position.x - G.CASINOHALL.pokerSeatX) < 0.01
+    && Math.abs(G.player.position.z - G.CASINOHALL.pokerSeatZ) < 0.01
+    && Math.abs(G.player.rotation.y - (-Math.PI / 2)) < 0.01,
+    'x=' + G.player.position.x.toFixed(2) + ' z=' + G.player.position.z.toFixed(2)
+    + ' yaw=' + G.player.rotation.y.toFixed(2));
+  check('poker: the status chip shows while playing',
+    G.pokerChipEl.style.display === 'block' && /^POKER /.test(G.pokerChipEl.textContent),
+    G.pokerChipEl.textContent);
+
+  /* --- BET cycles 10 -> 25 -> 5 -> 10 --- */
+  G.pokerCycleBet();
+  check('poker: BET cycles 10 -> 25', G.POKER_BETS[G.CASINOPOKER.betIdx] === 25);
+  G.pokerCycleBet();
+  check('poker: BET cycles 25 -> 5', G.POKER_BETS[G.CASINOPOKER.betIdx] === 5);
+  G.pokerCycleBet();
+  check('poker: BET cycles 5 -> 10', G.POKER_BETS[G.CASINOPOKER.betIdx] === 10);
+
+  /* --- a broke player is denied the deal, never trapped --- */
+  G.cash = 3;
+  G.pokerDeal();
+  check('poker: a broke player is denied the deal (cash untouched, no hand)',
+    G.cash === 3 && G.CASINOPOKER.phase === 'idle' && G.CASINOPOKER.hand.length === 0, 'cash=' + G.cash);
+
+  /* --- DEAL: rigged shoe deals a full house (aces over kings) --- */
+  G.cash = 100;
+  const pFiller = []; for (let i = 0; i < 15; i++) pFiller.push(40 + i);
+  G.CASINOPOKER.shoe = pFiller.concat([25, 12, 26, 13, 0]);   // pops deal [0,13,26,12,25]
+  G.pokerDeal();
+  check('poker: DEAL debits the bet and shows five cards',
+    G.cash === 90 && G.CASINOPOKER.phase === 'hold' && G.CASINOPOKER.hand.join(',') === '0,13,26,12,25',
+    'cash=' + G.cash + ' hand=' + G.CASINOPOKER.hand.join(','));
+
+  /* --- HOLD toggles by call and by key (1-5 capture, no weapon select) --- */
+  G.pokerToggleHold(0);
+  check('poker: hold toggles on', G.CASINOPOKER.holds[0] === true);
+  G.pokerToggleHold(0);
+  check('poker: hold toggles off', G.CASINOPOKER.holds[0] === false);
+  stubs.fireGlobal('keydown', { code: 'Digit1', preventDefault() {} });
+  check('poker: key 1 toggles hold 0 (the keydown capture works)',
+    G.CASINOPOKER.holds[0] === true, 'holds=' + G.CASINOPOKER.holds.join(','));
+  stubs.fireGlobal('keydown', { code: 'Digit1', preventDefault() {} });
+  check('poker: key 1 toggles hold 0 back off', G.CASINOPOKER.holds[0] === false);
+  stubs.fireGlobal('keydown', { code: 'Digit3', preventDefault() {} });
+  check('poker: key 3 toggles hold 2', G.CASINOPOKER.holds[2] === true);
+
+  /* --- DRAW standing pat: the full house resolves, the paytable row glows --- */
+  for (let i = 0; i < 5; i++) if (!G.CASINOPOKER.holds[i]) G.pokerToggleHold(i);
+  G.pokerDrawHand();
+  check('poker: standing pat resolves immediately (no cascade)',
+    G.CASINOPOKER.phase === 'resolve' && G.CASINOPOKER.lastHand === 'FULL HOUSE',
+    'phase=' + G.CASINOPOKER.phase + ' hand=' + G.CASINOPOKER.lastHand);
+  const pWinRow = G.pokerPayRows().find(r => r.name === 'FULL HOUSE');
+  check('poker: the winning hand name is highlighted on the paytable',
+    !!pWinRow && pWinRow.win === true && pWinRow.val === '$90', 'val=' + (pWinRow && pWinRow.val));
+  check('poker: the bankroll waits for the highlight (cash untouched mid-resolve)',
+    G.cash === 90 && G.CASINOPOKER.settleTb === 10 && G.CASINOPOKER.settleNet === 80, 'cash=' + G.cash);
+  for (let f = 0; f < 70; f++) G.pokerUpdate(1 / 60);   // 1.17s: the 0.9s highlight fires the settle
+  check('poker: the settle pays stakes back plus net honestly ($90 -> $180)',
+    G.CASINOPOKER.phase === 'done' && G.cash === 180 && G.CASINOPOKER.lastDelta === 80,
+    'cash=' + G.cash + ' phase=' + G.CASINOPOKER.phase);
+
+  /* --- the drumroll: 4 to a royal, last card lands the royal --- */
+  const pFiller2 = []; for (let i = 0; i < 15; i++) pFiller2.push(30 + i);
+  G.CASINOPOKER.shoe = pFiller2.concat([0, 4, 12, 11, 10, 9]);   // pops deal [9,10,11,12,4], then draw pops [0]
+  G.pokerDeal();
+  check('poker: second deal debits again ($180 -> $170)',
+    G.cash === 170 && G.CASINOPOKER.hand.join(',') === '9,10,11,12,4',
+    'cash=' + G.cash + ' hand=' + G.CASINOPOKER.hand.join(','));
+  for (let i = 0; i < 4; i++) G.pokerToggleHold(i);   // hold 10-J-Q-K suited
+  G.pokerDrawHand();
+  check('poker: the draw starts the 120ms cascade with the drumroll armed',
+    G.CASINOPOKER.phase === 'draw' && G.CASINOPOKER.drama === true
+    && G.CASINOPOKER.drawQ.join(',') === '4', 'phase=' + G.CASINOPOKER.phase);
+  G.pokerUpdate(1 / 60);
+  check('poker: the last card waits out the drumroll pause',
+    G.CASINOPOKER.drumT > 0 && G.CASINOPOKER.drawQ.length === 1 && G.CASINOPOKER.hand[4] === 4,
+    'drumT=' + G.CASINOPOKER.drumT.toFixed(3));
+  for (let f = 0; f < 45; f++) G.pokerUpdate(1 / 60);   // 0.75s: the 0.5s drumroll ends, the ace lands
+  check('poker: the royal lands after the drumroll',
+    G.CASINOPOKER.phase === 'resolve' && G.CASINOPOKER.lastHand === 'ROYAL FLUSH'
+    && G.pokerBigWinEl.style.display === 'block',
+    'phase=' + G.CASINOPOKER.phase + ' hand=' + G.CASINOPOKER.lastHand);
+  const pRoyalRow = G.pokerPayRows().find(r => r.name === 'ROYAL FLUSH');
+  check('poker: the royal row glows on the paytable at the $10 tier',
+    !!pRoyalRow && pRoyalRow.win === true && pRoyalRow.val === '$2500', 'val=' + (pRoyalRow && pRoyalRow.val));
+  for (let f = 0; f < 70; f++) G.pokerUpdate(1 / 60);   // the 0.9s highlight fires the settle
+  check('poker: the royal settles honestly ($170 -> $2670)',
+    G.CASINOPOKER.phase === 'done' && G.cash === 2670, 'cash=' + G.cash);
+
+  /* --- E stands: the pending bet refunds, never stranded --- */
+  G.pokerDeal();
+  check('poker: third deal opens a pending hand', G.cash === 2660 && G.CASINOPOKER.bet === 10);
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('poker: KeyE stands and exits (round trip complete)',
+    G.CASINOHALL.inHall === false && G.CASINOPOKER.playing === false
+    && G.CASINOHALL.seated === false && G.pokerPanelEl.style.display === 'none'
+    && G.pokerChipEl.style.display === 'none');
+  check('poker: the pending bet refunds on stand (cash back to $2670)', G.cash === 2670, 'cash=' + G.cash);
+  const pokerBackD = Math.hypot(G.player.position.x - G.CASINOHALL.doorX, G.player.position.z - G.CASINOHALL.doorZ);
+  check('poker: exit teleports back to the door', pokerBackD < 0.01, 'd=' + pokerBackD.toFixed(3));
+
+  /* --- death ejects from the hall: no gambling while dead --- */
+  G.P.dead = false; G.P.godT = 0;
+  G.player.position.set(pokerdoor.x, groundY(pokerdoor.x, pokerdoor.z), pokerdoor.z);
+  frame(20);
+  G.closeShop(); G.casinoHallEnter();
+  for (let q = 0; q < 4 && G.CASINOHALL.seatKind !== 'poker'; q++) G.casinoSeatToggle();
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('poker: re-seated at the poker stool', G.CASINOPOKER.playing === true);
+  G.P.dead = true;
+  for (let f = 0; f < 3; f++) G.casinoHallTick(1 / 60);   // the death-eject path, hermetic
+  check('poker: death ejects from the hall (never trapped)',
+    G.CASINOHALL.inHall === false && G.CASINOPOKER.playing === false
+    && G.pokerPanelEl.style.display === 'none' && G.pokerChipEl.style.display === 'none');
+  G.P.dead = false;
+
+  /* --- session only: save/load round trip carries zero poker keys --- */
+  G.saveGame();
+  G.loadSave();
+  const pSvStr = JSON.stringify(G.collectSave());
+  check('poker: save schema carries zero poker keys',
+    !/poker/i.test(pSvStr) && !/CASINOPOKER/.test(pSvStr), pSvStr.slice(0, 120));
+  check('poker: the round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsP, consoleProblems.slice(probsP).join(' | '));
 
   /* leave the world as the next block expects: player at origin, FT rebuilt there */
   if (G.CASINOHALL.inHall) G.casinoHallExit();

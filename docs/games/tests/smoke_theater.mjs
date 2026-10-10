@@ -2171,9 +2171,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('food-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('food-static: audio nodes pin (17 osc, 30 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain)',
-    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
-    (html.match(/\.createGain\(/g) || []).length === 30 &&
+  check('food-static: audio nodes pin (18 osc, 31 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain, +1 poker osc, +1 poker gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18 &&
+    (html.match(/\.createGain\(/g) || []).length === 31 &&
     (html.match(/AudioContext/g) || []).length === 2);
   {
     const foodSrc = html.slice(
@@ -2401,9 +2401,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('farmv1-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('farmv1-static: audio nodes pin (17 osc, 30 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain)',
-    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
-    (html.match(/\.createGain\(/g) || []).length === 30 &&
+  check('farmv1-static: audio nodes pin (18 osc, 31 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain, +1 poker osc, +1 poker gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18 &&
+    (html.match(/\.createGain\(/g) || []).length === 31 &&
     (html.match(/AudioContext/g) || []).length === 2);
   check('farmv1-static: no TODO/FIXME markers', !/\b(TODO|FIXME)\b/.test(html));
   check('farmv1-static: no em dashes', !html.includes('—'));
@@ -3922,9 +3922,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
-  check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',
-    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
-    (html.match(/\.createGain\(/g) || []).length === 30);
+  check('theater-static: audio nodes pin unchanged (18 osc, 31 gain: music reuses sfxBlip; poker sting schedules on the audio clock: +1 osc, +1 gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18 &&
+    (html.match(/\.createGain\(/g) || []).length === 31);
   check('theater-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('theater-static: guard coverage (positive chains)',

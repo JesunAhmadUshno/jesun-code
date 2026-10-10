@@ -765,6 +765,16 @@
     background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
     letter-spacing: 2px; display: none; pointer-events: none;
   }
+  /* ---- landmark casino: VIDEO POKER v1 (fifth table game) HUD. The poker
+         panel is DOM only (five tappable cards, the 9/6 paytable, BET/DEAL/
+         DRAW buttons, a win-headline overlay). #pokerchip mirrors #dicechip
+         in the top-left stack (819px sits below #dicechip 786px, no overlap).
+         ---- */
+  #pokerchip {
+    position: absolute; top: 819px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
   #lmdicepanel {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
@@ -800,6 +810,46 @@
   #lmdice-bigwin {
     position: absolute; left: 0; right: 0; top: 34%; color: #ffd24a;
     font-size: 30px; font-weight: bold; letter-spacing: 4px; display: none;
+    text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
+    animation: lmcs-bigwin .4s ease-in-out infinite alternate;
+  }
+  #lmpokerpanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
+    padding: 14px 16px; display: none; text-align: center; z-index: 40;
+    user-select: none; -webkit-user-select: none; max-height: 88vh; overflow-y: auto;
+  }
+  #lmpoker-title { color: #ffd24a; font-size: 15px; letter-spacing: 4px; font-weight: bold; margin-bottom: 8px; }
+  #lmpoker-pay { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; justify-content: center; margin: 0 auto 10px; max-width: 300px; text-align: left; }
+  .lmpoker-payrow { display: contents; }
+  .lmpoker-payname { color: #8b937a; font-size: 11px; letter-spacing: 1px; padding: 2px 0; }
+  .lmpoker-payval { color: #cfe8d8; font-size: 11px; font-weight: bold; text-align: right; padding: 2px 0; }
+  .lmpoker-payrow.win .lmpoker-payname, .lmpoker-payrow.win .lmpoker-payval { color: #ffd24a; text-shadow: 0 0 8px #ff9a2a; }
+  #lmpoker-note { color: #8b937a; font-size: 10px; letter-spacing: 1px; margin-bottom: 8px; }
+  #lmpoker-cards { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+  .lmpoker-card {
+    width: 62px; height: 88px; line-height: 84px; border-radius: 8px; font-size: 22px; font-weight: bold;
+    background: #f2ede0; color: #1a1a1a; border: 2px solid #c9a227; cursor: pointer;
+    touch-action: manipulation; position: relative; text-align: center;
+  }
+  .lmpoker-card.lmpoker-red { color: #a01822; }
+  .lmpoker-card.held { box-shadow: inset 0 0 0 3px #ffd24a; transform: translateY(-6px); }
+  .lmpoker-card.held::after {
+    content: 'HELD'; position: absolute; bottom: 2px; left: 0; right: 0;
+    font-size: 9px; letter-spacing: 2px; color: #7a6a1a; line-height: 12px;
+  }
+  #lmpoker-status { color: #cfe8d8; font-size: 12px; letter-spacing: 1px; min-height: 18px; margin-bottom: 8px; }
+  #lmpoker-controls { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  #lmpoker-controls button {
+    font-size: 13px; letter-spacing: 1px; font-weight: bold; padding: 10px 14px;
+    border-radius: 6px; border: 1px solid #c9a227; cursor: pointer; touch-action: manipulation;
+  }
+  #lmpoker-bet { color: #ffd24a; background: #2a2416; }
+  #lmpoker-deal { color: #0c0e0a; background: #ffd24a; }
+  #lmpoker-draw { color: #0c0e0a; background: #7dff9a; }
+  #lmpoker-bigwin {
+    position: absolute; left: 0; right: 0; top: 30%; color: #ffd24a;
+    font-size: 26px; font-weight: bold; letter-spacing: 4px; display: none;
     text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
     animation: lmcs-bigwin .4s ease-in-out infinite alternate;
   }
@@ -1232,6 +1282,7 @@
   <div id="bjchip"></div>
   <div id="roulchip"></div>
   <div id="dicechip"></div>
+  <div id="pokerchip"></div>
   <div id="lmcasinopanel">
     <div id="lmcs-title">ROYAL REELS</div>
     <div id="lmcs-reels">
@@ -1270,6 +1321,15 @@
     <div id="lmdice-controls"><button id="lmdice-bet">BET $10</button><button id="lmdice-clear">CLEAR</button><button id="lmdice-roll">ROLL</button></div>
     <div id="lmdice-pay">UNDER 7 / OVER 7 PAYS 1:1<br>LUCKY 7 PAYS 4:1 &nbsp; DOUBLES PAYS 5:1<br>SUM 7 LOSES UNDER/OVER: THE HONEST HOUSE EDGE</div>
     <div id="lmdice-bigwin"></div>
+  </div>
+  <div id="lmpokerpanel">
+    <div id="lmpoker-title">VIDEO POKER</div>
+    <div id="lmpoker-pay"></div>
+    <div id="lmpoker-note">ROYAL FLUSH PAYS 800 AT THE $25 BET</div>
+    <div id="lmpoker-cards"></div>
+    <div id="lmpoker-status">BET $10</div>
+    <div id="lmpoker-controls"><button id="lmpoker-bet">BET $10</button><button id="lmpoker-deal">DEAL</button><button id="lmpoker-draw">DRAW</button></div>
+    <div id="lmpoker-bigwin"></div>
   </div>
   <div id="firestchip"><span id="firestarr">^</span> <span id="firesttxt"></span></div>
   <div id="heistchip"></div>
@@ -8555,6 +8615,19 @@ function buildCasinoHallGeo() {
   for (const _dx of [7.3, 9.7]) for (const _dz of [7.55, 9.45])
     amenPart(parts, 0, 0.25, 1.35, 0.25, _dx, 0.675, _dz, WOOD);
   amenPart(parts, 0, 0.6, 0.9, 0.6, 8.5, 0.45, 10.8, WOOD);   // the dice chair
+  /* video-poker cabinets (casino poker v1): two cabinets on the west wall
+     with stools east of them. Merged into the hall mesh (the dice
+     table/chair idiom): zero net new draw calls, zero new lights. All poker
+     play is a DOM overlay, so poker costs nothing beyond the hall mesh. */
+  for (const _pz of [2, 5.2]) {
+    amenPart(parts, 0, 0.9, 2.2, 1.4, -11.5, 1.1, _pz, MACH);
+    amenPart(parts, 0, 1.0, 0.25, 1.5, -11.5, 2.3, _pz, TRIMH);
+    amenPart(parts, 0, 1.0, 0.2, 1.5, -11.5, 0.1, _pz, MACHD);
+    const _pscr = amenPart(parts, 5, 1.0, 0.8, 0, -11.04, 1.7, _pz, SCREEN, Math.PI / 2);   // lit screen faces the stool (+X)
+    amenUV(_pscr, 0.5, 0.5);
+    amenPart(parts, 1, 0.28, 0.28, 0.5, -10.2, 0.45, _pz, WOOD);        // the stool
+    amenPart(parts, 1, 0.06, 0.06, 0.2, -10.2, 0.1, _pz, MACHD);
+  }
   /* curtains + sconces + chandelier */
   amenPart(parts, 0, 2.2, 6.5, 0.7, -7.1, 3.85, -9.3, CURTAIN);
   amenPart(parts, 0, 2.2, 6.5, 0.7, 7.1, 3.85, -9.3, CURTAIN);
@@ -8588,8 +8661,8 @@ const CASINOHALL = {
   inHall: false, hintEnter: false, sitOn: false, nearIdx: -1,
   doorX: 0, doorZ: 0,
   standX: 0, standZ: 0, seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the machines (-Z)
-  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0,   // the four table seats
-  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice': which seat E plays at
+  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0, pokerSeatX: 0, pokerSeatZ: 0,   // the five table seats
+  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice' | 'poker': which seat E plays at
   seated: false,
   hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
   hallPos: new THREE.Vector3(),
@@ -8818,7 +8891,8 @@ function casinoHallKeyE() {
   else if (CASINOBJ.playing) { casinoBjStand(); casinoHallExit(); }
   else if (CASINOROUL.playing) { casinoRoulStand(); casinoHallExit(); }
   else if (CASINODICE.playing) { casinoDiceStand(); casinoHallExit(); }
-  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else casinoSlotSit(); }
+  else if (CASINOPOKER.playing) { casinoPokerStand(); casinoHallExit(); }
+  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else if (CASINOHALL.seatKind === 'poker') casinoPokerSit(); else casinoSlotSit(); }
   else casinoHallExit();
 }
 function casinoHallEnter() {
@@ -8842,6 +8916,7 @@ function casinoHallEnter() {
   CASINOHALL.bjSeatX = a.x - 6; CASINOHALL.bjSeatZ = a.z + 1.7;          // cards: the west card table chair
   CASINOHALL.roulSeatX = a.x; CASINOHALL.roulSeatZ = a.z + 11.3;         // roulette: the wheel-table chair, faces the wheel (-Z)
   CASINOHALL.diceSeatX = a.x + 8.5; CASINOHALL.diceSeatZ = a.z + 10.8;  // dice: the street-dice table chair, faces the table (-Z)
+  CASINOHALL.pokerSeatX = a.x - 10.2; CASINOHALL.pokerSeatZ = a.z + 5.2;   // poker: the west-wall video-poker stool, faces the cabinets (-X)
   CASINOHALL.seatX = CASINOHALL.slotSeatX; CASINOHALL.seatZ = CASINOHALL.slotSeatZ; CASINOHALL.seatYaw = Math.PI;
   CASINOHALL.hallPos.set(a.x, CASINO_ROOM_Y, a.z - 6.0);
   player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
@@ -8887,7 +8962,7 @@ function casinoHallEnter() {
 }
 function casinoHallExit() {
   if (!CASINOHALL.inHall) return;
-  if (CASINOHALL.seated) { if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
+  if (CASINOHALL.seated) { if (CASINOPOKER.playing) casinoPokerStand(); else if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
   CASINOHALL.inHall = false; CASINOHALL.sitOn = false; CASINOHALL.nearIdx = -1;
   casinoHallMesh.visible = false;
   casinoslothintEl.style.opacity = 0;
@@ -8896,6 +8971,7 @@ function casinoHallExit() {
   bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
   roulPanelEl.style.display = 'none'; roulChipEl.style.display = 'none';
   dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none'; diceBigWinEl.style.display = 'none';
+  pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
@@ -8919,6 +8995,7 @@ function casinoHallTick(dt) {
     CASINOBJ.playing = false; casinobjselEl.style.opacity = 0;
     CASINOROUL.playing = false; roulPanelEl.style.display = 'none'; roulChipEl.style.display = 'none';
     CASINODICE.playing = false; dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none';
+    CASINOPOKER.playing = false; pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
     lmcsPanelEl.style.display = 'none';
     bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
     casinChipEl.style.display = 'none';
@@ -8960,19 +9037,21 @@ function casinoHallTick(dt) {
       const playCards = IS_TOUCH ? 'TAP TO PLAY CARDS' : 'PLAY CARDS [E]';
       const playRoul = IS_TOUCH ? 'TAP TO PLAY ROULETTE' : 'PLAY ROULETTE [E]';
       const playDice = IS_TOUCH ? 'TAP TO PLAY DICE' : 'PLAY DICE [E]';
-      const playTxt = CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots));
+      const playPoker = IS_TOUCH ? 'TAP TO PLAY POKER' : 'PLAY POKER [E]';
+      const playTxt = CASINOHALL.seatKind === 'poker' ? playPoker : (CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots)));
       const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
       const txt = CASINOHALL.seated ? exitTxt : (CASINOHALL.sitOn ? playTxt : exitTxt);
       if (casinoslothintEl.textContent !== txt) casinoslothintEl.textContent = txt;
       casinoslothintEl.style.opacity = 1;
       /* seat toggle chip (touch-friendly): which table E plays at next */
-      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS')));
+      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'poker' ? 'POKER' : (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS'))));
       if (casinobjselEl.textContent !== selTxt) casinobjselEl.textContent = selTxt;
       casinobjselEl.style.opacity = CASINOHALL.seated ? 0 : 1;
     }
     lmcsUpdate(dt);   // reel animation + big-win overlay timer
     roulUpdate(dt);   // wheel + ball animation + win-flash timer
     diceUpdate(dt);   // dice tumble + landing headline + delayed settle
+    pokerUpdate(dt);  // video-poker draw cascade + win highlight + delayed settle
     casinChipEl.style.display = 'none';
     return;
   }
@@ -9186,7 +9265,7 @@ function bjRender() {
 }
 function casinoSeatToggle() {
   if (!CASINOHALL.inHall || CASINOHALL.seated) return;
-  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : 'slots'));
+  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : (CASINOHALL.seatKind === 'dice' ? 'poker' : 'slots')));
   sfxBlip(760, 0.06, 'square', 0.14);
 }
 function casinoBjSit() {
@@ -9958,6 +10037,358 @@ function diceRollBtn(e) { e.preventDefault(); e.stopPropagation(); diceRoll(); }
 diceRollEl.addEventListener('touchstart', diceRollBtn, { passive: false });
 diceRollEl.addEventListener('click', diceRollBtn);
 const HELP_LMDICE = '<b>ROLL</b> play &nbsp; <b>E</b> exit &nbsp; <b>TOUCH</b> tap the buttons';
+
+/* ---- landmark casino: CASINO POKER v1 ("VIDEO POKER"), the fifth table game
+        in the gaming hall. Jacks or Better, 9/6 full-pay, on the cash economy.
+        Honest seeded 52-card shoe on the seeded-RNG idiom only (no unseeded
+        randomness, no rigging): one Fisher-Yates stream per shoe, seeded from
+        a fresh casino hash space (6529, 7) and the hand count, never 6503,
+        never the shoe space, never (6521, 99). Reshuffle when fewer than 15
+        cards remain. The cabinet strip (2 cabinets + stools) is merged into
+        the cached hall mesh (the dice table/chair idiom): zero net new draw
+        calls, zero new lights. All play is a DOM overlay: BET $5/$10/$25 (the
+        ROUL_BETS idiom) -> DEAL: five cards face-up -> HOLD: tap the cards or
+        keys 1-5 -> DRAW: discards replaced one-by-one on a 120ms cascade
+        (tick-loop driven, no setTimeout); a near-big hand earns a short
+        drumroll pause before the last card -> the winning hand name is
+        highlighted on the posted 9/6 paytable, the win sting plays, and the
+        bankroll settles AFTER the highlight (one timing table, tick-loop
+        driven, no setTimeout). E sits at the poker stool, E stands and exits
+        (never traps: standing refunds any pending bet; a pending draw aborts
+        cleanly). Q (or the TABLE chip) cycles seats: slots, cards, roulette,
+        dice, poker. Session only: the save schema is untouched. ---- */
+const POKER_BETS = [5, 10, 25];
+const POKER_HASH_A = 6529, POKER_HASH_B = 7;   // fresh hash space: not 6503, not the shoe space, not (6521, 99)
+/* 9/6 Jacks or Better full-pay: per-coin pays. Payouts scale with the bet
+   tier (bet/5 coins of $5); the max-bet royal pays the 800-coin bonus. */
+const POKER_PAY = [
+  ['ROYAL FLUSH', 250], ['STRAIGHT FLUSH', 50], ['FOUR OF A KIND', 25],
+  ['FULL HOUSE', 9], ['FLUSH', 6], ['STRAIGHT', 4], ['THREE OF A KIND', 3],
+  ['TWO PAIR', 2], ['JACKS OR BETTER', 1],
+];
+const POKER_SUIT_CH = ['\u2660', '\u2665', '\u2666', '\u2663'];   // spades hearts diamonds clubs
+const POKER_RANK_CH = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const CASINOPOKER = {
+  playing: false, betIdx: 1, hands: 0,
+  shoe: [], phase: 'idle',            // idle | hold | draw | resolve | done
+  hand: [], finalHand: [],
+  holds: [false, false, false, false, false],
+  bet: 0, lastDelta: 0, lastHand: '',
+  drawQ: [], drawT: 0, drumT: 0, drumDone: false, drumRattle: 0, drama: false,
+  hlT: 0, settleTb: 0, settleNet: 0, bigWinT: 0,
+};
+function pokerRank(c) { return (c % 13) + 1; }           // 1..13, 1 = ace
+function pokerSuit(c) { return Math.floor(c / 13); }     // 0..3: S H D C
+function pokerIsRed(c) { const s = pokerSuit(c); return s === 1 || s === 2; }
+function pokerCardStr(c) { return POKER_RANK_CH[pokerRank(c) - 1] + POKER_SUIT_CH[pokerSuit(c)]; }
+/* Fisher-Yates on the seeded idiom (the blackjack honest-shoe idiom):
+   deterministic for a given seed, a full honest 52 every shuffle. */
+function pokerBuildShoe(seed) {
+  const shoe = [];
+  for (let i = 0; i < 52; i++) shoe.push(i);
+  const r = mulberry32(seed >>> 0);
+  for (let i = 51; i > 0; i--) { const j = Math.floor(r() * (i + 1)); const t = shoe[i]; shoe[i] = shoe[j]; shoe[j] = t; }
+  return shoe;
+}
+function pokerShoeSeed() { return (hash2i(POKER_HASH_A, POKER_HASH_B) ^ (CASINOPOKER.hands * 0x9e3779b9)) >>> 0; }
+function pokerDraw() {
+  if (CASINOPOKER.shoe.length < 15) CASINOPOKER.shoe = pokerBuildShoe(pokerShoeSeed());   // reshuffle under 15 cards
+  return CASINOPOKER.shoe.pop();
+}
+/* 9/6 evaluation: returns [hand name, per-coin pay]. */
+function pokerEval(hand) {
+  const rs = hand.map(pokerRank).sort((a, b) => a - b);
+  const flush = hand.every(c => pokerSuit(c) === pokerSuit(hand[0]));
+  const uniq = [...new Set(rs)];
+  const wheel = uniq.length === 5 && rs[0] === 1 && rs[1] === 2 && rs[2] === 3 && rs[3] === 4 && rs[4] === 5;
+  const broadway = uniq.length === 5 && rs[0] === 1 && rs[1] === 10 && rs[2] === 11 && rs[3] === 12 && rs[4] === 13;
+  const straight = (uniq.length === 5 && rs[4] - rs[0] === 4) || wheel || broadway;
+  const cnt = {};
+  for (const r of rs) cnt[r] = (cnt[r] || 0) + 1;
+  const groups = Object.values(cnt).sort((a, b) => b - a);
+  if (flush && broadway) return ['ROYAL FLUSH', 250];
+  if (flush && straight) return ['STRAIGHT FLUSH', 50];
+  if (groups[0] === 4) return ['FOUR OF A KIND', 25];
+  if (groups[0] === 3 && groups[1] === 2) return ['FULL HOUSE', 9];
+  if (flush) return ['FLUSH', 6];
+  if (straight) return ['STRAIGHT', 4];
+  if (groups[0] === 3) return ['THREE OF A KIND', 3];
+  if (groups[0] === 2 && groups[1] === 2) return ['TWO PAIR', 2];
+  if (groups[0] === 2) {
+    const pr = +Object.keys(cnt).find(k => cnt[k] === 2);
+    if (pr === 1 || pr >= 11) return ['JACKS OR BETTER', 1];
+  }
+  return ['NO HAND', 0];
+}
+/* total credit payout at the current bet tier: pay x bet, with the max-bet
+   royal bonus (800 coins of $5). */
+function pokerPayFor(name, pay, betIdx) {
+  const bet = POKER_BETS[betIdx];
+  if (name === 'ROYAL FLUSH' && bet === 25) return 800 * 5;
+  return pay * bet;
+}
+/* a near-big hand: the four known cards are one card from a royal, a straight
+   flush, or quads. That is the drumroll moment. */
+function pokerNearBig(c4) {
+  const rs = c4.map(pokerRank).sort((a, b) => a - b);
+  const suits = c4.map(pokerSuit);
+  const flush4 = suits.every(s => s === suits[0]);
+  const uniq = [...new Set(rs)];
+  const tenJQKA = new Set([1, 10, 11, 12, 13]);
+  if (flush4 && rs.every(r => tenJQKA.has(r))) return true;          // 4 to a royal
+  if (flush4 && uniq.length === 4) {                                  // 4 to a straight flush
+    const lo = Math.min(...uniq), hi = Math.max(...uniq);
+    if (hi - lo <= 4) return true;
+    if (uniq.includes(1) && uniq.includes(13) && hi - Math.min(...uniq.filter(u => u !== 1)) <= 4) return true;
+  }
+  const cnt = {};
+  for (const r of rs) cnt[r] = (cnt[r] || 0) + 1;
+  if (Math.max(...Object.values(cnt)) === 3) return true;            // drawing to quads
+  return false;
+}
+function pokerDeal() {
+  if (!CASINOPOKER.playing || (CASINOPOKER.phase !== 'idle' && CASINOPOKER.phase !== 'done') || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  const bet = POKER_BETS[CASINOPOKER.betIdx];
+  if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
+  CASINOPOKER.hands++;
+  cash -= bet; updateCashHUD(); floatCash('-$' + bet);                 // the cash idiom
+  CASINOPOKER.bet = bet; CASINOPOKER.lastDelta = 0; CASINOPOKER.lastHand = '';
+  CASINOPOKER.hand = [pokerDraw(), pokerDraw(), pokerDraw(), pokerDraw(), pokerDraw()];
+  CASINOPOKER.holds = [false, false, false, false, false];
+  CASINOPOKER.phase = 'hold';
+  for (let i = 0; i < 5; i++) sfxBlip(500 + i * 120, 0.05, 'square', 0.12);   // the deal cascade
+  pokerRender();
+  toast('HOLD CARDS, THEN DRAW');
+}
+function pokerToggleHold(i) {
+  if (!CASINOPOKER.playing || CASINOPOKER.phase !== 'hold') return;
+  CASINOPOKER.holds[i] = !CASINOPOKER.holds[i];
+  sfxBlip(CASINOPOKER.holds[i] ? 880 : 660, 0.06, 'square', 0.14);
+  pokerRender();
+}
+function pokerCardBtn(i) {
+  return function pokerCardTap(e) { e.preventDefault(); e.stopPropagation(); pokerToggleHold(i); };   // the touch-guard idiom
+}
+function pokerDrawHand() {
+  if (!CASINOPOKER.playing || CASINOPOKER.phase !== 'hold' || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  const repIdx = [];
+  for (let i = 0; i < 5; i++) if (!CASINOPOKER.holds[i]) repIdx.push(i);
+  const repl = repIdx.map(() => pokerDraw());
+  const final = CASINOPOKER.hand.slice();
+  repIdx.forEach((slot, k) => { final[slot] = repl[k]; });
+  CASINOPOKER.finalHand = final;
+  if (repIdx.length === 0) { pokerFinishDraw(); return; }   // standing pat: no cascade
+  /* the drama check runs on the four cards known before the last reveal.
+     The final hand is already honest (drawn from the seeded shoe); only the
+     pacing changes. */
+  const lastSlot = repIdx[repIdx.length - 1];
+  const known4 = final.filter((_, i) => i !== lastSlot);
+  CASINOPOKER.drama = pokerNearBig(known4) || pokerEval(final)[1] >= 25;
+  CASINOPOKER.drawQ = repIdx.slice();
+  CASINOPOKER.drawT = 0; CASINOPOKER.drumT = 0; CASINOPOKER.drumDone = false; CASINOPOKER.drumRattle = 0;
+  CASINOPOKER.phase = 'draw';
+  sfxBlip(240, 0.1, 'square', 0.16);
+  pokerRender();
+}
+/* the win sting (the fanfare idiom, tick-safe): bigger hands get more notes,
+   scheduled on the audio clock, no setTimeout. */
+function pokerWinSting(pay) {
+  const a = ac(); if (!a) return;
+  const seq = pay >= 250 ? [523, 659, 784, 1046, 1318, 1568] : pay >= 25 ? [523, 659, 784, 1046] : pay >= 6 ? [523, 659, 784] : [660, 880];
+  seq.forEach((f, i) => {
+    const t = a.currentTime + i * 0.09;
+    const o = a.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + 0.2);
+  });
+}
+function pokerFinishDraw() {
+  const final = CASINOPOKER.finalHand.length === 5 ? CASINOPOKER.finalHand : CASINOPOKER.hand;
+  const [name, pay] = pokerEval(final);
+  CASINOPOKER.hand = final.slice();
+  CASINOPOKER.lastHand = name;
+  const payout = pay > 0 ? pokerPayFor(name, pay, CASINOPOKER.betIdx) : 0;
+  CASINOPOKER.settleTb = CASINOPOKER.bet;
+  CASINOPOKER.settleNet = payout - CASINOPOKER.bet;
+  CASINOPOKER.lastDelta = CASINOPOKER.settleNet;
+  CASINOPOKER.phase = 'resolve';
+  CASINOPOKER.hlT = 0.9;   // the win highlight breathes before the bankroll settles
+  if (payout > 0) {
+    pokerWinSting(pay);
+    if (pay >= 25) {   // quads or better: the headline moment
+      pokerBigWinEl.textContent = name + '!';
+      pokerBigWinEl.style.display = 'block';
+      CASINOPOKER.bigWinT = 2.2;
+    }
+  } else {
+    sfxBlip(220, 0.2, 'sawtooth', 0.18);   // the quiet loss
+  }
+  toast(name);
+  pokerRender();
+}
+function pokerSettle() {
+  CASINOPOKER.phase = 'done';
+  if (!CASINOPOKER.playing) return;   // stood mid-resolve: the stand refund already covered it
+  const tb = CASINOPOKER.settleTb, net = CASINOPOKER.settleNet;
+  cash += tb + net; updateCashHUD();   // the cash idiom: stakes back plus net
+  if (net > 0) floatCash('+$' + net); else if (net < 0) floatCash('-$' + (-net));
+  CASINOPOKER.bet = 0; CASINOPOKER.settleTb = 0; CASINOPOKER.settleNet = 0;
+  pokerRender();
+}
+/* one timing table, tick-loop driven: the 120ms draw cascade, the drumroll
+   pause before a dramatic last card, the win highlight, the delayed settle. */
+function pokerUpdate(dt) {
+  if (!CASINOPOKER.playing) return;
+  if (CASINOPOKER.bigWinT > 0) {
+    CASINOPOKER.bigWinT -= dt;
+    if (CASINOPOKER.bigWinT <= 0) pokerBigWinEl.style.display = 'none';
+  }
+  if (CASINOPOKER.phase === 'draw') {
+    if (CASINOPOKER.drawQ.length === 0) { pokerFinishDraw(); return; }
+    const isLast = CASINOPOKER.drawQ.length === 1;
+    if (isLast && CASINOPOKER.drama && !CASINOPOKER.drumDone) {
+      CASINOPOKER.drumT = 0.5; CASINOPOKER.drumDone = true;   // the drumroll pause
+    }
+    if (CASINOPOKER.drumT > 0) {
+      CASINOPOKER.drumT -= dt;
+      CASINOPOKER.drumRattle += dt;
+      if (CASINOPOKER.drumRattle >= 0.12) {
+        CASINOPOKER.drumRattle = 0;
+        sfxBlip(300 + Math.floor(CASINOPOKER.drumT * 400), 0.03, 'square', 0.1);
+      }
+      return;
+    }
+    CASINOPOKER.drawT += dt;
+    if (CASINOPOKER.drawT >= 0.12) {   // the 120ms cascade
+      CASINOPOKER.drawT = 0;
+      const slot = CASINOPOKER.drawQ.shift();
+      CASINOPOKER.hand[slot] = CASINOPOKER.finalHand[slot];
+      sfxBlip(700 + slot * 90, 0.05, 'triangle', 0.16);   // card flip blip
+      pokerRender();
+    }
+    return;
+  }
+  if (CASINOPOKER.phase === 'resolve') {
+    CASINOPOKER.hlT -= dt;
+    if (CASINOPOKER.hlT <= 0) pokerSettle();
+  }
+}
+function pokerCycleBet() {
+  if (!CASINOPOKER.playing || (CASINOPOKER.phase !== 'idle' && CASINOPOKER.phase !== 'done')) return;
+  CASINOPOKER.betIdx = (CASINOPOKER.betIdx + 1) % POKER_BETS.length;
+  const b = POKER_BETS[CASINOPOKER.betIdx];
+  pokerBetEl.textContent = 'BET $' + b;
+  pokerRender();
+  sfxBlip(990, 0.07, 'square', 0.16);
+}
+/* the paytable rows at the current bet tier: [{name, val, win}]. The winning
+   hand row carries win:true while the result is on screen. */
+function pokerPayRows() {
+  return POKER_PAY.map(([name, pay]) => ({
+    name,
+    val: '$' + pokerPayFor(name, pay, CASINOPOKER.betIdx),
+    win: (CASINOPOKER.phase === 'resolve' || CASINOPOKER.phase === 'done') && name === CASINOPOKER.lastHand,
+  }));
+}
+function pokerRender() {
+  /* the inspectable 9/6 paytable at the current bet tier; the winning hand
+     row glows while the result is on screen. */
+  pokerPayEl.innerHTML = '';
+  for (const r of pokerPayRows()) {
+    const row = document.createElement('div');
+    row.className = 'lmpoker-payrow' + (r.win ? ' win' : '');
+    const nm = document.createElement('div'); nm.className = 'lmpoker-payname'; nm.textContent = r.name;
+    const vl = document.createElement('div'); vl.className = 'lmpoker-payval'; vl.textContent = r.val;
+    row.appendChild(nm); row.appendChild(vl);
+    pokerPayEl.appendChild(row);
+  }
+  pokerCardsEl.innerHTML = '';
+  for (let i = 0; i < CASINOPOKER.hand.length; i++) {
+    const c = CASINOPOKER.hand[i];
+    const d = document.createElement('div');
+    d.className = 'lmpoker-card' + (pokerIsRed(c) ? ' lmpoker-red' : '') + (CASINOPOKER.holds[i] ? ' held' : '');
+    d.textContent = pokerCardStr(c);
+    d.addEventListener('touchstart', pokerCardBtn(i), { passive: false });
+    d.addEventListener('click', pokerCardBtn(i));
+    pokerCardsEl.appendChild(d);
+  }
+  const bet = POKER_BETS[CASINOPOKER.betIdx];
+  let st;
+  if (CASINOPOKER.phase === 'idle') st = 'BET $' + bet + ' - DEAL TO PLAY';
+  else if (CASINOPOKER.phase === 'hold') st = 'HOLD CARDS, THEN DRAW';
+  else if (CASINOPOKER.phase === 'draw') st = 'DRAWING...';
+  else if (CASINOPOKER.phase === 'resolve') st = CASINOPOKER.lastHand;
+  else st = CASINOPOKER.lastHand + (CASINOPOKER.lastDelta !== 0 ? ' ' + (CASINOPOKER.lastDelta > 0 ? '+$' : '-$') + Math.abs(CASINOPOKER.lastDelta) : '');
+  pokerStatusEl.textContent = st;
+  /* the HUD status chip (the chip idiom): phase plus the last balance delta */
+  pokerChipEl.textContent = 'POKER ' + st;
+  pokerChipEl.style.display = CASINOPOKER.playing ? 'block' : 'none';
+  pokerBetEl.textContent = 'BET $' + bet;
+}
+function casinoPokerSit() {
+  if (CASINOHALL.seated || !CASINOHALL.inHall) return;
+  emoteCancel();   // no emotes while gambling
+  CASINOHALL.seated = true; CASINOHALL.sitOn = false;
+  CASINOHALL.seatX = CASINOHALL.pokerSeatX; CASINOHALL.seatZ = CASINOHALL.pokerSeatZ; CASINOHALL.seatYaw = -Math.PI / 2;   // face the cabinets (-X)
+  CASINOPOKER.playing = true; CASINOPOKER.betIdx = 1; CASINOPOKER.hands = 0;
+  CASINOPOKER.shoe = pokerBuildShoe(pokerShoeSeed());
+  CASINOPOKER.phase = 'idle'; CASINOPOKER.hand = []; CASINOPOKER.finalHand = [];
+  CASINOPOKER.holds = [false, false, false, false, false];
+  CASINOPOKER.bet = 0; CASINOPOKER.lastDelta = 0; CASINOPOKER.lastHand = '';
+  player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
+  player.rotation.y = CASINOHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  pokerBetEl.textContent = 'BET $' + POKER_BETS[CASINOPOKER.betIdx];
+  pokerRender();
+  pokerPanelEl.style.display = 'block';
+  casinoslothintEl.style.opacity = 0; casinobjselEl.style.opacity = 0;
+  helpEl.innerHTML = HELP_LMPOKER;
+  toast('VIDEO POKER');
+  sfxBlip(660, 0.09, 'triangle', 0.2);
+}
+function casinoPokerStand() {
+  if (!CASINOHALL.seated) return;
+  CASINOHALL.seated = false; CASINOHALL.sitOn = false;
+  if (CASINOPOKER.bet > 0) {   // never strands chips: a pending bet refunds on stand; a pending draw aborts cleanly
+    cash += CASINOPOKER.bet; updateCashHUD();
+    toast('BET REFUNDED $' + CASINOPOKER.bet);
+  }
+  CASINOPOKER.playing = false; CASINOPOKER.phase = 'idle';
+  CASINOPOKER.hand = []; CASINOPOKER.finalHand = [];
+  CASINOPOKER.holds = [false, false, false, false, false];
+  CASINOPOKER.bet = 0; CASINOPOKER.lastDelta = 0; CASINOPOKER.lastHand = '';
+  CASINOPOKER.drawQ = []; CASINOPOKER.drumT = 0; CASINOPOKER.drumDone = false; CASINOPOKER.drumRattle = 0; CASINOPOKER.drama = false;
+  CASINOPOKER.hlT = 0; CASINOPOKER.settleTb = 0; CASINOPOKER.settleNet = 0; CASINOPOKER.bigWinT = 0;
+  pokerPanelEl.style.display = 'none';
+  pokerChipEl.style.display = 'none';
+  pokerBigWinEl.style.display = 'none';
+  player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  helpEl.innerHTML = HELP_CASINOHALL;
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+const pokerChipEl = document.getElementById('pokerchip');
+const pokerPanelEl = document.getElementById('lmpokerpanel');
+const pokerPayEl = document.getElementById('lmpoker-pay');
+const pokerCardsEl = document.getElementById('lmpoker-cards');
+const pokerStatusEl = document.getElementById('lmpoker-status');
+const pokerBetEl = document.getElementById('lmpoker-bet');
+const pokerDealEl = document.getElementById('lmpoker-deal');
+const pokerDrawEl = document.getElementById('lmpoker-draw');
+const pokerBigWinEl = document.getElementById('lmpoker-bigwin');
+function pokerBetBtn(e) { e.preventDefault(); e.stopPropagation(); pokerCycleBet(); }   // the touch-guard idiom
+pokerBetEl.addEventListener('touchstart', pokerBetBtn, { passive: false });
+pokerBetEl.addEventListener('click', pokerBetBtn);
+function pokerDealBtn(e) { e.preventDefault(); e.stopPropagation(); pokerDeal(); }
+pokerDealEl.addEventListener('touchstart', pokerDealBtn, { passive: false });
+pokerDealEl.addEventListener('click', pokerDealBtn);
+function pokerDrawBtn(e) { e.preventDefault(); e.stopPropagation(); pokerDrawHand(); }
+pokerDrawEl.addEventListener('touchstart', pokerDrawBtn, { passive: false });
+pokerDrawEl.addEventListener('click', pokerDrawBtn);
+const HELP_LMPOKER = '<b>DEAL</b> play &nbsp; <b>E</b> exit &nbsp; <b>1-5</b> hold &nbsp; <b>TOUCH</b> tap cards';
 
 /* ================= PHASE 5: LANDMARK FIRE STATION v1 (buildings/places) ================
    One seeded landmark fire station per rare chunk (the 'firestation' amenity
@@ -12637,7 +13068,15 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette or dice
+  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette, dice or poker
+  if (CASINOPOKER.playing) {   // video poker captures 1-5 for card holds while seated (the shop-capture idiom)
+    if (e.code === 'Digit1') { pokerToggleHold(0); return; }
+    else if (e.code === 'Digit2') { pokerToggleHold(1); return; }
+    else if (e.code === 'Digit3') { pokerToggleHold(2); return; }
+    else if (e.code === 'Digit4') { pokerToggleHold(3); return; }
+    else if (e.code === 'Digit5') { pokerToggleHold(4); return; }
+    /* every other key (E to stand, Q, movement) falls through: E never traps */
+  }
   if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
