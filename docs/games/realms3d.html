@@ -751,6 +751,58 @@
     text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
     animation: lmcs-bigwin .4s ease-in-out infinite alternate;
   }
+  /* ---- landmark casino dice v1 (fourth table game): the betting panel is
+         DOM only (zero betting draw calls): a roll-history strip, the four
+         bet zones with stakes, BET/CLEAR/ROLL buttons, a pay table, and a
+         headline overlay that fires exactly at the landing moment. The two
+         dice are plain meshes sharing one geometry and one canvas-pip
+         material, parented to the cached hall mesh (+2 draws only while
+         inside, zero new lights). #dicechip mirrors #roulchip in the
+         top-left stack (786px sits below #roulchip 720px and #conchchip
+         753px, no overlap). ---- */
+  #dicechip {
+    position: absolute; top: 786px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #lmdicepanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
+    padding: 14px 16px; display: none; text-align: center; z-index: 40;
+    user-select: none; -webkit-user-select: none; max-height: 88vh; overflow-y: auto;
+  }
+  #lmdice-title { color: #ffd24a; font-size: 15px; letter-spacing: 4px; font-weight: bold; margin-bottom: 8px; }
+  #lmdice-hist { display: flex; gap: 4px; justify-content: center; margin-bottom: 8px; min-height: 22px; flex-wrap: wrap; max-width: 340px; }
+  .lmdice-hcell {
+    height: 22px; line-height: 22px; padding: 0 8px; border-radius: 4px;
+    font-size: 11px; font-weight: bold; text-align: center;
+    background: #1a2416; color: #ffe9a8; border: 1px solid #4a5240;
+  }
+  .lmdice-hcell.new { box-shadow: 0 0 0 2px #ffd24a; }
+  #lmdice-status { color: #cfe8d8; font-size: 12px; letter-spacing: 1px; min-height: 18px; margin-bottom: 8px; }
+  #lmdice-zones { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px; max-width: 340px; }
+  .lmdice-zone {
+    font-size: 12px; letter-spacing: 1px; font-weight: bold; padding: 10px 12px;
+    border-radius: 6px; border: 1px solid #4a5240; cursor: pointer; color: #cfe8d8;
+    background: #1a2416; position: relative;
+  }
+  .lmdice-zone.bet { box-shadow: inset 0 0 0 2px #ffd24a; }
+  .lmdice-stake { position: absolute; bottom: 0; right: 4px; font-size: 8px; color: #ffd24a; font-weight: bold; }
+  #lmdice-controls { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  #lmdice-controls button {
+    font-size: 13px; letter-spacing: 1px; font-weight: bold; padding: 10px 14px;
+    border-radius: 6px; border: 1px solid #c9a227; cursor: pointer;
+  }
+  #lmdice-bet { color: #ffd24a; background: #2a2416; }
+  #lmdice-clear { color: #cfe8d8; background: #3a2a1a; }
+  #lmdice-roll { color: #0c0e0a; background: #ffd24a; }
+  #lmdice-pay { color: #8b937a; font-size: 10px; letter-spacing: 1px; line-height: 1.7; }
+  #lmdice-bigwin {
+    position: absolute; left: 0; right: 0; top: 34%; color: #ffd24a;
+    font-size: 30px; font-weight: bold; letter-spacing: 4px; display: none;
+    text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
+    animation: lmcs-bigwin .4s ease-in-out infinite alternate;
+  }
   /* ---- landmark fire station HUD (Phase 5): bearing chip mirrors
          #casinchip, stacked below it in the top-left stack (#casinchip owns
          588px; #firechip at 522px is the wildfire chip, a different system)
@@ -1179,6 +1231,7 @@
   <div id="casinobjsel"></div>
   <div id="bjchip"></div>
   <div id="roulchip"></div>
+  <div id="dicechip"></div>
   <div id="lmcasinopanel">
     <div id="lmcs-title">ROYAL REELS</div>
     <div id="lmcs-reels">
@@ -1208,6 +1261,15 @@
     <div id="lmroul-controls"><button id="lmroul-bet">BET $10</button><button id="lmroul-clear">CLEAR</button><button id="lmroul-spin">SPIN</button></div>
     <div id="lmroul-pay">STRAIGHT 35:1 &nbsp; RED/BLACK ODD/EVEN 1-18/19-36 1:1<br>DOZENS 2:1 &nbsp; COLUMNS 2:1 &nbsp; EUROPEAN SINGLE-ZERO</div>
     <div id="lmroul-bigwin"></div>
+  </div>
+  <div id="lmdicepanel">
+    <div id="lmdice-title">STREET DICE</div>
+    <div id="lmdice-hist"></div>
+    <div id="lmdice-status">BET $10</div>
+    <div id="lmdice-zones"></div>
+    <div id="lmdice-controls"><button id="lmdice-bet">BET $10</button><button id="lmdice-clear">CLEAR</button><button id="lmdice-roll">ROLL</button></div>
+    <div id="lmdice-pay">UNDER 7 / OVER 7 PAYS 1:1<br>LUCKY 7 PAYS 4:1 &nbsp; DOUBLES PAYS 5:1<br>SUM 7 LOSES UNDER/OVER: THE HONEST HOUSE EDGE</div>
+    <div id="lmdice-bigwin"></div>
   </div>
   <div id="firestchip"><span id="firestarr">^</span> <span id="firesttxt"></span></div>
   <div id="heistchip"></div>
@@ -8485,6 +8547,14 @@ function buildCasinoHallGeo() {
   amenPart(parts, 0, 3.4, 0.9, 1.6, 0, 0.9, 9, TABLE);
   amenPart(parts, 0, 3.6, 0.12, 1.8, 0, 1.38, 9, CREAM);
   for (const _lx of [-1.4, 1.4]) amenPart(parts, 0, 0.25, 0.9, 0.25, _lx, 0.45, 9, WOOD);
+  /* dice table (casino dice v1): green felt top on wood legs, east of the
+     roulette table, with the player's chair south of it. The two dice rest
+     on the felt at y=1.48 + half the die. */
+  amenPart(parts, 0, 3.0, 0.12, 2.4, 8.5, 1.42, 8.5, FELT);
+  amenPart(parts, 0, 2.8, 0.10, 2.2, 8.5, 1.32, 8.5, WOOD);
+  for (const _dx of [7.3, 9.7]) for (const _dz of [7.55, 9.45])
+    amenPart(parts, 0, 0.25, 1.35, 0.25, _dx, 0.675, _dz, WOOD);
+  amenPart(parts, 0, 0.6, 0.9, 0.6, 8.5, 0.45, 10.8, WOOD);   // the dice chair
   /* curtains + sconces + chandelier */
   amenPart(parts, 0, 2.2, 6.5, 0.7, -7.1, 3.85, -9.3, CURTAIN);
   amenPart(parts, 0, 2.2, 6.5, 0.7, 7.1, 3.85, -9.3, CURTAIN);
@@ -8518,8 +8588,8 @@ const CASINOHALL = {
   inHall: false, hintEnter: false, sitOn: false, nearIdx: -1,
   doorX: 0, doorZ: 0,
   standX: 0, standZ: 0, seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the machines (-Z)
-  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0,   // the three table seats
-  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul': which seat E plays at
+  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0,   // the four table seats
+  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice': which seat E plays at
   seated: false,
   hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
   hallPos: new THREE.Vector3(),
@@ -8747,7 +8817,8 @@ function casinoHallKeyE() {
   if (CASINOSLOT.playing) { casinoSlotStand(); casinoHallExit(); }
   else if (CASINOBJ.playing) { casinoBjStand(); casinoHallExit(); }
   else if (CASINOROUL.playing) { casinoRoulStand(); casinoHallExit(); }
-  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else casinoSlotSit(); }
+  else if (CASINODICE.playing) { casinoDiceStand(); casinoHallExit(); }
+  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else casinoSlotSit(); }
   else casinoHallExit();
 }
 function casinoHallEnter() {
@@ -8770,6 +8841,7 @@ function casinoHallEnter() {
   CASINOHALL.slotSeatX = a.x - 6.75; CASINOHALL.slotSeatZ = a.z - 6.0;   // slots face the machines (-Z)
   CASINOHALL.bjSeatX = a.x - 6; CASINOHALL.bjSeatZ = a.z + 1.7;          // cards: the west card table chair
   CASINOHALL.roulSeatX = a.x; CASINOHALL.roulSeatZ = a.z + 11.3;         // roulette: the wheel-table chair, faces the wheel (-Z)
+  CASINOHALL.diceSeatX = a.x + 8.5; CASINOHALL.diceSeatZ = a.z + 10.8;  // dice: the street-dice table chair, faces the table (-Z)
   CASINOHALL.seatX = CASINOHALL.slotSeatX; CASINOHALL.seatZ = CASINOHALL.slotSeatZ; CASINOHALL.seatYaw = Math.PI;
   CASINOHALL.hallPos.set(a.x, CASINO_ROOM_Y, a.z - 6.0);
   player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
@@ -8815,7 +8887,7 @@ function casinoHallEnter() {
 }
 function casinoHallExit() {
   if (!CASINOHALL.inHall) return;
-  if (CASINOHALL.seated) { if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else casinoSlotStand(); }
+  if (CASINOHALL.seated) { if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
   CASINOHALL.inHall = false; CASINOHALL.sitOn = false; CASINOHALL.nearIdx = -1;
   casinoHallMesh.visible = false;
   casinoslothintEl.style.opacity = 0;
@@ -8823,6 +8895,7 @@ function casinoHallExit() {
   lmcsPanelEl.style.display = 'none';
   bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
   roulPanelEl.style.display = 'none'; roulChipEl.style.display = 'none';
+  dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none'; diceBigWinEl.style.display = 'none';
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
@@ -8845,6 +8918,7 @@ function casinoHallTick(dt) {
     CASINOSLOT.playing = false; casinoslothintEl.style.opacity = 0;
     CASINOBJ.playing = false; casinobjselEl.style.opacity = 0;
     CASINOROUL.playing = false; roulPanelEl.style.display = 'none'; roulChipEl.style.display = 'none';
+    CASINODICE.playing = false; dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none';
     lmcsPanelEl.style.display = 'none';
     bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
     casinChipEl.style.display = 'none';
@@ -8885,18 +8959,20 @@ function casinoHallTick(dt) {
       const playSlots = IS_TOUCH ? 'TAP TO PLAY SLOTS' : 'PLAY SLOTS [E]';
       const playCards = IS_TOUCH ? 'TAP TO PLAY CARDS' : 'PLAY CARDS [E]';
       const playRoul = IS_TOUCH ? 'TAP TO PLAY ROULETTE' : 'PLAY ROULETTE [E]';
-      const playTxt = CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots);
+      const playDice = IS_TOUCH ? 'TAP TO PLAY DICE' : 'PLAY DICE [E]';
+      const playTxt = CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots));
       const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
       const txt = CASINOHALL.seated ? exitTxt : (CASINOHALL.sitOn ? playTxt : exitTxt);
       if (casinoslothintEl.textContent !== txt) casinoslothintEl.textContent = txt;
       casinoslothintEl.style.opacity = 1;
       /* seat toggle chip (touch-friendly): which table E plays at next */
-      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS'));
+      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS')));
       if (casinobjselEl.textContent !== selTxt) casinobjselEl.textContent = selTxt;
       casinobjselEl.style.opacity = CASINOHALL.seated ? 0 : 1;
     }
     lmcsUpdate(dt);   // reel animation + big-win overlay timer
     roulUpdate(dt);   // wheel + ball animation + win-flash timer
+    diceUpdate(dt);   // dice tumble + landing headline + delayed settle
     casinChipEl.style.display = 'none';
     return;
   }
@@ -9110,7 +9186,7 @@ function bjRender() {
 }
 function casinoSeatToggle() {
   if (!CASINOHALL.inHall || CASINOHALL.seated) return;
-  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : 'slots');
+  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : 'slots'));
   sfxBlip(760, 0.06, 'square', 0.14);
 }
 function casinoBjSit() {
@@ -9512,6 +9588,376 @@ function roulSpinBtn(e) { e.preventDefault(); e.stopPropagation(); roulSpin(); }
 roulSpinEl.addEventListener('touchstart', roulSpinBtn, { passive: false });
 roulSpinEl.addEventListener('click', roulSpinBtn);
 const HELP_LMROUL = '<b>SPIN</b> play &nbsp; <b>E</b> exit &nbsp; <b>TOUCH</b> tap the felt';
+
+/* ---- landmark casino: CASINO DICE v1 ("STREET DICE"), the fourth table game
+        in the gaming hall. Two dice on the seeded-RNG idiom only (no unseeded
+        randomness, no rigging): one mulberry32 stream per roll, seeded from a
+        fresh casino hash space (6521, 99) and the roll count, never 6503 or the
+        shoe space. The winning faces are picked FIRST; the tumble animation
+        then lands them exactly (a hard snap to the solved face-up orientation
+        at u=1, masked by the settle bounce). Betting is DOM only (zero betting
+        draw calls): UNDER 7 / OVER 7 at 1:1, LUCKY 7 (sum exactly 7) at 4:1,
+        DOUBLES (both dice equal) at 5:1; $5/$10/$25 bet tiers (the ROUL_BETS
+        idiom). The two dice are plain meshes sharing one geometry and one
+        canvas-pip material (6 faces in a 3x2 atlas, box-group UVs remapped;
+        opposite faces sum to 7), parented to the cached hall mesh (+2 draws
+        only while inside, visible=false otherwise; zero new lights). Resolve
+        pacing: one timing table. The dice tumble in with staggered rattle
+        ticks, the headline ("LUCKY 7!") and the dice glow hit exactly at the
+        landing moment, and the bankroll settles 0.6s after. E sits at the dice
+        table, E stands and exits (never traps: standing refunds pending
+        bets). Q (or the TABLE chip) cycles seats: slots, cards, roulette,
+        dice. Session only: the save schema is untouched. ---- */
+const DICE_BETS = [5, 10, 25];
+const DICE_ZONES = [['u7', 'UNDER 7'], ['o7', 'OVER 7'], ['l7', 'LUCKY 7'], ['dbl', 'DOUBLES']];
+const DICE_HASH_A = 6521, DICE_HASH_B = 99;   // fresh hash space: not 6503, not the shoe space
+/* face value -> Euler (rx, rz) with order 'YXZ' that puts the face on top.
+   Box groups run px, nx, py, ny, pz, nz = values 1, 6, 5, 2, 3, 4. */
+const DICE_FACE_ALIGN = { 1: [0, Math.PI / 2], 2: [Math.PI, 0], 3: [-Math.PI / 2, 0],
+                          4: [Math.PI / 2, 0], 5: [0, 0], 6: [0, -Math.PI / 2] };
+const CASINODICE = {
+  playing: false, betIdx: 1, rolls: 0,
+  tumbling: false, rollT: 0, rollDur: 2.6, rattleDone: [false, false, false],
+  bets: {}, totalBet: 0, lastWin: 0, bigWinT: 0, glowT: 0,
+  d1: 0, d2: 0,
+  d1End: [0, 0], d2End: [0, 0],
+  d1Axis: null, d2Axis: null, d1Rate: 0, d2Rate: 0, d1Yaw: 0, d2Yaw: 0,
+  settling: false, settleT: 0, settleNet: 0, settleTb: 0,
+  history: [],
+};
+/* canvas-procedural die faces: 6 pip faces in a 3x2 atlas, cell order matches
+   the box-group order px, nx, py, ny, pz, nz (values 1, 6, 5, 2, 3, 4) */
+function dicePipTex() {
+  const S = 128, c = document.createElement('canvas'); c.width = S * 3; c.height = S * 2;
+  const g = c.getContext('2d');
+  const faces = [1, 6, 5, 2, 3, 4];
+  const pip = {
+    1: [[0.5, 0.5]],
+    2: [[0.3, 0.3], [0.7, 0.7]],
+    3: [[0.3, 0.3], [0.5, 0.5], [0.7, 0.7]],
+    4: [[0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]],
+    5: [[0.3, 0.3], [0.7, 0.3], [0.5, 0.5], [0.3, 0.7], [0.7, 0.7]],
+    6: [[0.3, 0.3], [0.7, 0.3], [0.3, 0.5], [0.7, 0.5], [0.3, 0.7], [0.7, 0.7]],
+  };
+  for (let i = 0; i < 6; i++) {
+    const ox = (i % 3) * S, oy = Math.floor(i / 3) * S;
+    g.fillStyle = '#f2ede0'; g.fillRect(ox, oy, S, S);
+    /* inset gold border, fillRect-only (the makeSignTex idiom: the stub 2d
+       context implements fillRect/fillText, not strokeRect) */
+    g.fillStyle = '#c9a227';
+    g.fillRect(ox + 3, oy + 3, S - 6, 5); g.fillRect(ox + 3, oy + S - 8, S - 6, 5);
+    g.fillRect(ox + 3, oy + 3, 5, S - 6); g.fillRect(ox + S - 8, oy + 3, 5, S - 6);
+    g.fillStyle = '#1a1a1a';
+    for (const [px, py] of pip[faces[i]]) {
+      g.beginPath(); g.arc(ox + px * S, oy + py * S, S * 0.07, 0, Math.PI * 2); g.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/* one box, UVs remapped so each face shows its atlas cell (texture flipY: row
+   0 is the top row of the canvas) */
+function diceGeo() {
+  const geo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+  const uv = geo.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const cx0 = (f % 3) / 3, cy0 = 1 - (Math.floor(f / 3) + 1) / 2;
+    for (let v = 0; v < 4; v++) {
+      const vi = f * 4 + v;
+      uv.setXY(vi, cx0 + uv.getX(vi) / 3, cy0 + uv.getY(vi) / 2);
+    }
+  }
+  return geo;
+}
+/* the two dice: parented to the cached hall mesh, so they ride its enter/exit
+   transform and cost zero draws while cached (visible=false) */
+const diceMat = new THREE.MeshStandardMaterial({ map: dicePipTex(), roughness: 0.4, emissive: 0xffd24a, emissiveIntensity: 0 });
+const diceGeoShared = diceGeo();
+const diceGroup = new THREE.Group();
+diceGroup.position.set(8.5, 1.73, 8.5);   // hall-local: felt top 1.48 + half the die
+const diceMesh1 = new THREE.Mesh(diceGeoShared, diceMat);
+const diceMesh2 = new THREE.Mesh(diceGeoShared, diceMat);
+diceGroup.add(diceMesh1, diceMesh2);
+casinoHallMesh.add(diceGroup);
+function diceIdlePose() {
+  diceMesh1.position.set(-0.55, 0, -0.25); diceMesh1.rotation.set(0, 0.4, 0, 'YXZ');
+  diceMesh2.position.set(0.55, 0, 0.35); diceMesh2.rotation.set(0, -0.7, 0, 'YXZ');
+}
+function diceBetWins(zone, d1, d2) {
+  const s = d1 + d2;
+  if (zone === 'u7') return s < 7;
+  if (zone === 'o7') return s > 7;
+  if (zone === 'l7') return s === 7;
+  if (zone === 'dbl') return d1 === d2;
+  return false;
+}
+/* net delta on top of the returned stakes: lucky 7 at 4:1, doubles at 5:1,
+   under/over at 1:1 */
+function dicePayMult(zone) {
+  if (zone === 'l7') return 4;
+  if (zone === 'dbl') return 5;
+  return 1;
+}
+function diceNetFor(bets, d1, d2) {
+  let net = 0;
+  for (const z in bets) {
+    const s = bets[z];
+    net += diceBetWins(z, d1, d2) ? s * dicePayMult(z) : -s;
+  }
+  return net;
+}
+function diceRollSeed() { return (hash2i(DICE_HASH_A, DICE_HASH_B) ^ (CASINODICE.rolls * 0x9e3779b9)) >>> 0; }
+function diceCoin() {   // small-win chime: the roulCoin setTimeout idiom
+  sfxBlip(1318, 0.09, 'square', 0.18);
+  setTimeout(() => sfxBlip(1760, 0.12, 'square', 0.18), 110);
+}
+function diceFanfare() {   // big-win riff: the roulFanfare idiom
+  const notes = [523, 659, 784, 1047, 1318];
+  notes.forEach((f, i) => setTimeout(() => sfxBlip(f, 0.16, 'triangle', 0.22), i * 130));
+}
+function dicePlace(zone) {
+  if (!CASINODICE.playing || CASINODICE.tumbling || CASINODICE.settling || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  const bet = DICE_BETS[CASINODICE.betIdx];
+  if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
+  cash -= bet; updateCashHUD(); floatCash('-$' + bet);                // the cash idiom
+  CASINODICE.bets[zone] = (CASINODICE.bets[zone] || 0) + bet;
+  CASINODICE.totalBet += bet;
+  sfxBlip(880, 0.06, 'square', 0.14);   // chip tap
+  diceRender();
+}
+function diceClear() {
+  if (!CASINODICE.playing || CASINODICE.tumbling || CASINODICE.settling) return;
+  if (CASINODICE.totalBet > 0) {
+    cash += CASINODICE.totalBet; updateCashHUD(); floatCash('+$' + CASINODICE.totalBet);
+    toast('BETS CLEARED');
+  }
+  CASINODICE.bets = {}; CASINODICE.totalBet = 0;
+  sfxBlip(520, 0.07, 'square', 0.14);
+  diceRender();
+}
+function diceCycleBet() {
+  if (!CASINODICE.playing || CASINODICE.tumbling || CASINODICE.settling) return;
+  CASINODICE.betIdx = (CASINODICE.betIdx + 1) % DICE_BETS.length;
+  const b = DICE_BETS[CASINODICE.betIdx];
+  diceBetEl.textContent = 'BET $' + b;
+  sfxBlip(990, 0.07, 'square', 0.16);
+  diceRender();
+}
+function diceRoll() {
+  if (!CASINODICE.playing || CASINODICE.tumbling || CASINODICE.settling || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  if (CASINODICE.totalBet <= 0) { sfxDenied(); toast('PLACE A BET FIRST'); return; }
+  CASINODICE.rolls++;
+  /* seeded RNG idiom (no unseeded RNG): the winning faces are picked FIRST,
+     one stream per roll, then the tumble animation lands them exactly. */
+  const r = mulberry32(diceRollSeed());
+  CASINODICE.d1 = 1 + Math.floor(r() * 6);
+  CASINODICE.d2 = 1 + Math.floor(r() * 6);
+  for (const k of ['1', '2']) {
+    CASINODICE['d' + k + 'End'] = [-0.9 + r() * 1.8, -0.7 + r() * 1.4];
+    const ax = r() * 2 - 1, ay = r() * 2 - 1, az = r() * 2 - 1;
+    CASINODICE['d' + k + 'Axis'] = new THREE.Vector3(ax, ay, az).normalize();
+    CASINODICE['d' + k + 'Rate'] = 9 + r() * 11;
+    CASINODICE['d' + k + 'Yaw'] = r() * Math.PI * 2;
+  }
+  CASINODICE.rollT = 0; CASINODICE.tumbling = true;
+  CASINODICE.rattleDone = [false, false, false];
+  CASINODICE.lastWin = 0;
+  sfxBlip(240, 0.1, 'square', 0.16);   // the throw clunk
+  toast('NO MORE BETS');
+  diceRender();
+}
+/* THE LANDING MOMENT: headline, glow and sounds fire when the dice stop; the
+   bankroll settles 0.6s later (one timing table, never before the landing) */
+function diceResolve() {
+  const d1 = CASINODICE.d1, d2 = CASINODICE.d2, sum = d1 + d2;
+  const bets = CASINODICE.bets, tb = CASINODICE.totalBet;
+  const net = diceNetFor(bets, d1, d2);
+  CASINODICE.lastWin = Math.max(0, net);
+  CASINODICE.history.unshift([d1, d2]);
+  if (CASINODICE.history.length > 12) CASINODICE.history.pop();
+  const res = d1 + '+' + d2 + '=' + sum;
+  const lucky = sum === 7 && bets.l7;
+  if (tb > 0 && net >= 10 * tb) {   // big-win tier (the royal-reels idiom)
+    diceBigWinEl.textContent = (lucky ? 'LUCKY 7! ' : '') + 'BIG WIN $' + net;
+    diceBigWinEl.style.display = 'block';
+    CASINODICE.bigWinT = 2.5;
+    diceFanfare();
+    toast('BIG WIN $' + net + ' - ' + res);
+  } else if (net > 0) {
+    diceBigWinEl.textContent = (lucky ? 'LUCKY 7! ' : '') + 'WIN $' + net;
+    diceBigWinEl.style.display = 'block';
+    CASINODICE.bigWinT = 1.6;
+    diceCoin();
+    toast('WIN $' + net + ' - ' + res);
+  } else {
+    bjThud();   // loss knock, the blackjack idiom
+    toast(res + ' - NO WIN');
+  }
+  CASINODICE.glowT = 2.0;   // dice-face glow on the landing
+  CASINODICE.settling = true; CASINODICE.settleT = 0;
+  CASINODICE.settleNet = net; CASINODICE.settleTb = tb;
+  diceRender();
+}
+function diceSettle() {
+  CASINODICE.settling = false;
+  if (!CASINODICE.playing) return;   // stood mid-settle: the stand refund already covered it
+  const tb = CASINODICE.settleTb, net = CASINODICE.settleNet;
+  cash += tb + net; updateCashHUD();   // the cash idiom: stakes back plus net
+  if (net > 0) floatCash('+$' + net); else if (net < 0) floatCash('-$' + (-net));
+  CASINODICE.bets = {}; CASINODICE.totalBet = 0;
+  CASINODICE.settleTb = 0; CASINODICE.settleNet = 0;
+  diceRender();
+}
+/* tumble height profile: one toss arc, then two decaying bounces to the felt */
+function diceY(u) {
+  if (u < 0.5) return 1.1 * (1 - u / 0.5) + 1.5 * Math.sin(Math.PI * u / 0.5);
+  const b = (u - 0.5) / 0.5;
+  return 0.55 * (1 - b) * Math.abs(Math.sin(b * Math.PI * 2.5));
+}
+/* dice kinematics: closed-form tumble, no per-frame allocation. The tumble
+   rattles with staggered ticks; at u=1 the dice snap to the solved face-up
+   orientation and rest exactly on the seeded end spots. */
+function diceUpdate(dt) {
+  if (!CASINODICE.playing) return;
+  if (CASINODICE.glowT > 0) {
+    CASINODICE.glowT -= dt;
+    diceMat.emissiveIntensity = CASINODICE.glowT > 0 ? 0.3 + 0.25 * Math.sin(CASINODICE.glowT * 16) : 0;
+  }
+  if (CASINODICE.bigWinT > 0) {
+    CASINODICE.bigWinT -= dt;
+    if (CASINODICE.bigWinT <= 0) diceBigWinEl.style.display = 'none';
+  }
+  if (CASINODICE.settling) {
+    CASINODICE.settleT += dt;
+    if (CASINODICE.settleT >= 0.6) diceSettle();
+    return;
+  }
+  if (!CASINODICE.tumbling) return;
+  CASINODICE.rollT += dt;
+  const u = Math.min(CASINODICE.rollT / CASINODICE.rollDur, 1);
+  const e = 1 - Math.pow(1 - u, 3);          // easeOutCubic
+  const rattleAt = [0.3, 0.55, 0.8];
+  for (const k of ['1', '2']) {
+    const die = k === '1' ? diceMesh1 : diceMesh2;
+    const end = CASINODICE['d' + k + 'End'];
+    die.position.set((end[0]) * e, diceY(u), 2.6 + (end[1] - 2.6) * e);
+    die.quaternion.setFromAxisAngle(CASINODICE['d' + k + 'Axis'], CASINODICE['d' + k + 'Rate'] * CASINODICE.rollT);
+  }
+  for (let i = 0; i < 3; i++) {
+    if (!CASINODICE.rattleDone[i] && u >= rattleAt[i]) {   // staggered rattle ticks
+      CASINODICE.rattleDone[i] = true;
+      sfxBlip(1500 + i * 320, 0.03, 'square', 0.1);
+    }
+  }
+  if (u >= 1) {
+    CASINODICE.tumbling = false;
+    for (const k of ['1', '2']) {
+      const die = k === '1' ? diceMesh1 : diceMesh2;
+      const al = DICE_FACE_ALIGN[CASINODICE['d' + k]];
+      const end = CASINODICE['d' + k + 'End'];
+      die.rotation.set(al[0], CASINODICE['d' + k + 'Yaw'], al[1], 'YXZ');
+      die.position.set(end[0], 0, end[1]);
+    }
+    sfxBlip(180, 0.12, 'square', 0.22);   // the landing knock
+    diceResolve();
+  }
+}
+function casinoDiceSit() {
+  if (CASINOHALL.seated || !CASINOHALL.inHall) return;
+  emoteCancel();   // no emotes while gambling
+  CASINOHALL.seated = true; CASINOHALL.sitOn = false;
+  CASINOHALL.seatX = CASINOHALL.diceSeatX; CASINOHALL.seatZ = CASINOHALL.diceSeatZ; CASINOHALL.seatYaw = Math.PI;   // face the dice table (-Z)
+  CASINODICE.playing = true; CASINODICE.betIdx = 1; CASINODICE.rolls = 0;
+  CASINODICE.tumbling = false; CASINODICE.settling = false;
+  CASINODICE.bets = {}; CASINODICE.totalBet = 0;
+  CASINODICE.lastWin = 0; CASINODICE.history = []; CASINODICE.glowT = 0; CASINODICE.bigWinT = 0;
+  diceMat.emissiveIntensity = 0;
+  diceIdlePose();
+  player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
+  player.rotation.y = CASINOHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  diceBetEl.textContent = 'BET $' + DICE_BETS[CASINODICE.betIdx];
+  diceRender();
+  dicePanelEl.style.display = 'block';
+  casinoslothintEl.style.opacity = 0; casinobjselEl.style.opacity = 0;
+  helpEl.innerHTML = HELP_LMDICE;
+  toast('STREET DICE');
+  sfxBlip(660, 0.09, 'triangle', 0.2);
+}
+function casinoDiceStand() {
+  if (!CASINOHALL.seated) return;
+  CASINOHALL.seated = false; CASINOHALL.sitOn = false;
+  if (CASINODICE.totalBet > 0) {   // never strands chips: pending bets refund on stand
+    cash += CASINODICE.totalBet; updateCashHUD();
+    toast('BETS REFUNDED $' + CASINODICE.totalBet);
+  }
+  CASINODICE.playing = false; CASINODICE.tumbling = false; CASINODICE.settling = false;
+  CASINODICE.bets = {}; CASINODICE.totalBet = 0; CASINODICE.lastWin = 0;
+  CASINODICE.settleTb = 0; CASINODICE.settleNet = 0;
+  diceMat.emissiveIntensity = 0;
+  dicePanelEl.style.display = 'none';
+  diceChipEl.style.display = 'none';
+  diceBigWinEl.style.display = 'none';
+  player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  helpEl.innerHTML = HELP_CASINOHALL;
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+const diceChipEl = document.getElementById('dicechip');
+const dicePanelEl = document.getElementById('lmdicepanel');
+const diceHistEl = document.getElementById('lmdice-hist');
+const diceStatusEl = document.getElementById('lmdice-status');
+const diceZonesEl = document.getElementById('lmdice-zones');
+const diceBetEl = document.getElementById('lmdice-bet');
+const diceClearEl = document.getElementById('lmdice-clear');
+const diceRollEl = document.getElementById('lmdice-roll');
+const diceBigWinEl = document.getElementById('lmdice-bigwin');
+const diceZoneEls = {};
+function diceZoneHandler(zone) {
+  return function diceZoneBtn(e) { e.preventDefault(); e.stopPropagation(); dicePlace(zone); };   // the touch-guard idiom
+}
+(function diceBuildZones() {   // the four bet zones, built once
+  for (const [z, label] of DICE_ZONES) {
+    const b = document.createElement('button');
+    b.className = 'lmdice-zone'; b._label = label; b.textContent = label;
+    b.addEventListener('touchstart', diceZoneHandler(z), { passive: false });
+    b.addEventListener('click', diceZoneHandler(z));
+    diceZonesEl.appendChild(b); diceZoneEls[z] = b;
+  }
+})();
+function diceRender() {
+  diceHistEl.innerHTML = '';
+  for (let i = 0; i < CASINODICE.history.length; i++) {
+    const hd = CASINODICE.history[i];
+    const d = document.createElement('div');
+    d.className = 'lmdice-hcell' + (i === 0 ? ' new' : '');
+    d.textContent = hd[0] + '+' + hd[1] + '=' + (hd[0] + hd[1]);
+    diceHistEl.appendChild(d);
+  }
+  for (const z in diceZoneEls) {
+    const s = CASINODICE.bets[z] || 0, el = diceZoneEls[z];
+    el.classList.toggle('bet', s > 0);
+    el.innerHTML = s > 0 ? el._label + '<span class="lmdice-stake">$' + s + '</span>' : el._label;
+  }
+  const last = CASINODICE.history[0];
+  const lastTxt = last === undefined ? 'LAST -' : 'LAST ' + last[0] + '+' + last[1] + '=' + (last[0] + last[1]);
+  diceStatusEl.textContent = 'CASH $' + cash + ' - BET $' + CASINODICE.totalBet + ' - ' + lastTxt;
+  /* the HUD status chip (the chip idiom): roll state plus the last balance delta */
+  diceChipEl.textContent = 'DICE ' + (CASINODICE.tumbling ? 'ROLLING' : (CASINODICE.settling ? 'SETTLING' : 'BET $' + CASINODICE.totalBet))
+    + (CASINODICE.lastWin > 0 ? ' | +$' + CASINODICE.lastWin : '');
+  diceChipEl.style.display = CASINODICE.playing ? 'block' : 'none';
+}
+function diceBetBtn(e) { e.preventDefault(); e.stopPropagation(); diceCycleBet(); }   // the touch-guard idiom
+diceBetEl.addEventListener('touchstart', diceBetBtn, { passive: false });
+diceBetEl.addEventListener('click', diceBetBtn);
+function diceClearBtn(e) { e.preventDefault(); e.stopPropagation(); diceClear(); }
+diceClearEl.addEventListener('touchstart', diceClearBtn, { passive: false });
+diceClearEl.addEventListener('click', diceClearBtn);
+function diceRollBtn(e) { e.preventDefault(); e.stopPropagation(); diceRoll(); }
+diceRollEl.addEventListener('touchstart', diceRollBtn, { passive: false });
+diceRollEl.addEventListener('click', diceRollBtn);
+const HELP_LMDICE = '<b>ROLL</b> play &nbsp; <b>E</b> exit &nbsp; <b>TOUCH</b> tap the buttons';
 
 /* ================= PHASE 5: LANDMARK FIRE STATION v1 (buildings/places) ================
    One seeded landmark fire station per rare chunk (the 'firestation' amenity
@@ -12191,7 +12637,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards or roulette
+  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette or dice
   if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');

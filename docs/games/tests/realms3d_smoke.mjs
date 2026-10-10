@@ -170,6 +170,15 @@ globalThis.__R3D = {
   roulChipEl, roulPanelEl, roulHistEl, roulStatusEl, roulGridEl, roulOuterEl,
   roulBetEl, roulClearEl, roulSpinEl, roulBigWinEl,
   ROUL_BETS, ROUL_WHEEL, ROUL_RED, ROUL_POCKET_ANG, HELP_LMROUL,
+  /* Phase 5 landmark casino dice v1 (fourth table game) */
+  CASINODICE, casinoDiceSit, casinoDiceStand,
+  diceBetWins, dicePayMult, diceNetFor, diceRollSeed, dicePlace, diceClear, diceCycleBet,
+  diceRoll, diceResolve, diceSettle, diceUpdate, diceRender, dicePipTex, diceGeo, diceY,
+  DICE_FACE_ALIGN,
+  diceGroup, diceMesh1, diceMesh2, diceMat, diceIdlePose,
+  diceChipEl, dicePanelEl, diceHistEl, diceStatusEl, diceZonesEl, diceZoneEls,
+  diceBetEl, diceClearEl, diceRollEl, diceBigWinEl,
+  DICE_BETS, DICE_ZONES, DICE_HASH_A, DICE_HASH_B, HELP_LMDICE,
   LMCASINO_COL, LMCAS_R, LMCAS_SEGS, LMCAS_GATE_K, LMCAS_CHIP_R2, LMCAS_DOOR, LMCAS_DOOR_R2,
   CASINO_ROOM_Y, LMCS_BETS, LMCS_SYMS, LMCS_WILD, LMCS_SEVEN, LMCS_LINES, LMCS_TAPE, LMCS_OUT_AT,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
@@ -6820,7 +6829,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
          cached), zero new RNG, zero new keybinds, zero new lights --- */
   const roulSrc = html.slice(
     html.indexOf('/* ---- landmark casino: ROULETTE v1'),
-    html.indexOf('/* ================= PHASE 5: LANDMARK FIRE STATION v1'));
+    html.indexOf('/* ---- landmark casino: CASINO DICE v1'));
   check('roul-static: roulette block is substantial', roulSrc.length > 5000, roulSrc.length + ' chars');
   check('roul-static: exactly 4 plain Mesh sites in the roulette block (rotor base/top/spindle/ball, no InstancedMesh)',
     (roulSrc.match(/new THREE\.Mesh\(/g) || []).length === 4
@@ -6841,7 +6850,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('roul-static: single keydown listener (Q rides the existing one)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1
-    && html.includes("switch the table seat: slots, cards or roulette"));
+    && html.includes("switch the table seat: slots, cards, roulette or dice"));
   check('roul-static: #roulchip pins its own top-left slot (no chip overlap)',
     html.includes('#roulchip {') && html.includes('top: 720px'));
 
@@ -7024,6 +7033,211 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('roul: death ejects from the hall (never trapped)',
     G.CASINOHALL.inHall === false && G.CASINOROUL.playing === false
     && G.roulPanelEl.style.display === 'none' && G.roulChipEl.style.display === 'none');
+  G.P.dead = false;
+
+  /* leave the world as the next block expects: player at origin, FT rebuilt there */
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.FT.routeKey = ''; G.FT.driving = false; G.ftRebuild(0, 0);
+}
+
+/* ================= PHASE 5: LANDMARK CASINO DICE v1 ("STREET DICE") ================= */
+{
+  /* --- static pins: the dice block is seeded-only, DOM-only, chip-clean --- */
+  const diceSrc = html.slice(html.indexOf('CASINO DICE v1'), html.indexOf('PHASE 5: LANDMARK FIRE STATION v1'));
+  check('dice: the dice block holds zero Math.random lines (seeded idiom only)',
+    diceSrc.length > 5000 && !/Math\.random/.test(diceSrc), diceSrc.length + ' chars');
+  check('dice: the dice block adds zero InstancedMesh literals (pin holds at 48)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('dice: #dicechip owns the next free top-left slot (786px, no overlap)',
+    (html.match(/top: 786px; left: 18px/g) || []).length === 1);
+  check('dice: no placeholder or em dash text in the dice block',
+    !/\b(TODO|FIXME|placeholder)\b/i.test(diceSrc) && !diceSrc.includes('—'));
+
+  /* --- payout table math (inspectable paytable, stakes back plus net) --- */
+  check('dice: UNDER 7 pays 1:1 ($10 -> +$10 on 3+2=5)', G.diceNetFor({ u7: 10 }, 3, 2) === 10);
+  check('dice: UNDER 7 loses the stake on 7 (the honest house edge)', G.diceNetFor({ u7: 10 }, 4, 3) === -10);
+  check('dice: OVER 7 pays 1:1 ($10 -> +$10 on 5+3=8)', G.diceNetFor({ o7: 10 }, 5, 3) === 10);
+  check('dice: LUCKY 7 pays 4:1 ($10 -> +$40 on 3+4=7)', G.diceNetFor({ l7: 10 }, 3, 4) === 40);
+  check('dice: LUCKY 7 loses off 7 ($10 on 2+3=5)', G.diceNetFor({ l7: 10 }, 2, 3) === -10);
+  check('dice: DOUBLES pays 5:1 ($10 -> +$50 on 3+3)', G.diceNetFor({ dbl: 10 }, 3, 3) === 50);
+  check('dice: DOUBLES loses on a split ($10 on 3+4)', G.diceNetFor({ dbl: 10 }, 3, 4) === -10);
+  check('dice: mixed zones net honestly ($10 UNDER + $10 DOUBLES on 2+2 -> +$60)',
+    G.diceNetFor({ u7: 10, dbl: 10 }, 2, 2) === 60, 'net=' + G.diceNetFor({ u7: 10, dbl: 10 }, 2, 2));
+  check('dice: a dead zone name never wins', G.diceBetWins('nope', 1, 1) === false);
+
+  /* --- determinism: the same roll count replays the same winning faces --- */
+  G.P.dead = false; G.P.godT = 0; G.closeShop();
+  G.cash = 200;
+  G.CASINODICE.playing = true; G.CASINODICE.tumbling = false; G.CASINODICE.settling = false;
+  G.CASINODICE.rolls = 17; G.CASINODICE.bets = { u7: 10 }; G.CASINODICE.totalBet = 10;
+  G.diceRoll();
+  const d1a = G.CASINODICE.d1, d2a = G.CASINODICE.d2;
+  const e1a = G.CASINODICE.d1End.slice(), e2a = G.CASINODICE.d2End.slice();
+  G.CASINODICE.tumbling = false; G.CASINODICE.settling = false;
+  G.CASINODICE.rolls = 17; G.CASINODICE.bets = { u7: 10 }; G.CASINODICE.totalBet = 10;
+  G.diceRoll();
+  check('dice: the seeded stream replays the winning faces',
+    G.CASINODICE.d1 === d1a && G.CASINODICE.d2 === d2a
+    && G.CASINODICE.d1 >= 1 && G.CASINODICE.d1 <= 6 && G.CASINODICE.d2 >= 1 && G.CASINODICE.d2 <= 6
+    && G.CASINODICE.d1End[0] === e1a[0] && G.CASINODICE.d2End[1] === e2a[1],
+    'd1=' + G.CASINODICE.d1 + ' d2=' + G.CASINODICE.d2);
+  check('dice: the roll seed never touches the roulette hash space (6521, not 6503)',
+    G.DICE_HASH_A === 6521 && G.DICE_HASH_B === 99 && G.diceRollSeed() !== 0);
+  G.CASINODICE.tumbling = false; G.CASINODICE.settling = false; G.CASINODICE.playing = false;
+  G.CASINODICE.bets = {}; G.CASINODICE.totalBet = 0;
+
+  /* --- the solved orientation puts the rolled face on top, every value --- */
+  const faceNormal = { 1: [1, 0, 0], 6: [-1, 0, 0], 5: [0, 1, 0], 2: [0, -1, 0], 3: [0, 0, 1], 4: [0, 0, -1] };
+  let alignOk = true;
+  for (let v = 1; v <= 6; v++) {
+    const al = G.DICE_FACE_ALIGN[v];
+    const n = new THREE.Vector3(...faceNormal[v]);
+    n.applyEuler(new THREE.Euler(al[0], 0, al[1], 'YXZ'));
+    if (Math.abs(n.x) > 1e-9 || Math.abs(n.y - 1) > 1e-9 || Math.abs(n.z) > 1e-9) alignOk = false;
+  }
+  check('dice: the face-align table lands every value 1-6 exactly on top', alignOk);
+
+  /* --- enter the hall and pick the dice table --- */
+  let diced = null;
+  diceouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'casino') { diced = a; break diceouter; }
+    }
+  check('dice: a seeded casino chunk exists in the scan window', !!diced);
+  const probsD = consoleProblems.length;
+  G.P.dead = false; G.P.godT = 0;
+  const dicedoor = G.casinoHallDoorWorld(diced);
+  G.player.position.set(dicedoor.x, groundY(dicedoor.x, dicedoor.z), dicedoor.z);
+  frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
+  G.closeShop(); G.casinoHallEnter();
+  check('dice: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
+  /* the 4-cycle: slots -> cards -> roulette -> dice -> slots */
+  G.CASINOHALL.seatKind = 'slots';
+  G.casinoSeatToggle();
+  check('dice: seat cycle slots -> cards', G.CASINOHALL.seatKind === 'bj');
+  G.casinoSeatToggle();
+  check('dice: seat cycle cards -> roulette', G.CASINOHALL.seatKind === 'roul');
+  G.casinoSeatToggle();
+  check('dice: seat cycle roulette -> dice', G.CASINOHALL.seatKind === 'dice');
+  G.casinoSeatToggle();
+  check('dice: seat cycle dice -> slots (the 4-cycle closes)', G.CASINOHALL.seatKind === 'slots');
+  for (let q = 0; q < 4 && G.CASINOHALL.seatKind !== 'dice'; q++) G.casinoSeatToggle();
+  frame(20);
+  check('dice: PLAY DICE prompt shows inside',
+    G.casinoslothintEl.style.opacity == 1 && /PLAY DICE/.test(G.casinoslothintEl.textContent),
+    G.casinoslothintEl.textContent);
+  check('dice: the toggle chip names the seat',
+    /TABLE: DICE/.test(G.casinobjselEl.textContent), G.casinobjselEl.textContent);
+
+  /* --- E key wiring: E sits at the dice table --- */
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('dice: KeyE sits at the dice table (panel opens)',
+    G.CASINOHALL.seated === true && G.CASINODICE.playing === true
+    && G.dicePanelEl.style.display === 'block',
+    'seated=' + G.CASINOHALL.seated);
+  check('dice: sit parks the player at the dice-table seat',
+    Math.abs(G.player.position.x - G.CASINOHALL.diceSeatX) < 0.01
+    && Math.abs(G.player.position.z - G.CASINOHALL.diceSeatZ) < 0.01,
+    'x=' + G.player.position.x.toFixed(2) + ' z=' + G.player.position.z.toFixed(2));
+  check('dice: the status chip shows while playing',
+    G.diceChipEl.style.display === 'block' && /^DICE /.test(G.diceChipEl.textContent),
+    G.diceChipEl.textContent);
+  check('dice: the two dice ride the cached hall mesh (zero draws while cached)',
+    G.diceGroup.parent === G.casinoHallMesh
+    && G.diceMesh1.parent === G.diceGroup && G.diceMesh2.parent === G.diceGroup
+    && G.diceMesh1.geometry === G.diceMesh2.geometry && G.diceMesh1.material === G.diceMesh2.material);
+
+  /* --- BET cycles 10 -> 25 -> 5 --- */
+  G.diceCycleBet();
+  check('dice: BET cycles 10 -> 25', G.DICE_BETS[G.CASINODICE.betIdx] === 25);
+  G.diceCycleBet();
+  check('dice: BET cycles 25 -> 5', G.DICE_BETS[G.CASINODICE.betIdx] === 5);
+  G.CASINODICE.betIdx = 1;
+
+  /* --- insufficient funds: denied the bet, never trapped --- */
+  G.cash = 3;
+  G.dicePlace('u7');
+  check('dice: a broke player is denied the bet (cash untouched, no chips placed)',
+    G.cash === 3 && G.CASINODICE.totalBet === 0, 'cash=' + G.cash);
+
+  /* --- ROLL with no bets is refused --- */
+  G.cash = 100;
+  G.diceRoll();
+  check('dice: ROLL with no bets is refused (dice stay idle)',
+    G.CASINODICE.tumbling === false && G.CASINODICE.rolls === 0);
+
+  /* --- chips land on the zones, then the dice roll --- */
+  G.dicePlace('u7');    // $10 on under 7
+  G.dicePlace('dbl');   // $10 on doubles
+  check('dice: chips land on the zones (cash debited, total bet $20)',
+    G.cash === 80 && G.CASINODICE.totalBet === 20, 'cash=' + G.cash);
+  G.diceRoll();
+  check('dice: ROLL starts the tumble (seeded faces picked first)',
+    G.CASINODICE.tumbling === true && G.CASINODICE.d1 >= 1 && G.CASINODICE.d1 <= 6
+    && G.CASINODICE.d2 >= 1 && G.CASINODICE.d2 <= 6,
+    'd1=' + G.CASINODICE.d1 + ' d2=' + G.CASINODICE.d2);
+  const rd1 = G.CASINODICE.d1, rd2 = G.CASINODICE.d2;
+  const cashMid = G.cash;
+  G.dicePlace('o7');
+  check('dice: no bets land while the dice tumble',
+    G.cash === cashMid && !('o7' in G.CASINODICE.bets));
+  for (let f = 0; f < 160; f++) G.diceUpdate(1 / 60);   // 2.67s: the 2.6s tumble lands
+  check('dice: the tumble lands on the seeded faces',
+    G.CASINODICE.tumbling === false && G.CASINODICE.settling === true
+    && G.CASINODICE.history[0][0] === rd1 && G.CASINODICE.history[0][1] === rd2,
+    'tumbling=' + G.CASINODICE.tumbling + ' settling=' + G.CASINODICE.settling);
+  check('dice: the dice rest exactly on the seeded end spots, rolled faces up',
+    Math.abs(G.diceMesh1.position.x - G.CASINODICE.d1End[0]) < 1e-9
+    && Math.abs(G.diceMesh1.position.z - G.CASINODICE.d1End[1]) < 1e-9
+    && Math.abs(G.diceMesh1.position.y) < 1e-9
+    && Math.abs(G.diceMesh1.rotation.x - G.DICE_FACE_ALIGN[rd1][0]) < 1e-9
+    && Math.abs(G.diceMesh1.rotation.z - G.DICE_FACE_ALIGN[rd1][1]) < 1e-9,
+    'die1=' + G.diceMesh1.position.x.toFixed(3) + ',' + G.diceMesh1.position.z.toFixed(3));
+  check('dice: the bankroll waits for the landing (settle is pending, cash untouched)',
+    G.cash === 80 && G.CASINODICE.totalBet === 20, 'cash=' + G.cash);
+  {
+    const net = G.diceNetFor({ u7: 10, dbl: 10 }, rd1, rd2);
+    for (let f = 0; f < 60; f++) G.diceUpdate(1 / 60);   // 1s: the 0.6s settle fires
+    check('dice: the settle pays stakes back plus net honestly',
+      G.CASINODICE.settling === false && G.cash === 80 + 20 + net && G.CASINODICE.totalBet === 0,
+      'cash=' + G.cash + ' net=' + net);
+  }
+
+  /* --- pending bets refund on stand: chips are never stranded --- */
+  G.cash = 100; G.CASINODICE.bets = {}; G.CASINODICE.totalBet = 0;
+  G.dicePlace('l7');
+  check('dice: a chip lands on LUCKY 7', G.cash === 90 && G.CASINODICE.totalBet === 10);
+
+  /* --- E exits: stand up and leave the hall in one press --- */
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('dice: KeyE stands and exits (round trip complete)',
+    G.CASINOHALL.inHall === false && G.CASINODICE.playing === false
+    && G.CASINOHALL.seated === false && G.dicePanelEl.style.display === 'none'
+    && G.diceChipEl.style.display === 'none');
+  check('dice: pending bets refund on stand (cash back to $100)', G.cash === 100, 'cash=' + G.cash);
+  const diceBackD = Math.hypot(G.player.position.x - G.CASINOHALL.doorX, G.player.position.z - G.CASINOHALL.doorZ);
+  check('dice: exit teleports back to the door', diceBackD < 0.01, 'd=' + diceBackD.toFixed(3));
+  check('dice: the round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsD, consoleProblems.slice(probsD).join(' | '));
+
+  /* --- death ejects from the hall: no gambling while dead --- */
+  G.P.dead = false; G.P.godT = 0;
+  G.player.position.set(dicedoor.x, groundY(dicedoor.x, dicedoor.z), dicedoor.z);
+  frame(20);
+  G.closeShop(); G.casinoHallEnter();
+  for (let q = 0; q < 4 && G.CASINOHALL.seatKind !== 'dice'; q++) G.casinoSeatToggle();
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('dice: re-seated at the dice table', G.CASINODICE.playing === true);
+  G.P.dead = true;
+  for (let f = 0; f < 3; f++) G.casinoHallTick(1 / 60);   // the death-eject path, hermetic
+  check('dice: death ejects from the hall (never trapped)',
+    G.CASINOHALL.inHall === false && G.CASINODICE.playing === false
+    && G.dicePanelEl.style.display === 'none' && G.diceChipEl.style.display === 'none');
   G.P.dead = false;
 
   /* leave the world as the next block expects: player at origin, FT rebuilt there */
