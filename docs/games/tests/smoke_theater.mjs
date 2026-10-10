@@ -1998,12 +1998,18 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* one literal `new THREE.InstancedMesh` site in the building loop (43 -> 44),
-     backing 3 runtime meshes: house, barn, store. One draw call each. */
+     backing 6 runtime meshes: house, barn, store, civic, worship, apartment.
+     One draw call each.
+     AUDIT 2026-10-10 (TEST-MAINT-1): the old pin of 3 runtime meshes predates
+     the civic (hospitals/banks/hotels/schools), worship (churches/mosques) and
+     apartment buildings. BLDG_DEF now holds 13 defs with 7 shared riders
+     (casino->store, hospital/bank/hotel/school->civic, church/mosque->worship),
+     so 6 non-shared meshes is the correct, grown state. */
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 42 IM literals after PERF-5 consolidation, 3 runtime building meshes',
-      n === 42 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf6: 42 IM literals after PERF-5 consolidation, 6 runtime building meshes',
+      n === 42 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -3768,8 +3774,12 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
   check('casino-static: whole-file IM literals pin at 42 (theater adds the one fleet mesh)',
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
-  check('casino-static: 3 runtime building meshes (casino rides the store mesh)',
-    G.bldgMeshes.length === 3);
+  /* AUDIT 2026-10-10 (TEST-MAINT-1): the old pin of 3 runtime meshes predates the
+     civic/worship/apartment building fleets. 13 defs, 7 shared riders
+     (casino->store, hospital/bank/hotel/school->civic, church/mosque->worship)
+     = 6 mesh-owning fleets; casino still rides the store mesh (next check). */
+  check('casino-static: 6 runtime building meshes (casino rides the store mesh)',
+    G.bldgMeshes.length === 6);
   check('casino-static: casino def shares the store fleet mesh',
     G.BLDG_DEF.casino.mesh === G.BLDG_DEF.store.mesh);
   check('casino-static: guard coverage (positive chains)',
@@ -3861,8 +3871,13 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino: exit frees the player, panel + chip hide',
     G.SLOT.playing === false && G.slotPanelEl.style.display === 'none'
     && G.casinoChipEl.style.display === 'none');
-  check('casino: E exits via the keydown chain',
-    html.includes("if (e.code === 'KeyE') { if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit();"));
+  /* AUDIT 2026-10-10 (TEST-MAINT-1): same order-coupling class as the theater E
+     fix. The KeyE else-if chain now legitimately opens with AMUSE.riding
+     (amusement shipped after the casino). Order-independent: the slot-exit
+     clause must exist in the KeyE line, its position is not pinned. */
+  check('casino: E exits via the keydown chain (order-independent)',
+    (html.match(/^.*if \(e\.code === 'KeyE'\).*$/m) || [''])[0]
+      .includes('else if (SLOT.playing) slotExit();'));
   check('casino: vehicleExit and busted eject the gambler',
     html.includes('else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit();')
     && html.includes('else if (SLOT.playing) slotExit();   // busted off the slot machine too'));
