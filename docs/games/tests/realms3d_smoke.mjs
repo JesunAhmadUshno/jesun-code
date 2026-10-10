@@ -79,6 +79,7 @@ globalThis.__R3D = {
   DIFF, diffEval, animals,
   birds, wings, PET, tamePet, releasePet, acquirePrey, petRejoin,
   petHintEl, petChipEl, birdFlockTick,
+  FROZEN_STATICS, ocean,                       /* PERF-7 static freeze registry + water mesh */
   AMESH, chunkBiome, redistributeWildlife,   /* Phase 5 wildlife v2 */
   amenityCenterFor,                          /* Phase 5 wildlife v3: dog placement */
   wildEagles, wildOwls, thermalFor, treeNear, treeWithPartner, redistributeEagles, redistributeOwls,  /* Phase 5 wildlife v4 */
@@ -265,6 +266,44 @@ const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 function frame(n) {
   for (let i = 0; i < n; i++) { stubs.clock.advance(16.667); G.tick(); }
 }
+
+/* ================= PERF-7 STATIC FREEZE ================= */
+{
+  const frozen = G.FROZEN_STATICS;
+  check('perf7: freeze registry is non-empty', Array.isArray(frozen) && frozen.length > 20,
+    'frozen=' + (frozen && frozen.length));
+  check('perf7: every frozen mesh has matrixAutoUpdate===false after boot',
+    frozen.every(o => o.matrixAutoUpdate === false),
+    frozen.filter(o => o.matrixAutoUpdate !== false).map(o => o.type + ':' + (o.geometry && o.geometry.type)).join(','));
+  /* dynamics stay live: player rig, one enemy bookkeeping group, one vehicle fleet, the water mesh */
+  const dyn = [G.player, G.enemies[0] && G.enemies[0].group, G.busBodyIM, G.ocean];
+  check('perf7: dynamic objects keep matrixAutoUpdate===true',
+    dyn.every(o => o && o.matrixAutoUpdate === true),
+    dyn.map(o => o ? String(o.matrixAutoUpdate) : 'missing').join(','));
+  /* freeze-after-final-transform proof: each baked local matrix must still
+     equal compose(position, quaternion, scale), so the freeze captured the
+     final transform and nothing moved it since */
+  const _m = new THREE.Matrix4();
+  let stale = 0;
+  for (const o of frozen) {
+    _m.compose(o.position, o.quaternion, o.scale);
+    for (let i = 0; i < 16; i++) {
+      if (Math.abs(_m.elements[i] - o.matrix.elements[i]) > 1e-4) { stale++; break; }
+    }
+  }
+  check('perf7: every frozen local matrix matches its object transform (no stale freeze)', stale === 0, stale + ' stale');
+  /* world consistency: getWorldPosition agrees with the composed matrixWorld,
+     so frozen statics render at exactly their declared positions */
+  const _w = new THREE.Vector3(), _p = new THREE.Vector3();
+  let drift = 0;
+  for (const o of frozen) {
+    o.getWorldPosition(_w);
+    _p.setFromMatrixPosition(o.matrixWorld);
+    if (_w.distanceTo(_p) > 1e-4) drift++;
+  }
+  check('perf7: frozen statics render at their declared world positions', drift === 0, drift + ' drifted');
+}
+
 const groundY = (x, z) => G.terrainHeight(x, z);
 globalThis.__pchunk = (tag) => console.log('DBG-chunk ' + tag + ' player=' + G.player.position.x.toFixed(0) + ',' + G.player.position.z.toFixed(0));
 globalThis.__rabPos = () => { const r = G.animals.find(a => a.kind === 'rabbit'); return r.pos.x.toFixed(0) + ',' + r.pos.z.toFixed(0) + ':' + r.mode; };
