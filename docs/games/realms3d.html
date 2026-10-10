@@ -483,6 +483,46 @@
     letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
+  /* ---- worship HUD (Phase 5): ENTER prompt mirrors the amusement hint
+         pattern, stacked above it so live prompts never overlap. The
+         #worshipchip state readout sits top-right below the amusement chip.
+         The #worshipbearing chip mirrors the civic bearing chip
+         (landmark-chip pattern) and is the visible type-name sign
+         (CHURCH/MOSQUE). The #worshippanel is the action panel (DOM only,
+         zero draws); the action button follows the tbtn touch idiom. ---- */
+  #worshiphint {
+    position: absolute; bottom: 776px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #e8d9a8; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #worshipchip {
+    position: absolute; top: 1080px; right: 18px; color: #e8d9a8; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #worshipbearing {
+    position: absolute; top: 324px; left: 18px; color: #f4ecd8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #worsarr { display: inline-block; color: #e8d9a8; font-size: 14px; }
+  #worshippanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(12,14,12,.94); border: 2px solid #7a6a3a; border-radius: 10px;
+    padding: 18px 22px; display: none; pointer-events: auto; text-align: center;
+    user-select: none; -webkit-user-select: none;
+  }
+  #worshiptitle { color: #e8d9a8; font-size: 15px; letter-spacing: 5px; font-weight: bold; margin-bottom: 12px; }
+  #worshipact {
+    position: relative; width: 100%; height: 52px; left: auto; bottom: auto;
+    margin-top: 8px; font-size: 16px; letter-spacing: 4px; font-weight: bold;
+    background: rgba(232,217,168,.9); color: #0c0e0a;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #worshipact:active { background: #e8d9a8; }
+  #worshipfoot { color: #8a927e; font-size: 10px; letter-spacing: 2px; margin-top: 8px; }
   #civicpanel {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: rgba(12,14,12,.94); border: 2px solid #3a6a6e; border-radius: 10px;
@@ -728,10 +768,18 @@
   <div id="stadbearing"><span id="stadarr">^</span> <span id="stadtxt"></span></div>
   <div id="amusehint"></div>
   <div id="amusechip"></div>
+  <div id="worshiphint"></div>
+  <div id="worshipchip"></div>
+  <div id="worshipbearing"><span id="worsarr">^</span> <span id="worstxt"></span></div>
   <div id="civicpanel">
     <div id="civictitle">CIVIC</div>
     <div class="tbtn" id="civicact">ACT</div>
     <div id="civicfoot"></div>
+  </div>
+  <div id="worshippanel">
+    <div id="worshiptitle">WORSHIP</div>
+    <div class="tbtn" id="worshipact">ACT</div>
+    <div id="worshipfoot"></div>
   </div>
   <div id="slotpanel">
     <div id="slottitle">SLOT MACHINE</div>
@@ -3271,7 +3319,7 @@ function petLoadStr(s) {
 function petSteer(a, dt) {
   const p = a.pos, pp = player.position;
   _petMoving = false; _petSpd = 0;
-  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching;
+  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching;
   const dx = pp.x - p.x, dz = pp.z - p.z;
   /* death, any vehicle mode, or >120m: the pet stops and waits */
   if (P.dead || inVehicle || dx * dx + dz * dz > 14400) { setPetMode('wait'); return; }
@@ -4103,7 +4151,7 @@ function emoteCancel() {
 }
 function fireEmote(name) {
   if (!playing() || P.dead || P.godT > 0) return;                 // dead or busted/spawn-protection
-  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) return;
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) return;
   if (shopOpen) return;
   const E = EMOTES[name];
   if (!E) return;
@@ -4153,7 +4201,7 @@ function doPunch() {
   if (BIKE.driving) return;   // no melee from the bike: both hands on the bars
   if (BC.driving) return;     // no melee from the bicycle: both hands on the bars
   if (SC.driving) return;     // no melee from the scooter: both hands on the bar
-  if (BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) return;    // no melee from a vehicle
+  if (BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) return;    // no melee from a vehicle
   if (!playing() || P.dead || P.punchCd > 0) return;
   P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
   P.comboWin = 0.6;
@@ -4609,7 +4657,7 @@ const tmpV2 = new THREE.Vector3(), tmpEnd = new THREE.Vector3();
 const jitterPt = new THREE.Vector2();   // per-pellet spread offset, zero alloc
 function shoot() {
   emoteCancel();   // combat layer wins: firing kills the emote instantly
-  if (!playing() || P.dead || fireCd > 0 || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) return;
+  if (!playing() || P.dead || fireCd > 0 || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) return;
   let w = WEAPONS[curWeapon];
   if (w.ammo <= 0) {   // dry weapon: fall back to the rifle, never soft-lock
     curWeapon = 'rifle'; w = WEAPONS.rifle; updateWeaponHUD();
@@ -5400,6 +5448,7 @@ function busted() {
   if (HORSE.riding) horseExit();   // busted off the saddle too
   if (BUS.driving || BUS.riding) busExit();   // busted off the bus too
   if (CIVIC.state) civicExit();   // Phase 5 civic: busted out of the menu too
+  if (WORSHIP.state) worshipExit();   // Phase 5 worship: busted out of the chapel too
   if (TX.riding) taxiExit();   // busted out of the taxi too
   if (BIKE.driving) bikeExit();   // busted off the bike too
   if (BC.driving) bcExit();       // busted off the bicycle too
@@ -5472,7 +5521,7 @@ function wantedTick(dt) {
   if (W.tickT < 0.25) return;
   W.tickT = 0;
   const px = player.position.x, pz = player.position.z;
-  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
+  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
   let seen = false, bust = false;
   for (const c of cops) {
     if (!c.active || c.state === 'dead') continue;
@@ -5480,7 +5529,7 @@ function wantedTick(dt) {
     const d2 = dx * dx + dz * dz;
     if (d2 < see2) seen = true;
     if (P.godT > 0) continue;
-    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching) { if (d2 < 6.25) { bust = true; break; } }
+    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching) { if (d2 < 6.25) { bust = true; break; } }
     else if (CAR.driving && d2 < 9 && Math.abs(CAR.speed) < 3) { bust = true; break; }
     else if ((BUS.driving || BUS.riding) && d2 < 9 && Math.abs(BUS.speed) < 3) { bust = true; break; }
     else if (TX.riding && d2 < 9 && Math.abs(TX.speed) < 3) { bust = true; break; }
@@ -5493,7 +5542,7 @@ function wantedTick(dt) {
     else if (TRAIN.riding && d2 < 9 && Math.abs(TRAIN.speed) < 3) { bust = true; break; }
     else if (SLOT.playing && d2 < 9) { bust = true; break; }   // the gambler is an easy catch
     else if (PIANO.playing && d2 < 9) { bust = true; break; }   // the pianist is an easy catch
-    else if ((THEATER.watching || CIVIC.state) && d2 < 9) { bust = true; break; }   // the watcher is an easy catch
+    else if ((THEATER.watching || CIVIC.state || WORSHIP.state) && d2 < 9) { bust = true; break; }   // the watcher is an easy catch
   }
   if (bust) { busted(); return; }
   if (W.heat <= 0) return;
@@ -5748,7 +5797,7 @@ function missionTick(dt) {
 
   const px = player.position.x, pz = player.position.z;
   if (MS.state === 'IDLE') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) ? 6 : 3;   // markers are enterable on foot and while driving
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) ? 6 : 3;   // markers are enterable on foot and while driving
     for (let i = 0; i < 5; i++) {
       if (MS.done[i] || !missionAvailable(i)) continue;
       const dx = MISSIONS[i].mx - px, dz = MISSIONS[i].mz - pz;
@@ -5759,7 +5808,7 @@ function missionTick(dt) {
   /* ACTIVE: evaluate the current phase */
   const o = MISSIONS[MS.idx].obj[MS.phase];
   if (o.type === 'collect') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) ? 4.5 : 2.5;
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) ? 4.5 : 2.5;
     for (let s = 0; s < crateSpots.length; s++) {
       const c = crateSpots[s];
       if (c.taken) continue;
@@ -6040,7 +6089,7 @@ function lootTick(dt) {
       if (L.respawnT <= 0) { L.taken = false; showLoot(L); }
     }
   }
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) return;   // pickups are on-foot only
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) return;   // pickups are on-foot only
   lootCheckT += dt;
   if (lootCheckT < 0.15) return;                      // radius checks throttled
   lootCheckT = 0;
@@ -6180,7 +6229,7 @@ function refreshShopPanel() {
   renderShopRows();
 }
 function openShop(i) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || !playing()) return;
   shopOpen = true; shopOpenIdx = i;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;   // Phase 3: panel is shared with diners
   shopBaseTitle = SHOPS[i].name;              // Phase 5 cooking: list-swap restore title
@@ -6238,7 +6287,7 @@ function shopTick(dt) {
   shopCheckT += dt;
   if (shopCheckT < 0.15) return;           // proximity check throttled
   shopCheckT = 0;
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) return;
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) return;
   const px = player.position.x, pz = player.position.z;
   for (let i = 0; i < SHOPS.length; i++) {
     const S = SHOPS[i];
@@ -6928,7 +6977,7 @@ const REST_ITEMS = [
 ];
 let shopRest = false, shopRestSlot = -1, SHOP_LIST = SHOP_ITEMS;
 function openRest(R, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || !playing()) return;
   shopOpen = true; shopRest = true; shopRestSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = REST_ITEMS;
   shopBaseTitle = R.name;                     // Phase 5 cooking: list-swap restore title
@@ -6949,7 +6998,7 @@ function amenTick(dt) {
   amenT += dt;
   if (amenT >= 0.15) {
     amenT = 0;
-    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching) {
       const arr = AMEN.active.rest;
       for (let i = 0; i < arr.length; i++) {
         const R = arr[i];
@@ -7223,6 +7272,131 @@ function buildCivicGeo() {
   }
   return mergeAmenGeos(parts);
 }
+/* ---- worship: procedural sacred architecture (Phase 5 buildings/places).
+        Tag-driven variation (Baghdad Round City idiom): the type tag decides
+        which primitives the builder appends. Church parts go in Y-band 0,
+        mosque parts one WORSHIP_BAND below; the per-instance matrix lifts
+        mosque instances by exactly one band, so ONE fleet InstancedMesh
+        serves two silhouettes (+1 net draw call). Winding discipline: the
+        gable prism below is wound outward (verified face by face); its
+        vertex order is the template for every custom primitive here.
+        Window quads reuse the bldgWindow emissive idiom, so night glow
+        rides the automatic BLDG_WIN_MATS ramp. Facade texture extends the
+        64px procedural pass (66f874b): seeded jitter only, pin 92 holds. ---- */
+function makeWorshipTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 64, 64);
+  /* facade grain (66f874b idiom): seeded jitter only, unseeded-RNG pin 92 holds */
+  const r = mulberry32(0x90e51f);
+  for (let i = 0; i < 160; i++) {
+    const v = 228 + (r() * 24 | 0);
+    g.fillStyle = 'rgb(' + v + ',' + v + ',' + (v - 6) + ')';
+    g.fillRect(r() * 64 | 0, r() * 64 | 0, 2, 2);
+  }
+  g.fillStyle = 'rgba(0,0,0,0.10)';
+  for (let y = 8; y < 64; y += 8) g.fillRect(0, y, 64, 1);   // stone courses
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/* gabled roof prism: ridge along Z, triangular gable ends at z=+/-d/2.
+   All six faces wound outward (front +z, back -z, slopes up-left/up-right);
+   flat facets via computeVertexNormals on unshared verts. */
+function bldgPrism(parts, w, h, d, x, y, z, hex) {
+  const hw = w / 2, hd = d / 2;
+  const v = new Float32Array([
+    -hw, 0, hd,   hw, 0, hd,   0, h, hd,       // front gable
+    hw, 0, -hd,   -hw, 0, -hd,   0, h, -hd,    // back gable
+    -hw, 0, -hd,   -hw, 0, hd,   0, h, hd,     // left slope
+    -hw, 0, -hd,   0, h, hd,   0, h, -hd,
+    hw, 0, hd,   hw, 0, -hd,   0, h, -hd,      // right slope
+    hw, 0, hd,   0, h, -hd,   0, h, hd,
+  ]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(v, 3));
+  const idx = [];
+  for (let i = 0; i < 18; i++) idx.push(i);
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const uvArr = new Float32Array(18 * 2);   // amenUV/mergeAmenGeos need a uv attribute
+  g.setAttribute('uv', new THREE.BufferAttribute(uvArr, 2));
+  g.translate(x, y, z);
+  amenUV(g, 0.8, 0.8); amenPaint(g, hex);
+  parts.push(g);
+}
+/* onion dome: lathe of an onion profile (bulge low, point high) */
+function bldgDome(parts, r, h, x, y, z, hex) {
+  const prof = [[0.02, 0], [0.55, 0.06], [0.8, 0.22], [0.92, 0.45], [0.88, 0.68],
+                [0.68, 0.86], [0.4, 0.96], [0.12, 1.0], [0.02, 1.03]];
+  const pts = [];
+  for (const pr of prof) pts.push(new THREE.Vector2(pr[0] * r, pr[1] * h));
+  const g = new THREE.LatheGeometry(pts, 12);
+  g.translate(x, y, z);
+  amenUV(g, 0.8, 0.8); amenPaint(g, hex);
+  parts.push(g);
+}
+/* crescent finial: torus arc, classic tilt */
+function bldgCrescent(parts, r, x, y, z, hex) {
+  const g = new THREE.TorusGeometry(r, r * 0.22, 8, 20, Math.PI * 1.45);
+  g.rotateZ(Math.PI * 0.78);
+  g.translate(x, y, z);
+  amenUV(g, 0.5, 0.5); amenPaint(g, hex);
+  parts.push(g);
+}
+function worshipChurchParts(parts) {
+  const STONE = 0x6b6f75, CREAM = 0xe8dcc0, SLATE = 0x4a4f58,
+        WOOD = 0x5a3a22, GOLD = 0xd8a83c;
+  amenPart(parts, 3, 8.5, 0, 0, 0, 0.02, 0, 0x4a4d52);          // yard slab
+  amenPart(parts, 0, 7.4, 0.6, 10, 0, 0.3, 0, STONE);           // foundation
+  amenPart(parts, 0, 6.8, 4.2, 9.2, 0, 2.7, 0, CREAM);          // nave (0.6..4.8)
+  bldgPrism(parts, 7.6, 2.8, 10.0, 0, 4.8, 0, SLATE);           // gabled roof
+  amenPart(parts, 0, 3.2, 8.6, 3.2, 0, 4.9, -3.6, CREAM);       // rear tower (0.6..9.2)
+  amenPart(parts, 0, 3.8, 0.5, 3.8, 0, 9.45, -3.6, STONE);       // tower cornice
+  amenPart(parts, 2, 2.1, 3.4, 0, 0, 11.4, -3.6, SLATE);        // spire
+  amenPart(parts, 0, 0.22, 1.7, 0.22, 0, 13.9, -3.6, GOLD);     // cross upright
+  amenPart(parts, 0, 1.1, 0.22, 0.22, 0, 14.1, -3.6, GOLD);     // cross bar
+  for (const wz of [-2.8, 0, 2.8]) {                           // nave windows (glow at night)
+    bldgWindow(parts, 0.9, 1.4, 3.44, 2.6, wz, Math.PI / 2);
+    bldgWindow(parts, 0.9, 1.4, -3.44, 2.6, wz, -Math.PI / 2);
+  }
+  bldgWindow(parts, 0.9, 1.4, -2.2, 2.6, 4.64, 0);              // front windows
+  bldgWindow(parts, 0.9, 1.4, 2.2, 2.6, 4.64, 0);
+  bldgWindow(parts, 0.7, 0.9, 0, 7.6, -1.96, Math.PI);          // belfry window
+  amenPart(parts, 0, 1.4, 2.6, 0.2, 0, 1.9, 4.65, WOOD);        // door
+  amenPart(parts, 0, 2.4, 0.3, 1.4, 0, 0.15, 5.4, STONE);       // steps
+}
+function worshipMosqueParts(parts) {
+  const STONE = 0x6b6f75, SAND = 0xe0cfa0, SAND_D = 0xb89a68,
+        TEAL = 0x3f7a72, GOLD = 0xd8a83c, WOOD = 0x5a3a22;
+  amenPart(parts, 3, 9.5, 0, 0, 0, 0.02, 0, 0x4a4d52);          // yard slab
+  amenPart(parts, 0, 9.0, 0.6, 9.0, 0, 0.3, 0, STONE);           // foundation
+  amenPart(parts, 0, 8.4, 4.5, 8.4, 0, 2.85, 0, SAND);          // prayer hall (0.6..5.1)
+  amenPart(parts, 0, 9.0, 0.5, 9.0, 0, 5.35, 0, SAND_D);        // cornice
+  amenPart(parts, 1, 3.0, 3.0, 1.2, 0, 6.2, 0, SAND_D);         // drum
+  bldgDome(parts, 3.4, 3.8, 0, 6.8, 0, TEAL);                   // onion dome
+  amenPart(parts, 1, 0.12, 0.12, 1.0, 0, 11.0, 0, GOLD);        // finial
+  bldgCrescent(parts, 0.55, 0, 11.9, 0, GOLD);                  // dome crescent
+  amenPart(parts, 1, 0.55, 0.85, 12.0, 4.9, 6.6, 0, SAND);    // minaret (tapered)
+  amenPart(parts, 1, 1.1, 1.1, 0.35, 4.9, 10.2, 0, SAND_D);   // balcony
+  amenPart(parts, 2, 0.8, 1.4, 0, 4.9, 13.3, 0, TEAL);        // cap
+  bldgCrescent(parts, 0.4, 4.9, 14.3, 0, GOLD);               // minaret crescent
+  for (const wz of [-2.6, 0, 2.6]) {                           // hall windows (glow at night)
+    bldgWindow(parts, 1.0, 1.5, 4.24, 2.7, wz, Math.PI / 2);
+    bldgWindow(parts, 1.0, 1.5, -4.24, 2.7, wz, -Math.PI / 2);
+    bldgWindow(parts, 1.0, 1.5, wz, 2.7, 4.24, 0);
+  }
+  amenPart(parts, 0, 1.6, 2.8, 0.2, 0, 2.0, 4.25, WOOD);        // door
+  amenPart(parts, 0, 2.6, 0.3, 1.4, 0, 0.15, 5.0, STONE);       // steps
+}
+function buildWorshipGeo() {
+  const parts = [];
+  worshipChurchParts(parts);                 // band 0: nave + gable + tower + spire + cross
+  const mp = [];
+  worshipMosqueParts(mp);                    // mosque: hall + onion dome + minaret + crescents
+  for (const g of mp) { g.translate(0, -WORSHIP_BAND, 0); parts.push(g); }
+  return mergeAmenGeos(parts);
+}
 /* civic type order + per-type non-uniform scale (distinct silhouettes, no
    Lego sameness): hospital tall, bank wide podium, hotel mid-tall, school
    low wide. Footprint colliders in BLDG_DEF_LIST match these footprints. */
@@ -7233,10 +7407,43 @@ const CIVIC_SCALE = {
   hotel: [1.25, 1.25, 1.15],
   school: [2.1, 0.6, 1.7],
 };
+/* worship type order + per-type non-uniform scale (distinct silhouettes, no
+   Lego sameness): church upright nave, mosque wide hall. Footprint colliders
+   in BLDG_DEF_LIST match these footprints. WORSHIP_BAND is the Y-band trick
+   that lets ONE worship fleet InstancedMesh hold BOTH sacred types: the
+   builder appends church primitives in band 0 and mosque primitives one
+   band below; the per-instance matrix lifts mosque instances by exactly one
+   band (scaled by sy), so one static geometry serves two silhouettes.
+   Tag-driven variation (Baghdad Round City idiom): the type tag decides
+   which primitives the builder appends, and in which band. */
+const WORSHIP_ORDER = ['church', 'mosque'];
+const WORSHIP_SCALE = {
+  church: [1.0, 1.0, 1.15],
+  mosque: [1.25, 1.0, 1.25],
+};
+const WORSHIP_SALT = 0x9e3779b9;
+const WORSHIP_BAND = 1000;
+function worshipHash(gx, gz) { return (hash2i(gx, gz) ^ WORSHIP_SALT) >>> 0; }
+/* pure-deterministic worship selection: own salted hash, residue %7===0
+   (disjoint from civic %7===5 / casino %7===3 / store %7===1 in the
+   bldgTypeFor namespace); type split church/mosque by (hash>>>9)%2.
+   Same-building-returns: the same chunk always yields the same type, and
+   placeBldg seeds position/rotation from the chunk hash, so a revisit
+   rebuilds the identical building. */
+function worshipFor(gx, gz) {
+  if (Math.abs(gx) <= 1 && Math.abs(gz) <= 1) return null;   // spawn district
+  if (chunkHitsNoGo(gx, gz)) return null;
+  if (amenityCenterFor(gx, gz)) return null;                // amenity chunks stay amenity chunks
+  const hb = hash2i(gx, gz);
+  if (chunkBiome(gx, gz) === 'farm' && (hb % 3 === 0 || hb % 6 === 2)) return null;   // farm plots and barns keep theirs
+  const h = worshipHash(gx, gz);
+  if (h % 7 === 0) return WORSHIP_ORDER[(h >>> 9) % 2];
+  return null;
+}
 
 /* ---- instanced meshes: one per type, one draw call each (3 new sites) ---- */
 const BLDG = { foot: [], active: { house: [], barn: [], store: [], casino: [],
-  hospital: [], bank: [], hotel: [], school: [] } };
+  hospital: [], bank: [], hotel: [], school: [], church: [], mosque: [] } };
 const _bldgGoldC = new THREE.Color(0xffd75e), _bldgWhiteC = new THREE.Color(0xffffff);
 const BLDG_WIN_MATS = [];
 const BLDG_DEF_LIST = [
@@ -7270,6 +7477,24 @@ const BLDG_DEF_LIST = [
     colliders: [[0, 0, 6.5]], porch: { seat: 9.0, hint: 8.5 } },
   { key: 'school', cap: 2, shared: 'civic', tint: 0xc25a44,
     colliders: [[0, 0, 10.5]] },
+  /* worship fleet: ONE new InstancedMesh for both sacred types (churches,
+     mosques): +1 net draw call. The two types share the worship mesh at
+     cumulative slot offsets (the casino/store zero-draw pattern,
+     generalized). Tag-driven geometry via the Y-band trick: the builder
+     appends church primitives in band 0 and mosque primitives one
+     WORSHIP_BAND below; per-instance matrices lift mosque instances by
+     exactly one band. Per-type identity via instanceColor tint +
+     non-uniform per-instance scale (WORSHIP_SCALE). Seeded placement with
+     own salted hash residue (%7===0, disjoint from civic %7===5 /
+     casino %7===3 / store %7===1); type split church/mosque by
+     (hash>>>9)%2. Night window glow reuses the BLDG_WIN_MATS emissive
+     ramp (material built by the shared def loop). */
+  { key: 'worship', cap: 8, tex: makeWorshipTex, build: buildWorshipGeo,
+    colliders: [] },
+  { key: 'church', cap: 4, shared: 'worship', tint: 0xf2ead8,
+    colliders: [[0, 0, 5.8]], porch: { seat: 8.0, hint: 7.5 } },
+  { key: 'mosque', cap: 4, shared: 'worship', tint: 0xe6d3a8,
+    colliders: [[0, 0, 6.2]], porch: { seat: 9.5, hint: 9.0 } },
 ];
 const BLDG_DEF = {};
 const bldgMeshes = [];
@@ -7302,6 +7527,8 @@ function bldgTypeFor(gx, gz) {
   if (h % 7 === 5) return CIVIC_ORDER[(h >>> 9) % 4];   // civic: own residue, disjoint from store %7===1 / casino %7===3
   if (h % 7 === 3) return 'casino';   // own residue, disjoint from store %7===1
   if (h % 7 === 1) return 'store';
+  const wf = worshipFor(gx, gz);   // worship: own salted hash, residue %7===0, disjoint from civic/casino/store
+  if (wf) return wf;
   if (h % 8 === 2) return 'house';
   return null;
 }
@@ -7343,13 +7570,14 @@ function placeBldg(gx, gz, type) {
     if (nearBldgAmenityClear(x, z)) continue;
     const variant = type === 'house' ? (hash2i(gx, gz) >>> 7) % 3 : 0;
     const sc = type === 'house' ? HOUSE_SCALE[variant] : 1;
-    const cs = CIVIC_SCALE[type];   // undefined for non-civic types
+    const cs = CIVIC_SCALE[type] || WORSHIP_SCALE[type];   // undefined for non-civic/worship types
     return { x, z, y, yaw: rnd() * Math.PI * 2, gx, gz, variant,
              scale: sc,
              sx: cs ? cs[0] : sc, sy: cs ? cs[1] : sc, sz: cs ? cs[2] : sc,
+             yOff: type === 'mosque' ? WORSHIP_BAND : 0,   // worship v1: mosque geometry lives one Y-band below
              name: type === 'casino' ? 'CASINO'
                : type === 'store' ? STORE_NAMES[hash2i(gx, gz) % STORE_NAMES.length]
-               : (CIVIC_SCALE[type] ? type.toUpperCase() : null) };
+               : (cs ? type.toUpperCase() : null) };
   }
   return null;
 }
@@ -7397,10 +7625,10 @@ function redistributeBuildings(pcx, pcz) {
     for (let i = 0; i < arr.length; i++) {
       const b = arr[i];
       _aE.set(0, b.yaw, 0); _aQ.setFromEuler(_aE);
-      _aP.set(b.x, b.y, b.z);
       _aS.set(b.sx !== undefined ? b.sx : (b.scale || 1),
               b.sy !== undefined ? b.sy : (b.scale || 1),
               b.sz !== undefined ? b.sz : (b.scale || 1));
+      _aP.set(b.x, b.y + (b.yOff || 0) * _aS.y, b.z);   // worship v1: mosque band lift (0 for every other type)
       _aM.compose(_aP, _aQ, _aS);
       mesh.setMatrixAt(off + i, _aM);
       mesh.setColorAt(off + i, def.tintC);
@@ -7423,7 +7651,7 @@ function redistributeBuildings(pcx, pcz) {
    health with cash, walk out to re-arm. No new economy code. */
 let shopBldg = false, shopBldgSlot = -1;
 function openBldgStore(S, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || !playing()) return;
   shopOpen = true; shopBldg = true; shopBldgSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;
   shopNameEl.textContent = S.name;
@@ -7443,7 +7671,7 @@ function bldgTick(dt) {
   bldgT += dt;
   if (bldgT >= 0.15) {
     bldgT = 0;
-    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching) {
       const arr = BLDG.active.store;
       for (let i = 0; i < arr.length; i++) {
         const S = arr[i];
@@ -7768,7 +7996,7 @@ function farmTryHarvest() {
   if (FPLOT.nearIdx < 0) return false;
   if (!playing() || P.dead || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) return false;
   if (HORSE.hintOn || BUS.hintOn || TX.hintOn || BIKE.hintOn || BC.hintOn ||
       SC.hintOn || PET.hintOn) return false;
   if (FPLOT.nearMature) farmHarvest(FPLOT.nearIdx);
@@ -8253,8 +8481,8 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
-  if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
+  if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (WORSHIP.hintOn) worshipEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
+  if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -8263,7 +8491,7 @@ addEventListener('keydown', e => {
   if (pk >= 0 && PIANO.playing) pianoNote(pk);
   else {
     const emk = EMOTE_KEYS.indexOf(e.code);                           // Phase 5 emotes: Z/X/C/V/G/B
-    if (emk >= 0 && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching) fireEmote(EMOTE_ORDER[emk]);       // (1-6 are weapons/shop)
+    if (emk >= 0 && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching) fireEmote(EMOTE_ORDER[emk]);       // (1-6 are weapons/shop)
   }
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -8626,7 +8854,7 @@ function soccerBallNear() {
 function soccerCanKick() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) return false;
   return soccerBallNear();
 }
 function doKick() {
@@ -8922,7 +9150,7 @@ function hoopsBallNear() {
 function hoopsCanShoot() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) return false;
   return hoopsBallNear();
 }
 /* set shot: auto-aim (ball->rim unit vector), arc via forward+up vector
@@ -9346,7 +9574,7 @@ function tennisBallNear() {
 function tennisCanHit() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) return false;
   return tennisBallNear();
 }
 /* forehand return: auto-aim at the far court, seeded depth/angle error via
@@ -10435,7 +10663,7 @@ function ensureEngineAudio() {
 }
 
 function carEnter() {
-  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || !playing() || P.dead) return;
+  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || !playing() || P.dead) return;
   emoteCancel();   // no emotes while driving
   const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
   if (dx * dx + dz * dz > 16) return;        // 4u enter radius
@@ -10712,7 +10940,7 @@ function ensureHoofAudio() {
 }
 
 function horseEnter() {
-  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || shopOpen) return;
+  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || shopOpen) return;
   emoteCancel();   // no emotes while riding
   const a = HORSE.nearA;
   if (!a || a.mountLocked || a.fleeT > 0) return;
@@ -10772,6 +11000,7 @@ function mountToggle() {
   if (AMUSE.riding) amuseExit();   // Phase 5 amusement: E never traps the rider
   else if (STADIUM.watching) stadiumExit();   // Phase 5 stadium: E never traps the fan
   else if (CIVIC.state) civicExit();   // Phase 5 civic: E never traps the visitor
+  else if (WORSHIP.state) worshipExit();   // Phase 5 worship: E never traps the worshipper
   else if (THEATER.watching) theaterExit();   // Phase 5 theater: E never traps the watcher
   else if (SLOT.playing) slotExit();   // Phase 5 casino: E never traps the gambler
   else if (PIANO.playing) pianoExit();   // Phase 5 pianos: E never traps the player
@@ -10805,13 +11034,13 @@ function mountToggle() {
   else carEnter();
 }
 /* the touch EXIT button doubles as the dismount button while riding */
-function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); }
+function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); }
 
 /* ---- horse ticker: prompt, controller, procedural gait, audio, HUD ---- */
 function horseUpdate(sdt, now) {
   if (!HORSE.riding) {
     // parked: nearest non-fleeing horse inside 2.2u shows the RIDE prompt
-    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
+    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
     let best = null, bestD2 = RIDE_R2;
     if (onFoot) {
       for (const a of animals) {
@@ -11225,7 +11454,7 @@ function busDwellService() {
 }
 
 function busEnter() {
-  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || !playing() || P.dead || shopOpen) return;
+  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a bus passenger
   if (!BUS.active || BUS.speed > 3) { toast('WAIT FOR THE BUS TO STOP'); return; }
   const door = busDoorWorld();
@@ -11368,7 +11597,7 @@ function busUpdate(sdt, now) {
 
   // ---- board prompt: on foot, near the door, bus stopped ----
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
   let nearDoor = false;
   if (onFoot && BUS.speed < 3) {
     const door = busDoorWorld();
@@ -11772,7 +12001,7 @@ function txPursuit(sdt) {
   if (TX.speed > 0.05) TX.heading += (TX.speed / TX.wheelbase) * Math.tan(delta) * sdt;
 }
 function taxiEnter() {
-  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching
+  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching
       || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a taxi passenger
   if (!TX.active || TX.speed > 3) { toast('WAIT FOR THE TAXI TO STOP'); return; }
@@ -11834,7 +12063,7 @@ function txUpdate(sdt) {
   if (TX.riding) { player.position.copy(TX.pos); player.rotation.y = TX.heading; }
   /* board prompt: on foot, near the door, taxi slow */
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
   let nearDoor = false;
   if (onFoot && TX.speed < 3) {
     const door = txDoorWorld();
@@ -12005,7 +12234,7 @@ function bikeRebuild(pcx, pcz) {
   bikeBodyIM.instanceMatrix.needsUpdate = true;
 }
 function bikeEnter() {
-  if (BIKE.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching
+  if (BIKE.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = BIKE.nearIdx;
@@ -12097,7 +12326,7 @@ function bikeUpdate(sdt) {
   if (!BIKE.driving) {
     // parked: nearest slot inside 3.5u shows the RIDE prompt (horse idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
     let best = -1, bestD2 = BIKE.boardR2;
     if (onFoot) {
       for (let i = 0; i < 3; i++) {
@@ -12383,7 +12612,7 @@ function bcRebuild(pcx, pcz) {
   bcBodyIM.instanceMatrix.needsUpdate = true;
 }
 function bcEnter() {
-  if (BC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching
+  if (BC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = BC.nearIdx;
@@ -12477,7 +12706,7 @@ function bcUpdate(sdt) {
   if (!BC.driving) {
     // parked: nearest slot inside 3.5u shows the RIDE prompt (bike idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
     let best = -1, bestD2 = BC.boardR2;
     if (onFoot) {
       for (let i = 0; i < 3; i++) {
@@ -12745,7 +12974,7 @@ function scRebuild(pcx, pcz) {
   scBodyIM.instanceMatrix.needsUpdate = true;
 }
 function scEnter() {
-  if (SC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching
+  if (SC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = SC.nearIdx;
@@ -13109,7 +13338,7 @@ function boatRebuild(pcx, pcz, now) {
   boatBodyIM.instanceMatrix.needsUpdate = true;
 }
 function boatEnter() {
-  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || BOAT.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || BOAT.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while sailing
   const i = BOAT.nearIdx;
@@ -13551,7 +13780,7 @@ function heliRebuild(pcx, pcz, now) {
   heliBodyIM.instanceMatrix.needsUpdate = true;
 }
 function heliEnter() {
-  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || SC.driving || BOAT.driving || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while flying
   const i = HELI.nearIdx;
@@ -13987,7 +14216,7 @@ function planeRebuild(pcx, pcz, now) {
 }
 function planeEnter() {
   if (PLANE.flying || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
-      || SC.driving || BOAT.driving || HELI.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || !playing() || P.dead || shopOpen || P.godT > 0) return;
+      || SC.driving || BOAT.driving || HELI.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while flying
   const i = PLANE.nearIdx;
   if (i < 0 || i >= PLANE_N) return;
@@ -14103,7 +14332,7 @@ function planeUpdate(sdt, now) {
   if (!PLANE.flying) {
     // parked: nearest airplane inside 6u shows the BOARD prompt (boat idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
     let best = -1, bestD2 = PLANE.boardR2;
     if (onFoot) {
       for (let i = 0; i < PLANE_N; i++) {
@@ -14438,7 +14667,7 @@ trainChipEl.addEventListener('click', () => { if (TRAIN.riding) camYaw = TRAIN.h
 
 function trainEnter() {
   if (TRAIN.riding || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
-      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || !playing() || P.dead || shopOpen || P.godT > 0) return;
+      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = TRAIN.nearTrain, j = TRAIN.nearCar;
   if (i < 0 || i >= TRAIN_N || j < 0 || j >= TRAIN_CARS) return;
@@ -14540,7 +14769,7 @@ function trainUpdate(sdt, now) {
 
   // ---- on foot: board prompt, danger, station sign ----
   const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-    && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
+    && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
   let bestT = -1, bestC = -1, bestD2 = TRAIN.boardR2;
   if (onFoot) {
     for (let i = 0; i < TRAIN_N; i++) {
@@ -14860,7 +15089,7 @@ function pianoUpdate(sdt, now) {
   if (!PIANO.playing) {
     // parked: nearest piano inside the sit radius shows the SIT prompt (heli idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching) && !shopOpen;
     let best = -1, bestD2 = PIANO.boardR2;
     if (onFoot) {
       for (let i = 0; i < PIANO_N; i++) {
@@ -15041,7 +15270,7 @@ function sfxSlotCoin() {
 }
 
 function slotEnter() {
-  if (SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while gambling
   const i = SLOT.nearIdx;
@@ -15162,7 +15391,7 @@ function slotUpdate(sdt, now) {
   if (!SLOT.playing) {
     // parked: nearest casino inside the play radius shows the PLAY prompt (heli idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching && !SLOT.playing && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching && !SLOT.playing && !shopOpen;
     let best = -1, bestD2 = SLOT.boardR2;
     if (onFoot) {
       const arr = BLDG.active.casino;
@@ -15401,7 +15630,7 @@ function civicTick(dt) {
   if (!CIVIC.state) {
     // parked: nearest interactive civic inside its porch hint radius shows the prompt (slot idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching && !shopOpen;
     let best = -1, bestType = null, bestD2 = 1e18, bestHintR2 = 0;
     if (onFoot) {
       for (const type of CIVIC_ORDER) {
@@ -16048,7 +16277,7 @@ function updateStadiumChip() {
 }
 
 function stadiumEnter() {
-  if (AMUSE.riding || STADIUM.watching || THEATER.watching || CIVIC.state || PIANO.playing || SLOT.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (AMUSE.riding || STADIUM.watching || THEATER.watching || CIVIC.state || WORSHIP.state || PIANO.playing || SLOT.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while watching
   const i = STADIUM.nearIdx;
@@ -16158,7 +16387,7 @@ function stadiumUpdate(sdt, now) {
   if (!STADIUM.watching) {
     // parked: nearest stadium inside the watch radius shows the WATCH prompt (theater idiom)
     const onFoot = playing() && !P.dead && !shopOpen && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching;
     let best = -1, bestD2 = STADIUM.boardR2;
     if (onFoot) {
       for (let i = 0; i < STADIUM_N; i++) {
@@ -16491,7 +16720,7 @@ function updateAmuseChip() {
 }
 
 function amuseEnter() {
-  if (AMUSE.riding || STADIUM.watching || THEATER.watching || CIVIC.state || PIANO.playing || SLOT.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  if (AMUSE.riding || STADIUM.watching || THEATER.watching || CIVIC.state || WORSHIP.state || PIANO.playing || SLOT.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = AMUSE.nearIdx;
   if (i < 0 || i >= AMUSE_N) return;
@@ -16608,7 +16837,7 @@ function amuseUpdate(sdt, now) {
   if (!AMUSE.riding) {
     // parked: nearest amusement park inside the ride radius shows the RIDE prompt (theater idiom)
     const onFoot = playing() && !P.dead && !shopOpen && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !STADIUM.watching;
     let best = -1, bestD2 = AMUSE.boardR2;
     if (onFoot) {
       for (let i = 0; i < AMUSE_N; i++) {
@@ -16650,6 +16879,221 @@ function amuseUpdate(sdt, now) {
   }
 }
 worldTickers.push(amuseUpdate);
+
+/* ================= PHASE 5: WORSHIP BUILDINGS v1 (buildings/places) =================
+   Two new rural-building types on ONE new worship fleet InstancedMesh (+1 net
+   draw call, 46 -> 47): CHURCH, MOSQUE. Seeded pure-deterministic placement
+   (own salted hash residue %7===0 in bldgTypeFor, disjoint from civic %7===5 /
+   casino %7===3 / store %7===1; type split church/mosque by (hash>>>9)%2).
+   Tag-driven geometry (Y-band trick): church primitives in band 0 (nave +
+   gabled prism roof + rear tower + spire + cross), mosque primitives one
+   WORSHIP_BAND below (prayer hall + onion dome + minaret + crescents);
+   per-instance matrices lift mosque instances by exactly one band, so one
+   static geometry serves two silhouettes. Per-type identity via
+   instanceColor tint + non-uniform per-instance scale (WORSHIP_SCALE).
+   Type names ride the store/casino DOM bearing-chip idiom (zero draws);
+   night window glow reuses the BLDG_WIN_MATS emissive ramp (worship material
+   built by the shared def loop). Gameplay hooks where systems exist:
+   - CHURCH: walk-in E => PRAY: free full heal, once per in-game day (the
+     ATM day idiom).
+   - MOSQUE: walk-in E => SANCTUARY: +40 HP and clears wanted heat stars
+     (the setHeat public API, busted idiom).
+   E exits any time (wired through KeyE/mountToggle/vehicleExit/busted/death,
+   never traps). Session-only; save v3 untouched; zero new unseeded RNG
+   (pin 92 holds); no external assets. */
+const WORSHIP = {
+  state: null,                 // null | 'church' | 'mosque'
+  nearIdx: -1, nearType: null, hintOn: false,
+  hintR2: 0,
+  seatX: 0, seatZ: 0, seatYaw: 0,
+  camDist: 7.5, camH: 2.4, camAng: 0,   // fixed porch framing (slot idiom)
+  pos: new THREE.Vector3(),
+  prayDay: -1, day: 0, lastPhase: 0.5,   // in-game day counter for the PRAY cooldown
+};
+const WORSHIP_HEAL_AMT = 40;
+const WORSHIP_HINT_TXT = { church: 'PRAY [E]', mosque: 'SANCTUARY [E]' };
+const WORSHIP_ACT_TXT = { church: 'PRAY - FREE', mosque: 'SANCTUARY +40 HP' };
+const WORSHIP_FOOT_TXT = {
+  church: 'FULL HEAL - ONCE PER IN-GAME DAY',
+  mosque: '+40 HP - CLEARS WANTED HEAT',
+};
+const HELP_WORSHIP = '<b>E</b> leave &nbsp; <b>TOUCH</b> tap action';
+
+/* ---- HUD refs: porch prompt, state chip, bearing chip, action panel ---- */
+const worshiphintEl = document.getElementById('worshiphint');
+const worshipChipEl = document.getElementById('worshipchip');
+const worshipbearingEl = document.getElementById('worshipbearing');
+const worsarrEl = document.getElementById('worsarr');
+const worstxtEl = document.getElementById('worstxt');
+const worshipPanelEl = document.getElementById('worshippanel');
+const worshipTitleEl = document.getElementById('worshiptitle');
+const worshipActEl = document.getElementById('worshipact');
+const worshipFootEl = document.getElementById('worshipfoot');
+worshiphintEl.textContent = IS_TOUCH ? 'TAP TO ENTER' : 'ENTER [E]';
+worshiphintEl.addEventListener('click', () => { if (WORSHIP.hintOn) worshipEnter(); });
+worshipChipEl.addEventListener('click', () => { if (WORSHIP.state) camYaw = WORSHIP.camAng; });  // re-center the porch cam
+function worshipActBtn(e) { e.preventDefault(); e.stopPropagation(); worshipAct(); }
+worshipActEl.addEventListener('touchstart', worshipActBtn, { passive: false });
+worshipActEl.addEventListener('click', worshipActBtn);
+function updateWorshipChip() {
+  if (!WORSHIP.state) { worshipChipEl.style.display = 'none'; return; }
+  worshipChipEl.style.display = 'block';
+  worshipChipEl.textContent = WORSHIP.state.toUpperCase() + ' | ' + WORSHIP_ACT_TXT[WORSHIP.state] + ' | E LEAVE';
+}
+
+function worshipEnter() {
+  if (WORSHIP.state || CIVIC.state || SLOT.playing || PIANO.playing || THEATER.watching || AMUSE.riding || STADIUM.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  emoteCancel();   // no emotes while inside
+  const i = WORSHIP.nearIdx, type = WORSHIP.nearType;
+  if (i < 0 || !type) return;
+  const arr = BLDG.active[type];
+  if (i >= arr.length) return;
+  const S = arr[i];
+  const dx = player.position.x - S.x, dz = player.position.z - S.z;
+  if (dx * dx + dz * dz > WORSHIP.hintR2) return;
+  const def = BLDG_DEF[type];
+  /* sit at the porch, outside the foot collider, facing the entry */
+  const fx = Math.sin(S.yaw), fz = Math.cos(S.yaw);
+  WORSHIP.seatX = S.x + fx * def.porch.seat; WORSHIP.seatZ = S.z + fz * def.porch.seat;
+  WORSHIP.seatYaw = S.yaw + Math.PI;                      // face the building
+  WORSHIP.pos.set(S.x, S.y, S.z);
+  WORSHIP.camAng = S.yaw + Math.PI / 2;                   // fixed side-angle framing
+  WORSHIP.state = type;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = true;
+  worshipTitleEl.textContent = S.name;
+  worshipActEl.textContent = WORSHIP_ACT_TXT[type];
+  worshipFootEl.textContent = WORSHIP_FOOT_TXT[type];
+  worshipPanelEl.style.display = 'block';
+  updateWorshipChip();
+  worshiphintEl.style.opacity = 0; WORSHIP.hintOn = false; WORSHIP.nearIdx = -1; WORSHIP.nearType = null;
+  carHintEl.style.opacity = 0; CAR.hintOn = false;
+  busHintEl.style.opacity = 0; BUS.hintOn = false;
+  txHintEl.style.opacity = 0; TX.hintOn = false;
+  rideHintEl.style.opacity = 0; HORSE.hintOn = false;
+  bikeHintEl.style.opacity = 0; BIKE.hintOn = false;
+  bcHintEl.style.opacity = 0; BC.hintOn = false;
+  scHintEl.style.opacity = 0; SC.hintOn = false;
+  boatHintEl.style.opacity = 0; BOAT.hintOn = false;
+  heliHintEl.style.opacity = 0; HELI.hintOn = false;
+  planeHintEl.style.opacity = 0; PLANE.hintOn = false;
+  trainHintEl.style.opacity = 0; TRAIN.hintOn = false;
+  casinohintEl.style.opacity = 0; SLOT.hintOn = false;
+  civichintEl.style.opacity = 0; CIVIC.hintOn = false;
+  stadiumHintEl.style.opacity = 0; STADIUM.hintOn = false;
+  amuseHintEl.style.opacity = 0; AMUSE.hintOn = false;
+  if (IS_TOUCH) {
+    exitBtnEl.style.display = 'flex';              // touch exit path
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'none';   // JUMP/FIRE/PUNCH hidden while inside
+  }
+  helpEl.innerHTML = HELP_WORSHIP;
+  toast(S.name);
+  sfxBlip(660, 0.09, 'triangle', 0.2);
+}
+function worshipExit() {
+  if (!WORSHIP.state) return;
+  WORSHIP.state = null; WORSHIP.nearIdx = -1; WORSHIP.nearType = null;
+  worshipChipEl.style.display = 'none';
+  worshipPanelEl.style.display = 'none';
+  exitBtnEl.style.display = 'none';
+  if (IS_TOUCH) {
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'flex';
+  }
+  /* the player was frozen at the porch: step back onto it, never inside */
+  player.position.set(WORSHIP.seatX, terrainHeight(WORSHIP.seatX, WORSHIP.seatZ), WORSHIP.seatZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = true;
+  helpEl.innerHTML = HELP_FOOT;
+  toast('ON FOOT');
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+
+/* ---- actions: the diner-heal idiom, the ATM day idiom, the busted heat-clear idiom ---- */
+function worshipAct() {
+  if (!WORSHIP.state) return;
+  if (WORSHIP.state === 'church') worshipPray();
+  else if (WORSHIP.state === 'mosque') worshipSanctuary();
+}
+function worshipPray() {
+  if (P.hp >= 100) { sfxDenied(); toast('ALREADY HEALTHY'); return; }   // the diner NA idiom
+  if (WORSHIP.prayDay === WORSHIP.day) { sfxDenied(); toast('COME BACK TOMORROW'); return; }   // the ATM day idiom
+  WORSHIP.prayDay = WORSHIP.day;
+  P.hp = 100; updateHpHUD();
+  sfxBuy(); toast('BLESSED');
+  updateWorshipChip();
+}
+function worshipSanctuary() {
+  P.hp = Math.min(100, P.hp + WORSHIP_HEAL_AMT); updateHpHUD();
+  setHeat(0, true); W.evading = false; updateHeatHUD();   // sanctuary: the heat is forgiven (busted idiom)
+  sfxBuy(); toast('SANCTUARY');
+  updateWorshipChip();
+}
+
+let worshipBearingT = 0;
+function worshipTick(dt) {
+  /* in-game day counter: the day/night clock wraps dayPhase 1 -> 0 */
+  const dp = dayPhase;
+  if (WORSHIP.lastPhase - dp >= 0.5) WORSHIP.day++;
+  WORSHIP.lastPhase = dp;
+  if (!WORSHIP.state) {
+    // parked: nearest worship building inside its porch hint radius shows the prompt (civic idiom)
+    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching && !shopOpen;
+    let best = -1, bestType = null, bestD2 = 1e18, bestHintR2 = 0;
+    if (onFoot) {
+      for (const type of WORSHIP_ORDER) {
+        const def = BLDG_DEF[type], arr = BLDG.active[type];
+        const hr2 = def.porch.hint * def.porch.hint;
+        for (let i = 0; i < arr.length; i++) {
+          const S = arr[i];
+          const dx = player.position.x - S.x, dz = player.position.z - S.z;
+          const d2 = dx * dx + dz * dz;
+          if (d2 < hr2 && d2 < bestD2) { bestD2 = d2; best = i; bestType = type; bestHintR2 = hr2; }
+        }
+      }
+    }
+    if ((best >= 0) !== WORSHIP.hintOn) {
+      WORSHIP.hintOn = best >= 0;
+      worshiphintEl.style.opacity = WORSHIP.hintOn ? 1 : 0;
+    }
+    if (WORSHIP.hintOn && bestType)
+      worshiphintEl.textContent = IS_TOUCH ? 'TAP TO ' + WORSHIP_HINT_TXT[bestType].split(' [')[0] : WORSHIP_HINT_TXT[bestType];
+    WORSHIP.nearIdx = best; WORSHIP.nearType = bestType; WORSHIP.hintR2 = bestHintR2;
+    /* worship bearing chip: nearest worship building of any type is the
+       visible type-name sign (civic bearing-chip idiom, zero draws) */
+    worshipBearingT += dt;
+    if (worshipBearingT >= 0.25) {
+      worshipBearingT = 0;
+      let b2 = null, bd = 1e18;
+      for (const type of WORSHIP_ORDER) {
+        for (const S of BLDG.active[type]) {
+          const dx = S.x - player.position.x, dz = S.z - player.position.z;
+          const d2 = dx * dx + dz * dz;
+          if (d2 < bd) { bd = d2; b2 = S; }
+        }
+      }
+      if (b2 && playing() && !P.dead) {
+        worshipbearingEl.style.display = 'block';
+        camera.getWorldDirection(_mB);
+        const dx = b2.x - player.position.x, dz = b2.z - player.position.z;
+        const deg = -(Math.atan2(dx, dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
+        worsarrEl.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
+        worstxtEl.textContent = b2.name + ' ' + Math.round(Math.sqrt(bd)) + 'M';
+      } else worshipbearingEl.style.display = 'none';
+    }
+    return;
+  }
+  if (P.dead) { worshipExit(); return; }   // death always ejects: no worship service while dead
+  /* freeze at the porch facing the building: the locomotion skip-chain (tick)
+     and the vehicle guards own the rest of the freeze. */
+  player.position.set(WORSHIP.seatX, terrainHeight(WORSHIP.seatX, WORSHIP.seatZ), WORSHIP.seatZ);
+  player.rotation.y = WORSHIP.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0;
+}
+worldTickers.push(worshipTick);
 
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
@@ -16737,7 +17181,7 @@ function tick() {
 
   /* --- accelerate / decelerate (no ice-skating, no teleport).
          Skipped while driving or riding: the vehicle ticker owns motion instead. --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching) {
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize().multiplyScalar(maxSpeed);
       tmpV.copy(wishDir).sub(P.vel);
@@ -16768,7 +17212,7 @@ function tick() {
 
   /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching) {
     if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -16779,7 +17223,7 @@ function tick() {
 
   /* --- procedural walk cycle (frozen while driving: the driver is seated;
          frozen while riding: the horse ticker poses the rider) --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -16822,7 +17266,7 @@ function tick() {
 
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
   const inBus = BUS.driving || BUS.riding;
-  const inVeh = CAR.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || AMUSE.riding || STADIUM.watching || HORSE.riding || inBus || TX.riding;
+  const inVeh = CAR.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || AMUSE.riding || STADIUM.watching || HORSE.riding || inBus || TX.riding;
   if (IS_TOUCH) {   // emote button lives only on touch; hide while driving/riding/dead
     const emShow = !inVeh && !P.dead && playing();
     if (emShow !== EMO.btnOn) { EMO.btnOn = emShow; emoteBtnEl.style.display = emShow ? 'flex' : 'none'; }
@@ -16830,12 +17274,12 @@ function tick() {
   if (inVeh) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
     const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
-    const camAng = (CIVIC.state ? CIVIC.camAng : (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (AMUSE.riding ? AMUSE.camAng : (STADIUM.watching ? STADIUM.camAng : (THEATER.watching ? THEATER.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading)))))))))))))))
+    const camAng = (WORSHIP.state ? WORSHIP.camAng : CIVIC.state ? CIVIC.camAng : (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (AMUSE.riding ? AMUSE.camAng : (STADIUM.watching ? STADIUM.camAng : (THEATER.watching ? THEATER.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading)))))))))))))))
       + (CAR.driving ? CAR.slip * driftBlend : 0));
-    const vPos = CIVIC.state ? CIVIC.pos : (SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (AMUSE.riding ? AMUSE.pos : (STADIUM.watching ? STADIUM.pos : (THEATER.watching ? THEATER.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos)))))))))))))));
-    const vDist = CIVIC.state ? CIVIC.camDist : (SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (AMUSE.riding ? AMUSE.camDist : (STADIUM.watching ? STADIUM.camDist : (THEATER.watching ? THEATER.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist)))))))))))))));
-    const vH = CIVIC.state ? CIVIC.camH : (SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (AMUSE.riding ? AMUSE.camH : (STADIUM.watching ? STADIUM.camH : (THEATER.watching ? THEATER.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH)))))))))))))));
-    lookTarget.copy(vPos); lookTarget.y += CIVIC.state ? 1.2 : (SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (AMUSE.riding ? 1.6 : (STADIUM.watching ? 1.2 : (THEATER.watching ? 1.6 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1)))))))))))));
+    const vPos = WORSHIP.state ? WORSHIP.pos : CIVIC.state ? CIVIC.pos : (SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (AMUSE.riding ? AMUSE.pos : (STADIUM.watching ? STADIUM.pos : (THEATER.watching ? THEATER.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos)))))))))))))));
+    const vDist = WORSHIP.state ? WORSHIP.camDist : CIVIC.state ? CIVIC.camDist : (SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (AMUSE.riding ? AMUSE.camDist : (STADIUM.watching ? STADIUM.camDist : (THEATER.watching ? THEATER.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist)))))))))))))));
+    const vH = WORSHIP.state ? WORSHIP.camH : CIVIC.state ? CIVIC.camH : (SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (AMUSE.riding ? AMUSE.camH : (STADIUM.watching ? STADIUM.camH : (THEATER.watching ? THEATER.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH)))))))))))))));
+    lookTarget.copy(vPos); lookTarget.y += WORSHIP.state ? 1.2 : CIVIC.state ? 1.2 : (SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (AMUSE.riding ? 1.6 : (STADIUM.watching ? 1.2 : (THEATER.watching ? 1.6 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1)))))))))))));
     camTargetPos.set(
       lookTarget.x - Math.sin(camAng) * vDist,
       lookTarget.y + vH,
@@ -16861,7 +17305,7 @@ function tick() {
   camera.position.copy(camPos);
   }
   /* wider FOV while driving or galloping, eases back to normal after */
-  const fovT = CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (AMUSE.riding ? CAR.fovWalk : (STADIUM.watching ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk)))))))))))))));
+  const fovT = WORSHIP.state ? CAR.fovWalk : CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (AMUSE.riding ? CAR.fovWalk : (STADIUM.watching ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk)))))))))))))));
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
@@ -16869,7 +17313,7 @@ function tick() {
   /* --- melee camera punch: tiny shake (2-3 frames) on connect, bigger on the
          3rd hit. Touches only the camera offset: pointer lock and touch-drag
          look (camYaw/camPitch) are never disturbed. --- */
-  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !AMUSE.riding && !STADIUM.watching) {
+  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !AMUSE.riding && !STADIUM.watching) {
     P.shakeT -= dt;
     const m = P.shakeMag * Math.max(0, P.shakeT / Math.max(P.shakeDur, 0.001));
     camera.position.x += (Math.random() * 2 - 1) * m;
@@ -16900,7 +17344,7 @@ function tick() {
   /* --- HUD position readout --- */
   if ((hudTick += dt) > 0.12) {
     hudTick = 0;
-    const mode = CIVIC.state ? 'CIVIC' : (SLOT.playing ? 'SLOT' : (PIANO.playing ? 'PIANO' : (AMUSE.riding ? 'RIDE' : (STADIUM.watching ? 'MATCH' : (THEATER.watching ? 'WATCH' : (CAR.driving ? 'DRIVE' : (BIKE.driving ? 'BIKE' : (BC.driving ? 'BC' : (SC.driving ? 'SC' : (BOAT.driving ? 'BOAT' : (PLANE.flying ? 'PLANE' : (HELI.flying ? 'HELI' : (TRAIN.riding ? 'TRAIN' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE'))))))))))))))))));
+    const mode = WORSHIP.state ? 'WORSHIP' : CIVIC.state ? 'CIVIC' : (SLOT.playing ? 'SLOT' : (PIANO.playing ? 'PIANO' : (AMUSE.riding ? 'RIDE' : (STADIUM.watching ? 'MATCH' : (THEATER.watching ? 'WATCH' : (CAR.driving ? 'DRIVE' : (BIKE.driving ? 'BIKE' : (BC.driving ? 'BC' : (SC.driving ? 'SC' : (BOAT.driving ? 'BOAT' : (PLANE.flying ? 'PLANE' : (HELI.flying ? 'HELI' : (TRAIN.riding ? 'TRAIN' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE'))))))))))))))))));
     posEl.textContent = 'X ' + player.position.x.toFixed(0) + '  Z ' + player.position.z.toFixed(0)
       + '  [' + Math.floor(player.position.x / CHUNK) + ',' + Math.floor(player.position.z / CHUNK) + ']'
       + '  ' + mode;
@@ -16921,6 +17365,7 @@ function tick() {
     if (SC.driving) scExit();       // ...and no scooter ride while dead
     if (BOAT.driving) boatExit();     // ...and no boat ride while dead either
     if (CIVIC.state) civicExit();  // ...and no civic menu while dead either
+    if (WORSHIP.state) worshipExit();  // ...and no worship service while dead either
     if (HELI.flying) heliExit();         // ...and no helicopter ride while dead either
     else if (PLANE.flying) planeExit();   // ...and no airplane ride while dead either
     else if (TRAIN.riding) trainExit();   // ...and no train ride while dead either
