@@ -397,6 +397,22 @@
     letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
+  /* ---- theater HUD (Phase 5): WATCH prompt mirrors the casino hint pattern,
+         stacked above it so live prompts never overlap. The #theaterchip
+         set readout sits top-right below the casino chip. DOM only,
+         zero draw calls. ---- */
+  #theaterhint {
+    position: absolute; bottom: 632px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #e2701d; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #theaterchip {
+    position: absolute; top: 940px; right: 18px; color: #e2701d; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a4a2a; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
   #casbearing {
     position: absolute; top: 225px; left: 18px; color: #ffe9a8; font-size: 11px;
     background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
@@ -622,6 +638,8 @@
   <div id="pianokeys"></div>
   <div id="casinohint"></div>
   <div id="casinochip"></div>
+  <div id="theaterhint"></div>
+  <div id="theaterchip"></div>
   <div id="casbearing"><span id="casarr">^</span> <span id="castxt"></span></div>
   <div id="slotpanel">
     <div id="slottitle">SLOT MACHINE</div>
@@ -3153,7 +3171,7 @@ function petLoadStr(s) {
 function petSteer(a, dt) {
   const p = a.pos, pp = player.position;
   _petMoving = false; _petSpd = 0;
-  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing;
+  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching;
   const dx = pp.x - p.x, dz = pp.z - p.z;
   /* death, any vehicle mode, or >120m: the pet stops and waits */
   if (P.dead || inVehicle || dx * dx + dz * dz > 14400) { setPetMode('wait'); return; }
@@ -3985,7 +4003,7 @@ function emoteCancel() {
 }
 function fireEmote(name) {
   if (!playing() || P.dead || P.godT > 0) return;                 // dead or busted/spawn-protection
-  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) return;
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) return;
   if (shopOpen) return;
   const E = EMOTES[name];
   if (!E) return;
@@ -4035,7 +4053,7 @@ function doPunch() {
   if (BIKE.driving) return;   // no melee from the bike: both hands on the bars
   if (BC.driving) return;     // no melee from the bicycle: both hands on the bars
   if (SC.driving) return;     // no melee from the scooter: both hands on the bar
-  if (BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) return;    // no melee from a vehicle
+  if (BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) return;    // no melee from a vehicle
   if (!playing() || P.dead || P.punchCd > 0) return;
   P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
   P.comboWin = 0.6;
@@ -4456,7 +4474,7 @@ const tmpV2 = new THREE.Vector3(), tmpEnd = new THREE.Vector3();
 const jitterPt = new THREE.Vector2();   // per-pellet spread offset, zero alloc
 function shoot() {
   emoteCancel();   // combat layer wins: firing kills the emote instantly
-  if (!playing() || P.dead || fireCd > 0) return;
+  if (!playing() || P.dead || fireCd > 0 || THEATER.watching) return;
   let w = WEAPONS[curWeapon];
   if (w.ammo <= 0) {   // dry weapon: fall back to the rifle, never soft-lock
     curWeapon = 'rifle'; w = WEAPONS.rifle; updateWeaponHUD();
@@ -5234,6 +5252,7 @@ function busted() {
   else if (TRAIN.riding) trainExit();    // busted off the train too
   else if (SLOT.playing) slotExit();   // busted off the slot machine too
   else if (PIANO.playing) pianoExit();   // busted off the piano bench too
+  else if (THEATER.watching) theaterExit();   // busted out of the audience too
   const seized = Math.floor(cash * 0.25);
   cash -= seized; updateCashHUD();
   setHeat(0, true);
@@ -5294,7 +5313,7 @@ function wantedTick(dt) {
   if (W.tickT < 0.25) return;
   W.tickT = 0;
   const px = player.position.x, pz = player.position.z;
-  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
+  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
   let seen = false, bust = false;
   for (const c of cops) {
     if (!c.active || c.state === 'dead') continue;
@@ -5302,7 +5321,7 @@ function wantedTick(dt) {
     const d2 = dx * dx + dz * dz;
     if (d2 < see2) seen = true;
     if (P.godT > 0) continue;
-    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing) { if (d2 < 6.25) { bust = true; break; } }
+    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching) { if (d2 < 6.25) { bust = true; break; } }
     else if (CAR.driving && d2 < 9 && Math.abs(CAR.speed) < 3) { bust = true; break; }
     else if ((BUS.driving || BUS.riding) && d2 < 9 && Math.abs(BUS.speed) < 3) { bust = true; break; }
     else if (TX.riding && d2 < 9 && Math.abs(TX.speed) < 3) { bust = true; break; }
@@ -5315,6 +5334,7 @@ function wantedTick(dt) {
     else if (TRAIN.riding && d2 < 9 && Math.abs(TRAIN.speed) < 3) { bust = true; break; }
     else if (SLOT.playing && d2 < 9) { bust = true; break; }   // the gambler is an easy catch
     else if (PIANO.playing && d2 < 9) { bust = true; break; }   // the pianist is an easy catch
+    else if (THEATER.watching && d2 < 9) { bust = true; break; }   // the watcher is an easy catch
   }
   if (bust) { busted(); return; }
   if (W.heat <= 0) return;
@@ -5569,7 +5589,7 @@ function missionTick(dt) {
 
   const px = player.position.x, pz = player.position.z;
   if (MS.state === 'IDLE') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) ? 6 : 3;   // markers are enterable on foot and while driving
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) ? 6 : 3;   // markers are enterable on foot and while driving
     for (let i = 0; i < 5; i++) {
       if (MS.done[i] || !missionAvailable(i)) continue;
       const dx = MISSIONS[i].mx - px, dz = MISSIONS[i].mz - pz;
@@ -5580,7 +5600,7 @@ function missionTick(dt) {
   /* ACTIVE: evaluate the current phase */
   const o = MISSIONS[MS.idx].obj[MS.phase];
   if (o.type === 'collect') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) ? 4.5 : 2.5;
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) ? 4.5 : 2.5;
     for (let s = 0; s < crateSpots.length; s++) {
       const c = crateSpots[s];
       if (c.taken) continue;
@@ -5861,7 +5881,7 @@ function lootTick(dt) {
       if (L.respawnT <= 0) { L.taken = false; showLoot(L); }
     }
   }
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) return;   // pickups are on-foot only
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) return;   // pickups are on-foot only
   lootCheckT += dt;
   if (lootCheckT < 0.15) return;                      // radius checks throttled
   lootCheckT = 0;
@@ -6001,7 +6021,7 @@ function refreshShopPanel() {
   renderShopRows();
 }
 function openShop(i) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || !playing()) return;
   shopOpen = true; shopOpenIdx = i;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;   // Phase 3: panel is shared with diners
   shopBaseTitle = SHOPS[i].name;              // Phase 5 cooking: list-swap restore title
@@ -6059,7 +6079,7 @@ function shopTick(dt) {
   shopCheckT += dt;
   if (shopCheckT < 0.15) return;           // proximity check throttled
   shopCheckT = 0;
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) return;
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) return;
   const px = player.position.x, pz = player.position.z;
   for (let i = 0; i < SHOPS.length; i++) {
     const S = SHOPS[i];
@@ -6415,6 +6435,23 @@ function buildParkGeo() {
   flatRect(3.6, 0.14, 0, -9.55, 0.11, STAGEL);
   flatRect(0.14, 2.84, -1.73, -8.2, 0.11, STAGEL);
   flatRect(0.14, 2.84, 1.73, -8.2, 0.11, STAGEL);
+  /* ---- Phase 5 theater: open-air performance corner baked into the shared
+         park geometry (zero new draw calls), the piano-pad idiom: the corner
+         reads as a stage with audience rows in every park, gameplay
+         (performer, crowd, watch mode) only at seeded theater parks
+         (theaterHash%7===2, own residue space disjoint from piano %7===5,
+         the sport %5 residues, and dock parks). Stage at park-local
+         (-6.5, 7.8): clear of the runway (x = -12), the helipad (0, 8.2),
+         the tennis court (|z| < 5), and the tree/bench colliders. Painted at
+         y 0.12/0.13 above the piano paint (0.10/0.11) so nothing z-fights. ---- */
+  const TSTAGE = 0x5a4632, TSTAGEL = 0xe2701d;
+  flatRect(5.2, 3.0, -6.5, 7.8, 0.12, TSTAGE);                      // wooden stage floor
+  flatRect(5.4, 0.14, -6.5, 6.25, 0.13, TSTAGEL);                   // stage border
+  flatRect(5.4, 0.14, -6.5, 9.35, 0.13, TSTAGEL);
+  flatRect(0.14, 3.24, -9.13, 7.8, 0.13, TSTAGEL);
+  flatRect(0.14, 3.24, -3.87, 7.8, 0.13, TSTAGEL);
+  flatRect(5.0, 0.12, -6.5, 4.6, 0.13, TSTAGEL);                    // audience row markers
+  flatRect(5.0, 0.12, -6.5, 3.0, 0.13, TSTAGEL);
   return mergeAmenGeos(parts);
 }
 function buildLandGeo() {
@@ -6707,7 +6744,7 @@ const REST_ITEMS = [
 ];
 let shopRest = false, shopRestSlot = -1, SHOP_LIST = SHOP_ITEMS;
 function openRest(R, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || !playing()) return;
   shopOpen = true; shopRest = true; shopRestSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = REST_ITEMS;
   shopBaseTitle = R.name;                     // Phase 5 cooking: list-swap restore title
@@ -6728,7 +6765,7 @@ function amenTick(dt) {
   amenT += dt;
   if (amenT >= 0.15) {
     amenT = 0;
-    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching) {
       const arr = AMEN.active.rest;
       for (let i = 0; i < arr.length; i++) {
         const R = arr[i];
@@ -7101,7 +7138,7 @@ function redistributeBuildings(pcx, pcz) {
    health with cash, walk out to re-arm. No new economy code. */
 let shopBldg = false, shopBldgSlot = -1;
 function openBldgStore(S, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || !playing()) return;
   shopOpen = true; shopBldg = true; shopBldgSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;
   shopNameEl.textContent = S.name;
@@ -7121,7 +7158,7 @@ function bldgTick(dt) {
   bldgT += dt;
   if (bldgT >= 0.15) {
     bldgT = 0;
-    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching) {
       const arr = BLDG.active.store;
       for (let i = 0; i < arr.length; i++) {
         const S = arr[i];
@@ -7446,7 +7483,7 @@ function farmTryHarvest() {
   if (FPLOT.nearIdx < 0) return false;
   if (!playing() || P.dead || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) return false;
   if (HORSE.hintOn || BUS.hintOn || TX.hintOn || BIKE.hintOn || BC.hintOn ||
       SC.hintOn || PET.hintOn) return false;
   if (FPLOT.nearMature) farmHarvest(FPLOT.nearIdx);
@@ -7931,8 +7968,8 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyE') { if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the gambler first; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
-  if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
+  if (e.code === 'KeyE') { if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the watcher first; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
+  if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -7941,7 +7978,7 @@ addEventListener('keydown', e => {
   if (pk >= 0 && PIANO.playing) pianoNote(pk);
   else {
     const emk = EMOTE_KEYS.indexOf(e.code);                           // Phase 5 emotes: Z/X/C/V/G/B
-    if (emk >= 0 && !SLOT.playing && !PIANO.playing) fireEmote(EMOTE_ORDER[emk]);       // (1-6 are weapons/shop)
+    if (emk >= 0 && !SLOT.playing && !PIANO.playing && !THEATER.watching) fireEmote(EMOTE_ORDER[emk]);       // (1-6 are weapons/shop)
   }
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -8304,7 +8341,7 @@ function soccerBallNear() {
 function soccerCanKick() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) return false;
   return soccerBallNear();
 }
 function doKick() {
@@ -8600,7 +8637,7 @@ function hoopsBallNear() {
 function hoopsCanShoot() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) return false;
   return hoopsBallNear();
 }
 /* set shot: auto-aim (ball->rim unit vector), arc via forward+up vector
@@ -9024,7 +9061,7 @@ function tennisBallNear() {
 function tennisCanHit() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching) return false;
   return tennisBallNear();
 }
 /* forehand return: auto-aim at the far court, seeded depth/angle error via
@@ -10106,7 +10143,7 @@ function ensureEngineAudio() {
 }
 
 function carEnter() {
-  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || !playing() || P.dead) return;
+  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || !playing() || P.dead) return;
   emoteCancel();   // no emotes while driving
   const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
   if (dx * dx + dz * dz > 16) return;        // 4u enter radius
@@ -10383,7 +10420,7 @@ function ensureHoofAudio() {
 }
 
 function horseEnter() {
-  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || shopOpen) return;
+  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || shopOpen) return;
   emoteCancel();   // no emotes while riding
   const a = HORSE.nearA;
   if (!a || a.mountLocked || a.fleeT > 0) return;
@@ -10440,7 +10477,8 @@ function horseExit() {
    tames (pet prompt sits after the vehicle prompts so boarding wins ties; the
    car fallback stays last). */
 function mountToggle() {
-  if (SLOT.playing) slotExit();   // Phase 5 casino: E never traps the gambler
+  if (THEATER.watching) theaterExit();   // Phase 5 theater: E never traps the watcher
+  else if (SLOT.playing) slotExit();   // Phase 5 casino: E never traps the gambler
   else if (PIANO.playing) pianoExit();   // Phase 5 pianos: E never traps the player
   else if (HORSE.riding) horseExit();
   else if (CAR.driving) carExit();
@@ -10466,16 +10504,17 @@ function mountToggle() {
   else if (TRAIN.hintOn) trainEnter();
   else if (PET.hintOn && PET.nearA) tamePet(PET.nearA);
   else if (SLOT.hintOn) slotEnter();   // Phase 5 casino: E boards a slot machine
+  else if (THEATER.hintOn) theaterEnter();   // Phase 5 theater: E sits in the audience
   else carEnter();
 }
 /* the touch EXIT button doubles as the dismount button while riding */
-function vehicleExit() { if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); }
+function vehicleExit() { if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); }
 
 /* ---- horse ticker: prompt, controller, procedural gait, audio, HUD ---- */
 function horseUpdate(sdt, now) {
   if (!HORSE.riding) {
     // parked: nearest non-fleeing horse inside 2.2u shows the RIDE prompt
-    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !shopOpen;
+    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !shopOpen;
     let best = null, bestD2 = RIDE_R2;
     if (onFoot) {
       for (const a of animals) {
@@ -10889,7 +10928,7 @@ function busDwellService() {
 }
 
 function busEnter() {
-  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || !playing() || P.dead || shopOpen) return;
+  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a bus passenger
   if (!BUS.active || BUS.speed > 3) { toast('WAIT FOR THE BUS TO STOP'); return; }
   const door = busDoorWorld();
@@ -11032,7 +11071,7 @@ function busUpdate(sdt, now) {
 
   // ---- board prompt: on foot, near the door, bus stopped ----
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !shopOpen;
   let nearDoor = false;
   if (onFoot && BUS.speed < 3) {
     const door = busDoorWorld();
@@ -11433,7 +11472,7 @@ function txPursuit(sdt) {
   if (TX.speed > 0.05) TX.heading += (TX.speed / TX.wheelbase) * Math.tan(delta) * sdt;
 }
 function taxiEnter() {
-  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing
+  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching
       || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a taxi passenger
   if (!TX.active || TX.speed > 3) { toast('WAIT FOR THE TAXI TO STOP'); return; }
@@ -11495,7 +11534,7 @@ function txUpdate(sdt) {
   if (TX.riding) { player.position.copy(TX.pos); player.rotation.y = TX.heading; }
   /* board prompt: on foot, near the door, taxi slow */
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !shopOpen;
   let nearDoor = false;
   if (onFoot && TX.speed < 3) {
     const door = txDoorWorld();
@@ -11666,7 +11705,7 @@ function bikeRebuild(pcx, pcz) {
   bikeBodyIM.instanceMatrix.needsUpdate = true;
 }
 function bikeEnter() {
-  if (BIKE.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing
+  if (BIKE.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = BIKE.nearIdx;
@@ -11758,7 +11797,7 @@ function bikeUpdate(sdt) {
   if (!BIKE.driving) {
     // parked: nearest slot inside 3.5u shows the RIDE prompt (horse idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !shopOpen;
     let best = -1, bestD2 = BIKE.boardR2;
     if (onFoot) {
       for (let i = 0; i < 3; i++) {
@@ -12045,7 +12084,7 @@ function bcRebuild(pcx, pcz) {
   bcBodyIM.instanceMatrix.needsUpdate = true;
 }
 function bcEnter() {
-  if (BC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing
+  if (BC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = BC.nearIdx;
@@ -12139,7 +12178,7 @@ function bcUpdate(sdt) {
   if (!BC.driving) {
     // parked: nearest slot inside 3.5u shows the RIDE prompt (bike idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !shopOpen;
     let best = -1, bestD2 = BC.boardR2;
     if (onFoot) {
       for (let i = 0; i < 3; i++) {
@@ -12408,7 +12447,7 @@ function scRebuild(pcx, pcz) {
   scBodyIM.instanceMatrix.needsUpdate = true;
 }
 function scEnter() {
-  if (SC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing
+  if (SC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = SC.nearIdx;
@@ -12773,7 +12812,7 @@ function boatRebuild(pcx, pcz, now) {
   boatBodyIM.instanceMatrix.needsUpdate = true;
 }
 function boatEnter() {
-  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || BOAT.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || BOAT.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while sailing
   const i = BOAT.nearIdx;
@@ -13215,7 +13254,7 @@ function heliRebuild(pcx, pcz, now) {
   heliBodyIM.instanceMatrix.needsUpdate = true;
 }
 function heliEnter() {
-  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || SC.driving || BOAT.driving || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while flying
   const i = HELI.nearIdx;
@@ -13651,7 +13690,7 @@ function planeRebuild(pcx, pcz, now) {
 }
 function planeEnter() {
   if (PLANE.flying || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
-      || SC.driving || BOAT.driving || HELI.flying || TRAIN.riding || SLOT.playing || PIANO.playing || !playing() || P.dead || shopOpen || P.godT > 0) return;
+      || SC.driving || BOAT.driving || HELI.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while flying
   const i = PLANE.nearIdx;
   if (i < 0 || i >= PLANE_N) return;
@@ -13767,7 +13806,7 @@ function planeUpdate(sdt, now) {
   if (!PLANE.flying) {
     // parked: nearest airplane inside 6u shows the BOARD prompt (boat idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !SLOT.playing && !PIANO.playing && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !SLOT.playing && !PIANO.playing && !THEATER.watching && !shopOpen;
     let best = -1, bestD2 = PLANE.boardR2;
     if (onFoot) {
       for (let i = 0; i < PLANE_N; i++) {
@@ -14102,7 +14141,7 @@ trainChipEl.addEventListener('click', () => { if (TRAIN.riding) camYaw = TRAIN.h
 
 function trainEnter() {
   if (TRAIN.riding || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
-      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || !playing() || P.dead || shopOpen || P.godT > 0) return;
+      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = TRAIN.nearTrain, j = TRAIN.nearCar;
   if (i < 0 || i >= TRAIN_N || j < 0 || j >= TRAIN_CARS) return;
@@ -14204,7 +14243,7 @@ function trainUpdate(sdt, now) {
 
   // ---- on foot: board prompt, danger, station sign ----
   const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-    && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !shopOpen;
+    && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !shopOpen;
   let bestT = -1, bestC = -1, bestD2 = TRAIN.boardR2;
   if (onFoot) {
     for (let i = 0; i < TRAIN_N; i++) {
@@ -14524,7 +14563,7 @@ function pianoUpdate(sdt, now) {
   if (!PIANO.playing) {
     // parked: nearest piano inside the sit radius shows the SIT prompt (heli idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !shopOpen;
     let best = -1, bestD2 = PIANO.boardR2;
     if (onFoot) {
       for (let i = 0; i < PIANO_N; i++) {
@@ -14705,7 +14744,7 @@ function sfxSlotCoin() {
 }
 
 function slotEnter() {
-  if (SLOT.playing || PIANO.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (SLOT.playing || PIANO.playing || THEATER.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while gambling
   const i = SLOT.nearIdx;
@@ -14826,7 +14865,7 @@ function slotUpdate(sdt, now) {
   if (!SLOT.playing) {
     // parked: nearest casino inside the play radius shows the PLAY prompt (heli idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !SLOT.playing && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !SLOT.playing && !shopOpen;
     let best = -1, bestD2 = SLOT.boardR2;
     if (onFoot) {
       const arr = BLDG.active.casino;
@@ -14896,6 +14935,381 @@ function slotUpdate(sdt, now) {
   }
 }
 worldTickers.push(slotUpdate);
+
+/* ================= PHASE 5: THEATER v1 (entertainment) =================
+   Open-air amphitheater in parks. Seeded theater spots (theaterFor, pure
+   deterministic, own hash residue disjoint from piano %7===5, the sport %5
+   residues, and dock parks). One shared unit-box fleet mesh (exactly +1
+   draw call): the stage rig (platform, backdrop arch, curtain panels, two
+   spotlight towers, two light cones), an 8-seat crowd (torso+head instances
+   with seeded per-seat phases; per-frame Y bob + sway from the phase), and
+   a performer (torso/head/arms, procedural dance poses sequenced on a
+   16-bar loop, the emote-overlay pose idiom). Procedural music is layered
+   one-shot sfxBlip loops (kick/bass/pluck/hat scheduled per bar, no
+   oscillator chain). E sits in the audience (WATCH), E leaves any time
+   (never traps). Day/night aware: the spots brighten at dusk/night via
+   per-instance color lerps, no new lights. Session-only; save v3 untouched.
+   Pure hash functions only, no RNG anywhere in this block. */
+function theaterHash(gx, gz) {
+  return hash2i(gx ^ 0x7E4A1C, gz ^ 0x3D9B57);
+}
+const THEATER_LX = -6.5, THEATER_LZ = 7.8;   // park-local stage center
+function theaterFor(gx, gz) {
+  if (amenityTypeFor(gx, gz) !== 'park' || !amenityAccepted(gx, gz)) return null;
+  if (dockFor(gx, gz)) return null;                          // docks own their parks
+  if (theaterHash(gx, gz) % 7 !== 2) return null;             // own residue, disjoint from piano %7===5
+  const a = amenityCenterFor(gx, gz);
+  if (!a) return null;
+  const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+  const x = a.x + THEATER_LX * c + THEATER_LZ * s;
+  const z = a.z - THEATER_LX * s + THEATER_LZ * c;
+  const y = terrainHeight(x, z);
+  if (y < WATER_Y + 0.4) return null;                        // dry land only
+  if (Math.abs(terrainHeight(x + 3, z) - y) > 2.5) return null;
+  if (Math.abs(terrainHeight(x, z + 3) - y) > 2.5) return null;
+  return { x, z, y, gx, gz, yaw: a.yaw };
+}
+
+/* ---- the fleet: one unit box, RGBA-ish vertex gradient, per-instance
+        tints. EXACTLY +1 draw call. Instance layout per theater (T_INST):
+        0 platform, 1-2 arch pillars, 3 lintel, 4-5 curtains, 6-7 towers,
+        8-9 spot cones, 10-17 crowd torsos, 18-25 crowd heads, 26-29
+        performer (torso/head/armL/armR). ---- */
+const THEATER_N = 4, THEATER_SCAN = 4, T_INST = 30;
+const THEATER_BAR_LEN = 1.5;   // seconds per bar; 16 bars = one set
+const theaterUnitGeo = new THREE.BoxGeometry(1, 1, 1);
+{
+  const pp = theaterUnitGeo.attributes.position;
+  const pc = new Float32Array(pp.count * 3);
+  for (let vi = 0; vi < pp.count; vi++) {
+    const t = pp.getY(vi) * 0.5 + 0.5;   // 0 bottom .. 1 top: subtle top-light gradient
+    const v = 0.72 + 0.28 * t;
+    pc[vi * 3] = v; pc[vi * 3 + 1] = v; pc[vi * 3 + 2] = v;
+  }
+  theaterUnitGeo.setAttribute('color', new THREE.BufferAttribute(pc, 3));
+}
+const theaterBoxIM = new THREE.InstancedMesh(theaterUnitGeo,
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05 }), THEATER_N * T_INST);
+theaterBoxIM.castShadow = false; theaterBoxIM.frustumCulled = false;
+theaterBoxIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(theaterBoxIM);
+const _thM = new THREE.Matrix4(), _thQ = new THREE.Quaternion(),
+      _thE = new THREE.Euler(0, 0, 0, 'YXZ'), _thP = new THREE.Vector3(),
+      _thS = new THREE.Vector3(1, 1, 1), _thC = new THREE.Color(), _thC2 = new THREE.Color();
+/* stage-local (lx, lz) -> world, using the slot's stage yaw (sy = park yaw + PI,
+   so local +Z points at the audience). Zero per-frame allocation. */
+function theaterBox(s, idx, lx, ly, lz, w, h, d, rx, ry, rz) {
+  _thP.set(s.x + lx * s._c + lz * s._s, s.y + ly, s.z - lx * s._s + lz * s._c);
+  _thE.set(rx || 0, ry || 0, rz || 0); _thQ.setFromEuler(_thE);
+  _thS.set(w, h, d); _thM.compose(_thP, _thQ, _thS);
+  theaterBoxIM.setMatrixAt(s.base + idx, _thM);
+}
+function theaterTint(s, idx, hex) {
+  _thC.setHex(hex); theaterBoxIM.setColorAt(s.base + idx, _thC);
+}
+function theaterArm(s, idx, shX, a, side) {
+  /* a: 0 = arm down .. PI = arm up; rotate the box around the shoulder */
+  const dx = Math.sin(a) * side, dy = -Math.cos(a);
+  theaterBox(s, idx, shX + dx * 0.30, 1.02 + dy * 0.30, 0.2, 0.16, 0.62, 0.16, 0, 0, -a * side);
+}
+const THEATER = {
+  watching: false, watchIdx: -1, hintOn: false, nearIdx: -1,
+  anchorCx: 1e9, anchorCz: 1e9, key: '',
+  boardR2: 36,                                   // 6u watch radius (piano sit idiom)
+  camDist: 8.5, camH: 2.4,                       // fixed behind-audience framing while watching
+  camAng: 0, seatX: 0, seatZ: 0, seatYaw: 0,
+  pos: new THREE.Vector3(),
+  slots: [],
+};
+for (let i = 0; i < THEATER_N; i++) THEATER.slots.push({
+  placed: false, x: 0, z: 0, y: 0, sy: 0, idx: i, base: i * T_INST,
+  _c: 1, _s: 0, watchX: 0, watchZ: 0,
+  musicT: 0, bar: -1, setIdx: 0, setSeed: 0, cheerT: 0,
+  phases: new Array(8).fill(0), seatLX: new Array(8).fill(0), seatLZ: new Array(8).fill(0),
+});
+/* park an instance far underground: invisible until its slot activates */
+function theaterPark(i) {
+  _thM.makeScale(0.0001, 0.0001, 0.0001); _thM.setPosition(0, -60, 0);
+  for (let k = 0; k < T_INST; k++) theaterBoxIM.setMatrixAt(i * T_INST + k, _thM);
+}
+for (let i = 0; i < THEATER_N; i++) {
+  theaterPark(i);
+  for (let k = 0; k < T_INST; k++) { _thC.setHex(0xffffff); theaterBoxIM.setColorAt(i * T_INST + k, _thC); }
+}
+theaterBoxIM.instanceMatrix.needsUpdate = true;
+if (theaterBoxIM.instanceColor) theaterBoxIM.instanceColor.needsUpdate = true;
+
+const THEATER_SETS = ['Moonlight Set', 'Starlight Set', 'Ember Set', 'Neon Set',
+                      'Tide Set', 'Comet Set', 'Velvet Set', 'Lantern Set'];
+/* dance poses, the emote-overlay joint-envelope idiom applied to instance
+   matrices: lean = torso roll, armL/armR = shoulder angle (0 down .. PI up),
+   bob = bounce height, f = bounce rate. Sequenced on the 16-bar loop. */
+const THEATER_POSES = [
+  { lean: 0.10, armL: 2.7, armR: 2.7, bob: 0.10, f: 2.0 },  // arms-up bounce
+  { lean: -0.08, armL: 1.1, armR: 2.9, bob: 0.06, f: 2.6 }, // wave right
+  { lean: 0.06, armL: 2.9, armR: 1.1, bob: 0.06, f: 2.6 },  // wave left
+  { lean: 0.14, armL: 0.5, armR: 0.5, bob: 0.12, f: 3.2 },  // groove low
+  { lean: -0.10, armL: 2.2, armR: 2.2, bob: 0.08, f: 1.6 }, // sway
+  { lean: 0.0, armL: 3.0, armR: 3.0, bob: 0.05, f: 2.2 },   // cheer hold
+  { lean: 0.12, armL: 1.6, armR: 0.4, bob: 0.10, f: 2.8 },  // side step
+  { lean: 0.22, armL: 0.2, armR: 0.2, bob: 0.02, f: 1.0 },  // bow
+];
+function theaterPlace(s, d) {
+  s.placed = true; s.x = d.x; s.z = d.z; s.y = d.y; s.sy = d.yaw + Math.PI;
+  s._c = Math.cos(s.sy); s._s = Math.sin(s.sy);
+  /* watch seat: stage-local (0.6, 3.4), front audience row */
+  s.watchX = d.x + 0.6 * s._c + 3.4 * s._s;
+  s.watchZ = d.z - 0.6 * s._s + 3.4 * s._c;
+  s.musicT = 0; s.bar = -1; s.setIdx = 0; s.cheerT = 0;
+  s.setSeed = theaterHash(d.gx, d.gz);
+  /* seeded per-seat phase + shirt/skin, the NPC spectator idiom */
+  const r = mulberry32((s.setSeed ^ 0xC0FFEE) >>> 0);
+  const SH = [0x2a4a7a, 0x7a2a2a, 0x2a7a3a, 0x7a6a2a, 0x5a2a7a, 0x2a7a6a, 0x7a4a2a, 0x9a9a9a];
+  const SK = [0x8a6f5c, 0xc9a183, 0x6e523e];
+  for (let ci = 0; ci < 8; ci++) {
+    s.phases[ci] = r() * Math.PI * 2;
+    s.seatLX[ci] = [-1.8, -0.6, 0.6, 1.8][ci % 4];
+    s.seatLZ[ci] = ci < 4 ? 3.4 : 5.0;
+  }
+  /* static rig: platform, arch, curtains, towers, cones */
+  theaterBox(s, 0, 0, 0.25, 0, 5.6, 0.5, 3.4, 0, 0, 0); theaterTint(s, 0, 0x6b4a2e);
+  theaterBox(s, 1, -2.6, 2.2, -1.5, 0.35, 3.4, 0.35, 0, 0, 0); theaterTint(s, 1, 0x4a2a20);
+  theaterBox(s, 2, 2.6, 2.2, -1.5, 0.35, 3.4, 0.35, 0, 0, 0); theaterTint(s, 2, 0x4a2a20);
+  theaterBox(s, 3, 0, 4.05, -1.5, 5.6, 0.45, 0.45, 0, 0, 0); theaterTint(s, 3, 0xc9a227);
+  theaterBox(s, 4, -1.9, 1.85, -1.32, 1.3, 2.7, 0.18, 0, 0, 0); theaterTint(s, 4, 0x8a1f2d);
+  theaterBox(s, 5, 1.9, 1.85, -1.32, 1.3, 2.7, 0.18, 0, 0, 0); theaterTint(s, 5, 0x8a1f2d);
+  theaterBox(s, 6, -3.1, 1.5, 2.2, 0.28, 3.0, 0.28, 0, 0, 0); theaterTint(s, 6, 0x2e3238);
+  theaterBox(s, 7, 3.1, 1.5, 2.2, 0.28, 3.0, 0.28, 0, 0, 0); theaterTint(s, 7, 0x2e3238);
+  theaterBox(s, 8, -2.3, 2.3, 1.2, 0.55, 2.8, 0.55, -0.3, 0, 0.45); theaterTint(s, 8, 0xfff2c8);
+  theaterBox(s, 9, 2.3, 2.3, 1.2, 0.55, 2.8, 0.55, -0.3, 0, -0.45); theaterTint(s, 9, 0xfff2c8);
+  for (let ci = 0; ci < 8; ci++) {
+    theaterTint(s, 10 + ci, SH[Math.floor(r() * SH.length)]);
+    theaterTint(s, 18 + ci, SK[Math.floor(r() * SK.length)]);
+  }
+  theaterTint(s, 26, 0xf2f5ee); theaterTint(s, 27, 0xc9a183);
+  theaterTint(s, 28, 0xd8c84a); theaterTint(s, 29, 0xd8c84a);
+  theaterBoxIM.instanceMatrix.needsUpdate = true;
+  if (theaterBoxIM.instanceColor) theaterBoxIM.instanceColor.needsUpdate = true;
+}
+function theaterRebuild(pcx, pcz) {
+  const key = pcx + ',' + pcz;
+  if (key === THEATER.key) return;
+  THEATER.key = key; THEATER.anchorCx = pcx; THEATER.anchorCz = pcz;
+  const cx = (pcx + 0.5) * CHUNK, cz = (pcz + 0.5) * CHUNK;
+  /* nearest theater parks to the anchor center: deterministic and
+     player-position independent, so the same anchor rebuilds the same
+     spawns. */
+  const found = [];
+  for (let gx = pcx - THEATER_SCAN; gx <= pcx + THEATER_SCAN; gx++)
+    for (let gz = pcz - THEATER_SCAN; gz <= pcz + THEATER_SCAN; gz++) {
+      const d = theaterFor(gx, gz);
+      if (d) found.push(d);
+    }
+  found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
+                     - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
+  for (let i = 0; i < THEATER_N; i++) {
+    const s = THEATER.slots[i];
+    if (i === THEATER.watchIdx) continue;   // never yank the watched theater
+    const d = found[i];
+    if (!d) { s.placed = false; theaterPark(i); continue; }
+    /* Hysteresis (boat idiom): if the player is already at the slot,
+       keep it. Without this the spawn would jump every chunk crossing
+       while the player watches the show. */
+    const pdx = player.position.x - s.x, pdz = player.position.z - s.z;
+    if (s.placed && pdx * pdx + pdz * pdz < 400) continue;
+    theaterPlace(s, d);
+  }
+  theaterBoxIM.instanceMatrix.needsUpdate = true;
+}
+
+/* ---- procedural show music: layered one-shot sfxBlip loops (kick/bass/
+        pluck/hat) scheduled per bar on the 16-bar loop. No oscillator
+        chain, nodes die with the note. Only audible in earshot. ---- */
+function theaterBarMusic(s) {
+  const dx = player.position.x - s.x, dz = player.position.z - s.z;
+  const hear = (THEATER.watching && THEATER.watchIdx === s.idx) || (dx * dx + dz * dz < 2304);
+  if (!hear) return;
+  const r = mulberry32((s.setSeed ^ Math.imul(s.bar + 1, 0x9e3779b9)) >>> 0);
+  const root = 110;   // A2
+  const bassSemi = [0, 0, 7, 5][s.bar % 4];
+  sfxBlip(65, 0.16, 'sine', 0.5);                                     // kick
+  sfxBlip(root * Math.pow(2, bassSemi / 12), 0.42, 'triangle', 0.22);  // bass
+  const scale = [0, 3, 5, 7, 10, 12, 15, 12];
+  for (let n = 0; n < 2; n++) {                                       // pluck melody
+    const semi = scale[Math.floor(r() * scale.length)];
+    sfxBlip(root * 4 * Math.pow(2, semi / 12), 0.22, 'square', 0.07);
+  }
+  sfxBlip(5200, 0.03, 'square', 0.03);                                // hat tick
+}
+function theaterSetName(s) {
+  return THEATER_SETS[(s.setSeed + s.setIdx) % THEATER_SETS.length];
+}
+
+/* ---- HUD refs: watch prompt, set chip, help footer ---- */
+const theaterHintEl = document.getElementById('theaterhint');
+const theaterChipEl = document.getElementById('theaterchip');
+const HELP_THEATER = '<b>E</b> leave &nbsp; <b>TOUCH</b> tap EXIT';
+theaterHintEl.textContent = IS_TOUCH ? 'TAP TO WATCH' : 'WATCH [E]';
+theaterHintEl.addEventListener('click', () => { if (THEATER.hintOn) theaterEnter(); });
+function updateTheaterChip() {
+  if (!THEATER.watching) { theaterChipEl.style.display = 'none'; return; }
+  theaterChipEl.style.display = 'block';
+  const s = THEATER.slots[THEATER.watchIdx];
+  theaterChipEl.textContent = 'NOW PLAYING - ' + (s ? theaterSetName(s).toUpperCase() : 'HOUSE SET') + '  |  E LEAVE';
+}
+
+function theaterEnter() {
+  if (THEATER.watching || PIANO.playing || SLOT.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  emoteCancel();   // no emotes while watching
+  const i = THEATER.nearIdx;
+  if (i < 0 || i >= THEATER_N) return;
+  const s = THEATER.slots[i];
+  if (!s.placed) return;
+  const dx = player.position.x - s.x, dz = player.position.z - s.z;
+  if (dx * dx + dz * dz > THEATER.boardR2) return;
+  THEATER.watching = true; THEATER.watchIdx = i;
+  /* sit in the audience, facing the stage (stage-local -Z) */
+  THEATER.seatX = s.watchX; THEATER.seatZ = s.watchZ; THEATER.seatYaw = s.sy + Math.PI;
+  THEATER.pos.set(s.x, s.y, s.z);
+  THEATER.camAng = s.sy + Math.PI;             // fixed behind-audience framing
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = true;
+  theaterChipEl.style.display = 'block';
+  updateTheaterChip();
+  theaterHintEl.style.opacity = 0; THEATER.hintOn = false; THEATER.nearIdx = -1;
+  carHintEl.style.opacity = 0; CAR.hintOn = false;
+  busHintEl.style.opacity = 0; BUS.hintOn = false;
+  txHintEl.style.opacity = 0; TX.hintOn = false;
+  rideHintEl.style.opacity = 0; HORSE.hintOn = false;
+  bikeHintEl.style.opacity = 0; BIKE.hintOn = false;
+  bcHintEl.style.opacity = 0; BC.hintOn = false;
+  scHintEl.style.opacity = 0; SC.hintOn = false;
+  boatHintEl.style.opacity = 0; BOAT.hintOn = false;
+  heliHintEl.style.opacity = 0; HELI.hintOn = false;
+  planeHintEl.style.opacity = 0; PLANE.hintOn = false;
+  trainHintEl.style.opacity = 0; TRAIN.hintOn = false;
+  pianoHintEl.style.opacity = 0; PIANO.hintOn = false;
+  casinohintEl.style.opacity = 0; SLOT.hintOn = false;
+  if (IS_TOUCH) {
+    exitBtnEl.style.display = 'flex';              // touch exit path
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'none';   // JUMP/FIRE hidden while watching
+  }
+  helpEl.innerHTML = HELP_THEATER;
+  toast('THEATER');
+  sfxBlip(523, 0.09, 'triangle', 0.2);
+}
+function theaterExit() {
+  if (!THEATER.watching) return;
+  THEATER.watching = false; THEATER.watchIdx = -1;
+  theaterChipEl.style.display = 'none';
+  exitBtnEl.style.display = 'none';
+  if (IS_TOUCH) {
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'flex';
+  }
+  /* step back from the seat into the aisle, never inside the rig */
+  const fx = Math.sin(THEATER.seatYaw), fz = Math.cos(THEATER.seatYaw);
+  const ex = THEATER.seatX - fx * 1.6, ez = THEATER.seatZ - fz * 1.6;
+  player.position.set(ex, terrainHeight(ex, ez), ez);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = true;
+  helpEl.innerHTML = HELP_FOOT;
+  toast('ON FOOT');
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+
+/* ---- per-frame: crowd bounce/clap from the seeded phase, performer dance
+        poses, spotlight sweep + dusk/night brighten, 16-bar set loop. Only
+        placed theaters in earshot animate: zero per-frame cost otherwise. ---- */
+function theaterAnimate(s, sdt) {
+  s.musicT += sdt;
+  const bar = Math.floor(s.musicT / THEATER_BAR_LEN);
+  if (bar !== s.bar) {
+    s.bar = bar;
+    theaterBarMusic(s);
+    if (bar > 0 && bar % 16 === 0) {
+      s.setIdx++;
+      s.cheerT = 1.4;                              // crowd energy burst
+      if (THEATER.watching && THEATER.watchIdx === s.idx) updateTheaterChip();
+      const dx = player.position.x - s.x, dz = player.position.z - s.z;
+      if ((dx * dx + dz * dz < 2304) || (THEATER.watching && THEATER.watchIdx === s.idx))
+        { sfxBlip(880, 0.12, 'sine', 0.16); sfxBlip(1175, 0.12, 'sine', 0.16); sfxBlip(1568, 0.22, 'sine', 0.13); }  // crowd cheer
+    }
+  }
+  if (s.cheerT > 0) s.cheerT -= sdt;
+  const energy = s.cheerT > 0 ? 1 : Math.min(1, s.musicT / 2);
+  /* crowd: Y bob + sway from the seeded per-seat phase */
+  for (let ci = 0; ci < 8; ci++) {
+    const ph = s.phases[ci], lx = s.seatLX[ci], lz = s.seatLZ[ci];
+    const bob = Math.sin(s.musicT * 4.4 + ph) * 0.05 * energy;
+    const sway = Math.sin(s.musicT * 2.2 + ph * 1.7) * 0.07 * energy;
+    theaterBox(s, 10 + ci, lx, 0.56 + bob, lz, 0.5, 0.62, 0.34, 0, 0, sway);
+    theaterBox(s, 18 + ci, lx, 1.03 + bob * 1.2, lz, 0.3, 0.32, 0.3, 0, 0, sway * 1.4);
+  }
+  /* performer: dance pose sequenced on the 16-bar loop */
+  const pose = THEATER_POSES[bar % 8];
+  const bt = s.musicT * pose.f * Math.PI;
+  const pbob = Math.abs(Math.sin(bt)) * pose.bob;
+  const psway = Math.sin(s.musicT * 0.9) * 0.08;
+  theaterBox(s, 26, 0, 0.81 + pbob, 0.2, 0.52, 0.62, 0.34, 0, psway, pose.lean + Math.sin(bt * 0.5) * 0.05);
+  theaterBox(s, 27, 0, 1.28 + pbob, 0.2, 0.3, 0.32, 0.3, 0, psway * 1.5, 0);
+  theaterArm(s, 28, -0.36, pose.armL + Math.sin(bt) * 0.22, -1);
+  theaterArm(s, 29, 0.36, pose.armR + Math.sin(bt + 1.3) * 0.22, 1);
+  /* spotlights: sweep per bar, brighten at dusk/night (no new lights) */
+  const sweep = Math.sin(s.musicT * (Math.PI / (THEATER_BAR_LEN * 2)) + s.idx * 1.7) * 0.45;
+  const glow = isNight ? 1 : (Math.abs(dayPhase - 0.5) < 0.08 ? 0.75 : 0.3);
+  const pulse = 0.72 + 0.28 * Math.sin(s.musicT * 3.1);
+  _thC.setHex(0x4a4436).lerp(_thC2.setHex(0xfff2c8), Math.min(1, glow * pulse));
+  theaterBoxIM.setColorAt(s.base + 8, _thC);
+  theaterBoxIM.setColorAt(s.base + 9, _thC);
+  theaterBox(s, 8, -2.3, 2.3, 1.2, 0.55, 2.8, 0.55, -0.3, sweep, 0.45);
+  theaterBox(s, 9, 2.3, 2.3, 1.2, 0.55, 2.8, 0.55, -0.3, -sweep, -0.45);
+  theaterBoxIM.instanceMatrix.needsUpdate = true;
+  if (theaterBoxIM.instanceColor) theaterBoxIM.instanceColor.needsUpdate = true;
+}
+function theaterUpdate(sdt, now) {
+  const pcx = Math.floor(player.position.x / CHUNK), pcz = Math.floor(player.position.z / CHUNK);
+  if (pcx !== THEATER.anchorCx || pcz !== THEATER.anchorCz) theaterRebuild(pcx, pcz);
+  if (!THEATER.watching) {
+    // parked: nearest theater inside the watch radius shows the WATCH prompt (heli idiom)
+    const onFoot = playing() && !P.dead && !shopOpen && !CAR.driving && !BUS.driving && !BUS.riding
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching;
+    let best = -1, bestD2 = THEATER.boardR2;
+    if (onFoot) {
+      for (let i = 0; i < THEATER_N; i++) {
+        const s = THEATER.slots[i];
+        if (!s.placed) continue;
+        const dx = player.position.x - s.x, dz = player.position.z - s.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bestD2) { bestD2 = d2; best = i; }
+      }
+    }
+    if ((best >= 0) !== THEATER.hintOn) {
+      THEATER.hintOn = best >= 0;
+      theaterHintEl.style.opacity = THEATER.hintOn ? 1 : 0;
+    }
+    THEATER.nearIdx = best;
+  } else {
+    if (P.dead) { theaterExit(); return; }   // death always ejects: no show while dead
+    /* seat the watcher: frozen at the seat, facing the stage. The locomotion
+       skip-chain (tick) and the vehicle guards own the rest of the freeze. */
+    player.position.set(THEATER.seatX, terrainHeight(THEATER.seatX, THEATER.seatZ), THEATER.seatZ);
+    player.rotation.y = THEATER.seatYaw;
+    P.vel.set(0, 0, 0); P.vy = 0;
+  }
+  /* animate the watched theater plus any placed theater in earshot: music,
+     crowd, performer, spots. Zero per-frame cost for distant theaters. */
+  for (let i = 0; i < THEATER_N; i++) {
+    const s = THEATER.slots[i];
+    if (!s.placed) continue;
+    const dx = player.position.x - s.x, dz = player.position.z - s.z;
+    if (dx * dx + dz * dz > 3600 && !(THEATER.watching && THEATER.watchIdx === i)) continue;
+    theaterAnimate(s, sdt);
+  }
+}
+worldTickers.push(theaterUpdate);
 
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
@@ -14983,7 +15397,7 @@ function tick() {
 
   /* --- accelerate / decelerate (no ice-skating, no teleport).
          Skipped while driving or riding: the vehicle ticker owns motion instead. --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching) {
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize().multiplyScalar(maxSpeed);
       tmpV.copy(wishDir).sub(P.vel);
@@ -15014,7 +15428,7 @@ function tick() {
 
   /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching) {
     if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -15025,7 +15439,7 @@ function tick() {
 
   /* --- procedural walk cycle (frozen while driving: the driver is seated;
          frozen while riding: the horse ticker poses the rider) --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -15068,7 +15482,7 @@ function tick() {
 
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
   const inBus = BUS.driving || BUS.riding;
-  const inVeh = CAR.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || HORSE.riding || inBus || TX.riding;
+  const inVeh = CAR.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || HORSE.riding || inBus || TX.riding;
   if (IS_TOUCH) {   // emote button lives only on touch; hide while driving/riding/dead
     const emShow = !inVeh && !P.dead && playing();
     if (emShow !== EMO.btnOn) { EMO.btnOn = emShow; emoteBtnEl.style.display = emShow ? 'flex' : 'none'; }
@@ -15076,12 +15490,12 @@ function tick() {
   if (inVeh) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
     const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
-    const camAng = (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading))))))))))))
+    const camAng = (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (THEATER.watching ? THEATER.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading)))))))))))))
       + (CAR.driving ? CAR.slip * driftBlend : 0);
-    const vPos = SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos)))))))))));
-    const vDist = SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist)))))))))));
-    const vH = SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH)))))))))));
-    lookTarget.copy(vPos); lookTarget.y += SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1)))))))));
+    const vPos = SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (THEATER.watching ? THEATER.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos))))))))))));
+    const vDist = SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (THEATER.watching ? THEATER.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist))))))))))));
+    const vH = SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (THEATER.watching ? THEATER.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH))))))))))));
+    lookTarget.copy(vPos); lookTarget.y += SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (THEATER.watching ? 1.6 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1))))))))));
     camTargetPos.set(
       lookTarget.x - Math.sin(camAng) * vDist,
       lookTarget.y + vH,
@@ -15107,7 +15521,7 @@ function tick() {
   camera.position.copy(camPos);
   }
   /* wider FOV while driving or galloping, eases back to normal after */
-  const fovT = SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk)))))))))));
+  const fovT = SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk))))))))))));
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
@@ -15115,7 +15529,7 @@ function tick() {
   /* --- melee camera punch: tiny shake (2-3 frames) on connect, bigger on the
          3rd hit. Touches only the camera offset: pointer lock and touch-drag
          look (camYaw/camPitch) are never disturbed. --- */
-  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing) {
+  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching) {
     P.shakeT -= dt;
     const m = P.shakeMag * Math.max(0, P.shakeT / Math.max(P.shakeDur, 0.001));
     camera.position.x += (Math.random() * 2 - 1) * m;
@@ -15146,7 +15560,7 @@ function tick() {
   /* --- HUD position readout --- */
   if ((hudTick += dt) > 0.12) {
     hudTick = 0;
-    const mode = SLOT.playing ? 'SLOT' : (PIANO.playing ? 'PIANO' : (CAR.driving ? 'DRIVE' : (BIKE.driving ? 'BIKE' : (BC.driving ? 'BC' : (SC.driving ? 'SC' : (BOAT.driving ? 'BOAT' : (PLANE.flying ? 'PLANE' : (HELI.flying ? 'HELI' : (TRAIN.riding ? 'TRAIN' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE'))))))))))))));
+    const mode = SLOT.playing ? 'SLOT' : (PIANO.playing ? 'PIANO' : (THEATER.watching ? 'WATCH' : (CAR.driving ? 'DRIVE' : (BIKE.driving ? 'BIKE' : (BC.driving ? 'BC' : (SC.driving ? 'SC' : (BOAT.driving ? 'BOAT' : (PLANE.flying ? 'PLANE' : (HELI.flying ? 'HELI' : (TRAIN.riding ? 'TRAIN' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE')))))))))))))));
     posEl.textContent = 'X ' + player.position.x.toFixed(0) + '  Z ' + player.position.z.toFixed(0)
       + '  [' + Math.floor(player.position.x / CHUNK) + ',' + Math.floor(player.position.z / CHUNK) + ']'
       + '  ' + mode;
@@ -15171,6 +15585,7 @@ function tick() {
     else if (TRAIN.riding) trainExit();   // ...and no train ride while dead either
     else if (SLOT.playing) slotExit();  // ...and no slots while dead either
     else if (PIANO.playing) pianoExit();  // ...and no piano recital while dead either
+    else if (THEATER.watching) theaterExit();  // ...and no show while dead either
     P.deadT += sdt;
     if (P.deadT > 1.2) {   // redeploy at spawn with full health
       player.position.set(0, terrainHeight(0, 0), 0);
