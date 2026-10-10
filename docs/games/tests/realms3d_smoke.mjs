@@ -120,6 +120,7 @@ globalThis.__R3D = {
   hoopsBallNear, hoopsCanShoot, doHoopShot, hoopsResetBall, hoopsScore,
   hoopsMiss, hoopsHoopCollide, hoopsTick, hoopChipEl, shootHintEl,
   AMEN, hash2i, sportHash, amenityTypeFor, amenityAccepted,
+  redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
   /* Phase 5 boats/ships v1 */
   BOAT, boatEnter, boatExit, boatRebuild, boatFloat, waterSurfaceY, dockFor,
   boatBodyIM, boatHintEl, boatChipEl, BOAT_N, sfxSplash,
@@ -705,7 +706,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 41 IM literals (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 41, 'count=' + imCount);
+  check('perf6: 42 IM literals (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 42, 'count=' + imCount);
 
   /* PERF-6 merge regression: slot maps, Y-band lifts, identity colors */
   {
@@ -1199,8 +1200,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 41 IM literals (bike section)',
-    imCount2 === 41, 'count=' + imCount2);
+  check('perf6: 42 IM literals (bike section)',
+    imCount2 === 42, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1300,8 +1301,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 41 IM literals (bicycle section)',
-    imCount3 === 41, 'count=' + imCount3);
+  check('perf6: 42 IM literals (bicycle section)',
+    imCount3 === 42, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1402,8 +1403,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 41 IM literals (scooter section)',
-    imCount4 === 41, 'count=' + imCount4);
+  check('perf6: 42 IM literals (scooter section)',
+    imCount4 === 42, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1719,8 +1720,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 41 IM literals (wildlife5 section)',
-      imCount5 === 41, 'count=' + imCount5);
+    check('perf6: 42 IM literals (wildlife5 section)',
+      imCount5 === 42, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2068,8 +2069,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 41 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
-      n === 41 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf6: 42 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
+      n === 42 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2213,8 +2214,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
+  check('food-static: InstancedMesh literal sites pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2443,8 +2444,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
+  check('farmv1-static: InstancedMesh literal sites pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2815,8 +2816,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -3035,8 +3036,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3832,8 +3833,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no em dashes in the casino block', !casinoSrc.includes('\u2014'));
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
-  check('casino-static: whole-file IM literals pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
+  check('casino-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
   check('casino-static: 6 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet, apartment owns its fleet)',
     G.bldgMeshes.length === 6);
   check('casino-static: casino def shares the store fleet mesh',
@@ -3961,8 +3962,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('theater-static: no em dashes in the theater block', !theaterSrc.includes('\u2014'));
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
-  check('theater-static: whole-file IM literals pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
+  check('theater-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',
@@ -4095,8 +4096,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('civic-static: no em dashes in the civic block', !civicSrc.includes('—'));
   check('civic-static: no external URLs in the civic block', !/https?:\/\//.test(civicSrc));
   check('civic-static: no TODO markers in the civic block', !/\bTODO\b/.test(civicSrc));
-  check('civic-static: whole-file IM literals pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
+  check('civic-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
   check('civic-static: 6 runtime building meshes (house, barn, store, civic, worship, apartment)',
@@ -4372,8 +4373,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('stadium-static: no em dashes in the stadium block', !stadiumSrc.includes('—'));
   check('stadium-static: no external URLs in the stadium block', !/https?:\/\//.test(stadiumSrc));
   check('stadium-static: no TODO markers in the stadium block', !/\bTODO\b/.test(stadiumSrc));
-  check('stadium-static: whole-file IM literals pin at 41 (41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
+  check('stadium-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
   check('stadium-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('stadium-static: audio nodes pin unchanged (17 osc, 30 gain: cheer reuses sfxBlip)',
@@ -4517,8 +4518,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('amuse-static: no em dashes in the amusement block', !amuseSrc.includes('—'));
   check('amuse-static: no external URLs in the amusement block', !/https?:\/\//.test(amuseSrc));
   check('amuse-static: no TODO markers in the amusement block', !/\bTODO\b/.test(amuseSrc));
-  check('amuse-static: whole-file IM literals pin at 41 (41 - PERF-6: amuse rides the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
+  check('amuse-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: amuse rides the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
   check('amuse-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('amuse-static: audio nodes pin unchanged (17 osc, 30 gain: chimes reuse sfxBlip)',
@@ -5103,6 +5104,82 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.player.position.x.toFixed(1) + ',' + G.player.position.z.toFixed(1));
   check('apart: enter/exit round trip leaves zero console errors/warnings',
     consoleProblems.length === probsA0, consoleProblems.slice(probsA0).join(' | '));
+}
+
+/* ================= PHASE 5: SIGN GLYPHS v1 ================= */
+{
+  /* static: the board fleet is exactly one new InstancedMesh literal (+1
+     site: 41 -> 42), procedural canvas atlas only, no unseeded RNG, no em
+     dashes, no TODO text in the block */
+  const glyphSrc = html.slice(html.indexOf('/* ==================== PHASE 5: SIGN GLYPHS v1'),
+                              html.indexOf('/* ---- car condition HUD'));
+  check('signglyph-static: one fleet literal in the glyph block',
+    (glyphSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('signglyph-static: no unseeded RNG in the glyph block', !/Math\.random/.test(glyphSrc));
+  check('signglyph-static: no em dashes in the glyph block', !glyphSrc.includes('—'));
+  check('signglyph-static: no TODO/FIXME in the glyph block', !/\b(TODO|FIXME)\b/.test(glyphSrc));
+  check('signglyph-static: no external URLs in the glyph block',
+    !(glyphSrc.match(/https?:\/\//g) || []).length);
+
+  /* fleet shape */
+  check('signglyph: one shared board InstancedMesh fleet',
+    !!(G.glyphBoardIM && G.glyphBoardIM.isInstancedMesh === true));
+  check('signglyph: fleet cap covers gas x2 + garage + store slots (26)',
+    G.GLYPH_BOARD_CAP === 26, 'cap=' + G.GLYPH_BOARD_CAP);
+  check('signglyph: board material carries the baked 512x64 atlas texture',
+    !!(G.glyphBoardIM.material.map && G.glyphBoardIM.material.map.isTexture
+       && G.glyphBoardIM.material.map.image.width === 512
+       && G.glyphBoardIM.material.map.image.height === 64),
+    G.glyphBoardIM.material.map.image.width + 'x' + G.glyphBoardIM.material.map.image.height);
+  check('signglyph: geometry carries the instanced glyph-shift attribute',
+    !!(G.glyphBoardIM.geometry.getAttribute('aGlyph')
+       && G.glyphBoardIM.geometry.getAttribute('aGlyph').isInstancedBufferAttribute));
+  check('signglyph: stock material keeps the UV-shift patch (no ShaderMaterial)',
+    G.glyphBoardIM.material.isMeshBasicMaterial === true
+    && typeof G.glyphBoardIM.material.onBeforeCompile === 'function');
+  check('signglyph: fleet starts empty and culled-off like the other fleets',
+    G.glyphBoardIM.frustumCulled === false && G.glyphBoardIM.castShadow === false);
+
+  /* functional: synthetic slots produce the right boards at the right mounts.
+     Earlier sections may have ticked real slots into the fleets, so every
+     expectation is relative to the pre-existing counts. */
+  const gas0 = G.AMEN.active.gas.length, gar0 = G.AMEN.active.garage.length,
+        st0 = G.BLDG.active.store.length;
+  G.AMEN.active.gas.push({ x: 100, y: 2, z: 200, yaw: 0, gx: 9, gz: 9 });
+  G.AMEN.active.garage.push({ x: 300, y: 3, z: 400, yaw: Math.PI / 2, gx: 10, gz: 10 });
+  G.BLDG.active.store.push({ x: 500, y: 1, z: 600, yaw: Math.PI, gx: 11, gz: 11 });
+  G.redistributeGlyphBoards();
+  const iGasS = gas0 * 2, iGarS = (gas0 + 1) * 2 + gar0,
+        iStS = (gas0 + 1) * 2 + (gar0 + 1) + st0;
+  check('signglyph: fleet count matches slots (gas x2 + garage + store)',
+    G.glyphBoardIM.count === iStS + 1, 'count=' + G.glyphBoardIM.count);
+  const gAttr = G.glyphBoardIM.geometry.getAttribute('aGlyph');
+  check('signglyph: per-instance glyph ids select the atlas cells',
+    gAttr.getX(iGasS) === 1 && gAttr.getX(iGasS + 1) === 2
+    && gAttr.getX(iGarS) === 0 && gAttr.getX(iStS) === 3,
+    [gAttr.getX(iGasS), gAttr.getX(iGasS + 1), gAttr.getX(iGarS), gAttr.getX(iStS)].join(','));
+  const m0 = new THREE.Matrix4(), m2 = new THREE.Matrix4(), m3 = new THREE.Matrix4();
+  G.glyphBoardIM.getMatrixAt(iGasS, m0);
+  check('signglyph: gas GAS board mounts on the sign pole (local 5.8, 5.3, 0)',
+    Math.abs(m0.elements[12] - 105.8) < 0.01 && Math.abs(m0.elements[13] - 7.3) < 0.01
+    && Math.abs(m0.elements[14] - 200) < 0.01,
+    m0.elements[12].toFixed(2) + ',' + m0.elements[13].toFixed(2) + ',' + m0.elements[14].toFixed(2));
+  G.glyphBoardIM.getMatrixAt(iGarS, m2);
+  check('signglyph: garage OPEN board mounts at the banner posts under amenity yaw',
+    Math.abs(m2.elements[12] - 303.48) < 0.01 && Math.abs(m2.elements[13] - 8.35) < 0.01
+    && Math.abs(m2.elements[14] - 400) < 0.01,
+    m2.elements[12].toFixed(2) + ',' + m2.elements[13].toFixed(2) + ',' + m2.elements[14].toFixed(2));
+  G.glyphBoardIM.getMatrixAt(iStS, m3);
+  check('signglyph: store STORE board mounts between the porch posts under amenity yaw',
+    Math.abs(m3.elements[12] - 500) < 0.01 && Math.abs(m3.elements[13] - 3.7) < 0.01
+    && Math.abs(m3.elements[14] - 595.4) < 0.01,
+    m3.elements[12].toFixed(2) + ',' + m3.elements[13].toFixed(2) + ',' + m3.elements[14].toFixed(2));
+  G.AMEN.active.gas.length = gas0;
+  G.AMEN.active.garage.length = gar0;
+  G.BLDG.active.store.length = st0;
+  G.redistributeGlyphBoards();
+  check('signglyph: fleet restores clean after the synthetic slots leave',
+    G.glyphBoardIM.count === gas0 * 2 + gar0 + st0, 'count=' + G.glyphBoardIM.count);
 }
 
 /* ---------- zero console errors ---------- */

@@ -7062,6 +7062,105 @@ function redistributeAmenities(pcx, pcz) {
       birds[i].cx = pk.x; birds[i].cz = pk.z; birds[i].r = 13 + i * 4; birds[i].h = 22;
     }
   }
+  redistributeGlyphBoards();
+}
+
+/* ==================== PHASE 5: SIGN GLYPHS v1 (3D Artist) ====================
+   Textured glyph boards for the seeded venues. The garage OPEN banner, the
+   gas-station pole sign, and the general-store porch previously read as
+   vertex-color-only boards. v1 bakes ONE shared 512x64 canvas atlas at boot
+   (four 128x64 cells: OPEN / GAS / REPAIR / STORE; power-of-two, procedural
+   canvas only, baked once, never repainted at runtime) and mounts the boards
+   on ONE shared InstancedMesh fleet (one draw call, +1 site: 41 -> 42).
+   Per-instance glyph selection rides an instanced float attribute (aGlyph)
+   consumed by a two-line UV patch on the stock MeshBasicMaterial
+   (onBeforeCompile shifts vMapUv.x by aGlyph * 0.25): no ShaderMaterial,
+   no one-material-per-instance, no new rendering machinery.
+   Placement mirrors the seeded amenity slots: each board mounts at the
+   existing banner-post / sign-pole / porch-post local offset, transformed by
+   the amenity yaw (the prop idiom). Fully deterministic, zero RNG here, so
+   the unseeded-RNG pin 92 holds. The old vertex-color boards stay in place
+   behind the new boards as a fallback. Zero gameplay or behavior change:
+   boards are visual only (no colliders, no tick, no HUD); save schema v3
+   untouched. */
+function makeGlyphAtlasTex() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 64;
+  const g = c.getContext('2d');
+  /* cell order is the aGlyph index: 0 OPEN, 1 GAS, 2 REPAIR, 3 STORE */
+  const cells = [['OPEN', '#c23b2e'], ['GAS', '#23252a'], ['REPAIR', '#2e6fc2'], ['STORE', '#2e6b4f']];
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (let i = 0; i < 4; i++) {
+    const x0 = i * 128;
+    g.fillStyle = cells[i][1]; g.fillRect(x0, 0, 128, 64);
+    /* inset border, fillRect-only (the makeSignTex idiom: the stub 2d
+       context implements fillRect/fillText, not strokeRect) */
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.fillRect(x0 + 5, 5, 118, 3); g.fillRect(x0 + 5, 56, 118, 3);
+    g.fillRect(x0 + 5, 5, 3, 54); g.fillRect(x0 + 120, 5, 3, 54);
+    g.fillStyle = '#ffffff'; g.font = 'bold 30px sans-serif';
+    g.fillText(cells[i][0], x0 + 64, 34, 108);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const GLYPH = { OPEN: 0, GAS: 1, REPAIR: 2, STORE: 3 };
+/* board mounts: [localX, localY, localZ, localRotY, glyph] per site type.
+   garage: OPEN on the banner posts (the vertex-color OPEN board + white
+   panel stay behind as fallback). gas: GAS + REPAIR stacked on the sign
+   pole under the existing 'GAS - REPAIR' quad (gas stations repair cars).
+   store: STORE hung between the porch posts. Facing = amenity yaw + local
+   rotY, the prop idiom. */
+const GLYPH_MOUNTS = {
+  gas:    [[5.8, 5.3, 0, Math.PI / 2, GLYPH.GAS], [5.8, 4.3, 0, Math.PI / 2, GLYPH.REPAIR]],
+  garage: [[0, 5.35, 3.48, 0, GLYPH.OPEN]],
+  store:  [[0, 2.7, 4.6, 0, GLYPH.STORE]],
+};
+/* fleet cap: gas 6 x 2 boards + garage 6 x 1 + store 8 x 1 = 26 */
+const GLYPH_BOARD_CAP = 26;
+const glyphAtlasTex = makeGlyphAtlasTex();
+const glyphBoardGeo = new THREE.PlaneGeometry(4.0, 0.8);
+const glyphShiftAttr = new THREE.InstancedBufferAttribute(new Float32Array(GLYPH_BOARD_CAP), 1);
+glyphShiftAttr.setUsage(THREE.DynamicDrawUsage);
+glyphBoardGeo.setAttribute('aGlyph', glyphShiftAttr);
+const glyphBoardMat = new THREE.MeshBasicMaterial({ map: glyphAtlasTex, side: THREE.DoubleSide });
+glyphBoardMat.onBeforeCompile = (sh) => {
+  sh.vertexShader = 'attribute float aGlyph;\n' + sh.vertexShader.replace(
+    '#include <uv_vertex>', '#include <uv_vertex>\n  vMapUv.x += aGlyph * 0.25;');
+};
+const glyphBoardIM = new THREE.InstancedMesh(glyphBoardGeo, glyphBoardMat, GLYPH_BOARD_CAP);
+glyphBoardIM.frustumCulled = false;
+glyphBoardIM.castShadow = false;
+glyphBoardIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+glyphBoardIM.count = 0;
+scene.add(glyphBoardIM);
+const _gE = new THREE.Euler(), _gQ = new THREE.Quaternion(),
+      _gP = new THREE.Vector3(), _gS = new THREE.Vector3(1, 1, 1),
+      _gM = new THREE.Matrix4();
+/* rebuild the board fleet from the live amenity + building slots. Called at
+   the end of redistributeAmenities and redistributeBuildings; idempotent. */
+function redistributeGlyphBoards() {
+  let n = 0;
+  const putBoard = (wx, wy, wz, yaw, ry, glyph) => {
+    if (n >= GLYPH_BOARD_CAP) return;
+    _gE.set(0, yaw + ry, 0); _gQ.setFromEuler(_gE);
+    _gP.set(wx, wy, wz);
+    _gM.compose(_gP, _gQ, _gS);
+    glyphBoardIM.setMatrixAt(n, _gM);
+    glyphShiftAttr.setX(n, glyph);
+    n++;
+  };
+  const putSite = (s, mounts) => {
+    const c = Math.cos(s.yaw), sn = Math.sin(s.yaw);
+    for (const [ox, oy, oz, ry, gl] of mounts)
+      putBoard(s.x + ox * c + oz * sn, s.y + oy, s.z - ox * sn + oz * c, s.yaw, ry, gl);
+  };
+  for (const a of AMEN.active.gas) putSite(a, GLYPH_MOUNTS.gas);
+  for (const a of AMEN.active.garage) putSite(a, GLYPH_MOUNTS.garage);
+  for (const b of BLDG.active.store) putSite(b, GLYPH_MOUNTS.store);
+  glyphBoardIM.count = n;
+  glyphBoardIM.instanceMatrix.needsUpdate = true;
+  glyphShiftAttr.needsUpdate = true;
 }
 
 /* ---- car condition HUD (inside the #speedo block, driving only) ---- */
@@ -7923,6 +8022,7 @@ function redistributeBuildings(pcx, pcz) {
     if (mesh.boundingBox) mesh.boundingBox = null;
   }
   storeCool.fill(false);
+  redistributeGlyphBoards();
 }
 
 /* ---- general store: walk-in shop reusing the SHOP_ITEMS panel ----
