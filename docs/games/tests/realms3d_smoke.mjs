@@ -169,6 +169,12 @@ globalThis.__R3D = {
   updateCivicChip, CIVIC_HINT_TXT, CIVIC_ACT_TXT,
   civichintEl, civicChipEl, civicbearingEl, civarrEl, civtxtEl,
   civicPanelEl, civicTitleEl, civicActEl, civicFootEl, HELP_CIVIC,
+  /* Phase 5 worship buildings v1 */
+  WORSHIP, WORSHIP_ORDER, WORSHIP_SCALE, WORSHIP_SALT, WORSHIP_BAND, WORSHIP_HEAL_AMT,
+  worshipFor, worshipHash, worshipEnter, worshipExit, worshipAct, worshipPray, worshipSanctuary,
+  worshipTick, updateWorshipChip, WORSHIP_HINT_TXT, WORSHIP_ACT_TXT, WORSHIP_FOOT_TXT,
+  worshiphintEl, worshipChipEl, worshipbearingEl, worsarrEl, worstxtEl,
+  worshipPanelEl, worshipTitleEl, worshipActEl, worshipFootEl, HELP_WORSHIP,
   THEATER_LX, THEATER_LZ,
 };
 `;
@@ -2021,7 +2027,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
     check('perf5: 46 IM literals after PERF-5 + stadium fleet + amusement fleet; civic fleet rides the shared def-loop literal, 4 runtime building meshes',
-      n === 46 && G.bldgMeshes.length === 4, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+      n === 46 && G.bldgMeshes.length === 5, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -3786,8 +3792,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
   check('casino-static: whole-file IM literals pin at 46 (48 - PERF-5 consolidation + stadium fleet + amusement fleet: trunks+fol, npcLegs, copGuns, brute->Mesh; civic fleet rides the shared def-loop literal)',
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
-  check('casino-static: 4 runtime building meshes (casino rides the store mesh, civic types share the civic fleet)',
-    G.bldgMeshes.length === 4);
+  check('casino-static: 5 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet)',
+    G.bldgMeshes.length === 5);
   check('casino-static: casino def shares the store fleet mesh',
     G.BLDG_DEF.casino.mesh === G.BLDG_DEF.store.mesh);
   check('casino-static: guard coverage (positive chains)',
@@ -3926,13 +3932,13 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/\|\| THEATER\.watching/g) || []).length >= 28);
   check('theater-static: guard coverage (negated chains, incl. civic/amuse-extended paren form)',
     ((html.match(/&& !THEATER\.watching/g) || []).length
-      + (html.match(/!\(THEATER\.watching \|\| CIVIC\.state(?: \|\| AMUSE\.riding \|\| STADIUM\.watching)?\)/g) || []).length) >= 18);
+      + (html.match(/!\(THEATER\.watching \|\| CIVIC\.state(?: \|\| WORSHIP\.state)?(?: \|\| AMUSE\.riding \|\| STADIUM\.watching)?\)/g) || []).length) >= 18);
   check('theater-static: WATCH hint click wiring pins theaterEnter',
     html.includes("theaterHintEl.addEventListener('click', () => { if (THEATER.hintOn) theaterEnter(); })"));
   check('theater-static: E frees the watcher before the gambler/pianist in the keydown chain',
     html.includes("else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit();"));
   check('theater-static: vehicleExit, mountToggle, busted and death eject the watcher',
-    html.includes('function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (THEATER.watching) theaterExit();')
+    html.includes('function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (THEATER.watching) theaterExit();')
     && html.includes('else if (THEATER.watching) theaterExit();   // Phase 5 theater: E never traps the watcher')
     && html.includes('else if (THEATER.watching) theaterExit();   // busted out of the audience too')
     && html.includes('else if (THEATER.watching) theaterExit();  // ...and no show while dead either'));
@@ -4051,8 +4057,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
-  check('civic-static: 4 runtime building meshes (house, barn, store, civic)',
-    G.bldgMeshes.length === 4);
+  check('civic-static: 5 runtime building meshes (house, barn, store, civic, worship)',
+    G.bldgMeshes.length === 5);
   check('civic-static: all four civic types share the one civic fleet mesh',
     G.BLDG_DEF.hospital.mesh === G.BLDG_DEF.civic.mesh
     && G.BLDG_DEF.bank.mesh === G.BLDG_DEF.civic.mesh
@@ -4074,11 +4080,11 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('civic-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('civic-static: KeyE exits the fan, then civic, enters on a live hint',
-    html.includes("if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit();")
+    html.includes("if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit();")
     && html.includes("else if (CIVIC.hintOn) civicEnter();"));
   check('civic-static: mountToggle, vehicleExit, busted and death eject the visitor',
     html.includes('else if (CIVIC.state) civicExit();   // Phase 5 civic: E never traps the visitor')
-    && html.includes('function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit();')
+    && html.includes('function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit();')
     && html.includes('if (CIVIC.state) civicExit();   // Phase 5 civic: busted out of the menu too')
     && html.includes('if (CIVIC.state) civicExit();  // ...and no civic menu while dead either'));
 
@@ -4341,9 +4347,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('stadium-static: WATCH hint click wiring pins stadiumEnter',
     html.includes("stadiumHintEl.addEventListener('click', () => { if (STADIUM.hintOn) stadiumEnter(); })"));
   check('stadium-static: E frees the fan before the visitor/watcher in the keydown chain',
-    html.includes("if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit();"));
+    html.includes("if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit();"));
   check('stadium-static: vehicleExit, mountToggle, busted and death eject the fan',
-    html.includes('function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit();')
+    html.includes('function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit();')
     && html.includes('if (STADIUM.watching) stadiumExit();   // Phase 5 stadium: E never traps the fan')
     && html.includes('else if (STADIUM.watching) stadiumExit();   // busted out of the stands too')
     && html.includes('else if (STADIUM.watching) stadiumExit();  // ...and no match while dead either'));
@@ -4598,6 +4604,213 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     && Math.hypot(G.player.position.x - aslot.x, G.player.position.z - aslot.z) > 1.0);
   check('amuse: ride/exit round trip leaves zero console errors/warnings',
     consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
+}
+
+/* ================= 33. WORSHIP BUILDINGS v1 (Phase 5 buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.WORSHIP.state) G.worshipExit();
+  if (G.CIVIC.state) G.civicExit();
+  if (G.AMUSE.riding) G.amuseExit();
+  if (G.STADIUM.watching) G.stadiumExit();
+  if (G.THEATER.watching) G.theaterExit();
+  if (G.SLOT.playing) G.slotExit();
+  if (G.PIANO.playing) G.pianoExit();
+
+  /* static: worship fleet rides the shared def-loop literal (+1 runtime draw
+     call, zero new source literals), no lights, no unseeded RNG, no em
+     dashes, no external URLs, no TODO text in the worship block */
+  const worshipSrc = html.slice(html.indexOf('/* ================= PHASE 5: WORSHIP BUILDINGS v1 (buildings/places)'),
+                                html.indexOf('/* ============================== GAME LOOP'));
+  check('worship-static: zero fleet mesh literals in the gameplay block (the fleet rides the shared def loop)',
+    (worshipSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('worship-static: worship block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(worshipSrc));
+  check('worship-static: no unseeded RNG in the worship block', !/Math\.random/.test(worshipSrc));
+  check('worship-static: no em dashes in the worship block', !worshipSrc.includes('—'));
+  check('worship-static: no external URLs in the worship block', !/https?:\/\//.test(worshipSrc));
+  check('worship-static: no TODO markers in the worship block', !/\bTODO\b/.test(worshipSrc));
+  check('worship-static: the worship fleet is a live InstancedMesh (+1 runtime draw call)',
+    G.BLDG_DEF.worship.mesh.isInstancedMesh === true);
+  check('worship-static: church and mosque share the one worship fleet mesh',
+    G.BLDG_DEF.church.mesh === G.BLDG_DEF.worship.mesh && G.BLDG_DEF.mosque.mesh === G.BLDG_DEF.worship.mesh);
+  check('worship-static: guard coverage (positive chains)',
+    (html.match(/\|\| WORSHIP\.state/g) || []).length >= 25);
+  check('worship-static: guard coverage (negated chains)',
+    (html.match(/&& !WORSHIP\.state/g) || []).length >= 3);
+  check('worship-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('worship-static: KeyE exits the worshipper and enters on a live hint',
+    html.includes("else if (WORSHIP.state) worshipExit();")
+    && html.includes("else if (WORSHIP.hintOn) worshipEnter();"));
+  check('worship-static: mountToggle, vehicleExit, busted and death eject the worshipper',
+    html.includes('else if (WORSHIP.state) worshipExit();   // Phase 5 worship: E never traps the worshipper')
+    && html.includes('else if (WORSHIP.state) worshipExit(); else if (THEATER.watching)')
+    && html.includes('if (WORSHIP.state) worshipExit();   // Phase 5 worship: busted out of the chapel too')
+    && html.includes('if (WORSHIP.state) worshipExit();  // ...and no worship service while dead either'));
+  check('worship-static: camera chain frames the worship porch',
+    html.includes('WORSHIP.state ? WORSHIP.camAng :') && html.includes("WORSHIP.state ? 'WORSHIP' :"));
+
+  /* seeded placement: both types exist, own salted residue, deterministic */
+  const findWorship = (type) => {
+    for (let gx = -60; gx <= 60; gx++)
+      for (let gz = -60; gz <= 60; gz++) {
+        if (G.worshipFor(gx, gz) !== type) continue;
+        const b = G.bldgCenterFor(gx, gz);
+        if (b && b.type === type) return { gx, gz, b };
+      }
+    return null;
+  };
+  const foundW = { church: findWorship('church'), mosque: findWorship('mosque') };
+  check('worship: both sacred types place in the scan window',
+    !!foundW.church && !!foundW.mosque,
+    'church:' + !!foundW.church + ' mosque:' + !!foundW.mosque);
+  check('worship: own salted hash residue %7===0',
+    !!foundW.church && G.worshipHash(foundW.church.gx, foundW.church.gz) % 7 === 0
+    && !!foundW.mosque && G.worshipHash(foundW.mosque.gx, foundW.mosque.gz) % 7 === 0);
+  check('worship: type split church/mosque follows (hash>>>9)%2',
+    !!foundW.church && ((G.worshipHash(foundW.church.gx, foundW.church.gz) >>> 9) % 2) === 0
+    && !!foundW.mosque && ((G.worshipHash(foundW.mosque.gx, foundW.mosque.gz) >>> 9) % 2) === 1);
+  {
+    const w = foundW.church;
+    const a = G.worshipFor(w.gx, w.gz), b = G.worshipFor(w.gx, w.gz);
+    const p1 = G.bldgCenterFor(w.gx, w.gz), p2 = G.bldgCenterFor(w.gx, w.gz);
+    check('worship: selection + placement are pure functions of chunk coords',
+      a === b && !!p1 && !!p2 && p1.x === p2.x && p1.z === p2.z && p1.type === p2.type && p1.yOff === p2.yOff,
+      a + ' @' + (p1 ? p1.x.toFixed(1) + ',' + p1.z.toFixed(1) : 'null'));
+  }
+  check('worship: mosque placement carries the Y-band lift flag, church does not',
+    !!foundW.mosque && foundW.mosque.b.yOff === G.WORSHIP_BAND
+    && !!foundW.church && foundW.church.b.yOff === 0);
+  /* precedence: a worship-residue chunk that also hits a civic/casino/store
+     residue keeps the earlier-namespace type (civic > casino > store > worship) */
+  {
+    let precOk = true, precSeen = 0;
+    for (let gx = -60; gx <= 60 && precSeen < 20; gx++)
+      for (let gz = -60; gz <= 60 && precSeen < 20; gz++) {
+        if (G.worshipFor(gx, gz) === null) continue;
+        const h = G.hash2i(gx, gz);
+        const hi = h % 7 === 5 ? G.CIVIC_ORDER[(h >>> 9) % 4] : h % 7 === 3 ? 'casino' : h % 7 === 1 ? 'store' : null;
+        if (!hi) continue;
+        precSeen++;
+        const t = G.bldgTypeFor(gx, gz);
+        if (t !== hi) { precOk = false; break; }
+      }
+    check('worship: civic/casino/store residues win over worship (namespace precedence)',
+      precSeen > 0 && precOk, 'contested=' + precSeen);
+  }
+
+  /* geometry: one fleet, two Y-bands (church band 0, mosque band -1000) */
+  check('worship: fleet geometry holds both Y-bands',
+    (() => {
+      const pos = G.BLDG_DEF.worship.mesh.geometry.attributes.position;
+      let lo = 1e9, hi = -1e9;
+      for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < lo) lo = y; if (y > hi) hi = y; }
+      return lo < -900 && hi > 10;
+    })());
+  /* Y-band lift: mosque instance matrices ride exactly one band up (scaled by sy) */
+  {
+    let liftOk = false, liftDetail = 'no mosque placed';
+    if (foundW.mosque) {
+      const mb = foundW.mosque.b;
+      G.redistributeBuildings(Math.floor(mb.x / 48), Math.floor(mb.z / 48));   // CHUNK = 48
+      const arr = G.BLDG.active.mosque;
+      liftDetail = 'mosque lost in redistribute';
+      if (arr.length > 0) {
+        const mesh = G.BLDG_DEF.worship.mesh;
+        const nC = G.BLDG.active.church.length;
+        const m4 = new THREE.Matrix4();
+        liftOk = true;
+        for (let i = 0; i < arr.length; i++) {
+          const b = arr[i];
+          mesh.getMatrixAt(nC + i, m4);
+          const my = m4.elements[13];
+          const want = b.y + G.WORSHIP_BAND * (b.sy !== undefined ? b.sy : 1);
+          if (Math.abs(my - want) > 0.01) { liftOk = false; liftDetail = 'slot ' + i + ' y=' + my.toFixed(2) + ' want=' + want.toFixed(2); break; }
+        }
+        if (liftOk) liftDetail = arr.length + ' mosque instances lifted';
+      }
+    }
+    check('worship: mosque instance matrices lift by exactly one Y-band', liftOk, liftDetail);
+  }
+
+  /* mechanics: synthetic church at the player (the ticker owns the real
+     redistribute; the seeded selection above proves the real placement) */
+  const cpx = G.player.position.x, cpz = G.player.position.z;
+  const synthWorship = (type) => {
+    for (const t of G.WORSHIP_ORDER) G.BLDG.active[t].length = 0;
+    G.BLDG.active[type].push({ x: cpx + 3, z: cpz, y: groundY(cpx + 3, cpz), yaw: 0, gx: 0, gz: 0, name: type.toUpperCase(), type });
+    /* stand 6.5u from the new building: inside both porch hint radii (7.5/9.0).
+       Synthetic buildings bypass redistributeBuildings, so they add no foot
+       colliders of their own. */
+    G.player.position.set(cpx + 3 + 6.5, groundY(cpx + 9.5, cpz), cpz);
+  };
+  const probsW0 = consoleProblems.length;
+  synthWorship('church');
+  frame(3);
+  check('worship: PRAY hint shows near the church',
+    G.WORSHIP.hintOn === true && G.WORSHIP.nearType === 'church' && G.worshiphintEl.style.opacity == 1);
+  G.worshipEnter();
+  check('worship: enter freezes the player at the porch, panel + chip show',
+    G.WORSHIP.state === 'church' && G.worshipPanelEl.style.display === 'block'
+    && G.worshipChipEl.style.display === 'block');
+  check('worship: chip reads TYPE | PROMPT | E LEAVE',
+    G.worshipChipEl.textContent === 'CHURCH | PRAY - FREE | E LEAVE', G.worshipChipEl.textContent);
+  check('worship: panel carries the type title, action and foot text',
+    G.worshipTitleEl.textContent === 'CHURCH' && G.worshipActEl.textContent === 'PRAY - FREE'
+    && G.worshipFootEl.textContent === 'FULL HEAL - ONCE PER IN-GAME DAY');
+  frame(3);
+  check('worship: the player stays frozen at the porch while inside',
+    Math.abs(G.player.position.x - G.WORSHIP.seatX) < 0.01 && Math.abs(G.player.position.z - G.WORSHIP.seatZ) < 0.01
+    && G.WORSHIP.state === 'church');
+
+  /* guards freeze locomotion, combat, melee, emotes while inside */
+  G.doPunch();
+  check('worship: melee is refused while inside', G.P.punchCd <= 0, 'punchCd=' + G.P.punchCd);
+  G.fireEmote('dance');
+  check('worship: emotes are refused while inside', G.EMO.key === null);
+  const fireCdW0 = G.fireCd;
+  G.shoot();
+  check('worship: firing is refused while inside', G.fireCd === fireCdW0);
+
+  /* church economy: PRAY is a free full heal, once per in-game day */
+  G.P.hp = 40;
+  G.worshipPray();
+  check('worship: church PRAY is a free full heal', G.P.hp === 100, 'hp=' + G.P.hp);
+  check('worship: pray toast confirms', G.toastEl.textContent === 'BLESSED', G.toastEl.textContent);
+  G.P.hp = 40;
+  G.worshipPray();
+  check('worship: PRAY cooldown refuses a second prayer the same day',
+    G.P.hp === 40 && G.toastEl.textContent === 'COME BACK TOMORROW', G.toastEl.textContent);
+  G.WORSHIP.prayDay = -1;
+  G.worshipPray();
+  check('worship: PRAY works again after the day rolls (cooldown reset)',
+    G.P.hp === 100, 'hp=' + G.P.hp);
+
+  /* mosque: SANCTUARY heals +40 and clears wanted heat */
+  G.worshipExit();
+  synthWorship('mosque');
+  frame(3);
+  check('worship: SANCTUARY hint shows near the mosque',
+    G.WORSHIP.hintOn === true && G.WORSHIP.nearType === 'mosque' && G.worshiphintEl.style.opacity == 1);
+  G.worshipEnter();
+  check('worship: enter works for the mosque too', G.WORSHIP.state === 'mosque');
+  G.P.hp = 50; G.W.heat = 3;
+  G.worshipSanctuary();
+  check('worship: mosque SANCTUARY heals +40 HP', G.P.hp === 90, 'hp=' + G.P.hp);
+  check('worship: mosque SANCTUARY clears wanted heat', G.W.heat === 0, 'heat=' + G.W.heat);
+  check('worship: sanctuary toast confirms', G.toastEl.textContent === 'SANCTUARY', G.toastEl.textContent);
+
+  /* exit: E (worshipExit) frees the player, panel + chip hide, never traps */
+  G.worshipExit();
+  check('worship: exit frees the player, panel + chip hide',
+    G.WORSHIP.state === null && G.worshipPanelEl.style.display === 'none'
+    && G.worshipChipEl.style.display === 'none');
+  check('worship: exit toast reads ON FOOT', G.toastEl.textContent === 'ON FOOT');
+  check('worship: enter/exit round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsW0, consoleProblems.slice(probsW0).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
