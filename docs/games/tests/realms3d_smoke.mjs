@@ -87,7 +87,7 @@ globalThis.__R3D = {
   get dayPhase() { return dayPhase; }, set dayPhase(v) { dayPhase = v; },  /* v4: owl day/night test */
   get cash() { return cash; }, set cash(v) { cash = v; },
   get bankBal() { return bankBal; }, set bankBal(v) { bankBal = v; },   /* Phase 5 bank: deposit protection */
-  get jobEnrolled() { return jobEnrolled; }, set jobEnrolled(v) { jobEnrolled = v; },   /* BANK PAYROLL v1 */
+  get jobTier() { return jobTier; }, set jobTier(v) { jobTier = v; },   /* BANK PAYROLL v2 */
   get kills() { return kills; }, set kills(v) { kills = v; },
   get curWeapon() { return curWeapon; }, set curWeapon(v) { curWeapon = v; },
   get fireCd() { return fireCd; }, set fireCd(v) { fireCd = v; },
@@ -223,7 +223,7 @@ globalThis.__R3D = {
   updateCivicChip, CIVIC_HINT_TXT, CIVIC_ACT_TXT, CIVIC_FOOT_TXT,
   civicDeposit, civicWithdraw, civicActEl2, civicActEl3,   /* Phase 5 bank: deposit protection */
   bankDawnInterest, BANK_INTEREST_RATE,              /* Phase 5 bank interest v2 */
-  bankDawnPayroll, BANK_PAYROLL_WAGE, civicJob, civicActEl5, completeMission, applySave,   /* BANK PAYROLL v1 */
+  bankDawnPayroll, PAYROLL_TIERS, civicJob, civicActEl5, completeMission, applySave, validSave,   /* BANK PAYROLL v2 */
   civicHeist, civicActEl4, heistChipEl, updateHeistChip, seedHeistSacks, endHeist, heistTick, HEIST,
   HEIST_N, HEIST_R2, HEIST_GRAB_R2, HEIST_ESCALATE_S,   /* Phase 5 bank heist v1 */
   busted, migrateSave,                                      /* Phase 5 bank: bust hook + save migration */
@@ -8327,11 +8327,17 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.dayPhase = 0.01; frame(2);
     return day0;
   };
-  G.jobEnrolled = false; G.MS.doneToday = 0;
+  G.jobTier = 0; G.MS.doneToday = 0;
 
-  /* static: wage pin, zero new THREE objects, zero new RNG, footer ships */
-  check('payroll-static: the wage pins at exactly $30',
-    G.BANK_PAYROLL_WAGE === 30, G.BANK_PAYROLL_WAGE);
+  /* static: the tier table pins (COURIER keeps the exact v1 $30 wage), zero
+     new THREE objects, zero new RNG, the placeholder carries the JOB line */
+  check('payroll-v2-static: COURIER pins at the v1 wage $30 with quota 1',
+    G.PAYROLL_TIERS[1].name === 'COURIER' && G.PAYROLL_TIERS[1].wage === 30 && G.PAYROLL_TIERS[1].quota === 1,
+    JSON.stringify(G.PAYROLL_TIERS[1]));
+  check('payroll-v2-static: SECURITY pins at $60/quota 2, SHADOW CREW at $100/quota 3',
+    G.PAYROLL_TIERS[2].name === 'SECURITY' && G.PAYROLL_TIERS[2].wage === 60 && G.PAYROLL_TIERS[2].quota === 2
+    && G.PAYROLL_TIERS[3].name === 'SHADOW CREW' && G.PAYROLL_TIERS[3].wage === 100 && G.PAYROLL_TIERS[3].quota === 3,
+    JSON.stringify(G.PAYROLL_TIERS.slice(2)));
   check('payroll-static: zero new THREE objects in the payroll block',
     !/new THREE\./.test(html.slice(html.indexOf('function civicJob()'), html.indexOf('function bankDawnInterest()'))));
   check('payroll-static: zero new Math.random in the payroll block',
@@ -8339,7 +8345,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('payroll-static: the bank panel placeholder carries the JOB line',
     G.CIVIC_FOOT_TXT.bank.includes('JOB'), G.CIVIC_FOOT_TXT.bank);
 
-  /* enlist: only at the bank, toast + button label + footer flip */
+  /* the button cycles OFF -> COURIER -> SECURITY -> SHADOW CREW -> OFF, only at the bank */
   G.P.godT = 0;   // civicEnter refuses while spawn-protected (the section-36 idiom)
   synthBank('bank');
   frame(3);
@@ -8349,40 +8355,85 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.civicActEl5.textContent);
   G.cash = 0; G.bankBal = 0; G.updateCivicChip();
   G.civicJob();
-  check('payroll: ENLIST JOB enrolls with the buy toast',
-    G.jobEnrolled === true && G.toastEl.textContent === 'JOB ENLISTED: +$30/DAY', G.toastEl.textContent);
-  check('payroll: the button label flips to QUIT JOB on enlist',
-    G.civicActEl5.textContent === 'QUIT JOB', G.civicActEl5.textContent);
-  check('payroll: the foot line shows JOB: +$30/DAY on enlist',
-    G.civicFootEl.textContent === 'WALLET $0 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY | JOB: +$30/DAY',
-    G.civicFootEl.textContent);
+  check('payroll-v2: first press enlists COURIER with the named toast',
+    G.jobTier === 1 && G.toastEl.textContent === 'JOB: COURIER $30/DAY'
+    && G.civicActEl5.textContent === 'COURIER', G.toastEl.textContent);
+  check('payroll-v2: the foot line names the COURIER tier and wage',
+    G.civicFootEl.textContent.endsWith('JOB: COURIER $30/DAY'), G.civicFootEl.textContent);
   G.civicJob();
-  check('payroll: QUIT JOB unenrolls and the footer returns to NO JOB',
-    G.jobEnrolled === false && G.toastEl.textContent === 'JOB QUIT'
-    && G.civicFootEl.textContent.endsWith('NO JOB'),
-    'enrolled=' + G.jobEnrolled + ' foot=' + G.civicFootEl.textContent);
+  check('payroll-v2: second press promotes to SECURITY $60/DAY',
+    G.jobTier === 2 && G.toastEl.textContent === 'JOB: SECURITY $60/DAY'
+    && G.civicActEl5.textContent === 'SECURITY', G.toastEl.textContent);
+  G.civicJob();
+  check('payroll-v2: third press promotes to SHADOW CREW $100/DAY',
+    G.jobTier === 3 && G.toastEl.textContent === 'JOB: SHADOW CREW $100/DAY'
+    && G.civicActEl5.textContent === 'SHADOW CREW', G.toastEl.textContent);
+  G.civicJob();
+  check('payroll-v2: fourth press cycles back to OFF with the quit toast',
+    G.jobTier === 0 && G.toastEl.textContent === 'JOB QUIT'
+    && G.civicActEl5.textContent === 'ENLIST JOB' && G.civicFootEl.textContent.endsWith('NO JOB'),
+    'tier=' + G.jobTier + ' toast=' + G.toastEl.textContent);
   G.civicExit();
 
-  /* job toggle is bank-only: silent outside the bank */
+  /* the cycle is bank-only: silent outside the bank */
   G.civicJob();
-  check('payroll: the job toggle is a no-op outside the bank',
-    G.jobEnrolled === false, 'enrolled=' + G.jobEnrolled);
+  check('payroll: the job cycle is a no-op outside the bank',
+    G.jobTier === 0, 'tier=' + G.jobTier);
 
-  /* re-enlist for the dawn tests */
+  /* enlist as SECURITY for the dawn quota tests */
   G.P.godT = 0;   // civicEnter refuses while spawn-protected
   synthBank('bank');
   frame(3);
   G.civicEnter();
-  G.civicJob();
+  G.civicJob(); G.civicJob();   // OFF -> COURIER -> SECURITY
+  check('payroll-v2: two presses from OFF land on SECURITY',
+    G.jobTier === 2, 'tier=' + G.jobTier);
 
-  /* activity gate: no mission since dawn -> payroll skipped, toast fires */
-  G.cash = 0; G.bankBal = 0; G.MS.doneToday = 0; G.toastEl.textContent = '';
+  /* quota gate: 1 mission done is under the SECURITY quota of 2 */
+  G.cash = 0; G.bankBal = 0; G.MS.doneToday = 1; G.toastEl.textContent = '';
   dawnWrap();
-  check('payroll: skipped with no mission done (cash untouched, toast explains)',
+  check('payroll-v2: SECURITY with 1 mission done skips the payday and names the quota',
+    G.cash === 0 && G.toastEl.textContent === 'PAYDAY SKIPPED: DO 2 MISSIONS',
+    'cash=' + G.cash + ' toast=' + G.toastEl.textContent);
+
+  /* 2 missions done meets the quota: $60 credits to carried cash, bank untouched */
+  G.cash = 0; G.bankBal = 0; G.MS.doneToday = 2; G.toastEl.textContent = '';
+  dawnWrap();
+  check('payroll-v2: SECURITY with 2 missions done pays $60 to carried cash',
+    G.cash === 60 && G.bankBal === 0 && G.toastEl.textContent === '+$60 PAYDAY',
+    'cash=' + G.cash + ' bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+
+  /* once-per-dawn: the gate already reset, so the next dawn skips */
+  G.cash = 60; G.toastEl.textContent = '';
+  dawnWrap();
+  check('payroll-v2: the gate is once per dawn (second wrap skips)',
+    G.cash === 60 && G.toastEl.textContent === 'PAYDAY SKIPPED: DO 2 MISSIONS',
+    'cash=' + G.cash + ' toast=' + G.toastEl.textContent);
+
+  /* COURIER keeps the exact v1 behavior at the dawn tick */
+  G.jobTier = 1; G.cash = 0; G.bankBal = 0; G.MS.doneToday = 1; G.toastEl.textContent = '';
+  G.bankDawnPayroll();
+  check('payroll-v2: COURIER pays $30 on 1 mission (the v1 wage unchanged)',
+    G.cash === 30 && G.bankBal === 0 && G.toastEl.textContent === '+$30 PAYDAY',
+    'cash=' + G.cash + ' toast=' + G.toastEl.textContent);
+  G.cash = 0; G.MS.doneToday = 0; G.toastEl.textContent = '';
+  G.bankDawnPayroll();
+  check('payroll-v2: COURIER with 0 missions keeps the v1 skip toast',
     G.cash === 0 && G.toastEl.textContent === 'PAYDAY SKIPPED: DO A MISSION',
     'cash=' + G.cash + ' toast=' + G.toastEl.textContent);
 
-  /* mission completion counts toward the gate */
+  /* SHADOW CREW: quota 3 gates the $100 wage */
+  G.jobTier = 3; G.cash = 0; G.bankBal = 0; G.MS.doneToday = 2; G.toastEl.textContent = '';
+  G.bankDawnPayroll();
+  check('payroll-v2: SHADOW CREW with 2 missions done skips (quota 3)',
+    G.cash === 0 && G.toastEl.textContent === 'PAYDAY SKIPPED: DO 3 MISSIONS', 'cash=' + G.cash);
+  G.MS.doneToday = 3; G.toastEl.textContent = '';
+  G.bankDawnPayroll();
+  check('payroll-v2: SHADOW CREW with 3 missions done pays $100 to carried cash',
+    G.cash === 100 && G.bankBal === 0 && G.toastEl.textContent === '+$100 PAYDAY',
+    'cash=' + G.cash + ' toast=' + G.toastEl.textContent);
+
+  /* mission completion still counts toward the gate */
   G.MS.doneToday = 0;
   G.MS.state = 'IDLE'; G.MS.idx = 0;
   G.completeMission();
@@ -8390,59 +8441,83 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.MS.doneToday === 1, 'doneToday=' + G.MS.doneToday);
   G.MS.done[0] = false;   // keep the suite's mission state pristine
 
-  /* paid dawn: credit lands in cash, not the bank balance, exactly once */
-  G.cash = 0; G.bankBal = 0; G.toastEl.textContent = '';
-  dawnWrap();
-  check('payroll: the wage credits $30 to carried cash, bank untouched',
-    G.cash === 30 && G.bankBal === 0 && G.toastEl.textContent === '+$30 PAYDAY',
+  /* the wage rides in the carried wallet, so death and BUSTED can seize it */
+  G.jobTier = 1; G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.cash = 30; G.bankBal = 500; G.MS.doneToday = 1; G.toastEl.textContent = '';
+  G.bankDawnPayroll();   // +$30 PAYDAY lands in carried cash: 30 -> 60
+  G.hurtPlayer(999);
+  check('payroll-v2: death seizes 15% of the wage-carrying cash, bank untouched',
+    G.P.dead === true && G.cash === 51 && G.bankBal === 500
+    && G.toastEl.textContent === 'ELIMINATED - $9 LOST',
     'cash=' + G.cash + ' bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
-
-  /* once-per-dawn: the gate already reset, so the next dawn skips */
-  G.cash = 30; G.toastEl.textContent = '';
-  dawnWrap();
-  check('payroll: the gate is once per dawn (second wrap skips)',
-    G.cash === 30 && G.toastEl.textContent === 'PAYDAY SKIPPED: DO A MISSION',
-    'cash=' + G.cash + ' toast=' + G.toastEl.textContent);
-
-  /* zero bank balance edge: the wage still pays (it rides in the wallet) */
-  G.cash = 0; G.bankBal = 0; G.MS.doneToday = 1; G.toastEl.textContent = '';
-  G.bankDawnPayroll();
-  check('payroll: zero bank balance does not block the cash wage',
-    G.cash === 30 && G.bankBal === 0, 'cash=' + G.cash + ' bank=' + G.bankBal);
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999;
+  G.cash = 100; G.bankBal = 300; G.setHeat(1, true);
+  G.busted();
+  check('payroll-v2: BUSTED seizes 25% of the wage-carrying cash, bank untouched',
+    G.cash === 75 && G.bankBal === 300 && G.toastEl.textContent === 'BUSTED - $25 SEIZED | BANK SAFE',
+    'cash=' + G.cash + ' bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+  G.setHeat(0, true); G.P.godT = 9999;
 
   /* not enrolled: the dawn tick is silent */
-  G.jobEnrolled = false; G.MS.doneToday = 5; G.cash = 0; G.toastEl.textContent = 'SENTINEL';
+  G.jobTier = 0; G.MS.doneToday = 5; G.cash = 0; G.toastEl.textContent = 'SENTINEL';
   G.bankDawnPayroll();
   check('payroll: no job means no pay and no toast',
     G.cash === 0 && G.toastEl.textContent === 'SENTINEL', 'cash=' + G.cash);
 
-  /* save round-trip persists enrollment; no credit at load */
-  G.jobEnrolled = true; G.cash = 100; G.bankBal = 500; G.MS.doneToday = 1;
+  /* save round-trip persists the tier index; no credit at load */
+  G.jobTier = 3; G.cash = 100; G.bankBal = 500; G.MS.doneToday = 2;
   G.saveGame();
-  G.jobEnrolled = false; G.cash = 0; G.bankBal = 0; G.MS.doneToday = 0;
+  G.jobTier = 0; G.cash = 0; G.bankBal = 0; G.MS.doneToday = 0;
   G.loadSave();
-  check('payroll: load restores enrollment with no credit applied',
-    G.jobEnrolled === true && G.cash === 100 && G.bankBal === 500,
-    'job=' + G.jobEnrolled + ' cash=' + G.cash + ' bank=' + G.bankBal);
+  check('payroll-v2: load restores the SHADOW CREW index with no credit applied',
+    G.jobTier === 3 && G.cash === 100 && G.bankBal === 500,
+    'job=' + G.jobTier + ' cash=' + G.cash + ' bank=' + G.bankBal);
   check('payroll: the activity gate starts at zero on load',
     G.MS.doneToday === 0, 'doneToday=' + G.MS.doneToday);
 
-  /* pre-payroll v4 save (no job field): loads fine, not enrolled */
-  const legacy = G.collectSave();
-  delete legacy.job;
-  G.jobEnrolled = true;
-  G.applySave(legacy);
-  check('payroll: a v4 save without the job field loads as not enrolled',
-    G.jobEnrolled === false, 'job=' + G.jobEnrolled);
+  /* tier 2 round-trip */
+  G.jobTier = 2; G.saveGame();
+  G.jobTier = 0;
+  G.loadSave();
+  check('payroll-v2: load restores the SECURITY index', G.jobTier === 2, 'job=' + G.jobTier);
 
-  /* newGame resets: job quit, counter zeroed, no wage owed */
-  G.jobEnrolled = true; G.MS.doneToday = 3; G.cash = 0;
+  /* v1 migration: a saved job of 1 still means COURIER at the same $30 wage */
+  const legacy = G.collectSave();
+  legacy.job = 1;
+  G.jobTier = 0;
+  G.applySave(legacy);
+  G.cash = 0; G.bankBal = 0; G.MS.doneToday = 1; G.toastEl.textContent = '';
+  G.bankDawnPayroll();
+  check('payroll-v2: v1 save job:1 migrates to COURIER with the unchanged $30 wage',
+    G.jobTier === 1 && G.cash === 30 && G.toastEl.textContent === '+$30 PAYDAY',
+    'job=' + G.jobTier + ' cash=' + G.cash + ' toast=' + G.toastEl.textContent);
+
+  /* v1 save job:0 means not enrolled */
+  legacy.job = 0; G.jobTier = 3;
+  G.applySave(legacy);
+  check('payroll-v2: v1 save job:0 migrates to OFF', G.jobTier === 0, 'job=' + G.jobTier);
+
+  /* an out-of-range job index fails validation (no silent promotion) */
+  const corrupt = G.collectSave();
+  corrupt.job = 4;
+  check('payroll-v2: validSave rejects job index 4', G.validSave(corrupt) === false);
+
+  /* pre-payroll v4 save (no job field): loads fine, not enrolled */
+  const older = G.collectSave();
+  delete older.job;
+  G.jobTier = 3;
+  G.applySave(older);
+  check('payroll: a v4 save without the job field loads as not enrolled',
+    G.jobTier === 0, 'job=' + G.jobTier);
+
+  /* newGame quits the job and zeroes the counter */
+  G.jobTier = 2; G.MS.doneToday = 3; G.cash = 0;
   G.newGame();
   G.toastEl.textContent = 'SENTINEL';
   G.bankDawnPayroll();
   check('payroll: newGame quits the job and zeroes the counter',
-    G.jobEnrolled === false && G.MS.doneToday === 0 && G.cash === 0 && G.toastEl.textContent === 'SENTINEL',
-    'job=' + G.jobEnrolled + ' doneToday=' + G.MS.doneToday);
+    G.jobTier === 0 && G.MS.doneToday === 0 && G.cash === 0 && G.toastEl.textContent === 'SENTINEL',
+    'job=' + G.jobTier + ' doneToday=' + G.MS.doneToday);
 
   /* economy flows unchanged: interest, deposit, withdraw, ATM */
   G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
@@ -8466,7 +8541,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('payroll: $20 daily allowance still pays on the day gate',
     G.cash === allow0 + 20 && G.CIVIC.atmDay === G.CIVIC.day, 'cash=' + G.cash);
   G.civicExit();
-  G.jobEnrolled = false;
+  G.jobTier = 0;
   for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
   G.setHeat(0, true); G.P.godT = 9999;
 }

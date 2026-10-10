@@ -6192,7 +6192,7 @@ function completeMission() {
   const m = MISSIONS[MS.idx];
   cash += m.reward; updateCashHUD();
   MS.done[MS.idx] = true;
-  MS.doneToday++;   // BANK PAYROLL v1: the activity gate counts completions since the last dawn
+  MS.doneToday++;   // BANK PAYROLL v2: the activity gate counts completions since the last dawn
   MS.state = 'IDLE'; MS.idx = -1;
   hideMissionProps();
   toast('MISSION COMPLETE'); sfxMissionWin();
@@ -19984,7 +19984,7 @@ const CIVIC_HINT_TXT = { hospital: 'HEAL [E]', bank: 'ATM [E]', hotel: 'REST [E]
 const CIVIC_ACT_TXT = { hospital: 'HEAL $30', bank: 'WITHDRAW $20', hotel: 'REST $40' };
 const CIVIC_FOOT_TXT = {
   hospital: 'FULL HEAL TO 100 HP',
-  bank: 'WALLET $x | BANK $y | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY | JOB: +$30/DAY / NO JOB',   // placeholder: rendered live by updateCivicChip
+  bank: 'WALLET $x | BANK $y | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY | JOB: COURIER $30 / SECURITY $60 / SHADOW CREW $100 PER DAY / NO JOB',   // placeholder: rendered live by updateCivicChip
   hotel: 'FULL HEAL + SLEEP TO 06:00',
 };
 const HELP_CIVIC = '<b>E</b> leave &nbsp; <b>TOUCH</b> tap action';
@@ -20001,7 +20001,7 @@ const civicActEl = document.getElementById('civicact');
 const civicActEl2 = document.getElementById('civicact2');   // Phase 5 bank: DEPOSIT
 const civicActEl3 = document.getElementById('civicact3');   // Phase 5 bank: WITHDRAW
 const civicActEl4 = document.getElementById('civicact4');   // Phase 5 bank: ROB BANK
-const civicActEl5 = document.getElementById('civicact5');   // BANK PAYROLL v1: ENLIST/QUIT JOB
+const civicActEl5 = document.getElementById('civicact5');   // BANK PAYROLL v2: the job tier cycle button
 const heistChipEl = document.getElementById('heistchip');   // Phase 5 bank heist: live take/heat chip
 const civicFootEl = document.getElementById('civicfoot');
 civichintEl.textContent = IS_TOUCH ? 'TAP TO ENTER' : 'ENTER [E]';
@@ -20021,7 +20021,7 @@ civicActEl3.addEventListener('click', civicWithdrawBtn);
 function civicHeistBtn(e) { e.preventDefault(); e.stopPropagation(); civicHeist(); }
 civicActEl4.addEventListener('touchstart', civicHeistBtn, { passive: false });
 civicActEl4.addEventListener('click', civicHeistBtn);
-/* BANK PAYROLL v1: touch parity with civicHeistBtn on the new job button */
+/* BANK PAYROLL v2: touch parity with civicHeistBtn on the new job button */
 function civicJobBtn(e) { e.preventDefault(); e.stopPropagation(); civicJob(); }
 civicActEl5.addEventListener('touchstart', civicJobBtn, { passive: false });
 civicActEl5.addEventListener('click', civicJobBtn);
@@ -20032,8 +20032,8 @@ function updateCivicChip() {
     /* Phase 5 bank: chip names the deposit/withdraw verbs; foot renders the
        wallet and bank balances live after every action */
     civicChipEl.textContent = 'BANK | DEPOSIT / WITHDRAW / $20 DAILY | E LEAVE';
-    civicFootEl.textContent = 'WALLET $' + cash + ' | BANK $' + bankBal + ' | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY | ' + (jobEnrolled ? 'JOB: +$30/DAY' : 'NO JOB');
-    civicActEl5.textContent = jobEnrolled ? 'QUIT JOB' : 'ENLIST JOB';   // BANK PAYROLL v1: the job button toggles
+    civicFootEl.textContent = 'WALLET $' + cash + ' | BANK $' + bankBal + ' | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY | ' + (jobTier > 0 ? 'JOB: ' + PAYROLL_TIERS[jobTier].name + ' $' + PAYROLL_TIERS[jobTier].wage + '/DAY' : 'NO JOB');
+    civicActEl5.textContent = jobTier > 0 ? PAYROLL_TIERS[jobTier].name : 'ENLIST JOB';   // BANK PAYROLL v2: the job button cycles
   } else {
     civicChipEl.textContent = CIVIC.state.toUpperCase() + ' | ' + CIVIC_ACT_TXT[CIVIC.state] + ' | E LEAVE';
   }
@@ -20068,7 +20068,7 @@ function civicEnter() {
   civicActEl2.style.display = isBank ? 'flex' : 'none';
   civicActEl3.style.display = isBank ? 'flex' : 'none';
   civicActEl4.style.display = isBank ? 'flex' : 'none';
-  civicActEl5.style.display = isBank ? 'flex' : 'none';   // BANK PAYROLL v1: job button is bank-only
+  civicActEl5.style.display = isBank ? 'flex' : 'none';   // BANK PAYROLL v2: job button is bank-only
   updateCivicChip();
   civichintEl.style.opacity = 0; CIVIC.hintOn = false; CIVIC.nearIdx = -1; CIVIC.nearType = null;
   carHintEl.style.opacity = 0; CAR.hintOn = false;
@@ -20100,7 +20100,7 @@ function civicExit() {
   civicActEl2.style.display = 'none';   // Phase 5 bank: hide on exit
   civicActEl3.style.display = 'none';
   civicActEl4.style.display = 'none';
-  civicActEl5.style.display = 'none';   // BANK PAYROLL v1: hide on exit
+  civicActEl5.style.display = 'none';   // BANK PAYROLL v2: hide on exit
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
@@ -20156,28 +20156,42 @@ function civicWithdraw() {
   sfxBuy(); toast('WITHDREW $' + amt);
   updateCivicChip();
 }
-/* BANK PAYROLL v1: the bank hires. ENLIST/QUIT JOB toggles employment; the
-   job pays a wage at the dawn tick only when the player completed at least
-   one mission since the last dawn (anti-inflation: pay follows work). The
-   wage rides in the carried wallet, so death (15%) and BUSTED (25%) can
-   still seize it. Enrollment persists in save v4 as job: 0/1 (optional,
-   absent = not enrolled); newGame quits the job. Zero new THREE objects,
-   zero new draw calls, zero new RNG. */
-const BANK_PAYROLL_WAGE = 30;   // $30 per in-game day, credited to cash, not the bank balance
-let jobEnrolled = false;        // BANK PAYROLL v1: employment flag, session + save
+/* BANK PAYROLL v2: the bank hires. One button cycles OFF -> COURIER ->
+   SECURITY -> SHADOW CREW -> OFF. Each tier names its wage and its dawn
+   quota: the dawn tick pays only when the player completed at least quota
+   missions since the last dawn (anti-inflation: pay follows work, and the
+   higher tiers demand more work). The wage rides in the carried wallet, so
+   death (15%) and BUSTED (25%) can still seize it. Enrollment persists in
+   save v4 as job: 0-3 (optional, absent = not enrolled; v1 saves with
+   job 0/1 map to 0/1, COURIER keeps the identical $30 wage: no silent
+   raise or cut); newGame quits the job. Zero new THREE objects, zero new
+   draw calls, zero new RNG. */
+const PAYROLL_TIERS = [
+  { name: 'NONE', wage: 0, quota: 0 },         // 0: off, never persisted as enrolled
+  { name: 'COURIER', wage: 30, quota: 1 },     // 1: the v1 job, wage and quota unchanged
+  { name: 'SECURITY', wage: 60, quota: 2 },    // 2: double pay, two missions
+  { name: 'SHADOW CREW', wage: 100, quota: 3 } // 3: top pay, three missions
+];
+let jobTier = 0;             // BANK PAYROLL v2: employment tier index 0-3, session + save
 function civicJob() {
   if (CIVIC.state !== 'bank') return;   // the bank-only idiom
-  jobEnrolled = !jobEnrolled;
-  sfxBuy(); toast(jobEnrolled ? 'JOB ENLISTED: +$30/DAY' : 'JOB QUIT');
-  civicActEl5.textContent = jobEnrolled ? 'QUIT JOB' : 'ENLIST JOB';
+  jobTier = (jobTier + 1) % PAYROLL_TIERS.length;   // OFF -> COURIER -> SECURITY -> SHADOW CREW -> OFF
+  const t = PAYROLL_TIERS[jobTier];
+  if (jobTier === 0) { sfxBuy(); toast('JOB QUIT'); }
+  else { sfxBuy(); toast('JOB: ' + t.name + ' $' + t.wage + '/DAY'); }
+  civicActEl5.textContent = jobTier === 0 ? 'ENLIST JOB' : t.name;
   updateCivicChip();   // re-render the footer JOB line while the panel is open
 }
 function bankDawnPayroll() {
   const worked = MS.doneToday; MS.doneToday = 0;   // the gate resets every dawn, one read
-  if (!jobEnrolled) return;                        // no job: silent
-  if (worked < 1) { toast('PAYDAY SKIPPED: DO A MISSION'); return; }   // pay follows work
-  cash += BANK_PAYROLL_WAGE; updateCashHUD();      // the wage rides in the wallet, still seizable
-  sfxBuy(); toast('+$' + BANK_PAYROLL_WAGE + ' PAYDAY');   // the cash sfx idiom
+  if (jobTier === 0) return;                       // no job: silent
+  const t = PAYROLL_TIERS[jobTier];                // the tier names the wage and the quota
+  if (worked < t.quota) {                          // pay follows work: the tier's quota gates the payday
+    toast(t.quota === 1 ? 'PAYDAY SKIPPED: DO A MISSION' : 'PAYDAY SKIPPED: DO ' + t.quota + ' MISSIONS');
+    return;
+  }
+  cash += t.wage; updateCashHUD();      // the wage rides in the wallet, still seizable
+  sfxBuy(); toast('+$' + t.wage + ' PAYDAY');   // the cash sfx idiom
 }
 /* Phase 5 bank interest v2: the bank pays 2% per in-game day, credited at
    the dawn tick (the day/night clock wrap that CIVIC.day counts). Session
@@ -20288,7 +20302,7 @@ let civicBearingT = 0;
 function civicTick(dt) {
   /* in-game day counter: the day/night clock wraps dayPhase 1 -> 0 */
   const dp = dayPhase;
-  if (CIVIC.lastPhase - dp >= 0.5) { CIVIC.day++; bankDawnInterest(); bankDawnPayroll(); }   // Phase 5 bank interest v2: dawn pays 2% on the bank balance; BANK PAYROLL v1: dawn pays the job wage
+  if (CIVIC.lastPhase - dp >= 0.5) { CIVIC.day++; bankDawnInterest(); bankDawnPayroll(); }   // Phase 5 bank interest v2: dawn pays 2% on the bank balance; BANK PAYROLL v2: dawn pays the tier wage
   CIVIC.lastPhase = dp;
   if (!CIVIC.state) {
     // parked: nearest interactive civic inside its porch hint radius shows the prompt (slot idiom)
@@ -22496,7 +22510,7 @@ function collectSave() {
     x: r2(sx), z: r2(sz),
     cash: cash | 0, kills: kills | 0,
     bank: bankBal | 0,   // Phase 5 bank: deposit-protection balance
-    job: jobEnrolled ? 1 : 0,   // BANK PAYROLL v1: enrolled = 1 (v4-optional, like pet/food)
+    job: jobTier,   // BANK PAYROLL v2: tier index 0-3 (v4-optional, like pet/food)
     sg: WEAPONS.shotgun.owned ? (WEAPONS.shotgun.ammo | 0) : -1,
     sm: WEAPONS.smg.owned ? (WEAPONS.smg.ammo | 0) : -1,
     cw: (curWeapon !== 'rifle' && WEAPONS[curWeapon] && WEAPONS[curWeapon].owned) ? curWeapon : 'rifle',
@@ -22542,9 +22556,11 @@ function validSave(d) {
     if (fp.length !== 9 && fp.length !== 6) return false;
     for (const s of fp) { if (!/^\d{1,4}$/.test(s) || +s > 999) return false; }
   }
-  /* BANK PAYROLL v1: job is optional (pre-payroll v4 saves lack it). No
-     version bump: missing means not enrolled, like pet/food above. */
-  if (d.job !== undefined && d.job !== 0 && d.job !== 1) return false;
+  /* BANK PAYROLL v2: job is optional (pre-payroll v4 saves lack it) and is a
+     tier index 0-3 (v1 saves with 0/1 map to 0/1: COURIER keeps the same $30
+     wage, no silent raise or cut). No version bump: missing means not
+     enrolled, like pet/food above. */
+  if (d.job !== undefined && d.job !== 0 && d.job !== 1 && d.job !== 2 && d.job !== 3) return false;
   return true;
 }
 
@@ -22556,7 +22572,7 @@ function applySave(d) {
   foodLoadStr(d.food);  // Phase 5 cooking: restore the pantry
   cash = d.cash; kills = d.kills;
   bankBal = d.bank | 0;   // Phase 5 bank: restore the protected balance
-  jobEnrolled = d.job === 1;   // BANK PAYROLL v1: missing field means not enrolled
+  jobTier = d.job | 0;   // BANK PAYROLL v2: missing field means not enrolled; v1 saves (0/1) map straight onto 0/1
   WEAPONS.shotgun.owned = d.sg >= 0; WEAPONS.shotgun.ammo = d.sg >= 0 ? d.sg : 8;
   WEAPONS.smg.owned = d.sm >= 0;     WEAPONS.smg.ammo = d.sm >= 0 ? d.sm : 120;
   curWeapon = (d.cw === 'shotgun' || d.cw === 'smg') && WEAPONS[d.cw].owned ? d.cw : 'rifle';
@@ -22616,7 +22632,7 @@ function newGame() {
   MS.state = 'IDLE'; MS.idx = -1; MS.phase = 0; MS.prog = 0; MS.giverT = 0;
   for (let i = 0; i < MS.done.length; i++) MS.done[i] = false;
   cash = 0; kills = 0; bankBal = 0;   // Phase 5 bank: a new game starts broke
-  jobEnrolled = false; MS.doneToday = 0;   // BANK PAYROLL v1: a new game quits the job
+  jobTier = 0; MS.doneToday = 0;   // BANK PAYROLL v2: a new game quits the job
   HEIST.active = false; HEIST.loot = 0; HEIST.tick = 0; HEIST.escT = 0; HEIST.sacks.length = 0;
   heistChipEl.style.display = 'none';   // Phase 5 heist: session-only, a new game starts clean
   SOCCER.goals = 0; updateSoccerChip(true);   // Phase 5 soccer: new session, new tally
