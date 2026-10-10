@@ -32,7 +32,7 @@ check('farm-static: seeded PRNG only (Math.random lines 92 = 91 + 1 boat splash 
   'lines=' + (html.match(/^.*Math\.random.*$/gm) || []).length);
 {
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('perf5: 44 IM literals after PERF-5 consolidation (48 - trunks/fol merge - npcLegIM into limbIM - copGuns into limbIM - eBodyBru IM to Mesh)', imCount === 44, 'count=' + imCount);
+  check('perf5: 45 IM literals after PERF-5 consolidation + stadium fleet (48 - trunks/fol merge - npcLegIM into limbIM - copGuns into limbIM - eBodyBru IM to Mesh + stadium)', imCount === 45, 'count=' + imCount);
 }
 check('farm-static: single renderer.render call site',
   (html.match(/renderer\.render\(/g) || []).length === 1);
