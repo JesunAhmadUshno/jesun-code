@@ -1193,28 +1193,40 @@ const FLORA = {};
 {
   const trunkG = new THREE.CylinderGeometry(0.14, 0.22, 1.6, 7);
   trunkG.translate(0, 0.8, 0);
-  const trunkM = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 1 });
 
   const folG = new THREE.ConeGeometry(1.5, 3.4, 8);
   folG.translate(0, 3.1, 0);
   const folG2 = new THREE.ConeGeometry(1.05, 2.4, 8);
   folG2.translate(0, 4.6, 0);
   /* PERF-2a: the two foliage cones always share a transform, so they merge
-     into one geometry (identical triangles, one draw call instead of two).
-     The forest-landmark pines use the same shapes and materials, so they
-     live in these same two meshes at slots [0, NF): 7 draws become 3. */
+     into one geometry (identical triangles, one draw call instead of two). */
   const folG12 = mergeGeos([folG, folG2]);
-  const folM = new THREE.MeshStandardMaterial({ color: 0x1e3a1c, roughness: 1 });
-  const NT = 150, NF = 60;
-  const trunks = new THREE.InstancedMesh(trunkG, trunkM, NT + NF);
-  const fol = new THREE.InstancedMesh(folG12, folM, NT + NF);
-  for (const m of [trunks, fol]) {
-    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    m.castShadow = m.receiveShadow = true;
-    m.frustumCulled = false;
-    scene.add(m);
+  /* PERF-5: trunk + foliage always share a transform too, so they merge into
+     one vertex-colored geometry (2 draw calls become 1). The old trunkM/folM
+     params (standard, roughness 1, no metalness/emissive) reproduce exactly:
+     baked vertex colors x white base material. mergeGeosColor is a hoisted
+     function declaration, safe to call here; the paint is local because
+     partGeo/paintGeo's _busCol temp is declared later in the file (TDZ). */
+  const _trCol = new THREE.Color();
+  function _paintTree(g, hex) {
+    _trCol.setHex(hex);
+    const n = g.attributes.position.count, a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = _trCol.r; a[i * 3 + 1] = _trCol.g; a[i * 3 + 2] = _trCol.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+    return g;
   }
-  FLORA.trunks = trunks; FLORA.fol = fol; FLORA.nt = NT; FLORA.nf = NF;
+  const treeGeo = mergeGeosColor([
+    _paintTree(trunkG, 0x4a3520),
+    _paintTree(folG12, 0x1e3a1c),
+  ]);
+  const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  const NT = 150, NF = 60;
+  const trees = new THREE.InstancedMesh(treeGeo, treeMat, NT + NF);
+  trees.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  trees.castShadow = trees.receiveShadow = true;
+  trees.frustumCulled = false;
+  scene.add(trees);
+  FLORA.trees = trees; FLORA.nt = NT; FLORA.nf = NF;
 
   const rockG = new THREE.DodecahedronGeometry(0.9, 0);
   const rockM = new THREE.MeshStandardMaterial({ color: 0x6a6d68, roughness: 0.95 });
@@ -1261,7 +1273,7 @@ function redistributeFlora(pcx, pcz) {
   rebuildFloraNoGo(pcx, pcz);
   _treePtsByChunk.clear();
   let ti = 0;
-  const { trunks, fol, nt, nf, rocks, nr } = FLORA;
+  const { trees, nt, nf, rocks, nr } = FLORA;
   for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++) {
     for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
       const rnd = mulberry32(hash2i(gx, gz));
@@ -1286,8 +1298,7 @@ function redistributeFlora(pcx, pcz) {
         dummy.rotation.y = rnd() * Math.PI * 2;
         dummy.scale.set(s, s, s);
         dummy.updateMatrix();
-        trunks.setMatrixAt(nf + ti, dummy.matrix);
-        fol.setMatrixAt(nf + ti, dummy.matrix);
+        trees.setMatrixAt(nf + ti, dummy.matrix);
         coverPts.push([x, z]);
         _treePts.push(x, z);
         ti++;
@@ -1295,9 +1306,8 @@ function redistributeFlora(pcx, pcz) {
       if (_treePts.length) _treePtsByChunk.set(gx + ',' + gz, _treePts.slice());
     }
   }
-  trunks.count = fol.count = nf + ti;
-  trunks.instanceMatrix.needsUpdate = true;
-  fol.instanceMatrix.needsUpdate = true;
+  trees.count = nf + ti;
+  trees.instanceMatrix.needsUpdate = true;
   let ri = 0;
   for (let gx = pcx - HALFGRID; gx <= pcx + HALFGRID; gx++) {
     for (let gz = pcz - HALFGRID; gz <= pcz + HALFGRID; gz++) {
@@ -1381,12 +1391,12 @@ const FOREST = { x0: -100, x1: -20, z0: -100, z1: -40 };
 const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
 
 /* ---- FOREST (north): 60 extra instanced pines, trunk + 2 cone layers ----
-   PERF-2a: forest pines share the FLORA meshes (identical shapes/materials);
-   their slots [0, NF) are written once here and never touched by the
-   redistributor. */
+   PERF-2a: forest pines share the FLORA mesh (identical shapes/materials);
+   PERF-5: trunk + foliage are one mesh now; their slots [0, NF) are written
+   once here and never touched by the redistributor. */
 {
   const N = FLORA.nf;
-  const trunks = FLORA.trunks, fol = FLORA.fol;
+  const trees = FLORA.trees;
   for (let i = 0; i < N; i++) {
     const x = FOREST.x0 + Math.random() * (FOREST.x1 - FOREST.x0);
     const z = FOREST.z0 + Math.random() * (FOREST.z1 - FOREST.z0);
@@ -1396,11 +1406,9 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
     dummy.scale.set(s, s, s);
     dummy.updateMatrix();
-    trunks.setMatrixAt(i, dummy.matrix);
-    fol.setMatrixAt(i, dummy.matrix);
+    trees.setMatrixAt(i, dummy.matrix);
   }
-  trunks.instanceMatrix.needsUpdate = true;
-  fol.instanceMatrix.needsUpdate = true;
+  trees.instanceMatrix.needsUpdate = true;
 }
 
 /* ---- FARM (west): fenced pasture, barn, hay bales ----------------------- */
@@ -4270,12 +4278,16 @@ const eBodySho = new THREE.InstancedMesh(mergeAnimalParts([
   animalBox(0.08, 0.11, 0.45, E_DARKC, 0.30, 1.15, 0.30),  // held carbine
   animalBox(0.045, 0.045, 0.4, E_DARKC, 0.30, 1.19, 0.62),
 ]), eBodyMat, 2);
-const eBodyBru = new THREE.InstancedMesh(mergeAnimalParts([
+/* PERF-5: the brute is one body, so the cap-1 InstancedMesh becomes a regular
+   Mesh (was an IM literal site): matrix.copy replaces setMatrixAt, and a
+   cloned material's color replaces the per-instance flash tint. Same draw
+   when active; parked = the old underground matrix, behavior unchanged. */
+const eBodyBruMesh = new THREE.Mesh(mergeAnimalParts([
   animalBox(0.84, 0.74, 0.52, 0x5c1414, 0, 1.22, 0),   // brute torso, dark red
   animalBox(0.9, 0.44, 0.58, E_DARKC, 0, 1.2, 0.01),   // vest
   animalBox(0.38, 0.38, 0.36, E_SKIN, 0, 1.78, 0),     // head
   animalBox(0.36, 0.2, 0.36, E_DARKC, 0, 1.98, 0),      // helm
-]), eBodyMat, 1);
+]), eBodyMat.clone());
 /* PERF-4: one merged limb InstancedMesh replaces eLegs + eArms + copLegs
    (3 draw calls become 1). All three shared EGEO.limb-compatible geometry:
    - slots E_LEG_BASE+0..9: enemy legs, matrices unchanged
@@ -4289,12 +4301,30 @@ const eBodyBru = new THREE.InstancedMesh(mergeAnimalParts([
    (enemy: E_DARKC x tint, cop: 0x1a2030). COP_LEG_N is COP_MAX * 2; COP_MAX is
    declared later in the cop section, both are 5. */
 const E_LEG_BASE = 0, E_ARM_BASE = 10, COP_LEG_BASE = 20, COP_LEG_N = 10;
-const LIMB_CAP = 30;
+/* PERF-5: NPC legs (24 slots) + cop guns (5 slots) join the limb fleet.
+   - slots NPC_LEG_BASE+30..53: NPC legs. The old geoLeg box (0.22 x 0.9 x 0.26,
+     hip-pivot offset -0.45 baked into the geometry) renders with EGEO.limb
+     (0.2 x 0.9 x 0.24) via per-axis compensation (LEG_FX/LEG_FZ) and the baked
+     offset folded into the instance matrix (T(0,-0.45,0) * S); pivots/swing
+     stay world-space, render is identical (normals/UVs of axis boxes
+     unaffected). NPC_N is declared later in the NPC section (12 -> 24 slots).
+   - slots COP_GUN_BASE+54..58: cop guns. The old EGEO.gunA box
+     (0.08 x 0.11 x 0.45) renders via per-axis compensation (GUN_FX/FY/FZ)
+     folded into the matrix. COP_MAX is declared later (5).
+   Material keeps roughness 0.9 (matches matLeg and copGunM exactly); white
+   base + instanceColor carries the old final colors (npc legs 0x24262e,
+   cop guns 0x141416). 2 draw calls become 0 new draws. */
+const NPC_LEG_BASE = 30, NPC_LEG_N = 24, COP_GUN_BASE = 54, COP_GUN_N = 5;
+const LIMB_CAP = 59;
 const ARM_FX = 0.16 / 0.2, ARM_FY = 0.62 / 0.9, ARM_FZ = 0.2 / 0.24;
+const LEG_FX = 0.22 / 0.2, LEG_FZ = 0.26 / 0.24;
+const GUN_FX = 0.08 / 0.2, GUN_FY = 0.11 / 0.9, GUN_FZ = 0.45 / 0.24;
 const limbIM = new THREE.InstancedMesh(EGEO.limb,
   new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), LIMB_CAP);
 const _DARKC = new THREE.Color(E_DARKC);
 const _COP_LEGC = new THREE.Color(0x1a2030);
+const _NPC_LEGC = new THREE.Color(0x24262e);
+const _COP_GUNC = new THREE.Color(0x141416);
 const _eTint = new THREE.Color();
 /* enemy limb slot: old final color was eDarkMat (E_DARKC) x tint, so the white
    base material needs the product baked into instanceColor */
@@ -4304,12 +4334,16 @@ function eLimbColorAt(slot, tint) {
 }
 /* cop leg slots carry the old copLegM color exactly (no tint path ever existed) */
 for (let ci = 0; ci < COP_LEG_N; ci++) limbIM.setColorAt(COP_LEG_BASE + ci, _COP_LEGC);
+/* PERF-5: npc leg slots carry the old matLeg color; cop gun slots the old copGunM */
+for (let ni = 0; ni < NPC_LEG_N; ni++) limbIM.setColorAt(NPC_LEG_BASE + ni, _NPC_LEGC);
+for (let gi = 0; gi < COP_GUN_N; gi++) limbIM.setColorAt(COP_GUN_BASE + gi, _COP_GUNC);
 limbIM.instanceColor.needsUpdate = true;
 const eEyes = new THREE.InstancedMesh(EGEO.eye, eEyeMat, 10);
-const enemyMeshes = [eBodyRus, eBodySho, eBodyBru, limbIM, eEyes];
+const enemyMeshes = [eBodyRus, eBodySho, eBodyBruMesh, limbIM, eEyes];
 for (const m of enemyMeshes) {
   m.frustumCulled = false; m.castShadow = true;
-  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  if (m.isInstancedMesh) m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  else m.matrixAutoUpdate = false;   // PERF-5: the brute Mesh poses via matrix.copy
   scene.add(m);
 }
 /* one aim line shared by both shooters (last writer wins); one ring, brute only */
@@ -4341,7 +4375,7 @@ const ESLOT = {
     legJ: 0.16, legY: 0.9, legHalf: 0.45, legS: [1, 1, 1],
     armJ: 0.36, armY: 1.45, armHalf: 0.31, armS: [1, 1, 1],
     eyeX: 0.08, eyeY: 1.7, eyeZ: 0.16 },
-  brute:   { body: eBodyBru, n: 0,
+  brute:   { body: eBodyBruMesh, n: 0,
     legJ: 0.22, legY: 0.85, legHalf: 0.425, legS: [0.3/0.2, 0.425/0.45, 0.32/0.24],
     armJ: 0.54, armY: 1.5, armHalf: 0.33, armS: [0.24/0.16, 0.33/0.31, 0.28/0.2],
     eyeX: 0.1, eyeY: 1.8, eyeZ: 0.2 },
@@ -4356,7 +4390,10 @@ function eBodyM(mesh, inst, gx, gy, gz, yaw, fall, ox, oy, oz) {
   _eM2.makeRotationX(fall); _eM1.multiply(_eM2);
   _eM1.setPosition(gx, gy, gz);
   _eM2.makeTranslation(ox, oy, oz); _eM1.multiply(_eM2);
-  mesh.setMatrixAt(inst, _eM1);
+  /* PERF-5: the brute body is a Mesh now; matrix.copy + an immediate
+     matrixWorld refresh (so hitscan never reads a stale frame) */
+  if (mesh.isInstancedMesh) mesh.setMatrixAt(inst, _eM1);
+  else { mesh.matrix.copy(_eM1); mesh.updateMatrixWorld(true); }
   eDirty = true;
 }
 function eLimbM(mesh, inst, gx, gy, gz, yaw, fall, jx, jy, jz, swing, half, sx, sy, sz) {
@@ -4379,10 +4416,13 @@ function setEyeColor(e, hex) {
 /* hit flash: per-instance color on body + limbs (replaces per-mesh emissive) */
 function setEnemyFlash(e, hex) {
   _eCol.setHex(hex);
-  e.bodyMesh.setColorAt(e.bodyInst, _eCol);
+  /* PERF-5: the brute Mesh carries the flash in its own (cloned) material color */
+  if (e.bodyMesh.isInstancedMesh) {
+    e.bodyMesh.setColorAt(e.bodyInst, _eCol);
+    e.bodyMesh.instanceColor.needsUpdate = true;
+  } else e.bodyMesh.material.color.copy(_eCol);
   eLimbColorAt(e.idx * 2, _eCol); eLimbColorAt(e.idx * 2 + 1, _eCol);
   eLimbColorAt(E_ARM_BASE + e.idx * 2, _eCol); eLimbColorAt(E_ARM_BASE + e.idx * 2 + 1, _eCol);
-  e.bodyMesh.instanceColor.needsUpdate = true;
   limbIM.instanceColor.needsUpdate = true;
 }
 function poseEnemy(e, fall, swing, armTgt) {
@@ -4403,7 +4443,9 @@ function poseEnemy(e, fall, swing, armTgt) {
 }
 function parkEnemy(e) {
   _eParkM.makeTranslation(0, -60, 0);
-  e.bodyMesh.setMatrixAt(e.bodyInst, _eParkM);
+  /* PERF-5: the brute Mesh takes the same underground park matrix */
+  if (e.bodyMesh.isInstancedMesh) e.bodyMesh.setMatrixAt(e.bodyInst, _eParkM);
+  else { e.bodyMesh.matrix.copy(_eParkM); e.bodyMesh.updateMatrixWorld(true); }
   limbIM.setMatrixAt(e.idx * 2, _eParkM); limbIM.setMatrixAt(e.idx * 2 + 1, _eParkM);
   limbIM.setMatrixAt(E_ARM_BASE + e.idx * 2, _eParkM);
   limbIM.setMatrixAt(E_ARM_BASE + e.idx * 2 + 1, _eParkM);
@@ -4482,13 +4524,14 @@ for (let i = 0; i < ENEMY_MIX.length; i++) {
 /* instanceId -> enemy mapping for hitscan */
 eBodyRus.userData.enemyOf = [enemies[0], enemies[1]];
 eBodySho.userData.enemyOf = [enemies[2], enemies[3]];
-eBodyBru.userData.enemyOf = [enemies[4]];
+eBodyBruMesh.userData.enemyOf = [enemies[4]];
 for (const m of [eEyes]) {
   m.userData.enemyOf = [];
   for (const e of enemies) m.userData.enemyOf.push(e, e);
 }
 /* limbIM: leg slots 0-9 then arm slots 10-19 map to the same enemies;
-   cop leg slots 20-29 stay undefined so the enemy hitscan skips them */
+   cop leg slots 20-29, npc leg slots 30-53 and cop gun slots 54-58 stay
+   undefined so the enemy hitscan skips them */
 limbIM.userData.enemyOf = [];
 for (const e of enemies) limbIM.userData.enemyOf.push(e, e);   // leg slots 0-9
 for (const e of enemies) limbIM.userData.enemyOf.push(e, e);   // arm slots 10-19
@@ -4544,7 +4587,8 @@ function shoot() {
     let eHit = null;
     for (let hi = 0; hi < hits.length; hi++) {
       const h = hits[hi];
-      const ee = h.object.userData.enemyOf[h.instanceId];
+      /* PERF-5: the brute body is a Mesh (no instanceId); its enemyOf holds one entry */
+      const ee = h.object.userData.enemyOf[h.instanceId === undefined ? 0 : h.instanceId];
       if (ee && ee.state !== 'dead') { eHit = h; break; }
     }
     /* cop hits: instanced meshes, first living cop along the ray wins */
@@ -4553,8 +4597,14 @@ function shoot() {
       const ch = raycaster.intersectObjects(copMeshes, false);
       for (let ci = 0; ci < ch.length; ci++) {
         const h = ch[ci];
-        /* PERF-4: limbIM shares slots with enemy limbs; cop legs start at copBase */
-        const idx = Math.floor((h.instanceId - (h.object.userData.copBase || 0)) / h.object.userData.perCop);
+        /* PERF-4: limbIM shares slots with enemy limbs; cop legs start at copBase.
+           PERF-5: limbIM also holds cop guns (slots gunBase+); they hit as the
+           cop holding them. NPC leg slots map past the cops array and fall
+           through the cc guard below, like enemy slots. */
+        const _ub = h.object.userData;
+        const idx = (_ub.gunBase !== undefined && h.instanceId >= _ub.gunBase)
+          ? h.instanceId - _ub.gunBase
+          : Math.floor((h.instanceId - (_ub.copBase || 0)) / _ub.perCop);
         if (idx < 0) continue;
         const cc = cops[idx];
         if (cc && cc.active && cc.state !== 'dead') { cHit = h; cIdx = idx; break; }
@@ -4573,7 +4623,7 @@ function shoot() {
     else if (cHit && (!eHit || cHit.distance < eHit.distance)) {
       end = cHit.point; damageCop(cIdx, w.dmg);
     }
-    else if (eHit) { end = eHit.point; damageEnemy(eHit.object.userData.enemyOf[eHit.instanceId], w.dmg); }
+    else if (eHit) { end = eHit.point; damageEnemy(eHit.object.userData.enemyOf[eHit.instanceId === undefined ? 0 : eHit.instanceId], w.dmg); }
     else { end = raycaster.ray.at(90, tmpEnd); }
     fireTracer(tmpV2, end);
   }
@@ -5045,19 +5095,22 @@ const heatEl = document.getElementById('heat');
        blue uniform material set. No new textures, no new geometry. --- */
 const copUniM = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.85 });
 const copHeadM = new THREE.MeshStandardMaterial({ color: 0x8a6a52, roughness: 0.85 });
-const copGunM = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 });
 const copEyeMat = new THREE.MeshBasicMaterial({ color: COP_CFG.eye });
 const copTorso = new THREE.InstancedMesh(EGEO.torso, copUniM, COP_MAX);
 const copHead = new THREE.InstancedMesh(EGEO.head, copHeadM, COP_MAX);
 /* PERF-4: cop legs live in the shared limbIM (slots COP_LEG_BASE+), zero new draws */
+/* PERF-5: cop guns live in the shared limbIM too (slots COP_GUN_BASE+), zero
+   new draws. The old copGunM is gone; instanceColor carries its color. */
 const copArms = new THREE.InstancedMesh(EGEO.arm, copUniM, COP_MAX * 2);
-const copGuns = new THREE.InstancedMesh(EGEO.gunA, copGunM, COP_MAX);
-const copMeshes = [copTorso, copHead, limbIM, copArms, copGuns];
+const copMeshes = [copTorso, copHead, limbIM, copArms];
 for (const m of copMeshes) {
   m.frustumCulled = false; m.castShadow = true;
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   m.userData.perCop = (m === limbIM || m === copArms) ? 2 : 1;   // instances per cop
-  if (m === limbIM) m.userData.copBase = COP_LEG_BASE;   // cop leg slots start here
+  if (m === limbIM) {
+    m.userData.copBase = COP_LEG_BASE;   // cop leg slots start here
+    m.userData.gunBase = COP_GUN_BASE;   // cop gun slots start here (PERF-5)
+  }
   scene.add(m);
 }
 /* one aim line shared by all aiming cops (last writer wins, 1 draw call) */
@@ -5068,7 +5121,8 @@ copAimLine.visible = false; copAimLine.frustumCulled = false;
 scene.add(copAimLine);
 
 /* --- matrix temps: zero allocation in the per-frame cop posing --- */
-const _copM1 = new THREE.Matrix4(), _copM2 = new THREE.Matrix4();
+const _copM1 = new THREE.Matrix4(), _copM2 = new THREE.Matrix4(),
+      _copM3 = new THREE.Matrix4();
 const _copD = new THREE.Object3D();
 let copDirty = false, copAnyActive = false;
 
@@ -5078,6 +5132,18 @@ function copBody(mesh, inst, gx, gy, gz, yaw, fall, ox, oy, oz) {
   _copM1.setPosition(gx, gy, gz);
   _copM2.makeTranslation(ox, oy, oz); _copM1.multiply(_copM2);
   mesh.setMatrixAt(inst, _copM1);
+  copDirty = true;
+}
+/* PERF-5: cop guns pose into the shared limbIM (slots COP_GUN_BASE+). The old
+   gunA box renders via the gun->limb per-axis scale compensation folded into
+   the matrix; identical vertices to the old mesh. */
+function copGun(inst, gx, gy, gz, yaw, fall, ox, oy, oz) {
+  _copM1.makeRotationY(yaw);
+  _copM2.makeRotationX(fall); _copM1.multiply(_copM2);
+  _copM1.setPosition(gx, gy, gz);
+  _copM2.makeTranslation(ox, oy, oz); _copM1.multiply(_copM2);
+  _copM3.makeScale(GUN_FX, GUN_FY, GUN_FZ); _copM1.multiply(_copM3);
+  limbIM.setMatrixAt(inst, _copM1);
   copDirty = true;
 }
 function copLimb(mesh, inst, gx, gy, gz, yaw, fall, jx, jy, jz, swing, half) {
@@ -5096,7 +5162,7 @@ function poseCop(c, fall, swing, armTgt) {
   const gp = c.group.position, yaw = c.group.rotation.y, i = c.idx, gy = gp.y;
   copBody(copTorso, i, gp.x, gy, gp.z, yaw, fall, 0, 1.21, 0);
   copBody(copHead, i, gp.x, gy, gp.z, yaw, fall, 0, 1.68, 0);
-  copBody(copGuns, i, gp.x, gy, gp.z, yaw, fall, 0.30, 1.15, 0.30);
+  copGun(COP_GUN_BASE + i, gp.x, gy, gp.z, yaw, fall, 0.30, 1.15, 0.30);
   copLimb(limbIM, COP_LEG_BASE + i * 2, gp.x, gy, gp.z, yaw, fall, -0.16, 0.9, 0, swing, 0.45);
   copLimb(limbIM, COP_LEG_BASE + i * 2 + 1, gp.x, gy, gp.z, yaw, fall, 0.16, 0.9, 0, -swing, 0.45);
   copLimb(copArms, i * 2, gp.x, gy, gp.z, yaw, fall, -0.36, 1.45, 0, armTgt, 0.31);
@@ -5109,7 +5175,7 @@ function parkCop(c) {
   const i = c.idx;
   copTorso.setMatrixAt(i, _copD.matrix);
   copHead.setMatrixAt(i, _copD.matrix);
-  copGuns.setMatrixAt(i, _copD.matrix);
+  limbIM.setMatrixAt(COP_GUN_BASE + i, _copD.matrix);   // PERF-5: gun slots ride limbIM
   limbIM.setMatrixAt(COP_LEG_BASE + i * 2, _copD.matrix);
   limbIM.setMatrixAt(COP_LEG_BASE + i * 2 + 1, _copD.matrix);
   copArms.setMatrixAt(i * 2, _copD.matrix);
@@ -5170,7 +5236,6 @@ copTorso.instanceMatrix.needsUpdate = true;
 copHead.instanceMatrix.needsUpdate = true;
 limbIM.instanceMatrix.needsUpdate = true;
 copArms.instanceMatrix.needsUpdate = true;
-copGuns.instanceMatrix.needsUpdate = true;
 
 /* --- heat state --- */
 function updateHeatHUD() {
@@ -5356,7 +5421,6 @@ function wantedTick(dt) {
     copHead.instanceMatrix.needsUpdate = true;
     limbIM.instanceMatrix.needsUpdate = true;
     copArms.instanceMatrix.needsUpdate = true;
-    copGuns.instanceMatrix.needsUpdate = true;
   }
   W.tickT += dt;
   if (W.tickT < 0.25) return;
@@ -9490,21 +9554,19 @@ const BUSNPC = { npcs: null, hideNPC: null };
   /* shared geometry and materials, created once. */
   const geoBody = new THREE.BoxGeometry(0.52, 0.62, 0.34);
   const geoHead = new THREE.BoxGeometry(0.3, 0.32, 0.3);
-  const geoLeg  = new THREE.BoxGeometry(0.22, 0.9, 0.26);
-  geoLeg.translate(0, -0.45, 0);   /* bake the hip-pivot leg offset into the geometry once */
   const SHIRTS = [0x2a4a7a, 0x7a2a2a, 0x2a7a3a, 0x7a6a2a, 0x5a2a7a, 0x2a7a6a, 0x7a4a2a, 0x9a9a9a];
   const SKINS  = [0x8a6f5c, 0xc9a183, 0x6e523e];
   const matBody = new THREE.MeshStandardMaterial({ roughness: 0.85, map: fabricTex });  /* white: instanceColor carries the shirt; shared fabric weave */
   const matHead = new THREE.MeshStandardMaterial({ roughness: 0.8 });   /* white: instanceColor carries the skin */
-  const matLeg  = new THREE.MeshStandardMaterial({ color: 0x24262e, roughness: 0.9 });
+  /* PERF-5: legs live in the shared limbIM (slots NPC_LEG_BASE+), zero new
+     draws. The old geoLeg/matLeg are gone; see the limb fleet comment. */
 
-  /* 3 draw calls: bodies, heads, legs (2 slots per NPC: L at 2i, R at 2i+1) */
+  /* 2 draw calls: bodies, heads (legs ride the shared limbIM: L at NPC_LEG_BASE+2i, R at +2i+1) */
   const NPC_N = 12;
   const npcBodyIM = new THREE.InstancedMesh(geoBody, matBody, NPC_N);
   const npcHeadIM = new THREE.InstancedMesh(geoHead, matHead, NPC_N);
-  const npcLegIM  = new THREE.InstancedMesh(geoLeg,  matLeg,  NPC_N * 2);
   const _nCol = new THREE.Color();
-  for (const im of [npcBodyIM, npcHeadIM, npcLegIM]) {
+  for (const im of [npcBodyIM, npcHeadIM]) {
     im.castShadow = true; im.frustumCulled = false;
     im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     scene.add(im);
@@ -9554,12 +9616,15 @@ const BUSNPC = { npcs: null, hideNPC: null };
   const WALK_SPD = 1.8, FLEE_SPD = 5;
   const tmpDir = new THREE.Vector3();
   /* matrix temps: zero allocation in the per-frame posing */
-  const _nM1 = new THREE.Matrix4(), _nM2 = new THREE.Matrix4(), _nM3 = new THREE.Matrix4();
+  const _nM1 = new THREE.Matrix4(), _nM2 = new THREE.Matrix4(), _nM3 = new THREE.Matrix4(),
+        _nM4 = new THREE.Matrix4();
 
   /* pose every instance from the bookkeeping pos/yaw/swing state.
      root = T(pos) * Ry(yaw); body = root * T(0,1.21,0);
-     head = root * T(0,1.68,0); leg = root * T(hip) * Rx(swing).
-     Matches the old per-mesh hierarchy exactly (leg geo is pre-translated). */
+     head = root * T(0,1.68,0); leg = root * T(hip) * Rx(swing) * T(0,-0.45,0) * S.
+     Matches the old per-mesh hierarchy exactly: the old leg geometry had the
+     -0.45 hip offset baked in, now folded into the matrix (PERF-5), and the
+     leg->limb per-axis scale compensation (LEG_FX/LEG_FZ) with it. */
   function poseNPCs() {
     for (let i = 0; i < npcs.length; i++) {
       const n = npcs[i], p = n.pos;
@@ -9571,14 +9636,20 @@ const BUSNPC = { npcs: null, hideNPC: null };
       npcHeadIM.setMatrixAt(i, _nM2);
       _nM2.makeTranslation(-0.16, 0.9, 0); _nM2.premultiply(_nM1);
       _nM3.makeRotationX(n.swingL); _nM2.multiply(_nM3);
-      npcLegIM.setMatrixAt(i * 2, _nM2);
+      _nM4.makeScale(LEG_FX, 1, LEG_FZ);
+      _nM3.makeTranslation(0, -0.45, 0); _nM3.multiply(_nM4);
+      _nM2.multiply(_nM3);
+      limbIM.setMatrixAt(NPC_LEG_BASE + i * 2, _nM2);
       _nM2.makeTranslation(0.16, 0.9, 0); _nM2.premultiply(_nM1);
       _nM3.makeRotationX(n.swingR); _nM2.multiply(_nM3);
-      npcLegIM.setMatrixAt(i * 2 + 1, _nM2);
+      _nM4.makeScale(LEG_FX, 1, LEG_FZ);
+      _nM3.makeTranslation(0, -0.45, 0); _nM3.multiply(_nM4);
+      _nM2.multiply(_nM3);
+      limbIM.setMatrixAt(NPC_LEG_BASE + i * 2 + 1, _nM2);
     }
     npcBodyIM.instanceMatrix.needsUpdate = true;
     npcHeadIM.instanceMatrix.needsUpdate = true;
-    npcLegIM.instanceMatrix.needsUpdate = true;
+    limbIM.instanceMatrix.needsUpdate = true;
   }
   poseNPCs();   /* pose once before the first tick so no instance sits at the origin */
 
@@ -9595,11 +9666,11 @@ const BUSNPC = { npcs: null, hideNPC: null };
     if (hide) _nM1.setPosition(0, -100, 0);
     npcBodyIM.setMatrixAt(i, _nM1);
     npcHeadIM.setMatrixAt(i, _nM1);
-    npcLegIM.setMatrixAt(i * 2, _nM1);
-    npcLegIM.setMatrixAt(i * 2 + 1, _nM1);
+    limbIM.setMatrixAt(NPC_LEG_BASE + i * 2, _nM1);
+    limbIM.setMatrixAt(NPC_LEG_BASE + i * 2 + 1, _nM1);
     npcBodyIM.instanceMatrix.needsUpdate = true;
     npcHeadIM.instanceMatrix.needsUpdate = true;
-    npcLegIM.instanceMatrix.needsUpdate = true;
+    limbIM.instanceMatrix.needsUpdate = true;
   };
   /* higher-IQ: expose the amenity finder for the bus/NPC bridge (function
      declarations hoist, so this runs before the def below). */
@@ -11304,8 +11375,11 @@ for (const [sx, sz] of [[-0.85, 1.45], [0.85, 1.45], [-0.85, -1.45], [0.85, -1.4
   emBodyParts.push(partGeo(w, 0x161616, sx, 0.36, sz));   // wheels baked (v1: no spin)
 }
 const emBodyGeo = mergeGeosColor(emBodyParts);
-const emBodyIM = new THREE.InstancedMesh(emBodyGeo,
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.25 }), 3);
+/* PERF-5: hoisted shared vehicle-body materials (byte-identical params, never
+   mutated per-frame): em + boat share vehBodyMatA; bc + scooter share vehBodyMatB. */
+const vehBodyMatA = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.25 });
+const vehBodyMatB = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.3 });
+const emBodyIM = new THREE.InstancedMesh(emBodyGeo, vehBodyMatA, 3);
 emBodyIM.castShadow = false; emBodyIM.frustumCulled = false;
 emBodyIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 emBodyIM.setColorAt(0, new THREE.Color(0xdfe7f2));   // cruiser: patrol white-blue
@@ -12141,8 +12215,7 @@ for (const wz of [0.66, -0.66]) {
   bcParts.push(partGeo(cr, 0x9aa0a8, _bcBB[0], _bcBB[1], _bcBB[2]));  // chainring
 }
 const bcBodyGeo = mergeGeosColor(bcParts);
-const bcBodyIM = new THREE.InstancedMesh(bcBodyGeo,
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.3 }), 3);
+const bcBodyIM = new THREE.InstancedMesh(bcBodyGeo, vehBodyMatB, 3);
 bcBodyIM.castShadow = false; bcBodyIM.frustumCulled = false;
 bcBodyIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 bcBodyIM.setColorAt(0, new THREE.Color(0xff3d2e));   // Signal Red
@@ -12504,8 +12577,7 @@ for (const wz of [0.58, -0.32]) {
   scParts.push(partGeo(wh, 0x8a8f96, 0, 0.15, wz));   // hub
 }
 const scBodyGeo = mergeGeosColor(scParts);
-const scBodyIM = new THREE.InstancedMesh(scBodyGeo,
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.3 }), 3);
+const scBodyIM = new THREE.InstancedMesh(scBodyGeo, vehBodyMatB, 3);
 scBodyIM.castShadow = false; scBodyIM.frustumCulled = false;
 scBodyIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 scBodyIM.setColorAt(0, new THREE.Color(0xff3d2e));   // Signal Red
@@ -12857,8 +12929,7 @@ const boatParts = [
 ];
 const boatBodyGeo = mergeGeosColor(boatParts);
 const BOAT_N = 4;
-const boatBodyIM = new THREE.InstancedMesh(boatBodyGeo,
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.25 }), BOAT_N);
+const boatBodyIM = new THREE.InstancedMesh(boatBodyGeo, vehBodyMatA, BOAT_N);
 boatBodyIM.castShadow = false; boatBodyIM.frustumCulled = false;
 boatBodyIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 const BOAT_TINTS = [0xf0f0f0, 0xff3d2e, 0x3d7bff, 0xffd24a];   // white fishing, red speed, blue, yellow
@@ -15981,7 +16052,6 @@ function tick() {
     eDirty = false;
     eBodyRus.instanceMatrix.needsUpdate = true;
     eBodySho.instanceMatrix.needsUpdate = true;
-    eBodyBru.instanceMatrix.needsUpdate = true;
     limbIM.instanceMatrix.needsUpdate = true;
     eEyes.instanceMatrix.needsUpdate = true;
   }
