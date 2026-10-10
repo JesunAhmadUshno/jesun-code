@@ -740,6 +740,15 @@
     display: flex; align-items: center; justify-content: center;
   }
   #civicact:active { background: #7dd8e0; }
+  /* Phase 5 bank: deposit/withdraw share the #civicact look exactly.
+     Hidden by default: shown only while CIVIC.state === 'bank'. */
+  #civicact2, #civicact3 {
+    position: relative; width: 100%; height: 52px; left: auto; bottom: auto;
+    margin-top: 8px; font-size: 16px; letter-spacing: 4px; font-weight: bold;
+    background: rgba(125,216,224,.9); color: #0c0e0a;
+    display: none; align-items: center; justify-content: center;
+  }
+  #civicact2:active, #civicact3:active { background: #7dd8e0; }
   #civicfoot { color: #8a927e; font-size: 10px; letter-spacing: 2px; margin-top: 8px; }
   #slotpanel {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -982,6 +991,8 @@
   <div id="civicpanel">
     <div id="civictitle">CIVIC</div>
     <div class="tbtn" id="civicact">ACT</div>
+    <div class="tbtn" id="civicact2">DEPOSIT</div>
+    <div class="tbtn" id="civicact3">WITHDRAW</div>
     <div id="civicfoot"></div>
   </div>
   <div id="worshippanel">
@@ -4989,7 +5000,8 @@ function hurtPlayer(d) {
   diffRecordDamage(d);   // dynamic difficulty: rolling damage-taken stat
   updateHpHUD();
   if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; diffRecordDeath();
-    toast('ELIMINATED'); missionOnDeath();
+    const lost = Math.floor(cash * 0.15); cash -= lost; updateCashHUD();   // Phase 5 bank: only carried cash is seized; the bank is never touched
+    toast('ELIMINATED - $' + lost + ' LOST'); missionOnDeath();
     closeShop();
     curWeapon = 'rifle'; updateWeaponHUD(); updateHpHUD(); }
 }
@@ -5760,7 +5772,7 @@ function busted() {
   updateHpHUD(); closeShop();
   missionOnDeath();
   sfxBusted();
-  toast('BUSTED - $' + seized + ' SEIZED');
+  toast('BUSTED - $' + seized + ' SEIZED | BANK SAFE');
 }
 
 /* --- procedural two-tone siren: one oscillator + square LFO, created once,
@@ -5878,6 +5890,7 @@ const MISSIONS = [
 const MS = { state: 'IDLE', idx: -1, phase: 0, prog: 0, giverT: 0,
              done: [false, false, false, false, false] };
 let cash = 0;
+let bankBal = 0;   // Phase 5 bank: deposit protection. Seized by death/BUSTED: never. Only carried cash is at risk.
 const cashEl = document.getElementById('cash');
 const mtitleEl = document.getElementById('mtitle'), mobjEl = document.getElementById('mobj');
 const mtrackerEl = document.getElementById('mtracker');
@@ -19129,7 +19142,7 @@ const CIVIC_HINT_TXT = { hospital: 'HEAL [E]', bank: 'ATM [E]', hotel: 'REST [E]
 const CIVIC_ACT_TXT = { hospital: 'HEAL $30', bank: 'WITHDRAW $20', hotel: 'REST $40' };
 const CIVIC_FOOT_TXT = {
   hospital: 'FULL HEAL TO 100 HP',
-  bank: 'DAILY ALLOWANCE - ONCE PER IN-GAME DAY',
+  bank: 'WALLET $x | BANK $y | DAILY ALLOWANCE ONCE PER IN-GAME DAY',   // placeholder: rendered live by updateCivicChip
   hotel: 'FULL HEAL + SLEEP TO 06:00',
 };
 const HELP_CIVIC = '<b>E</b> leave &nbsp; <b>TOUCH</b> tap action';
@@ -19143,6 +19156,8 @@ const civtxtEl = document.getElementById('civtxt');
 const civicPanelEl = document.getElementById('civicpanel');
 const civicTitleEl = document.getElementById('civictitle');
 const civicActEl = document.getElementById('civicact');
+const civicActEl2 = document.getElementById('civicact2');   // Phase 5 bank: DEPOSIT
+const civicActEl3 = document.getElementById('civicact3');   // Phase 5 bank: WITHDRAW
 const civicFootEl = document.getElementById('civicfoot');
 civichintEl.textContent = IS_TOUCH ? 'TAP TO ENTER' : 'ENTER [E]';
 civichintEl.addEventListener('click', () => { if (CIVIC.hintOn) civicEnter(); });
@@ -19150,10 +19165,24 @@ civicChipEl.addEventListener('click', () => { if (CIVIC.state) camYaw = CIVIC.ca
 function civicActBtn(e) { e.preventDefault(); e.stopPropagation(); civicAct(); }
 civicActEl.addEventListener('touchstart', civicActBtn, { passive: false });
 civicActEl.addEventListener('click', civicActBtn);
+/* Phase 5 bank: touch parity with civicActBtn on both new buttons */
+function civicDepositBtn(e) { e.preventDefault(); e.stopPropagation(); civicDeposit(); }
+civicActEl2.addEventListener('touchstart', civicDepositBtn, { passive: false });
+civicActEl2.addEventListener('click', civicDepositBtn);
+function civicWithdrawBtn(e) { e.preventDefault(); e.stopPropagation(); civicWithdraw(); }
+civicActEl3.addEventListener('touchstart', civicWithdrawBtn, { passive: false });
+civicActEl3.addEventListener('click', civicWithdrawBtn);
 function updateCivicChip() {
   if (!CIVIC.state) { civicChipEl.style.display = 'none'; return; }
   civicChipEl.style.display = 'block';
-  civicChipEl.textContent = CIVIC.state.toUpperCase() + ' | ' + CIVIC_ACT_TXT[CIVIC.state] + ' | E LEAVE';
+  if (CIVIC.state === 'bank') {
+    /* Phase 5 bank: chip names the deposit/withdraw verbs; foot renders the
+       wallet and bank balances live after every action */
+    civicChipEl.textContent = 'BANK | DEPOSIT / WITHDRAW / $20 DAILY | E LEAVE';
+    civicFootEl.textContent = 'WALLET $' + cash + ' | BANK $' + bankBal + ' | DAILY ALLOWANCE ONCE PER IN-GAME DAY';
+  } else {
+    civicChipEl.textContent = CIVIC.state.toUpperCase() + ' | ' + CIVIC_ACT_TXT[CIVIC.state] + ' | E LEAVE';
+  }
 }
 
 function civicEnter() {
@@ -19181,6 +19210,9 @@ function civicEnter() {
   civicActEl.textContent = CIVIC_ACT_TXT[type];
   civicFootEl.textContent = CIVIC_FOOT_TXT[type];
   civicPanelEl.style.display = 'block';
+  const isBank = CIVIC.state === 'bank';   // Phase 5 bank: deposit/withdraw buttons are bank-only
+  civicActEl2.style.display = isBank ? 'flex' : 'none';
+  civicActEl3.style.display = isBank ? 'flex' : 'none';
   updateCivicChip();
   civichintEl.style.opacity = 0; CIVIC.hintOn = false; CIVIC.nearIdx = -1; CIVIC.nearType = null;
   carHintEl.style.opacity = 0; CAR.hintOn = false;
@@ -19209,6 +19241,8 @@ function civicExit() {
   CIVIC.state = null; CIVIC.nearIdx = -1; CIVIC.nearType = null;
   civicChipEl.style.display = 'none';
   civicPanelEl.style.display = 'none';
+  civicActEl2.style.display = 'none';   // Phase 5 bank: hide on exit
+  civicActEl3.style.display = 'none';
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
@@ -19243,6 +19277,25 @@ function civicAtm() {
   CIVIC.atmDay = CIVIC.day;
   cash += CIVIC_ATM_AMT; updateCashHUD(); floatCash('+$' + CIVIC_ATM_AMT);   // the cash idiom
   sfxBuy(); toast('WITHDREW $' + CIVIC_ATM_AMT);
+  updateCivicChip();
+}
+/* Phase 5 bank: deposit protection. Deposit moves ALL carried cash into the
+   bank (never seized); withdraw pulls the whole bank balance back to the
+   wallet. The ATM day idiom above is untouched. */
+function civicDeposit() {
+  if (CIVIC.state !== 'bank') return;
+  if (cash <= 0) { sfxDenied(); toast('NOTHING TO DEPOSIT'); return; }   // the shop denied idiom
+  const amt = cash;
+  bankBal += amt; cash = 0; updateCashHUD();   // the cash idiom
+  sfxBuy(); toast('DEPOSITED $' + amt);
+  updateCivicChip();
+}
+function civicWithdraw() {
+  if (CIVIC.state !== 'bank') return;
+  if (bankBal <= 0) { sfxDenied(); toast('NO SAVINGS'); return; }   // the shop denied idiom
+  const amt = bankBal;
+  cash += amt; bankBal = 0; updateCashHUD();   // the cash idiom
+  sfxBuy(); toast('WITHDREW $' + amt);
   updateCivicChip();
 }
 function civicRest() {
@@ -21415,15 +21468,16 @@ function govTick(dt) {
    game. Zero per-frame allocation: the tick only moves scalars and updates
    one HUD string once per second. */
 const SAVE_KEY = 'realms3d_save_v1', SAVE_JOURNAL = 'realms3d_save_journal',
-      SAVE_BAK = 'realms3d_save_bak', SAVE_VERSION = 3;
+      SAVE_BAK = 'realms3d_save_bak', SAVE_VERSION = 4;
 const SAVE_WORLD_R = 120;                 // validation: |x|,|z| stay inside the world
 const savedEl = document.getElementById('saved');
 let lastSaveAt = 0, saveBootToast = false, saveAutoT = 0, saveChipT = 0;
 
 /* forward-only migrations: v1 is the identity step; v1->v2 adds the optional
    pet field (absent = no pet, still valid); v2->v3 adds the optional food
-   field (absent = empty pantry, still valid). Future versions add N->N+1. */
-const SAVE_MIGRATIONS = { 1: d => d, 2: d => { d.food = d.food || '0:0:0:0:0:0'; return d; } };
+   field (absent = empty pantry, still valid); v3->v4 adds the bank field
+   (absent = zero balance, still valid). Future versions add N->N+1. */
+const SAVE_MIGRATIONS = { 1: d => d, 2: d => { d.food = d.food || '0:0:0:0:0:0'; return d; }, 3: d => { d.bank = 0; return d; } };
 function migrateSave(env) {
   let v = env.version | 0, d = env.data;
   while (v < SAVE_VERSION) {
@@ -21446,6 +21500,7 @@ function collectSave() {
   return {
     x: r2(sx), z: r2(sz),
     cash: cash | 0, kills: kills | 0,
+    bank: bankBal | 0,   // Phase 5 bank: deposit-protection balance
     sg: WEAPONS.shotgun.owned ? (WEAPONS.shotgun.ammo | 0) : -1,
     sm: WEAPONS.smg.owned ? (WEAPONS.smg.ammo | 0) : -1,
     cw: (curWeapon !== 'rifle' && WEAPONS[curWeapon] && WEAPONS[curWeapon].owned) ? curWeapon : 'rifle',
@@ -21466,6 +21521,7 @@ function validSave(d) {
   if (!n(d.x) || Math.abs(d.x) > SAVE_WORLD_R) return false;
   if (!n(d.z) || Math.abs(d.z) > SAVE_WORLD_R) return false;
   if (!i(d.cash, 0, 99999999)) return false;
+  if (!i(d.bank, 0, 99999999)) return false;   // Phase 5 bank: same bounds as cash
   if (!i(d.kills, 0, 999999)) return false;
   if (!i(d.sg, -1, 24) || !i(d.sm, -1, 240)) return false;   // shotgun max 24, smg max 240
   if (d.cw !== 'rifle' && d.cw !== 'shotgun' && d.cw !== 'smg') return false;
@@ -21500,6 +21556,7 @@ function applySave(d) {
   petLoadStr(d.pet);   // Phase 5 wildlife: retame the saved pet at its offset
   foodLoadStr(d.food);  // Phase 5 cooking: restore the pantry
   cash = d.cash; kills = d.kills;
+  bankBal = d.bank | 0;   // Phase 5 bank: restore the protected balance
   WEAPONS.shotgun.owned = d.sg >= 0; WEAPONS.shotgun.ammo = d.sg >= 0 ? d.sg : 8;
   WEAPONS.smg.owned = d.sm >= 0;     WEAPONS.smg.ammo = d.sm >= 0 ? d.sm : 120;
   curWeapon = (d.cw === 'shotgun' || d.cw === 'smg') && WEAPONS[d.cw].owned ? d.cw : 'rifle';
