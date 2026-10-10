@@ -775,6 +775,17 @@
     background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
     letter-spacing: 2px; display: none; pointer-events: none;
   }
+  /* ---- landmark casino: BACCARAT v1 (sixth table game) HUD. The
+         baccarat panel is DOM only (PLAYER/BANKER/TIE side tabs, the
+         inspectable paytable, the face-down squeeze rows, BET/DEAL/CLEAR
+         buttons, the SQUEEZE caption, a win-headline overlay). #baccchip
+         mirrors #pokerchip in the top-left stack (852px sits below
+         #pokerchip 819px, no overlap). ---- */
+  #baccchip {
+    position: absolute; top: 852px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
   #lmdicepanel {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
@@ -850,6 +861,54 @@
   #lmpoker-bigwin {
     position: absolute; left: 0; right: 0; top: 30%; color: #ffd24a;
     font-size: 26px; font-weight: bold; letter-spacing: 4px; display: none;
+    text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
+    animation: lmcs-bigwin .4s ease-in-out infinite alternate;
+  }
+  #lmbaccpanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
+    padding: 14px 16px; display: none; text-align: center; z-index: 40;
+    user-select: none; -webkit-user-select: none; max-height: 88vh; overflow-y: auto;
+  }
+  #lmbacc-title { color: #ffd24a; font-size: 15px; letter-spacing: 4px; font-weight: bold; margin-bottom: 8px; }
+  #lmbacc-pay { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; justify-content: center; margin: 0 auto 10px; max-width: 300px; text-align: left; }
+  .lmbacc-payrow { display: contents; }
+  .lmbacc-payname { color: #8b937a; font-size: 11px; letter-spacing: 1px; padding: 2px 0; }
+  .lmbacc-payval { color: #cfe8d8; font-size: 11px; font-weight: bold; text-align: right; padding: 2px 0; }
+  .lmbacc-payrow.win .lmbacc-payname, .lmbacc-payrow.win .lmbacc-payval { color: #ffd24a; text-shadow: 0 0 8px #ff9a2a; }
+  #lmbacc-note { color: #8b937a; font-size: 10px; letter-spacing: 1px; margin-bottom: 8px; }
+  #lmbacc-tabs { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+  #lmbacc-tabs button {
+    font-size: 12px; letter-spacing: 1px; font-weight: bold; padding: 10px 14px;
+    border-radius: 6px; border: 1px solid #4a5240; cursor: pointer; color: #cfe8d8;
+    background: #1a2416; touch-action: manipulation;
+  }
+  #lmbacc-tabs button.bet { box-shadow: inset 0 0 0 2px #ffd24a; }
+  .lmbacc-stake { display: block; font-size: 10px; color: #ffd24a; font-weight: bold; margin-top: 2px; }
+  .lmbacc-rowlabel { color: #8b937a; font-size: 10px; letter-spacing: 3px; margin: 6px 0 4px; }
+  #lmbacc-prow, #lmbacc-brow { display: flex; gap: 8px; justify-content: center; margin-bottom: 4px; min-height: 92px; }
+  .lmbacc-card {
+    width: 62px; height: 88px; line-height: 84px; border-radius: 8px; font-size: 22px; font-weight: bold;
+    background: #f2ede0; color: #1a1a1a; border: 2px solid #c9a227;
+    touch-action: manipulation; position: relative; text-align: center;
+  }
+  .lmbacc-card.lmbacc-red { color: #a01822; }
+  .lmbacc-card.lmbacc-down { background: #241a30; color: #c9a227; }
+  @keyframes lmbacc-flip { from { transform: rotateY(90deg); } to { transform: rotateY(0deg); } }
+  .lmbacc-card.lmbacc-reveal { animation: lmbacc-flip .25s ease-out; }
+  #lmbacc-squeeze { color: #ffd24a; font-size: 14px; letter-spacing: 5px; font-weight: bold; min-height: 20px; margin-bottom: 6px; display: none; }
+  #lmbacc-status { color: #cfe8d8; font-size: 12px; letter-spacing: 1px; min-height: 18px; margin-bottom: 8px; }
+  #lmbacc-controls { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  #lmbacc-controls button {
+    font-size: 13px; letter-spacing: 1px; font-weight: bold; padding: 10px 14px;
+    border-radius: 6px; border: 1px solid #c9a227; cursor: pointer; touch-action: manipulation;
+  }
+  #lmbacc-bet { color: #ffd24a; background: #2a2416; }
+  #lmbacc-deal { color: #0c0e0a; background: #ffd24a; }
+  #lmbacc-clear { color: #cfe8d8; background: #3a2a1a; }
+  #lmbacc-bigwin {
+    position: absolute; left: 0; right: 0; top: 34%; color: #ffd24a;
+    font-size: 30px; font-weight: bold; letter-spacing: 4px; display: none;
     text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
     animation: lmcs-bigwin .4s ease-in-out infinite alternate;
   }
@@ -1283,6 +1342,7 @@
   <div id="roulchip"></div>
   <div id="dicechip"></div>
   <div id="pokerchip"></div>
+  <div id="baccchip"></div>
   <div id="lmcasinopanel">
     <div id="lmcs-title">ROYAL REELS</div>
     <div id="lmcs-reels">
@@ -1330,6 +1390,20 @@
     <div id="lmpoker-status">BET $10</div>
     <div id="lmpoker-controls"><button id="lmpoker-bet">BET $10</button><button id="lmpoker-deal">DEAL</button><button id="lmpoker-draw">DRAW</button></div>
     <div id="lmpoker-bigwin"></div>
+  </div>
+  <div id="lmbaccpanel">
+    <div id="lmbacc-title">BACCARAT</div>
+    <div id="lmbacc-pay"></div>
+    <div id="lmbacc-note">TIE PUSHES PLAYER AND BANKER BETS - THIRD CARD AUTOMATIC</div>
+    <div id="lmbacc-tabs"><button id="lmbacc-tab-player">PLAYER</button><button id="lmbacc-tab-banker">BANKER</button><button id="lmbacc-tab-tie">TIE</button></div>
+    <div class="lmbacc-rowlabel" id="lmbacc-plabel">PLAYER</div>
+    <div id="lmbacc-prow"></div>
+    <div class="lmbacc-rowlabel" id="lmbacc-blabel">BANKER</div>
+    <div id="lmbacc-brow"></div>
+    <div id="lmbacc-squeeze">SQUEEZE...</div>
+    <div id="lmbacc-status">BET $10</div>
+    <div id="lmbacc-controls"><button id="lmbacc-bet">BET $10</button><button id="lmbacc-deal">DEAL</button><button id="lmbacc-clear">CLEAR</button></div>
+    <div id="lmbacc-bigwin"></div>
   </div>
   <div id="firestchip"><span id="firestarr">^</span> <span id="firesttxt"></span></div>
   <div id="heistchip"></div>
@@ -8628,6 +8702,17 @@ function buildCasinoHallGeo() {
     amenPart(parts, 1, 0.28, 0.28, 0.5, -10.2, 0.45, _pz, WOOD);        // the stool
     amenPart(parts, 1, 0.06, 0.06, 0.2, -10.2, 0.1, _pz, MACHD);
   }
+  /* baccarat table (casino baccarat v1): felt top on wood legs, east of the
+     card tables, with the player's chair south of it and a dealer stool
+     north. Merged into the hall mesh (the dice table idiom): zero net new
+     draw calls, zero new lights. All baccarat play is a DOM overlay, so
+     baccarat costs nothing beyond the hall mesh. */
+  amenPart(parts, 0, 3.0, 0.12, 2.4, 9.5, 1.42, 2.0, FELT);
+  amenPart(parts, 0, 2.8, 0.10, 2.2, 9.5, 1.32, 2.0, WOOD);
+  for (const _dx of [8.3, 10.7]) for (const _dz of [1.05, 2.95])
+    amenPart(parts, 0, 0.25, 1.35, 0.25, _dx, 0.675, _dz, WOOD);
+  amenPart(parts, 0, 0.6, 0.9, 0.6, 9.5, 0.45, 4.5, WOOD);   // the player chair
+  amenPart(parts, 0, 0.6, 0.9, 0.6, 9.5, 0.45, -0.5, WOOD);  // the dealer stool
   /* curtains + sconces + chandelier */
   amenPart(parts, 0, 2.2, 6.5, 0.7, -7.1, 3.85, -9.3, CURTAIN);
   amenPart(parts, 0, 2.2, 6.5, 0.7, 7.1, 3.85, -9.3, CURTAIN);
@@ -8661,8 +8746,8 @@ const CASINOHALL = {
   inHall: false, hintEnter: false, sitOn: false, nearIdx: -1,
   doorX: 0, doorZ: 0,
   standX: 0, standZ: 0, seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the machines (-Z)
-  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0, pokerSeatX: 0, pokerSeatZ: 0,   // the five table seats
-  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice' | 'poker': which seat E plays at
+  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0, pokerSeatX: 0, pokerSeatZ: 0, baccSeatX: 0, baccSeatZ: 0,   // the six table seats
+  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice' | 'poker' | 'bacc': which seat E plays at
   seated: false,
   hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
   hallPos: new THREE.Vector3(),
@@ -8887,12 +8972,14 @@ function casinoSlotStand() {
    per step, always outward: E never traps. Mirrors the theater showOn flip. */
 function casinoHallKeyE() {
   if (!CASINOHALL.inHall) return;
-  if (CASINOSLOT.playing) { casinoSlotStand(); casinoHallExit(); }
+  if (CASINOBACC.playing && CASINOBACC.phase === 'squeeze') { baccSkipSqueeze(); }   // E skips the squeeze ritual to an instant reveal
+  else if (CASINOSLOT.playing) { casinoSlotStand(); casinoHallExit(); }
   else if (CASINOBJ.playing) { casinoBjStand(); casinoHallExit(); }
   else if (CASINOROUL.playing) { casinoRoulStand(); casinoHallExit(); }
   else if (CASINODICE.playing) { casinoDiceStand(); casinoHallExit(); }
   else if (CASINOPOKER.playing) { casinoPokerStand(); casinoHallExit(); }
-  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else if (CASINOHALL.seatKind === 'poker') casinoPokerSit(); else casinoSlotSit(); }
+  else if (CASINOBACC.playing) { casinoBaccStand(); casinoHallExit(); }
+  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else if (CASINOHALL.seatKind === 'poker') casinoPokerSit(); else if (CASINOHALL.seatKind === 'bacc') casinoBaccSit(); else casinoSlotSit(); }
   else casinoHallExit();
 }
 function casinoHallEnter() {
@@ -8917,6 +9004,7 @@ function casinoHallEnter() {
   CASINOHALL.roulSeatX = a.x; CASINOHALL.roulSeatZ = a.z + 11.3;         // roulette: the wheel-table chair, faces the wheel (-Z)
   CASINOHALL.diceSeatX = a.x + 8.5; CASINOHALL.diceSeatZ = a.z + 10.8;  // dice: the street-dice table chair, faces the table (-Z)
   CASINOHALL.pokerSeatX = a.x - 10.2; CASINOHALL.pokerSeatZ = a.z + 5.2;   // poker: the west-wall video-poker stool, faces the cabinets (-X)
+  CASINOHALL.baccSeatX = a.x + 9.5; CASINOHALL.baccSeatZ = a.z + 4.5;     // baccarat: the east baccarat-table chair, faces the table (-Z)
   CASINOHALL.seatX = CASINOHALL.slotSeatX; CASINOHALL.seatZ = CASINOHALL.slotSeatZ; CASINOHALL.seatYaw = Math.PI;
   CASINOHALL.hallPos.set(a.x, CASINO_ROOM_Y, a.z - 6.0);
   player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
@@ -8962,7 +9050,7 @@ function casinoHallEnter() {
 }
 function casinoHallExit() {
   if (!CASINOHALL.inHall) return;
-  if (CASINOHALL.seated) { if (CASINOPOKER.playing) casinoPokerStand(); else if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
+  if (CASINOHALL.seated) { if (CASINOPOKER.playing) casinoPokerStand(); else if (CASINOBACC.playing) casinoBaccStand(); else if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
   CASINOHALL.inHall = false; CASINOHALL.sitOn = false; CASINOHALL.nearIdx = -1;
   casinoHallMesh.visible = false;
   casinoslothintEl.style.opacity = 0;
@@ -8972,6 +9060,7 @@ function casinoHallExit() {
   roulPanelEl.style.display = 'none'; roulChipEl.style.display = 'none';
   dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none'; diceBigWinEl.style.display = 'none';
   pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
+  baccPanelEl.style.display = 'none'; baccChipEl.style.display = 'none'; baccBigWinEl.style.display = 'none';
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
@@ -8996,6 +9085,7 @@ function casinoHallTick(dt) {
     CASINOROUL.playing = false; roulPanelEl.style.display = 'none'; roulChipEl.style.display = 'none';
     CASINODICE.playing = false; dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none';
     CASINOPOKER.playing = false; pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
+    CASINOBACC.playing = false; baccPanelEl.style.display = 'none'; baccChipEl.style.display = 'none'; baccBigWinEl.style.display = 'none';
     lmcsPanelEl.style.display = 'none';
     bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
     casinChipEl.style.display = 'none';
@@ -9038,13 +9128,14 @@ function casinoHallTick(dt) {
       const playRoul = IS_TOUCH ? 'TAP TO PLAY ROULETTE' : 'PLAY ROULETTE [E]';
       const playDice = IS_TOUCH ? 'TAP TO PLAY DICE' : 'PLAY DICE [E]';
       const playPoker = IS_TOUCH ? 'TAP TO PLAY POKER' : 'PLAY POKER [E]';
-      const playTxt = CASINOHALL.seatKind === 'poker' ? playPoker : (CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots)));
+      const playBacc = IS_TOUCH ? 'TAP TO PLAY BACCARAT' : 'PLAY BACCARAT [E]';
+      const playTxt = CASINOHALL.seatKind === 'bacc' ? playBacc : (CASINOHALL.seatKind === 'poker' ? playPoker : (CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots))));
       const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
       const txt = CASINOHALL.seated ? exitTxt : (CASINOHALL.sitOn ? playTxt : exitTxt);
       if (casinoslothintEl.textContent !== txt) casinoslothintEl.textContent = txt;
       casinoslothintEl.style.opacity = 1;
       /* seat toggle chip (touch-friendly): which table E plays at next */
-      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'poker' ? 'POKER' : (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS'))));
+      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'bacc' ? 'BACCARAT' : (CASINOHALL.seatKind === 'poker' ? 'POKER' : (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS')))));
       if (casinobjselEl.textContent !== selTxt) casinobjselEl.textContent = selTxt;
       casinobjselEl.style.opacity = CASINOHALL.seated ? 0 : 1;
     }
@@ -9052,6 +9143,7 @@ function casinoHallTick(dt) {
     roulUpdate(dt);   // wheel + ball animation + win-flash timer
     diceUpdate(dt);   // dice tumble + landing headline + delayed settle
     pokerUpdate(dt);  // video-poker draw cascade + win highlight + delayed settle
+    baccUpdate(dt);   // baccarat squeeze cascade + win headline + delayed settle
     casinChipEl.style.display = 'none';
     return;
   }
@@ -9265,7 +9357,7 @@ function bjRender() {
 }
 function casinoSeatToggle() {
   if (!CASINOHALL.inHall || CASINOHALL.seated) return;
-  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : (CASINOHALL.seatKind === 'dice' ? 'poker' : 'slots')));
+  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : (CASINOHALL.seatKind === 'dice' ? 'poker' : (CASINOHALL.seatKind === 'poker' ? 'bacc' : 'slots'))));
   sfxBlip(760, 0.06, 'square', 0.14);
 }
 function casinoBjSit() {
@@ -10056,7 +10148,8 @@ const HELP_LMDICE = '<b>ROLL</b> play &nbsp; <b>E</b> exit &nbsp; <b>TOUCH</b> t
         driven, no setTimeout). E sits at the poker stool, E stands and exits
         (never traps: standing refunds any pending bet; a pending draw aborts
         cleanly). Q (or the TABLE chip) cycles seats: slots, cards, roulette,
-        dice, poker. Session only: the save schema is untouched. ---- */
+        dice, poker. Q (or the TABLE chip) cycles seats: slots, cards, roulette,
+        dice, poker, baccarat. Session only: the save schema is untouched. ---- */
 const POKER_BETS = [5, 10, 25];
 const POKER_HASH_A = 6529, POKER_HASH_B = 7;   // fresh hash space: not 6503, not the shoe space, not (6521, 99)
 /* 9/6 Jacks or Better full-pay: per-coin pays. Payouts scale with the bet
@@ -10389,6 +10482,402 @@ function pokerDrawBtn(e) { e.preventDefault(); e.stopPropagation(); pokerDrawHan
 pokerDrawEl.addEventListener('touchstart', pokerDrawBtn, { passive: false });
 pokerDrawEl.addEventListener('click', pokerDrawBtn);
 const HELP_LMPOKER = '<b>DEAL</b> play &nbsp; <b>E</b> exit &nbsp; <b>1-5</b> hold &nbsp; <b>TOUCH</b> tap cards';
+
+/* ---- landmark casino: CASINO BACCARAT v1 ("BACCARAT"), the sixth table game
+        in the gaming hall. PLAYER / BANKER / TIE side tabs, $5/$10/$25 bet
+        tiers (the POKER_BETS idiom), closest to 9 wins. Hand value is sum mod
+        10 (A=1, 2-9 face, 10/J/Q/K=0); a natural 8 or 9 ends the round. The
+        third card is automatic: the player draws on 5 or less, the banker
+        follows the standard tableau against the player's third card (0-2
+        draws; 3 draws unless the third is 8; 4 draws on 2-7; 5 draws on 4-7;
+        6 draws on 6-7; 7 stands; stands on 6-7 when the player stands).
+        Payouts: PLAYER 1:1, BANKER 1:1, TIE 8:1; a tie pushes player and
+        banker bets. Honest note: no 5% banker commission in v1 (the bankroll
+        is integer cash); the house edge lives in the tie-bet odds.
+        The squeeze ritual is the game: DEAL turns every card face-down on
+        the DOM overlay; the side with the larger total bet gets squeezed
+        (ties squeeze the banker), one card at a time with a flip animation
+        and a rising drum-rattle (the sfxBlip idiom) under a SQUEEZE caption;
+        the other side reveals after, the third card reveals last. E skips
+        the ritual to an instant reveal. The win headline and the win sting
+        land on the last reveal; the bankroll settles 0.6s later on the tick
+        loop (the dice-settle idiom, no setTimeout). The baccarat table is
+        merged into the cached hall mesh: zero net new draw calls, zero new
+        lights. Honest seeded 52-card shoe on the seeded-RNG idiom only: one
+        Fisher-Yates stream per shoe, seeded from a fresh casino hash space
+        (6533, 11) and the hand count, never 6503, never the shoe space,
+        never (6521, 99), never (6529, 7). Reshuffle when fewer than 15
+        cards remain. E sits at the baccarat chair, E stands and exits (never
+        traps: standing mid-squeeze refunds the pending bets; a pending
+        settle no-ops). Q (or the TABLE chip) cycles seats: slots, cards,
+        roulette, dice, poker, baccarat. Session only: the save schema is
+        untouched. Procedural WebAudio only (the sfxBlip fanfare idiom: zero
+        new audio nodes). ---- */
+const BACC_BETS = [5, 10, 25];
+const BACC_HASH_A = 6533, BACC_HASH_B = 11;   // fresh hash space: not 6503, not the shoe space, not (6521, 99), not (6529, 7)
+const BACC_SIDES = ['player', 'banker', 'tie'];
+const BACC_SUIT_CH = ['\u2660', '\u2665', '\u2666', '\u2663'];   // spades hearts diamonds clubs
+const BACC_RANK_CH = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const BACC_PAY = [
+  ['PLAYER', '1:1'], ['BANKER', '1:1'], ['TIE', '8:1'],
+];
+const CASINOBACC = {
+  playing: false, betIdx: 1, hands: 0,
+  shoe: [], phase: 'idle',            // idle | squeeze | resolve | done
+  player: [], banker: [],             // card ids 0..51
+  shown: { player: [false, false, false], banker: [false, false, false] },
+  lastShown: '', revealQ: [], revealT: 0, revealN: 0, rattleT: 0,
+  target: 'banker', natural: false,
+  bets: { player: 0, banker: 0, tie: 0 },
+  lastOut: '', lastDelta: 0,
+  hlT: 0, settleTb: 0, settleNet: 0, settleOut: '', bigWinT: 0,
+};
+function baccRank(c) { return (c % 13) + 1; }           // 1..13, 1 = ace
+function baccSuit(c) { return Math.floor(c / 13); }     // 0..3: S H D C
+function baccIsRed(c) { const s = baccSuit(c); return s === 1 || s === 2; }
+function baccCardStr(c) { return BACC_RANK_CH[baccRank(c) - 1] + BACC_SUIT_CH[baccSuit(c)]; }
+function baccCardVal(c) { const r = baccRank(c); return r === 1 ? 1 : (r <= 9 ? r : 0); }   // A=1, 2-9 face, 10/J/Q/K=0
+function baccHandVal(hand) { let t = 0; for (const c of hand) t += baccCardVal(c); return t % 10; }   // sum mod 10
+/* Fisher-Yates on the seeded idiom: deterministic for a given seed, a full
+   honest 52 every shuffle. */
+function baccBuildShoe(seed) {
+  const shoe = [];
+  for (let i = 0; i < 52; i++) shoe.push(i);
+  const r = mulberry32(seed >>> 0);
+  for (let i = 51; i > 0; i--) { const j = Math.floor(r() * (i + 1)); const t = shoe[i]; shoe[i] = shoe[j]; shoe[j] = t; }
+  return shoe;
+}
+function baccShoeSeed() { return (hash2i(BACC_HASH_A, BACC_HASH_B) ^ (CASINOBACC.hands * 0x9e3779b9)) >>> 0; }
+function baccDraw() {
+  if (CASINOBACC.shoe.length < 15) CASINOBACC.shoe = baccBuildShoe(baccShoeSeed());   // reshuffle under 15 cards
+  return CASINOBACC.shoe.pop();
+}
+/* the standard banker tableau against the player's third card value v. */
+function baccBankerDraws(bv, v) {
+  if (bv <= 2) return true;
+  if (bv === 3) return v !== 8;
+  if (bv === 4) return v >= 2 && v <= 7;
+  if (bv === 5) return v >= 4 && v <= 7;
+  if (bv === 6) return v === 6 || v === 7;
+  return false;   // 7 stands
+}
+function baccTotalBet() { const b = CASINOBACC.bets; return b.player + b.banker + b.tie; }
+function baccClearBoard() {
+  const B = CASINOBACC;
+  B.player = []; B.banker = [];
+  B.shown = { player: [false, false, false], banker: [false, false, false] };
+  B.lastShown = ''; B.revealQ = []; B.revealT = 0; B.revealN = 0; B.rattleT = 0;
+  B.target = 'banker'; B.natural = false;
+  B.lastOut = ''; B.lastDelta = 0;
+}
+function baccPlace(side) {
+  const B = CASINOBACC;
+  if (!B.playing || (B.phase !== 'idle' && B.phase !== 'done') || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  const bet = BACC_BETS[B.betIdx];
+  if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
+  if (B.phase === 'done') { baccClearBoard(); B.phase = 'idle'; }   // a fresh felt for the next round
+  cash -= bet; updateCashHUD(); floatCash('-$' + bet);              // the cash idiom
+  B.bets[side] += bet;
+  sfxBlip(880, 0.07, 'square', 0.16);
+  baccRender();
+}
+function baccClear() {
+  const B = CASINOBACC;
+  if (!B.playing || (B.phase !== 'idle' && B.phase !== 'done')) return;
+  const tb = baccTotalBet();
+  if (tb > 0) { cash += tb; updateCashHUD(); floatCash('+$' + tb); toast('BETS CLEARED'); }   // pending bets refund on clear
+  B.bets = { player: 0, banker: 0, tie: 0 };
+  if (B.phase === 'done') baccClearBoard();
+  sfxBlip(660, 0.06, 'square', 0.14);
+  baccRender();
+}
+function baccCycleBet() {
+  if (!CASINOBACC.playing || (CASINOBACC.phase !== 'idle' && CASINOBACC.phase !== 'done')) return;
+  CASINOBACC.betIdx = (CASINOBACC.betIdx + 1) % BACC_BETS.length;
+  const b = BACC_BETS[CASINOBACC.betIdx];
+  baccBetEl.textContent = 'BET $' + b;
+  baccRender();
+  sfxBlip(990, 0.07, 'square', 0.16);
+}
+function baccDeal() {
+  const B = CASINOBACC;
+  if (!B.playing || (B.phase !== 'idle' && B.phase !== 'done') || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  const tb = baccTotalBet();
+  if (tb <= 0) { sfxDenied(); toast('PLACE A BET FIRST'); return; }   // the shop denied idiom
+  B.hands++;
+  B.player = [baccDraw(), baccDraw()];
+  B.banker = [baccDraw(), baccDraw()];
+  B.shown = { player: [false, false, false], banker: [false, false, false] };
+  B.lastShown = '';
+  /* naturals: 8 or 9 on either side ends the round, no third card. */
+  const pv = baccHandVal(B.player), bv = baccHandVal(B.banker);
+  B.natural = pv >= 8 || bv >= 8;
+  let pThird = false, bThird = false;
+  if (!B.natural) {
+    if (pv <= 5) { B.player.push(baccDraw()); pThird = true; }   // the player draws on 5 or less
+    const bv2 = baccHandVal(B.banker);
+    if (pThird) {
+      if (baccBankerDraws(bv2, baccCardVal(B.player[2]))) { B.banker.push(baccDraw()); bThird = true; }   // the standard tableau
+    } else if (bv2 <= 5) { B.banker.push(baccDraw()); bThird = true; }   // player stood: the banker stands on 6-7
+  }
+  /* the squeeze target: the side with the larger total bet; ties squeeze
+     the banker. The target's cards reveal first, the other side after, the
+     third cards (if any) reveal last. */
+  B.target = B.bets.banker >= B.bets.player ? 'banker' : 'player';
+  const other = B.target === 'banker' ? 'player' : 'banker';
+  B.revealQ = [[B.target, 0], [B.target, 1], [other, 0], [other, 1]];
+  if (pThird) B.revealQ.push(['player', 2]);
+  if (bThird) B.revealQ.push(['banker', 2]);
+  B.revealT = 0; B.revealN = 0; B.rattleT = 0;
+  B.phase = 'squeeze';
+  sfxBlip(240, 0.1, 'square', 0.16);   // the deal knock
+  toast('SQUEEZE THE ' + B.target.toUpperCase());
+  baccRender();
+}
+/* one card of the ritual: flip animation (the lmbacc-reveal class), a rising
+   flip blip, the queue advance. Quiet for the E skip: the ritual ends
+   without the per-card blips. */
+function baccRevealOne(quiet) {
+  const B = CASINOBACC;
+  const step = B.revealQ.shift();
+  if (!step) return;
+  B.shown[step[0]][step[1]] = true;
+  B.lastShown = step[0] + step[1];
+  if (!quiet) {
+    sfxBlip(440 + B.revealN * 100, 0.07, 'square', 0.16);   // the rising flip blip
+    B.revealN++;
+  }
+  if (B.revealQ.length === 0) baccFinishReveal();
+  baccRender();
+}
+function baccSkipSqueeze() {
+  const B = CASINOBACC;
+  if (!B.playing || B.phase !== 'squeeze') return;
+  while (B.revealQ.length) baccRevealOne(true);   // E skips the ritual to an instant reveal
+  sfxBlip(660, 0.08, 'triangle', 0.18);
+}
+function baccOutcome() {
+  const pv = baccHandVal(CASINOBACC.player), bv = baccHandVal(CASINOBACC.banker);
+  if (pv > bv) return 'player';
+  if (bv > pv) return 'banker';
+  return 'tie';
+}
+/* net delta on top of the returned stake: PLAYER and BANKER pay 1:1, the TIE
+   pays 8:1, a tie pushes player and banker bets. Honest note: no 5% banker
+   commission in v1 (the bankroll is integer cash); the house edge lives in
+   the tie-bet odds. */
+function baccNetFor(out, bets) {
+  if (out === 'player') return bets.player - bets.banker - bets.tie;
+  if (out === 'banker') return bets.banker - bets.player - bets.tie;
+  return 8 * bets.tie;
+}
+/* the win sting (the fanfare idiom, zero new audio nodes: scheduled
+   sfxBlip calls on the audio clock, no setTimeout in the tick path). */
+function baccWinSting(out) {
+  const notes = out === 'tie' ? [523, 587, 659, 784, 880, 1046] : [660, 880, 1174];   // the tie gets the six-note fanfare
+  notes.forEach((f, i) => setTimeout(() => sfxBlip(f, 0.13, 'triangle', 0.2), i * 110));
+}
+function baccFinishReveal() {
+  const B = CASINOBACC;
+  B.phase = 'resolve';
+  const out = baccOutcome();
+  const tb = baccTotalBet();
+  const net = baccNetFor(out, B.bets);
+  B.settleTb = tb; B.settleNet = net; B.settleOut = out;
+  B.lastOut = out; B.lastDelta = net;
+  B.hlT = 0.6;   // the win headline breathes before the bankroll settles
+  const pv = baccHandVal(B.player), bv = baccHandVal(B.banker);
+  const headline = out === 'player' ? 'PLAYER ' + pv + ' WINS' : out === 'banker' ? 'BANKER ' + bv + ' WINS' : 'TIE ' + pv;
+  if (out === 'tie' && B.bets.tie > 0) {
+    baccWinSting('tie');
+    baccBigWinEl.textContent = 'TIE 8:1!';   // the headline moment
+    baccBigWinEl.style.display = 'block';
+    B.bigWinT = 2.2;
+  } else if (out !== 'tie' && B.bets[out] > 0) {
+    baccWinSting(out);
+  } else if (out === 'tie') {
+    sfxBlip(520, 0.1, 'triangle', 0.16);   // the quiet push
+  } else {
+    sfxBlip(220, 0.2, 'sawtooth', 0.18);   // the quiet loss
+  }
+  toast(headline);
+  baccRender();
+}
+function baccSettle() {
+  const B = CASINOBACC;
+  B.phase = 'done';
+  if (!B.playing) return;   // stood mid-resolve: the stand refund already covered it
+  const tb = B.settleTb, net = B.settleNet;
+  cash += tb + net; updateCashHUD();   // the cash idiom: stakes back plus net
+  if (net > 0) floatCash('+$' + net); else if (net < 0) floatCash('-$' + (-net));
+  B.bets = { player: 0, banker: 0, tie: 0 };
+  B.settleTb = 0; B.settleNet = 0; B.settleOut = '';
+  baccRender();
+}
+/* one timing table, tick-loop driven: the squeeze cascade (one card per
+   beat with the rattle between reveals), the win headline, the delayed
+   settle. No setTimeout anywhere in the tick path. */
+function baccUpdate(dt) {
+  const B = CASINOBACC;
+  if (!B.playing) return;
+  if (B.bigWinT > 0) {
+    B.bigWinT -= dt;
+    if (B.bigWinT <= 0) baccBigWinEl.style.display = 'none';
+  }
+  if (B.phase === 'squeeze') {
+    B.revealT += dt;
+    B.rattleT += dt;
+    if (B.rattleT >= 0.14) {   // the drum-rattle between reveals
+      B.rattleT = 0;
+      sfxBlip(170 + B.revealN * 40, 0.03, 'square', 0.07);
+    }
+    if (B.revealT >= 0.55) {   // one card per beat
+      B.revealT = 0;
+      baccRevealOne(false);
+    }
+  } else if (B.phase === 'resolve') {
+    B.hlT -= dt;
+    if (B.hlT <= 0) baccSettle();
+  }
+}
+/* the inspectable paytable: [{name, val, win}]. The winning side row glows
+   while the result is on screen. */
+function baccPayRows() {
+  return BACC_PAY.map(([name, val]) => ({
+    name,
+    val: name + ' PAYS ' + val,
+    win: (CASINOBACC.phase === 'resolve' || CASINOBACC.phase === 'done') && name === CASINOBACC.lastOut.toUpperCase(),
+  }));
+}
+function baccCardEl(c, shown, last) {
+  const d = document.createElement('div');
+  d.className = 'lmbacc-card' + (shown ? (baccIsRed(c) ? ' lmbacc-red' : '') : ' lmbacc-down') + (last ? ' lmbacc-reveal' : '');
+  d.textContent = shown ? baccCardStr(c) : '?';
+  return d;
+}
+function baccRender() {
+  const B = CASINOBACC;
+  /* the inspectable paytable; the winning side row glows on the result. */
+  baccPayEl.innerHTML = '';
+  for (const r of baccPayRows()) {
+    const row = document.createElement('div');
+    row.className = 'lmbacc-payrow' + (r.win ? ' win' : '');
+    const nm = document.createElement('div'); nm.className = 'lmbacc-payname'; nm.textContent = r.name;
+    const vl = document.createElement('div'); vl.className = 'lmbacc-payval'; vl.textContent = r.val;
+    row.appendChild(nm); row.appendChild(vl);
+    baccPayEl.appendChild(row);
+  }
+  /* the three side tabs (the dice-zone idiom): the stake sits on the tab. */
+  for (const side of BACC_SIDES) {
+    const el = baccTabEls[side];
+    const stake = B.bets[side];
+    el.innerHTML = side.toUpperCase() + '<span class="lmbacc-stake">' + (stake > 0 ? '$' + stake : '&nbsp;') + '</span>';
+    el.classList.toggle('bet', stake > 0);
+  }
+  /* the two squeeze rows: face-down until the ritual reveals them. */
+  baccPlayerEl.innerHTML = '';
+  baccBankerEl.innerHTML = '';
+  const pv = baccHandVal(B.player), bv = baccHandVal(B.banker);
+  const scored = B.phase === 'resolve' || B.phase === 'done';
+  for (let i = 0; i < B.player.length; i++)
+    baccPlayerEl.appendChild(baccCardEl(B.player[i], B.shown.player[i], B.lastShown === 'player' + i));
+  for (let i = 0; i < B.banker.length; i++)
+    baccBankerEl.appendChild(baccCardEl(B.banker[i], B.shown.banker[i], B.lastShown === 'banker' + i));
+  baccPlabelEl.textContent = 'PLAYER' + (scored ? ' ' + pv : '');
+  baccBlabelEl.textContent = 'BANKER' + (scored ? ' ' + bv : '');
+  baccSqueezeEl.style.display = B.phase === 'squeeze' ? 'block' : 'none';
+  const bet = BACC_BETS[B.betIdx];
+  let st;
+  if (B.phase === 'idle') st = 'BET $' + bet + ' - PICK A SIDE';
+  else if (B.phase === 'squeeze') st = 'SQUEEZE...';
+  else if (B.phase === 'resolve') st = B.lastOut.toUpperCase();
+  else st = B.lastOut.toUpperCase() + (B.lastDelta !== 0 ? ' ' + (B.lastDelta > 0 ? '+$' : '-$') + Math.abs(B.lastDelta) : ' PUSH');
+  baccStatusEl.textContent = st;
+  /* the HUD status chip (the chip idiom): phase plus the last balance delta */
+  baccChipEl.textContent = 'BACC ' + st;
+  baccChipEl.style.display = B.playing ? 'block' : 'none';
+  baccBetEl.textContent = 'BET $' + bet;
+  B.lastShown = '';   // the flip animation fires once, on the freshly revealed card
+}
+function casinoBaccSit() {
+  if (CASINOHALL.seated || !CASINOHALL.inHall) return;
+  emoteCancel();   // no emotes while gambling
+  CASINOHALL.seated = true; CASINOHALL.sitOn = false;
+  CASINOHALL.seatX = CASINOHALL.baccSeatX; CASINOHALL.seatZ = CASINOHALL.baccSeatZ; CASINOHALL.seatYaw = Math.PI;   // face the table (-Z)
+  CASINOBACC.playing = true; CASINOBACC.betIdx = 1; CASINOBACC.hands = 0;
+  CASINOBACC.shoe = baccBuildShoe(baccShoeSeed());
+  CASINOBACC.phase = 'idle';
+  baccClearBoard();
+  CASINOBACC.bets = { player: 0, banker: 0, tie: 0 };
+  CASINOBACC.lastDelta = 0;
+  CASINOBACC.hlT = 0; CASINOBACC.settleTb = 0; CASINOBACC.settleNet = 0; CASINOBACC.settleOut = ''; CASINOBACC.bigWinT = 0;
+  player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
+  player.rotation.y = CASINOHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  baccBetEl.textContent = 'BET $' + BACC_BETS[CASINOBACC.betIdx];
+  baccRender();
+  baccPanelEl.style.display = 'block';
+  casinoslothintEl.style.opacity = 0; casinobjselEl.style.opacity = 0;
+  helpEl.innerHTML = HELP_LMBACC;
+  toast('BACCARAT');
+  sfxBlip(660, 0.09, 'triangle', 0.2);
+}
+function casinoBaccStand() {
+  if (!CASINOHALL.seated) return;
+  CASINOHALL.seated = false; CASINOHALL.sitOn = false;
+  const tb = baccTotalBet();
+  if (tb > 0) {   // never strands chips: pending bets refund on stand, mid-squeeze or not; a pending settle no-ops
+    cash += tb; updateCashHUD();
+    toast('BETS REFUNDED $' + tb);
+  }
+  CASINOBACC.playing = false; CASINOBACC.phase = 'idle';
+  baccClearBoard();
+  CASINOBACC.bets = { player: 0, banker: 0, tie: 0 };
+  CASINOBACC.lastDelta = 0;
+  CASINOBACC.hlT = 0; CASINOBACC.settleTb = 0; CASINOBACC.settleNet = 0; CASINOBACC.settleOut = ''; CASINOBACC.bigWinT = 0;
+  baccPanelEl.style.display = 'none';
+  baccChipEl.style.display = 'none';
+  baccBigWinEl.style.display = 'none';
+  player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  helpEl.innerHTML = HELP_CASINOHALL;
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+const baccChipEl = document.getElementById('baccchip');
+const baccPanelEl = document.getElementById('lmbaccpanel');
+const baccPayEl = document.getElementById('lmbacc-pay');
+const baccPlabelEl = document.getElementById('lmbacc-plabel');
+const baccBlabelEl = document.getElementById('lmbacc-blabel');
+const baccPlayerEl = document.getElementById('lmbacc-prow');
+const baccBankerEl = document.getElementById('lmbacc-brow');
+const baccSqueezeEl = document.getElementById('lmbacc-squeeze');
+const baccStatusEl = document.getElementById('lmbacc-status');
+const baccBetEl = document.getElementById('lmbacc-bet');
+const baccDealEl = document.getElementById('lmbacc-deal');
+const baccClearEl = document.getElementById('lmbacc-clear');
+const baccBigWinEl = document.getElementById('lmbacc-bigwin');
+const baccTabEls = {
+  player: document.getElementById('lmbacc-tab-player'),
+  banker: document.getElementById('lmbacc-tab-banker'),
+  tie: document.getElementById('lmbacc-tab-tie'),
+};
+function baccTabBtn(side) {
+  return function baccTabTap(e) { e.preventDefault(); e.stopPropagation(); baccPlace(side); };   // the touch-guard idiom
+}
+for (const side of BACC_SIDES) {
+  baccTabEls[side].addEventListener('touchstart', baccTabBtn(side), { passive: false });
+  baccTabEls[side].addEventListener('click', baccTabBtn(side));
+}
+function baccBetBtn(e) { e.preventDefault(); e.stopPropagation(); baccCycleBet(); }   // the touch-guard idiom
+baccBetEl.addEventListener('touchstart', baccBetBtn, { passive: false });
+baccBetEl.addEventListener('click', baccBetBtn);
+function baccDealBtn(e) { e.preventDefault(); e.stopPropagation(); baccDeal(); }
+baccDealEl.addEventListener('touchstart', baccDealBtn, { passive: false });
+baccDealEl.addEventListener('click', baccDealBtn);
+function baccClearBtn(e) { e.preventDefault(); e.stopPropagation(); baccClear(); }
+baccClearEl.addEventListener('touchstart', baccClearBtn, { passive: false });
+baccClearEl.addEventListener('click', baccClearBtn);
+const HELP_LMBACC = '<b>DEAL</b> play &nbsp; <b>E</b> skip/exit &nbsp; <b>1-3</b> side &nbsp; <b>TOUCH</b> tap the tabs';
 
 /* ================= PHASE 5: LANDMARK FIRE STATION v1 (buildings/places) ================
    One seeded landmark fire station per rare chunk (the 'firestation' amenity
@@ -13068,7 +13557,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette, dice or poker
+  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette, dice, poker or baccarat
   if (CASINOPOKER.playing) {   // video poker captures 1-5 for card holds while seated (the shop-capture idiom)
     if (e.code === 'Digit1') { pokerToggleHold(0); return; }
     else if (e.code === 'Digit2') { pokerToggleHold(1); return; }
@@ -13076,6 +13565,12 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit4') { pokerToggleHold(3); return; }
     else if (e.code === 'Digit5') { pokerToggleHold(4); return; }
     /* every other key (E to stand, Q, movement) falls through: E never traps */
+  }
+  if (CASINOBACC.playing) {   // baccarat captures 1-3 for the side tabs while betting (the shop-capture idiom)
+    if (e.code === 'Digit1') { baccPlace('player'); return; }
+    else if (e.code === 'Digit2') { baccPlace('banker'); return; }
+    else if (e.code === 'Digit3') { baccPlace('tie'); return; }
+    /* every other key (E to skip the squeeze, then stand, Q, movement) falls through: E never traps */
   }
   if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
