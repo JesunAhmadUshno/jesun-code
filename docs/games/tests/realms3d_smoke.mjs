@@ -139,6 +139,11 @@ globalThis.__R3D = {
   pianoRebuild, pianoPose, pianoUpdate, sfxPianoNote, updateMusicChip,
   pianoBodyIM, pianoHintEl, musicChipEl, pianoKeysEl, PIANO_N, PIANO_NOTES,
   PIANO_KEYCODES, PIANO_SCAN, PIANO_PAD_LZ,
+  /* Phase 5 casino slots v1 */
+  SLOT, SLOT_BET, SLOT_SYM_N, slotEnter, slotExit, slotSpin, slotFinish, slotPay,
+  slotUpdate, updateCasinoChip, drawReel, drawSlotSym, sfxSlotCoin,
+  casinohintEl, casinoChipEl, casbearingEl, casarrEl, castxtEl,
+  slotPanelEl, slotWinEl, slotSpinEl, HELP_SLOT,
 };
 `;
 writeFileSync(BOOT, src);
@@ -3728,6 +3733,134 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.PIANO.playing === false && G.musicChipEl.style.display === 'none'
     && Math.hypot(G.player.position.x - slot.x, G.player.position.z - slot.z) > 1.0);
   check('piano: board/exit round trip leaves zero console errors/warnings',
+    consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
+}
+
+
+/* ================= 28. CASINO SLOTS v1 (Phase 5 entertainment) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.SLOT.playing) G.slotExit();
+  if (G.PIANO.playing) G.pianoExit();
+
+  /* static: zero new draw calls, no lights, no unseeded RNG, no em dashes,
+     no external URLs, no TODO text in the casino block */
+  const casinoSrc = html.slice(html.indexOf('/* ================= PHASE 5: CASINO SLOTS v1 (entertainment)'),
+                               html.indexOf('/* ============================== GAME LOOP'));
+  check('casino-static: zero new fleet mesh literals in the casino block',
+    (casinoSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('casino-static: casino block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(casinoSrc));
+  check('casino-static: no unseeded RNG in the casino block', !/Math\.random/.test(casinoSrc));
+  check('casino-static: no em dashes in the casino block', !casinoSrc.includes('\u2014'));
+  check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
+  check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
+  check('casino-static: whole-file IM literals pin at 47 (zero new draws)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('casino-static: 3 runtime building meshes (casino rides the store mesh)',
+    G.bldgMeshes.length === 3);
+  check('casino-static: casino def shares the store fleet mesh',
+    G.BLDG_DEF.casino.mesh === G.BLDG_DEF.store.mesh);
+  check('casino-static: guard coverage (positive chains)',
+    (html.match(/\|\| SLOT\.playing/g) || []).length >= 20);
+  check('casino-static: guard coverage (negated chains)',
+    (html.match(/&& !SLOT\.playing/g) || []).length >= 10);
+  check('casino-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+
+  /* seeded building: a real casino chunk, own residue, deterministic */
+  let cgx = 0, cgz = 0, cfound = false;
+  couter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.bldgTypeFor(gx, gz) === 'casino' && G.bldgAccepted(gx, gz)) { cgx = gx; cgz = gz; cfound = true; break couter; }
+    }
+  check('casino: a seeded casino chunk exists in the scan window', cfound, 'at ' + cgx + ',' + cgz);
+  check('casino: own hash residue %7===3, disjoint from store %7===1',
+    G.hash2i(cgx, cgz) % 7 === 3);
+  check('casino: bldgTypeFor is deterministic across calls',
+    G.bldgTypeFor(cgx, cgz) === 'casino');
+
+  /* mechanics: synthetic casino at the player (the ticker owns the real
+     redistribute; the seeded selection above proves the real placement) */
+  const cpx = G.player.position.x, cpz = G.player.position.z;
+  G.BLDG.active.casino.length = 0;
+  G.BLDG.active.casino.push({ x: cpx + 3, z: cpz, y: groundY(cpx + 3, cpz), yaw: 0, gx: 0, gz: 0, name: 'CASINO', type: 'casino' });
+  frame(3);
+  check('casino: PLAY hint shows near the casino',
+    G.SLOT.hintOn === true && G.casinohintEl.style.opacity == 1);
+
+  /* enter: walk up, E (slotEnter) sits the player at the porch */
+  const probs0 = consoleProblems.length;
+  G.cash = 100;
+  G.slotEnter();
+  check('casino: enter freezes the player at the porch, panel + chip show',
+    G.SLOT.playing === true && G.slotPanelEl.style.display === 'block'
+    && G.casinoChipEl.style.display === 'block');
+  frame(3);
+  check('casino: chip reads SLOT | LAST WIN | CASH',
+    /^SLOT \| LAST WIN \$\d+ \| CASH \$\d+$/.test(G.casinoChipEl.textContent), G.casinoChipEl.textContent);
+  check('casino: the player stays frozen at the porch while playing',
+    Math.abs(G.player.position.x - G.SLOT.seatX) < 0.01 && Math.abs(G.player.position.z - G.SLOT.seatZ) < 0.01
+    && G.SLOT.playing === true);
+
+  /* denied: under $5 the spin refuses, cash untouched */
+  G.cash = 3;
+  G.slotSpin();
+  check('casino: spin denied under $5 (cash untouched, not spinning)',
+    G.cash === 3 && G.SLOT.spinning === false);
+
+  /* spin: $5 debit, staggered locks, payline outcome, paytable credit */
+  G.cash = 100;
+  const cashBefore = G.cash;
+  G.slotSpin();
+  check('casino: spin debits $5 and starts the staggered spin',
+    G.cash === cashBefore - 5 && G.SLOT.spinning === true
+    && G.SLOT.reels.every(r => r.locked === false));
+  frame(70);   // ~1.17s: reel 1 locked, reels 2-3 still spinning
+  check('casino: staggered locks (reel 1 locks first)',
+    G.SLOT.reels[0].locked === true && G.SLOT.reels[1].locked === false && G.SLOT.reels[2].locked === false);
+  frame(45);   // ~1.92s: reel 2 locked, reel 3 still spinning
+  check('casino: staggered locks (reel 2 locks second)',
+    G.SLOT.reels[1].locked === true && G.SLOT.reels[2].locked === false);
+  frame(45);   // ~2.67s: all locked, spin settles
+  check('casino: spin settles with the outcome symbols on the payline',
+    G.SLOT.spinning === false && G.SLOT.reels.every(r => r.locked)
+    && G.SLOT.reels.every((r, i) => (((Math.round(r.pos) % 5) + 5) % 5) === G.SLOT.outcome[i]));
+  const expectWin = G.slotPay(G.SLOT.outcome[0], G.SLOT.outcome[1], G.SLOT.outcome[2]);
+  check('casino: cash settles as the $5 debit plus the paytable win',
+    G.cash === cashBefore - 5 + expectWin && G.SLOT.lastWin === expectWin,
+    'cash=' + G.cash + ' win=' + expectWin);
+
+  /* paytable math, no RNG involved */
+  check('casino: paytable math (jackpot x50 / trips x10 / pair x2 / miss)',
+    G.slotPay(2, 2, 2) === 250 && G.slotPay(0, 0, 0) === 50 && G.slotPay(4, 4, 4) === 50
+    && G.slotPay(0, 0, 3) === 10 && G.slotPay(1, 3, 1) === 10 && G.slotPay(0, 1, 2) === 0);
+
+  /* seeded RNG idiom: rewinding the spin counter replays the same outcome */
+  const oA = G.SLOT.outcome.slice();
+  G.cash = 1000;
+  G.SLOT.spins -= 1;
+  G.slotSpin();
+  check('casino: seeded outcomes are deterministic for a given spin count',
+    G.SLOT.outcome.join(',') === oA.join(','));
+  frame(160);   // let the replayed spin settle
+
+  /* exit: E (slotExit) frees the player, never traps */
+  G.slotExit();
+  check('casino: exit frees the player, panel + chip hide',
+    G.SLOT.playing === false && G.slotPanelEl.style.display === 'none'
+    && G.casinoChipEl.style.display === 'none');
+  check('casino: E exits via the keydown chain',
+    html.includes("if (e.code === 'KeyE') { if (SLOT.playing) slotExit();"));
+  check('casino: vehicleExit and busted eject the gambler',
+    html.includes('function vehicleExit() { if (SLOT.playing) slotExit();')
+    && html.includes('else if (SLOT.playing) slotExit();   // busted off the slot machine too'));
+  frame(20);   // bearing chip cadence
+  check('casino: bearing chip shows the CASINO sign with distance',
+    G.casbearingEl.style.display === 'block' && /CASINO \d+M/.test(G.castxtEl.textContent), G.castxtEl.textContent);
+  check('casino: enter/spin/exit round trip leaves zero console errors/warnings',
     consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
 }
 
