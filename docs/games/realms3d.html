@@ -786,6 +786,63 @@
     background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
     letter-spacing: 2px; display: none; pointer-events: none;
   }
+  /* ---- landmark casino: KENO v1 (seventh table game) HUD. The
+         keno panel is DOM only (the 8x10 pick card of 1-80, the inspectable
+         paytable, the balls-drawn/hits meters, BET/QUICK PICK/CLEAR/DRAW
+         buttons, a win-headline overlay). #kenochip mirrors #baccchip in
+         the top-left stack (885px sits below #baccchip 852px, no overlap).
+         ---- */
+  #kenochip {
+    position: absolute; top: 885px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #lmkenopanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
+    padding: 14px 16px; display: none; text-align: center; z-index: 40;
+    user-select: none; -webkit-user-select: none; max-height: 88vh; overflow-y: auto;
+  }
+  #lmkeno-title { color: #ffd24a; font-size: 15px; letter-spacing: 4px; font-weight: bold; margin-bottom: 8px; }
+  #lmkeno-pay { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; justify-content: center; margin: 0 auto 10px; max-width: 300px; text-align: left; }
+  .lmkeno-payrow { display: contents; }
+  .lmkeno-payname { color: #8b937a; font-size: 11px; letter-spacing: 1px; padding: 2px 0; }
+  .lmkeno-payval { color: #cfe8d8; font-size: 11px; font-weight: bold; text-align: right; padding: 2px 0; }
+  .lmkeno-payrow.win .lmkeno-payname, .lmkeno-payrow.win .lmkeno-payval { color: #ffd24a; text-shadow: 0 0 8px #ff9a2a; }
+  #lmkeno-note { color: #8b937a; font-size: 10px; letter-spacing: 1px; margin-bottom: 8px; }
+  #lmkeno-grid {
+    display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px;
+    margin: 0 auto 8px; max-width: 400px;
+  }
+  .lmkeno-spot {
+    font-size: 11px; font-weight: bold; line-height: 26px; height: 26px;
+    border-radius: 4px; border: 1px solid #4a5240; cursor: pointer; color: #ffe9a8;
+    background: #1a2416; touch-action: manipulation; text-align: center;
+  }
+  .lmkeno-spot.pick { box-shadow: inset 0 0 0 2px #ffd24a; color: #ffd24a; }
+  .lmkeno-spot.ball { background: #3a4a5a; color: #dfe9f2; }
+  .lmkeno-spot.hit { background: #ffd24a; color: #0c0e0a; border-color: #ffd24a; }
+  @keyframes lmkeno-hitflash { from { transform: scale(1.35); } to { transform: scale(1); } }
+  .lmkeno-spot.hit.new { animation: lmkeno-hitflash .3s ease-out; }
+  .lmkeno-spot.ball.new { box-shadow: 0 0 0 2px #dfe9f2; }
+  #lmkeno-meters { display: flex; gap: 14px; justify-content: center; color: #cfe8d8; font-size: 12px; letter-spacing: 1px; margin-bottom: 8px; }
+  #lmkeno-meters .tense { color: #ffd24a; font-weight: bold; }
+  #lmkeno-status { color: #cfe8d8; font-size: 12px; letter-spacing: 1px; min-height: 18px; margin-bottom: 8px; }
+  #lmkeno-controls { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  #lmkeno-controls button {
+    font-size: 13px; letter-spacing: 1px; font-weight: bold; padding: 10px 14px;
+    border-radius: 6px; border: 1px solid #c9a227; cursor: pointer; touch-action: manipulation;
+  }
+  #lmkeno-bet { color: #ffd24a; background: #2a2416; }
+  #lmkeno-quick { color: #cfe8d8; background: #1a2a3a; }
+  #lmkeno-clear { color: #cfe8d8; background: #3a2a1a; }
+  #lmkeno-draw { color: #0c0e0a; background: #ffd24a; }
+  #lmkeno-bigwin {
+    position: absolute; left: 0; right: 0; top: 34%; color: #ffd24a;
+    font-size: 30px; font-weight: bold; letter-spacing: 4px; display: none;
+    text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
+    animation: lmcs-bigwin .4s ease-in-out infinite alternate;
+  }
   #lmdicepanel {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
@@ -1343,6 +1400,7 @@
   <div id="dicechip"></div>
   <div id="pokerchip"></div>
   <div id="baccchip"></div>
+  <div id="kenochip"></div>
   <div id="lmcasinopanel">
     <div id="lmcs-title">ROYAL REELS</div>
     <div id="lmcs-reels">
@@ -1404,6 +1462,16 @@
     <div id="lmbacc-status">BET $10</div>
     <div id="lmbacc-controls"><button id="lmbacc-bet">BET $10</button><button id="lmbacc-deal">DEAL</button><button id="lmbacc-clear">CLEAR</button></div>
     <div id="lmbacc-bigwin"></div>
+  </div>
+  <div id="lmkenopanel">
+    <div id="lmkeno-title">KENO</div>
+    <div id="lmkeno-pay"></div>
+    <div id="lmkeno-note">PICK 2-10 SPOTS - 20 BALLS DRAWN - CATCH PAYS CLASSIC-STYLE</div>
+    <div id="lmkeno-grid"></div>
+    <div id="lmkeno-meters"><span id="lmkeno-balls">BALLS 0/20</span><span id="lmkeno-hits">HITS 0</span></div>
+    <div id="lmkeno-status">BET $10</div>
+    <div id="lmkeno-controls"><button id="lmkeno-bet">BET $10</button><button id="lmkeno-quick">QUICK PICK</button><button id="lmkeno-clear">CLEAR</button><button id="lmkeno-draw">DRAW</button></div>
+    <div id="lmkeno-bigwin"></div>
   </div>
   <div id="firestchip"><span id="firestarr">^</span> <span id="firesttxt"></span></div>
   <div id="heistchip"></div>
@@ -8746,8 +8814,8 @@ const CASINOHALL = {
   inHall: false, hintEnter: false, sitOn: false, nearIdx: -1,
   doorX: 0, doorZ: 0,
   standX: 0, standZ: 0, seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the machines (-Z)
-  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0, pokerSeatX: 0, pokerSeatZ: 0, baccSeatX: 0, baccSeatZ: 0,   // the six table seats
-  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice' | 'poker' | 'bacc': which seat E plays at
+  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0, pokerSeatX: 0, pokerSeatZ: 0, baccSeatX: 0, baccSeatZ: 0, kenoSeatX: 0, kenoSeatZ: 0,   // the seven table seats
+  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice' | 'poker' | 'bacc' | 'keno': which seat E plays at
   seated: false,
   hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
   hallPos: new THREE.Vector3(),
@@ -8973,13 +9041,18 @@ function casinoSlotStand() {
 function casinoHallKeyE() {
   if (!CASINOHALL.inHall) return;
   if (CASINOBACC.playing && CASINOBACC.phase === 'squeeze') { baccSkipSqueeze(); }   // E skips the squeeze ritual to an instant reveal
+  else if (CASINOKENO.playing && (CASINOKENO.phase === 'draw' || CASINOKENO.phase === 'resolve')) { casinoKenoStand(); casinoHallExit(); }   // E stands mid-draw: the bet refunds, the pending draw/settle no-ops
   else if (CASINOSLOT.playing) { casinoSlotStand(); casinoHallExit(); }
   else if (CASINOBJ.playing) { casinoBjStand(); casinoHallExit(); }
   else if (CASINOROUL.playing) { casinoRoulStand(); casinoHallExit(); }
   else if (CASINODICE.playing) { casinoDiceStand(); casinoHallExit(); }
   else if (CASINOPOKER.playing) { casinoPokerStand(); casinoHallExit(); }
   else if (CASINOBACC.playing) { casinoBaccStand(); casinoHallExit(); }
-  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else if (CASINOHALL.seatKind === 'poker') casinoPokerSit(); else if (CASINOHALL.seatKind === 'bacc') casinoBaccSit(); else casinoSlotSit(); }
+  else if (CASINOKENO.playing) {   // idle or done: E draws when spots are picked, else stands and exits; E never traps
+    if (CASINOKENO.phase === 'idle' && CASINOKENO.picks.length >= 2) kenoDraw();
+    else { casinoKenoStand(); casinoHallExit(); }
+  }
+  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else if (CASINOHALL.seatKind === 'poker') casinoPokerSit(); else if (CASINOHALL.seatKind === 'bacc') casinoBaccSit(); else if (CASINOHALL.seatKind === 'keno') casinoKenoSit(); else casinoSlotSit(); }
   else casinoHallExit();
 }
 function casinoHallEnter() {
@@ -9005,6 +9078,7 @@ function casinoHallEnter() {
   CASINOHALL.diceSeatX = a.x + 8.5; CASINOHALL.diceSeatZ = a.z + 10.8;  // dice: the street-dice table chair, faces the table (-Z)
   CASINOHALL.pokerSeatX = a.x - 10.2; CASINOHALL.pokerSeatZ = a.z + 5.2;   // poker: the west-wall video-poker stool, faces the cabinets (-X)
   CASINOHALL.baccSeatX = a.x + 9.5; CASINOHALL.baccSeatZ = a.z + 4.5;     // baccarat: the east baccarat-table chair, faces the table (-Z)
+  CASINOHALL.kenoSeatX = a.x; CASINOHALL.kenoSeatZ = a.z - 5.0;             // keno: the north-side lounge spot (all keno play is DOM)
   CASINOHALL.seatX = CASINOHALL.slotSeatX; CASINOHALL.seatZ = CASINOHALL.slotSeatZ; CASINOHALL.seatYaw = Math.PI;
   CASINOHALL.hallPos.set(a.x, CASINO_ROOM_Y, a.z - 6.0);
   player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
@@ -9050,7 +9124,7 @@ function casinoHallEnter() {
 }
 function casinoHallExit() {
   if (!CASINOHALL.inHall) return;
-  if (CASINOHALL.seated) { if (CASINOPOKER.playing) casinoPokerStand(); else if (CASINOBACC.playing) casinoBaccStand(); else if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
+  if (CASINOHALL.seated) { if (CASINOKENO.playing) casinoKenoStand(); else if (CASINOPOKER.playing) casinoPokerStand(); else if (CASINOBACC.playing) casinoBaccStand(); else if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
   CASINOHALL.inHall = false; CASINOHALL.sitOn = false; CASINOHALL.nearIdx = -1;
   casinoHallMesh.visible = false;
   casinoslothintEl.style.opacity = 0;
@@ -9061,6 +9135,7 @@ function casinoHallExit() {
   dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none'; diceBigWinEl.style.display = 'none';
   pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
   baccPanelEl.style.display = 'none'; baccChipEl.style.display = 'none'; baccBigWinEl.style.display = 'none';
+  kenoPanelEl.style.display = 'none'; kenoChipEl.style.display = 'none'; kenoBigWinEl.style.display = 'none';
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
@@ -9086,6 +9161,7 @@ function casinoHallTick(dt) {
     CASINODICE.playing = false; dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none';
     CASINOPOKER.playing = false; pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
     CASINOBACC.playing = false; baccPanelEl.style.display = 'none'; baccChipEl.style.display = 'none'; baccBigWinEl.style.display = 'none';
+    CASINOKENO.playing = false; kenoPanelEl.style.display = 'none'; kenoChipEl.style.display = 'none'; kenoBigWinEl.style.display = 'none';
     lmcsPanelEl.style.display = 'none';
     bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
     casinChipEl.style.display = 'none';
@@ -9129,13 +9205,14 @@ function casinoHallTick(dt) {
       const playDice = IS_TOUCH ? 'TAP TO PLAY DICE' : 'PLAY DICE [E]';
       const playPoker = IS_TOUCH ? 'TAP TO PLAY POKER' : 'PLAY POKER [E]';
       const playBacc = IS_TOUCH ? 'TAP TO PLAY BACCARAT' : 'PLAY BACCARAT [E]';
-      const playTxt = CASINOHALL.seatKind === 'bacc' ? playBacc : (CASINOHALL.seatKind === 'poker' ? playPoker : (CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots))));
+      const playKeno = IS_TOUCH ? 'TAP TO PLAY KENO' : 'PLAY KENO [E]';
+      const playTxt = CASINOHALL.seatKind === 'keno' ? playKeno : (CASINOHALL.seatKind === 'bacc' ? playBacc : (CASINOHALL.seatKind === 'poker' ? playPoker : (CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots)))));
       const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
       const txt = CASINOHALL.seated ? exitTxt : (CASINOHALL.sitOn ? playTxt : exitTxt);
       if (casinoslothintEl.textContent !== txt) casinoslothintEl.textContent = txt;
       casinoslothintEl.style.opacity = 1;
       /* seat toggle chip (touch-friendly): which table E plays at next */
-      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'bacc' ? 'BACCARAT' : (CASINOHALL.seatKind === 'poker' ? 'POKER' : (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS')))));
+      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'keno' ? 'KENO' : (CASINOHALL.seatKind === 'bacc' ? 'BACCARAT' : (CASINOHALL.seatKind === 'poker' ? 'POKER' : (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS'))))));
       if (casinobjselEl.textContent !== selTxt) casinobjselEl.textContent = selTxt;
       casinobjselEl.style.opacity = CASINOHALL.seated ? 0 : 1;
     }
@@ -9144,6 +9221,7 @@ function casinoHallTick(dt) {
     diceUpdate(dt);   // dice tumble + landing headline + delayed settle
     pokerUpdate(dt);  // video-poker draw cascade + win highlight + delayed settle
     baccUpdate(dt);   // baccarat squeeze cascade + win headline + delayed settle
+    kenoUpdate(dt);   // keno draw beats + meters + delayed settle
     casinChipEl.style.display = 'none';
     return;
   }
@@ -9357,7 +9435,7 @@ function bjRender() {
 }
 function casinoSeatToggle() {
   if (!CASINOHALL.inHall || CASINOHALL.seated) return;
-  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : (CASINOHALL.seatKind === 'dice' ? 'poker' : (CASINOHALL.seatKind === 'poker' ? 'bacc' : 'slots'))));
+  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : (CASINOHALL.seatKind === 'dice' ? 'poker' : (CASINOHALL.seatKind === 'poker' ? 'bacc' : (CASINOHALL.seatKind === 'bacc' ? 'keno' : 'slots')))));
   sfxBlip(760, 0.06, 'square', 0.14);
 }
 function casinoBjSit() {
@@ -10148,8 +10226,8 @@ const HELP_LMDICE = '<b>ROLL</b> play &nbsp; <b>E</b> exit &nbsp; <b>TOUCH</b> t
         driven, no setTimeout). E sits at the poker stool, E stands and exits
         (never traps: standing refunds any pending bet; a pending draw aborts
         cleanly). Q (or the TABLE chip) cycles seats: slots, cards, roulette,
-        dice, poker. Q (or the TABLE chip) cycles seats: slots, cards, roulette,
-        dice, poker, baccarat. Session only: the save schema is untouched. ---- */
+        dice, poker, baccarat, keno. Session only: the save schema is
+        untouched. ---- */
 const POKER_BETS = [5, 10, 25];
 const POKER_HASH_A = 6529, POKER_HASH_B = 7;   // fresh hash space: not 6503, not the shoe space, not (6521, 99)
 /* 9/6 Jacks or Better full-pay: per-coin pays. Payouts scale with the bet
@@ -10510,9 +10588,9 @@ const HELP_LMPOKER = '<b>DEAL</b> play &nbsp; <b>E</b> exit &nbsp; <b>1-5</b> ho
         cards remain. E sits at the baccarat chair, E stands and exits (never
         traps: standing mid-squeeze refunds the pending bets; a pending
         settle no-ops). Q (or the TABLE chip) cycles seats: slots, cards,
-        roulette, dice, poker, baccarat. Session only: the save schema is
-        untouched. Procedural WebAudio only (the sfxBlip fanfare idiom: zero
-        new audio nodes). ---- */
+        roulette, dice, poker, baccarat, keno. Session only: the save schema
+        is untouched. Procedural WebAudio only (the sfxBlip fanfare idiom:
+        zero new audio nodes). ---- */
 const BACC_BETS = [5, 10, 25];
 const BACC_HASH_A = 6533, BACC_HASH_B = 11;   // fresh hash space: not 6503, not the shoe space, not (6521, 99), not (6529, 7)
 const BACC_SIDES = ['player', 'banker', 'tie'];
@@ -10878,6 +10956,383 @@ function baccClearBtn(e) { e.preventDefault(); e.stopPropagation(); baccClear();
 baccClearEl.addEventListener('touchstart', baccClearBtn, { passive: false });
 baccClearEl.addEventListener('click', baccClearBtn);
 const HELP_LMBACC = '<b>DEAL</b> play &nbsp; <b>E</b> skip/exit &nbsp; <b>1-3</b> side &nbsp; <b>TOUCH</b> tap the tabs';
+
+/* ---- landmark casino: CASINO KENO v1 ("KENO"), the seventh table game in
+        the gaming hall. Spot picking on a DOM 8x10 card of 1-80: click (or
+        touch) toggles a spot, pick 2-10 spots, QUICK PICK fills to 10 on the
+        seeded stream, CLEAR resets the card. Bet tiers $5/$10/$25 (the
+        BACC_BETS idiom) on the cash economy. DRAW (the button, E, or Enter):
+        20 balls drawn from 1-80, one per 0.45s beat on the tick loop (no
+        setTimeout anywhere). Each drawn number is marked on the card; a draw
+        matching a picked spot is a HIT (the spot flashes gold with a rising
+        hit sting on the sfxBlip idiom), a miss gets a low thud. The
+        BALLS DRAWN x/20 and HITS x meters ride the whole draw. Near-miss
+        tension (the baccarat squeeze craft): on balls 16-20, when the player
+        is exactly one hit short of the next richer pay tier, the beat slows
+        to 0.9s under a drum-rattle sting. The win headline and the win sting
+        land on the 20th ball; the bankroll settles 0.6s later on the tick
+        loop (the dice-settle idiom). Standing mid-draw refunds the bet and
+        the pending draw/settle no-ops (no double credit).
+        The posted paytable is classic-style: multipliers on the bet for the
+        picked count (2-10 spots) by catches, simplified for the game economy
+        (integer cash; the zero-catch and one-catch consolation lines are
+        omitted in v1, they pay 0). Honest note: real land-keno tables vary
+        by house; these are the classic order-of-magnitude shapes (10/10
+        pays 10000x), tuned so a $5/$10/$25 economy stays fun.
+        Zero net new draw calls: every keno visual is a DOM overlay, and the
+        lounge spot needs no hall geometry. The honest draw: one Fisher-Yates
+        stream per draw on the seeded-RNG idiom, seeded from a fresh casino
+        hash space (6537, 13) and the per-draw counter, never 6503, never the
+        shoe space, never (6521, 99), never (6529, 7), never (6533, 11). E
+        sits at the keno lounge spot, E draws when spots are picked, E stands
+        mid-draw (refund) or after the settle (the casinoHallKeyE idiom, never
+        traps). Q (or the TABLE chip) cycles seats: slots, cards, roulette,
+        dice, poker, baccarat, keno. Session only: the save schema is
+        untouched. Procedural WebAudio only (the sfxBlip idiom, zero new
+        audio nodes; the win sting is queued on the tick loop). ---- */
+const KENO_BETS = [5, 10, 25];
+const KENO_HASH_A = 6537, KENO_HASH_B = 13;   // fresh hash space: not 6503, not the shoe space, not (6521, 99), not (6529, 7), not (6533, 11)
+/* classic-style catch payouts (multiplier on the bet), keyed by spots
+   picked then catches. Honest note: simplified for the game economy;
+   real land-keno tables vary by house, these keep the classic shapes. */
+const KENO_PAY = {
+  2:  { 2: 12 },
+  3:  { 2: 2, 3: 25 },
+  4:  { 2: 2, 3: 8, 4: 50 },
+  5:  { 2: 2, 3: 5, 4: 25, 5: 150 },
+  6:  { 2: 2, 3: 4, 4: 15, 5: 60, 6: 300 },
+  7:  { 2: 1, 3: 3, 4: 10, 5: 40, 6: 150, 7: 1000 },
+  8:  { 2: 1, 3: 2, 4: 8, 5: 25, 6: 100, 7: 400, 8: 2500 },
+  9:  { 3: 2, 4: 6, 5: 20, 6: 80, 7: 300, 8: 1200, 9: 5000 },
+  10: { 2: 1, 3: 2, 4: 4, 5: 10, 6: 25, 7: 80, 8: 200, 9: 800, 10: 10000 },
+};
+const KENO_BIG_MULT = 25;   // the big-win headline threshold (the slots 10x idiom, keno pays bigger)
+const CASINOKENO = {
+  playing: false, betIdx: 1, draws: 0,
+  phase: 'idle',            // idle | draw | resolve | done
+  picks: [],                // spot numbers 1..80
+  balls: [], ballIdx: 0, hits: 0, lastBall: -1,
+  ballT: 0, rattleT: 0, hlT: 0, tension: false,
+  bet: 0, settleMult: 0, lastDelta: 0, bigWinT: 0,
+  stingQ: [], stingT: 0,    // tick-loop win-sting queue: [freq, dur, type, vol, gap]
+};
+function kenoPay(picks, catchN) { const t = KENO_PAY[picks]; return t ? (t[catchN] || 0) : 0; }
+function kenoDrawSeed() { return (hash2i(KENO_HASH_A, KENO_HASH_B) ^ (CASINOKENO.draws * 0x9e3779b9)) >>> 0; }
+/* one honest 20-ball draw: Fisher-Yates over 1..80 on the seeded idiom. */
+function kenoBuildDraw(seed) {
+  const pool = [];
+  for (let i = 1; i <= 80; i++) pool.push(i);
+  const r = mulberry32(seed >>> 0);
+  for (let i = 79; i > 0; i--) { const j = Math.floor(r() * (i + 1)); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+  return pool.slice(0, 20);
+}
+/* the next richer pay tier: the smallest catch count above the current hits
+   whose payout beats the current payout (or -1 when nothing richer pays). */
+function kenoNextRicher(picks, hits) {
+  const base = kenoPay(picks, hits);
+  for (let c = hits + 1; c <= picks; c++) if (kenoPay(picks, c) > base) return c;
+  return -1;
+}
+function kenoOneShort() {
+  const K = CASINOKENO;
+  const c = kenoNextRicher(K.picks.length, K.hits);
+  return c > 0 && K.hits === c - 1;
+}
+function kenoNewRound() {
+  const K = CASINOKENO;
+  K.phase = 'idle'; K.picks = []; K.balls = []; K.ballIdx = 0; K.hits = 0; K.lastBall = -1;
+  K.ballT = 0; K.rattleT = 0; K.hlT = 0; K.tension = false;
+  K.bet = 0; K.settleMult = 0; K.lastDelta = 0; K.bigWinT = 0;
+  K.stingQ = []; K.stingT = 0;
+  kenoBigWinEl.style.display = 'none';
+}
+function kenoToggle(n) {
+  const K = CASINOKENO;
+  if (!K.playing || (K.phase !== 'idle' && K.phase !== 'done') || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  if (K.phase === 'done') kenoNewRound();   // a fresh card for the next draw
+  const i = K.picks.indexOf(n);
+  if (i >= 0) { K.picks.splice(i, 1); sfxBlip(520, 0.06, 'square', 0.14); }
+  else {
+    if (K.picks.length >= 10) { sfxDenied(); toast('MAX 10 SPOTS'); return; }   // the shop denied idiom
+    K.picks.push(n); sfxBlip(880, 0.07, 'square', 0.16);
+  }
+  kenoRender();
+}
+function kenoQuickPick() {
+  const K = CASINOKENO;
+  if (!K.playing || (K.phase !== 'idle' && K.phase !== 'done')) return;
+  if (K.phase === 'done') kenoNewRound();
+  const r = mulberry32((kenoDrawSeed() ^ 0x85ebca6b) >>> 0);   // the seeded stream, own extra space
+  while (K.picks.length < 10) {
+    const n = 1 + Math.floor(r() * 80);
+    if (K.picks.indexOf(n) < 0) K.picks.push(n);
+  }
+  sfxBlip(990, 0.07, 'square', 0.16);
+  toast('QUICK PICK: 10 SPOTS');
+  kenoRender();
+}
+function kenoClear() {
+  const K = CASINOKENO;
+  if (!K.playing || (K.phase !== 'idle' && K.phase !== 'done')) return;
+  if (K.phase === 'done') kenoNewRound();
+  else { K.picks = []; K.balls = []; K.ballIdx = 0; K.hits = 0; K.lastBall = -1; K.tension = false; }
+  sfxBlip(660, 0.06, 'square', 0.14);
+  toast('SPOTS CLEARED');
+  kenoRender();
+}
+function kenoCycleBet() {
+  if (!CASINOKENO.playing || (CASINOKENO.phase !== 'idle' && CASINOKENO.phase !== 'done')) return;
+  CASINOKENO.betIdx = (CASINOKENO.betIdx + 1) % KENO_BETS.length;
+  const b = KENO_BETS[CASINOKENO.betIdx];
+  kenoBetEl.textContent = 'BET $' + b;
+  kenoRender();
+  sfxBlip(990, 0.07, 'square', 0.16);
+}
+function kenoDraw() {
+  const K = CASINOKENO;
+  if (!K.playing || K.phase !== 'idle' || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  if (K.picks.length < 2) { sfxDenied(); toast('PICK 2-10 SPOTS FIRST'); return; }   // the shop denied idiom
+  const bet = KENO_BETS[K.betIdx];
+  if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }
+  K.draws++;
+  cash -= bet; updateCashHUD(); floatCash('-$' + bet);              // the cash idiom
+  K.bet = bet;
+  K.balls = kenoBuildDraw(kenoDrawSeed());
+  K.ballIdx = 0; K.hits = 0; K.lastBall = -1; K.tension = false;
+  K.ballT = 0; K.rattleT = 0; K.stingQ = []; K.stingT = 0;
+  K.phase = 'draw';
+  toast('DRAWING 20 BALLS');
+  sfxBlip(240, 0.1, 'square', 0.16);   // the draw knock
+  kenoRender();
+}
+/* one ball of the draw: mark the card, count the hit, arm the tension beat. */
+function kenoBallOne() {
+  const K = CASINOKENO;
+  const n = K.balls[K.ballIdx];
+  K.lastBall = n;
+  if (K.picks.indexOf(n) >= 0) {
+    K.hits++;
+    sfxBlip(660 + K.hits * 90, 0.09, 'triangle', 0.2);   // the rising hit sting
+  } else {
+    sfxBlip(120, 0.09, 'sine', 0.14);   // the low miss thud
+  }
+  K.ballIdx++;
+  /* near-miss tension: on balls 16-20, one hit short of a richer tier slows
+     the beat and starts the rattle (the baccarat rattle idiom). */
+  K.tension = K.ballIdx >= 15 && K.ballIdx < 20 && kenoOneShort();
+  if (K.ballIdx >= 20) kenoFinishDraw();
+  kenoRender();
+}
+/* the win sting (the fanfare idiom, zero new audio nodes: sfxBlip notes
+   queued on the tick loop, no setTimeout anywhere in the keno path). */
+function kenoWinSting(big) {
+  const notes = big ? [523, 659, 784, 1046, 1318, 1568] : [660, 880, 1174];
+  CASINOKENO.stingQ = notes.map(f => [f, 0.13, 'triangle', 0.2, 0.11]);
+  CASINOKENO.stingT = 0;
+}
+function kenoFinishDraw() {
+  const K = CASINOKENO;
+  K.phase = 'resolve';
+  K.tension = false;
+  const mult = kenoPay(K.picks.length, K.hits);
+  K.settleMult = mult;
+  K.lastDelta = mult * K.bet - K.bet;
+  K.hlT = 0.6;   // the win headline breathes before the bankroll settles
+  const headline = mult > 0
+    ? 'CAUGHT ' + K.hits + '/' + K.picks.length + ' - ' + mult + 'x'
+    : 'NO CATCH';
+  if (mult >= KENO_BIG_MULT) {
+    kenoWinSting(true);
+    kenoBigWinEl.textContent = mult + 'x KENO!';
+    kenoBigWinEl.style.display = 'block';
+    K.bigWinT = 2.2;
+  } else if (mult > 0) {
+    kenoWinSting(false);
+  } else {
+    sfxBlip(220, 0.2, 'sawtooth', 0.18);   // the quiet loss
+  }
+  toast(headline);
+  kenoRender();
+}
+function kenoSettle() {
+  const K = CASINOKENO;
+  K.phase = 'done';
+  if (!K.playing) return;   // stood mid-resolve: the stand refund already covered it
+  const ret = K.settleMult * K.bet;
+  cash += ret; updateCashHUD();   // the cash idiom: total return (stakes back inside the multiplier)
+  const net = ret - K.bet;
+  if (net > 0) floatCash('+$' + net); else if (net < 0) floatCash('-$' + (-net));
+  K.lastDelta = net;
+  K.bet = 0; K.settleMult = 0;
+  kenoRender();
+}
+/* one timing table, tick-loop driven: the draw beats (0.45s, 0.9s under
+   tension with the drum-rattle between balls), the win-headline pause, the
+   delayed settle, the win-sting queue. No setTimeout anywhere. */
+function kenoUpdate(dt) {
+  const K = CASINOKENO;
+  if (!K.playing) return;
+  if (K.bigWinT > 0) {
+    K.bigWinT -= dt;
+    if (K.bigWinT <= 0) kenoBigWinEl.style.display = 'none';
+  }
+  if (K.stingQ.length) {   // the tick-loop sting drain
+    K.stingT -= dt;
+    while (K.stingQ.length && K.stingT <= 0) {
+      const s = K.stingQ.shift();
+      sfxBlip(s[0], s[1], s[2], s[3]);
+      K.stingT = s[4];
+    }
+  }
+  if (K.phase === 'draw') {
+    K.ballT += dt;
+    if (K.tension) {   // the drum-rattle between balls
+      K.rattleT += dt;
+      if (K.rattleT >= 0.14) {
+        K.rattleT = 0;
+        sfxBlip(150 + K.ballIdx * 12, 0.03, 'square', 0.07);
+      }
+    }
+    if (K.ballT >= (K.tension ? 0.9 : 0.45)) {   // one ball per beat
+      K.ballT = 0;
+      kenoBallOne();
+    }
+  } else if (K.phase === 'resolve') {
+    K.hlT -= dt;
+    if (K.hlT <= 0) kenoSettle();
+  }
+}
+/* the inspectable paytable: [{name, val, win}]. The caught row glows while
+   the result is on screen. Rows follow the current pick count. */
+function kenoPayRows() {
+  const p = CASINOKENO.picks.length;
+  const rows = [];
+  for (let c = 1; c <= p; c++) {
+    const m = kenoPay(p, c);
+    rows.push({
+      name: 'CATCH ' + c,
+      val: m > 0 ? m + 'x' : '-',
+      win: (CASINOKENO.phase === 'resolve' || CASINOKENO.phase === 'done') && c === CASINOKENO.hits && m > 0,
+    });
+  }
+  return rows;
+}
+function kenoSpotEl(n, picked, drawn, hit, last) {
+  const d = document.createElement('div');
+  d.className = 'lmkeno-spot' + (picked ? ' pick' : '') + (drawn ? ' ball' : '') + (hit ? ' hit' : '') + (last ? ' new' : '');
+  d.textContent = n;
+  return d;
+}
+function kenoRender() {
+  const K = CASINOKENO;
+  /* the inspectable paytable; the caught row glows on the result. */
+  kenoPayEl.innerHTML = '';
+  for (const r of kenoPayRows()) {
+    const row = document.createElement('div');
+    row.className = 'lmkeno-payrow' + (r.win ? ' win' : '');
+    const nm = document.createElement('div'); nm.className = 'lmkeno-payname'; nm.textContent = r.name;
+    const vl = document.createElement('div'); vl.className = 'lmkeno-payval'; vl.textContent = r.val;
+    row.appendChild(nm); row.appendChild(vl);
+    kenoPayEl.appendChild(row);
+  }
+  /* the 8x10 card: click (or touch) toggles a spot, drawn balls mark. */
+  kenoGridEl.innerHTML = '';
+  const drawnSet = {};
+  for (let i = 0; i < K.ballIdx; i++) drawnSet[K.balls[i]] = true;
+  for (let n = 1; n <= 80; n++) {
+    const picked = K.picks.indexOf(n) >= 0;
+    const drawn = !!drawnSet[n];
+    const hit = drawn && picked;
+    const cell = kenoSpotEl(n, picked, drawn, hit, K.lastBall === n);
+    cell.addEventListener('click', (function (nn) { return function (e) { e.preventDefault(); e.stopPropagation(); kenoToggle(nn); }; })(n));   // the touch-guard idiom
+    cell.addEventListener('touchstart', (function (nn) { return function (e) { e.preventDefault(); e.stopPropagation(); kenoToggle(nn); }; })(n), { passive: false });
+    kenoGridEl.appendChild(cell);
+  }
+  /* the meters: balls drawn and hits, tension called out. */
+  kenoBallsEl.textContent = 'BALLS ' + K.ballIdx + '/20';
+  kenoHitsEl.textContent = 'HITS ' + K.hits;
+  kenoHitsEl.className = K.tension ? 'tense' : '';
+  const bet = KENO_BETS[K.betIdx];
+  let st;
+  if (K.phase === 'idle') st = 'BET $' + bet + ' - PICK ' + K.picks.length + '/10 SPOTS';
+  else if (K.phase === 'draw') st = K.tension ? 'ONE SHORT...' : 'DRAWING ' + K.ballIdx + '/20';
+  else if (K.phase === 'resolve') st = 'CAUGHT ' + K.hits + '/' + K.picks.length;
+  else st = K.lastDelta !== 0 ? 'CAUGHT ' + K.hits + '/' + K.picks.length + ' ' + (K.lastDelta > 0 ? '+$' : '-$') + Math.abs(K.lastDelta) : 'NO CATCH';
+  kenoStatusEl.textContent = st;
+  /* the HUD status chip (the chip idiom): phase plus the last balance delta */
+  kenoChipEl.textContent = 'KENO ' + st;
+  kenoChipEl.style.display = K.playing ? 'block' : 'none';
+  kenoBetEl.textContent = 'BET $' + bet;
+}
+function casinoKenoSit() {
+  if (CASINOHALL.seated || !CASINOHALL.inHall) return;
+  emoteCancel();   // no emotes while gambling
+  CASINOHALL.seated = true; CASINOHALL.sitOn = false;
+  CASINOHALL.seatX = CASINOHALL.kenoSeatX; CASINOHALL.seatZ = CASINOHALL.kenoSeatZ; CASINOHALL.seatYaw = Math.PI;   // the north-side lounge spot
+  const K = CASINOKENO;
+  K.playing = true; K.betIdx = 1; K.draws = 0;
+  K.phase = 'idle'; K.picks = []; K.balls = []; K.ballIdx = 0; K.hits = 0; K.lastBall = -1;
+  K.ballT = 0; K.rattleT = 0; K.hlT = 0; K.tension = false;
+  K.bet = 0; K.settleMult = 0; K.lastDelta = 0; K.bigWinT = 0;
+  K.stingQ = []; K.stingT = 0;
+  player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
+  player.rotation.y = CASINOHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  kenoBetEl.textContent = 'BET $' + KENO_BETS[K.betIdx];
+  kenoRender();
+  kenoPanelEl.style.display = 'block';
+  casinoslothintEl.style.opacity = 0; casinobjselEl.style.opacity = 0;
+  helpEl.innerHTML = HELP_LMKENO;
+  toast('KENO');
+  sfxBlip(660, 0.09, 'triangle', 0.2);
+}
+function casinoKenoStand() {
+  if (!CASINOHALL.seated) return;
+  CASINOHALL.seated = false; CASINOHALL.sitOn = false;
+  const K = CASINOKENO;
+  if (K.bet > 0 && (K.phase === 'draw' || K.phase === 'resolve')) {   // never strands chips: the pending bet refunds; the pending draw/settle no-ops
+    cash += K.bet; updateCashHUD();
+    toast('BET REFUNDED $' + K.bet);
+  }
+  CASINOKENO.playing = false; CASINOKENO.phase = 'idle';
+  K.picks = []; K.balls = []; K.ballIdx = 0; K.hits = 0; K.lastBall = -1;
+  K.ballT = 0; K.rattleT = 0; K.hlT = 0; K.tension = false;
+  K.bet = 0; K.settleMult = 0; K.lastDelta = 0; K.bigWinT = 0;
+  K.stingQ = []; K.stingT = 0;
+  kenoPanelEl.style.display = 'none';
+  kenoChipEl.style.display = 'none';
+  kenoBigWinEl.style.display = 'none';
+  player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  helpEl.innerHTML = HELP_CASINOHALL;
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+const kenoChipEl = document.getElementById('kenochip');
+const kenoPanelEl = document.getElementById('lmkenopanel');
+const kenoPayEl = document.getElementById('lmkeno-pay');
+const kenoGridEl = document.getElementById('lmkeno-grid');
+const kenoBallsEl = document.getElementById('lmkeno-balls');
+const kenoHitsEl = document.getElementById('lmkeno-hits');
+const kenoStatusEl = document.getElementById('lmkeno-status');
+const kenoBetEl = document.getElementById('lmkeno-bet');
+const kenoQuickEl = document.getElementById('lmkeno-quick');
+const kenoClearEl = document.getElementById('lmkeno-clear');
+const kenoDrawEl = document.getElementById('lmkeno-draw');
+const kenoBigWinEl = document.getElementById('lmkeno-bigwin');
+function kenoBetBtn(e) { e.preventDefault(); e.stopPropagation(); kenoCycleBet(); }   // the touch-guard idiom
+kenoBetEl.addEventListener('touchstart', kenoBetBtn, { passive: false });
+kenoBetEl.addEventListener('click', kenoBetBtn);
+function kenoQuickBtn(e) { e.preventDefault(); e.stopPropagation(); kenoQuickPick(); }
+kenoQuickEl.addEventListener('touchstart', kenoQuickBtn, { passive: false });
+kenoQuickEl.addEventListener('click', kenoQuickBtn);
+function kenoClearBtn(e) { e.preventDefault(); e.stopPropagation(); kenoClear(); }
+kenoClearEl.addEventListener('touchstart', kenoClearBtn, { passive: false });
+kenoClearEl.addEventListener('click', kenoClearBtn);
+function kenoDrawBtn(e) { e.preventDefault(); e.stopPropagation(); kenoDraw(); }
+kenoDrawEl.addEventListener('touchstart', kenoDrawBtn, { passive: false });
+kenoDrawEl.addEventListener('click', kenoDrawBtn);
+const HELP_LMKENO = '<b>DRAW</b> play &nbsp; <b>E</b> draw/exit &nbsp; <b>Enter</b> draw &nbsp; <b>TOUCH</b> tap the card';
+
 
 /* ================= PHASE 5: LANDMARK FIRE STATION v1 (buildings/places) ================
    One seeded landmark fire station per rare chunk (the 'firestation' amenity
@@ -13557,7 +14012,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette, dice, poker or baccarat
+  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette, dice, poker, baccarat or keno
   if (CASINOPOKER.playing) {   // video poker captures 1-5 for card holds while seated (the shop-capture idiom)
     if (e.code === 'Digit1') { pokerToggleHold(0); return; }
     else if (e.code === 'Digit2') { pokerToggleHold(1); return; }
@@ -13572,6 +14027,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit3') { baccPlace('tie'); return; }
     /* every other key (E to skip the squeeze, then stand, Q, movement) falls through: E never traps */
   }
+  if (CASINOKENO.playing && e.code === 'Enter') { kenoDraw(); return; }   // keno captures Enter for the draw while seated (the shop-capture idiom); E also draws via casinoHallKeyE
   if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
