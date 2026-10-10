@@ -156,6 +156,15 @@ globalThis.__R3D = {
   casinobjselEl, bjPanelEl, bjStatusEl, bjDealerEl, bjPlayerEl,
   bjBetEl, bjDealEl, bjHitEl, bjStandEl, bjDoubleEl, bjChipEl,
   BJ_BETS, BJ_SUIT_CH, BJ_RANK_CH, HELP_LMBJ,
+  /* Phase 5 landmark casino roulette v1 (third table game) */
+  CASINOROUL, casinoRoulSit, casinoRoulStand,
+  roulBetWins, roulPayMult, roulNetFor, roulSpinSeed, roulPlace, roulClear, roulCycleBet,
+  roulSpin, roulResolve, roulUpdate, roulRender, roulWheelTex, roulCellEls,
+  roulCoin, roulFanfare,
+  rotorGroup, roulBall, roulTopMat,
+  roulChipEl, roulPanelEl, roulHistEl, roulStatusEl, roulGridEl, roulOuterEl,
+  roulBetEl, roulClearEl, roulSpinEl, roulBigWinEl,
+  ROUL_BETS, ROUL_WHEEL, ROUL_RED, ROUL_POCKET_ANG, HELP_LMROUL,
   LMCASINO_COL, LMCAS_R, LMCAS_SEGS, LMCAS_GATE_K, LMCAS_CHIP_R2, LMCAS_DOOR, LMCAS_DOOR_R2,
   CASINO_ROOM_Y, LMCS_BETS, LMCS_SYMS, LMCS_WILD, LMCS_SEVEN, LMCS_LINES, LMCS_TAPE, LMCS_OUT_AT,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
@@ -6543,7 +6552,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   /* --- static pins: zero new draw calls, zero new RNG, zero new keybinds --- */
   const bjSrc = html.slice(
     html.indexOf('/* ---- landmark casino: BLACKJACK v1'),
-    html.indexOf('/* ================= PHASE 5: LANDMARK FIRE STATION v1'));
+    html.indexOf('/* ---- landmark casino: ROULETTE v1'));
   check('bj-static: blackjack block creates no THREE objects (DOM panel only, zero draw calls)',
     bjSrc.length > 5000 && !/new THREE\./.test(bjSrc), bjSrc.length + ' chars');
   check('bj-static: no unseeded RNG in the blackjack block', !/Math\.random/.test(bjSrc));
@@ -6730,6 +6739,228 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bj: exit teleports back to the door', bjBackD < 0.01, 'd=' + bjBackD.toFixed(3));
   check('bj: the round trip leaves zero console errors/warnings',
     consoleProblems.length === probsB, consoleProblems.slice(probsB).join(' | '));
+
+  /* leave the world as the next block expects: player at origin, FT rebuilt there */
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.FT.routeKey = ''; G.FT.driving = false; G.ftRebuild(0, 0);
+}
+
+/* ================= PHASE 5: LANDMARK CASINO ROULETTE v1 =================
+   The third table game in the gaming hall: a European single-zero wheel on
+   the seeded-RNG idiom, E to sit at the roulette table, E to stand and
+   exit, a DOM betting felt, and a rotor + ball that lands in the winning
+   pocket the seed picked first. */
+{
+  /* --- static pins: +4 plain meshes under the cached hall (zero draws while
+         cached), zero new RNG, zero new keybinds, zero new lights --- */
+  const roulSrc = html.slice(
+    html.indexOf('/* ---- landmark casino: ROULETTE v1'),
+    html.indexOf('/* ================= PHASE 5: LANDMARK FIRE STATION v1'));
+  check('roul-static: roulette block is substantial', roulSrc.length > 5000, roulSrc.length + ' chars');
+  check('roul-static: exactly 4 plain Mesh sites in the roulette block (rotor base/top/spindle/ball, no InstancedMesh)',
+    (roulSrc.match(/new THREE\.Mesh\(/g) || []).length === 4
+    && !/new THREE\.InstancedMesh/.test(roulSrc));
+  check('roul-static: no unseeded RNG in the roulette block', !/Math\.random/.test(roulSrc));
+  check('roul-static: no new lights in the roulette block',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(roulSrc));
+  check('roul-static: no em dashes in the roulette block', !roulSrc.includes('—'));
+  check('roul-static: no external URLs in the roulette block', !/https?:\/\//.test(roulSrc));
+  check('roul-static: no TODO markers in the roulette block', !/\bTODO\b/.test(roulSrc));
+  check('roul-static: whole-file InstancedMesh literals still pin at 48',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('roul-static: Math.random lines still pin at 92',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
+  check('roul-static: single renderer.render call site',
+    (html.match(/renderer\.render\(/g) || []).length === 1);
+  check('roul-static: light count pins at 6 (zero new lights)',
+    (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
+  check('roul-static: single keydown listener (Q rides the existing one)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1
+    && html.includes("switch the table seat: slots, cards or roulette"));
+  check('roul-static: #roulchip pins its own top-left slot (no chip overlap)',
+    html.includes('#roulchip {') && html.includes('top: 720px'));
+
+  /* --- pure math: the wheel, the felt, the pay table --- */
+  check('roul: the wheel holds 37 pockets', G.ROUL_WHEEL.length === 37);
+  check('roul: the wheel covers 0-36 exactly once',
+    new Set(G.ROUL_WHEEL).size === 37 && G.ROUL_WHEEL.every(n => n >= 0 && n <= 36));
+  check('roul: 18 reds on the European layout', G.ROUL_RED.size === 18);
+  check('roul: the pocket-angle table covers all 37 pockets', G.ROUL_POCKET_ANG.length === 37);
+  check('roul: straight-up wins on its number only',
+    G.roulBetWins('n7', 7) === true && G.roulBetWins('n7', 8) === false && G.roulBetWins('n0', 0) === true);
+  check('roul: red/black split the non-zero wheel',
+    G.roulBetWins('red', 7) === true && G.roulBetWins('black', 7) === false
+    && G.roulBetWins('black', 8) === true && G.roulBetWins('red', 0) === false);
+  check('roul: odd/even',
+    G.roulBetWins('odd', 7) === true && G.roulBetWins('even', 8) === true && G.roulBetWins('odd', 8) === false);
+  check('roul: low/high halves',
+    G.roulBetWins('low', 18) === true && G.roulBetWins('high', 19) === true && G.roulBetWins('low', 19) === false);
+  check('roul: dozens',
+    G.roulBetWins('d1', 12) === true && G.roulBetWins('d2', 13) === true
+    && G.roulBetWins('d3', 36) === true && G.roulBetWins('d1', 13) === false);
+  check('roul: columns',
+    G.roulBetWins('c1', 1) === true && G.roulBetWins('c2', 2) === true
+    && G.roulBetWins('c3', 3) === true && G.roulBetWins('c1', 2) === false);
+  check('roul: zero beats every outside bet',
+    ['red', 'black', 'odd', 'even', 'low', 'high', 'd1', 'd2', 'd3', 'c1', 'c2', 'c3']
+      .every(z => G.roulBetWins(z, 0) === false));
+  check('roul: straight pays 35:1 ($10 -> +$350)', G.roulNetFor({ n7: 10 }, 7) === 350);
+  check('roul: a missed straight loses the stake', G.roulNetFor({ n7: 10 }, 8) === -10);
+  check('roul: red pays 1:1 ($10 -> +$10)', G.roulNetFor({ red: 10 }, 7) === 10);
+  check('roul: a dozen pays 2:1 ($10 -> +$20)', G.roulNetFor({ d2: 10 }, 20) === 20);
+  check('roul: a column pays 2:1 ($25 -> +$50)', G.roulNetFor({ c3: 25 }, 36) === 50);
+  check('roul: mixed bets net honestly (red wins, straight misses)',
+    G.roulNetFor({ red: 10, n7: 10 }, 12) === 0);   // 12 is red, not 7
+
+  /* --- determinism: the same spin count replays the same winning number --- */
+  G.P.dead = false; G.P.godT = 0; G.closeShop();
+  G.cash = 200;
+  G.CASINOROUL.playing = true; G.CASINOROUL.spinning = false;
+  G.CASINOROUL.spins = 41; G.CASINOROUL.bets = { red: 10 }; G.CASINOROUL.totalBet = 10;
+  G.roulSpin();
+  const w1 = G.CASINOROUL.winNum;
+  G.CASINOROUL.spinning = false;
+  G.CASINOROUL.spins = 41; G.CASINOROUL.bets = { red: 10 }; G.CASINOROUL.totalBet = 10;
+  G.roulSpin();
+  const w2 = G.CASINOROUL.winNum;
+  check('roul: the seeded stream replays the winning number',
+    w1 === w2 && w1 >= 0 && w1 < 37, 'w1=' + w1 + ' w2=' + w2);
+  G.CASINOROUL.spinning = false; G.CASINOROUL.playing = false;
+  G.CASINOROUL.bets = {}; G.CASINOROUL.totalBet = 0;
+
+  /* --- enter the hall and pick the roulette table --- */
+  let roulcd = null;
+  roulouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'casino') { roulcd = a; break roulouter; }
+    }
+  check('roul: a seeded casino chunk exists in the scan window', !!roulcd);
+  const probsR = consoleProblems.length;
+  G.P.dead = false; G.P.godT = 0;
+  const rouldoor = G.casinoHallDoorWorld(roulcd);
+  G.player.position.set(rouldoor.x, groundY(rouldoor.x, rouldoor.z), rouldoor.z);
+  frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
+  G.closeShop(); G.casinoHallEnter();
+  check('roul: ENTER teleports into the cached hall',
+    G.CASINOHALL.inHall === true && G.player.position.y === G.CASINO_ROOM_Y,
+    'inHall=' + G.CASINOHALL.inHall);
+  for (let q = 0; q < 3 && G.CASINOHALL.seatKind !== 'roul'; q++)
+    stubs.fireGlobal('keydown', { code: 'KeyQ', preventDefault() {} });
+  check('roul: KeyQ cycles the seat to the roulette table', G.CASINOHALL.seatKind === 'roul');
+  frame(20);
+  check('roul: PLAY ROULETTE prompt shows inside',
+    G.casinoslothintEl.style.opacity == 1 && /PLAY ROULETTE/.test(G.casinoslothintEl.textContent),
+    G.casinoslothintEl.textContent);
+  check('roul: the toggle chip names the seat',
+    /TABLE: ROULETTE/.test(G.casinobjselEl.textContent), G.casinobjselEl.textContent);
+
+  /* --- E key wiring: E sits at the roulette table --- */
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('roul: KeyE sits at the roulette table (panel opens)',
+    G.CASINOHALL.seated === true && G.CASINOROUL.playing === true
+    && G.roulPanelEl.style.display === 'block',
+    'seated=' + G.CASINOHALL.seated);
+  check('roul: sit parks the player at the roulette-table seat',
+    Math.abs(G.player.position.x - G.CASINOHALL.roulSeatX) < 0.01
+    && Math.abs(G.player.position.z - G.CASINOHALL.roulSeatZ) < 0.01,
+    'x=' + G.player.position.x.toFixed(2) + ' z=' + G.player.position.z.toFixed(2));
+  check('roul: the status chip shows while playing',
+    G.roulChipEl.style.display === 'block' && /^ROUL /.test(G.roulChipEl.textContent),
+    G.roulChipEl.textContent);
+  check('roul: the felt holds 37 number cells plus 12 outside bets',
+    Object.keys(G.roulCellEls).length === 49, Object.keys(G.roulCellEls).length + ' cells');
+  check('roul: the rotor + ball ride the cached hall mesh',
+    G.rotorGroup.parent === G.casinoHallMesh && G.roulBall.parent === G.rotorGroup);
+
+  /* --- BET cycles 10 -> 25 -> 5 --- */
+  G.roulCycleBet();
+  check('roul: BET cycles 10 -> 25', G.ROUL_BETS[G.CASINOROUL.betIdx] === 25);
+  G.roulCycleBet();
+  check('roul: BET cycles 25 -> 5', G.ROUL_BETS[G.CASINOROUL.betIdx] === 5);
+  G.CASINOROUL.betIdx = 1;
+
+  /* --- insufficient funds: denied the bet, never trapped --- */
+  G.cash = 3;
+  G.roulPlace('red');
+  check('roul: a broke player is denied the bet (cash untouched, no chips placed)',
+    G.cash === 3 && G.CASINOROUL.totalBet === 0, 'cash=' + G.cash);
+
+  /* --- SPIN with no bets is refused --- */
+  G.cash = 100;
+  G.roulSpin();
+  check('roul: SPIN with no bets is refused (wheel stays idle)',
+    G.CASINOROUL.spinning === false && G.CASINOROUL.spins === 0);
+
+  /* --- chips land on the felt, then the wheel spins --- */
+  G.roulPlace('red');    // $10 on red
+  G.roulPlace('n7');     // $10 straight on 7
+  check('roul: chips land on the felt (cash debited, total bet $20)',
+    G.cash === 80 && G.CASINOROUL.totalBet === 20, 'cash=' + G.cash);
+  G.roulSpin();
+  check('roul: SPIN starts the wheel (seeded number picked first)',
+    G.CASINOROUL.spinning === true && G.CASINOROUL.winNum >= 0 && G.CASINOROUL.winNum < 37,
+    'win=' + G.CASINOROUL.winNum);
+  const wNum = G.CASINOROUL.winNum;
+  check('roul: the ball targets the winning pocket angle',
+    Math.abs(G.CASINOROUL.winAng - G.ROUL_POCKET_ANG[G.ROUL_WHEEL.indexOf(wNum)]) < 1e-9);
+  const cashMid = G.cash;
+  G.roulPlace('black');
+  check('roul: no bets land while the wheel spins',
+    G.cash === cashMid && !('black' in G.CASINOROUL.bets));
+  for (let f = 0; f < 240; f++) G.roulUpdate(1 / 60);   // 4s: the 3.4s spin settles
+  check('roul: the wheel settles on the seeded number',
+    G.CASINOROUL.spinning === false && G.CASINOROUL.history[0] === wNum,
+    'spinning=' + G.CASINOROUL.spinning + ' hist=' + G.CASINOROUL.history[0]);
+  {
+    const bx = G.roulBall.position.x, by = G.roulBall.position.y, bz = G.roulBall.position.z;
+    const ex = 0.43 * Math.cos(G.CASINOROUL.winAng), ez = 0.43 * Math.sin(G.CASINOROUL.winAng);
+    check('roul: the ball rests exactly in the winning pocket',
+      Math.abs(bx - ex) < 1e-9 && Math.abs(bz - ez) < 1e-9 && Math.abs(by - 0.16) < 1e-9,
+      'ball=' + bx.toFixed(3) + ',' + by.toFixed(3) + ',' + bz.toFixed(3));
+  }
+  {
+    const net = G.roulNetFor({ red: 10, n7: 10 }, wNum);
+    check('roul: the settle pays stakes back plus net honestly',
+      G.cash === 80 + 20 + net && G.CASINOROUL.totalBet === 0, 'cash=' + G.cash + ' net=' + net);
+  }
+
+  /* --- pending bets refund on stand: chips are never stranded --- */
+  G.cash = 100; G.CASINOROUL.bets = {}; G.CASINOROUL.totalBet = 0;
+  G.roulPlace('d1');
+  check('roul: a chip lands on the first dozen', G.cash === 90 && G.CASINOROUL.totalBet === 10);
+
+  /* --- E exits: stand up and leave the hall in one press --- */
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('roul: KeyE stands and exits (round trip complete)',
+    G.CASINOHALL.inHall === false && G.CASINOROUL.playing === false
+    && G.CASINOHALL.seated === false && G.roulPanelEl.style.display === 'none'
+    && G.roulChipEl.style.display === 'none');
+  check('roul: pending bets refund on stand (cash back to $100)', G.cash === 100, 'cash=' + G.cash);
+  const roulBackD = Math.hypot(G.player.position.x - G.CASINOHALL.doorX, G.player.position.z - G.CASINOHALL.doorZ);
+  check('roul: exit teleports back to the door', roulBackD < 0.01, 'd=' + roulBackD.toFixed(3));
+  check('roul: the round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsR, consoleProblems.slice(probsR).join(' | '));
+
+  /* --- death ejects from the hall: no gambling while dead --- */
+  G.P.dead = false; G.P.godT = 0;
+  G.player.position.set(rouldoor.x, groundY(rouldoor.x, rouldoor.z), rouldoor.z);
+  frame(20);
+  G.closeShop(); G.casinoHallEnter();
+  for (let q = 0; q < 3 && G.CASINOHALL.seatKind !== 'roul'; q++)
+    stubs.fireGlobal('keydown', { code: 'KeyQ', preventDefault() {} });
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('roul: re-seated at the roulette table', G.CASINOROUL.playing === true);
+  G.P.dead = true;
+  for (let f = 0; f < 3; f++) G.casinoHallTick(1 / 60);   // the death-eject path, hermetic
+  check('roul: death ejects from the hall (never trapped)',
+    G.CASINOHALL.inHall === false && G.CASINOROUL.playing === false
+    && G.roulPanelEl.style.display === 'none' && G.roulChipEl.style.display === 'none');
+  G.P.dead = false;
 
   /* leave the world as the next block expects: player at origin, FT rebuilt there */
   if (G.CASINOHALL.inHall) G.casinoHallExit();
