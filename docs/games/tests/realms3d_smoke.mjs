@@ -144,6 +144,13 @@ globalThis.__R3D = {
   slotUpdate, updateCasinoChip, drawReel, drawSlotSym, sfxSlotCoin,
   casinohintEl, casinoChipEl, casbearingEl, casarrEl, castxtEl,
   slotPanelEl, slotWinEl, slotSpinEl, HELP_SLOT,
+  /* Phase 5 theater v1 */
+  THEATER, theaterFor, theaterHash, theaterEnter, theaterExit, theaterRebuild,
+  theaterUpdate, theaterAnimate, theaterPlace, theaterPark, theaterBarMusic,
+  theaterSetName, updateTheaterChip, theaterBox, theaterTint, theaterArm,
+  theaterBoxIM, theaterHintEl, theaterChipEl, HELP_THEATER,
+  THEATER_N, THEATER_SCAN, T_INST, THEATER_BAR_LEN, THEATER_SETS, THEATER_POSES,
+  THEATER_LX, THEATER_LZ,
 };
 `;
 writeFileSync(BOOT, src);
@@ -663,7 +670,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 47 IM literals (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh + 1 piano)', imCount === 47, 'count=' + imCount);
+  check('perf4: 48 IM literals (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh + 1 piano + 1 theater)', imCount === 48, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1124,8 +1131,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 47 IM literals after consolidation + 1 piano (bike section)',
-    imCount2 === 47, 'count=' + imCount2);
+  check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater (bike section)',
+    imCount2 === 48, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1225,8 +1232,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 47 IM literals after consolidation + 1 piano (bicycle section)',
-    imCount3 === 47, 'count=' + imCount3);
+  check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater (bicycle section)',
+    imCount3 === 48, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1327,8 +1334,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 47 IM literals after consolidation + 1 piano (scooter section)',
-    imCount4 === 47, 'count=' + imCount4);
+  check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater (scooter section)',
+    imCount4 === 48, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1644,8 +1651,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf4: 47 IM literals after consolidation + 1 piano (wildlife5 section)',
-      imCount5 === 47, 'count=' + imCount5);
+    check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater (wildlife5 section)',
+      imCount5 === 48, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -1993,8 +2000,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf4: 47 IM literals after consolidation + 1 piano, 3 runtime building meshes',
-      n === 47 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater, 3 runtime building meshes',
+      n === 48 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2138,8 +2145,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 47 (50 - PERF-4 consolidation + 1 piano)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('food-static: InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2368,8 +2375,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 47 (50 - PERF-4 consolidation + 1 piano)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('farmv1-static: InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2740,8 +2747,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 47 (50 - PERF-4 consolidation + 1 piano)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2960,8 +2967,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 47 (50 - PERF-4 consolidation + 1 piano)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3655,7 +3662,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 
   /* static: one fleet mesh, no lights, no RNG, no em dashes in the piano block */
   const pianoSrc = html.slice(html.indexOf('/* ================= PHASE 5: PIANOS v1 (entertainment)'),
-                              html.indexOf('/* ============================== GAME LOOP'));
+                              html.indexOf('/* ================= PHASE 5: CASINO SLOTS v1 (entertainment)'));
   check('piano-static: exactly one new fleet mesh literal in the piano block',
     (pianoSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
   check('piano-static: piano block creates no lights',
@@ -3748,7 +3755,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   /* static: zero new draw calls, no lights, no unseeded RNG, no em dashes,
      no external URLs, no TODO text in the casino block */
   const casinoSrc = html.slice(html.indexOf('/* ================= PHASE 5: CASINO SLOTS v1 (entertainment)'),
-                               html.indexOf('/* ============================== GAME LOOP'));
+                               html.indexOf('/* ================= PHASE 5: THEATER v1 (entertainment)'));
   check('casino-static: zero new fleet mesh literals in the casino block',
     (casinoSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
   check('casino-static: casino block creates no lights',
@@ -3757,8 +3764,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no em dashes in the casino block', !casinoSrc.includes('\u2014'));
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
-  check('casino-static: whole-file IM literals pin at 47 (zero new draws)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('casino-static: whole-file IM literals pin at 48 (theater adds the one fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('casino-static: 3 runtime building meshes (casino rides the store mesh)',
     G.bldgMeshes.length === 3);
   check('casino-static: casino def shares the store fleet mesh',
@@ -3853,14 +3860,132 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.SLOT.playing === false && G.slotPanelEl.style.display === 'none'
     && G.casinoChipEl.style.display === 'none');
   check('casino: E exits via the keydown chain',
-    html.includes("if (e.code === 'KeyE') { if (SLOT.playing) slotExit();"));
+    html.includes("if (e.code === 'KeyE') { if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit();"));
   check('casino: vehicleExit and busted eject the gambler',
-    html.includes('function vehicleExit() { if (SLOT.playing) slotExit();')
+    html.includes('else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit();')
     && html.includes('else if (SLOT.playing) slotExit();   // busted off the slot machine too'));
   frame(20);   // bearing chip cadence
   check('casino: bearing chip shows the CASINO sign with distance',
     G.casbearingEl.style.display === 'block' && /CASINO \d+M/.test(G.castxtEl.textContent), G.castxtEl.textContent);
   check('casino: enter/spin/exit round trip leaves zero console errors/warnings',
+    consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
+}
+
+
+/* ================= 29. THEATER v1 (Phase 5 entertainment) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.THEATER.watching) G.theaterExit();
+  if (G.SLOT.playing) G.slotExit();
+  if (G.PIANO.playing) G.pianoExit();
+
+  /* static: exactly one new fleet mesh literal, no lights, no unseeded RNG,
+     no em dashes, no external URLs, no TODO text in the theater block */
+  const theaterSrc = html.slice(html.indexOf('/* ================= PHASE 5: THEATER v1 (entertainment)'),
+                                html.indexOf('/* ============================== GAME LOOP'));
+  check('theater-static: exactly one new fleet mesh literal in the theater block',
+    (theaterSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('theater-static: theater block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(theaterSrc));
+  check('theater-static: no unseeded RNG in the theater block', !/Math\.random/.test(theaterSrc));
+  check('theater-static: no em dashes in the theater block', !theaterSrc.includes('\u2014'));
+  check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
+  check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
+  check('theater-static: whole-file IM literals pin at 48 (47 + 1 theater)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('theater-static: light count pins at 6 (zero new lights)',
+    (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
+  check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',
+    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
+    (html.match(/\.createGain\(/g) || []).length === 30);
+  check('theater-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('theater-static: guard coverage (positive chains)',
+    (html.match(/\|\| THEATER\.watching/g) || []).length >= 28);
+  check('theater-static: guard coverage (negated chains)',
+    (html.match(/&& !THEATER\.watching/g) || []).length >= 18);
+  check('theater-static: WATCH hint click wiring pins theaterEnter',
+    html.includes("theaterHintEl.addEventListener('click', () => { if (THEATER.hintOn) theaterEnter(); })"));
+  check('theater-static: E frees the watcher first in the keydown chain',
+    html.includes("if (e.code === 'KeyE') { if (THEATER.watching) theaterExit();"));
+  check('theater-static: vehicleExit, mountToggle, busted and death eject the watcher',
+    html.includes('function vehicleExit() { if (THEATER.watching) theaterExit();')
+    && html.includes('if (THEATER.watching) theaterExit();   // Phase 5 theater: E never traps the watcher')
+    && html.includes('else if (THEATER.watching) theaterExit();   // busted out of the audience too')
+    && html.includes('else if (THEATER.watching) theaterExit();  // ...and no show while dead either'));
+
+  /* deterministic spot: same chunk, same theater, every call; own residue */
+  let tgx = 0, tgz = 0, td = null;
+  touter: for (let gx = -40; gx <= 40; gx++)
+    for (let gz = -40; gz <= 40; gz++) {
+      const d = G.theaterFor(gx, gz);
+      if (d) { tgx = gx; tgz = gz; td = d; break touter; }
+    }
+  check('theater: a seeded theater park exists in the scan window', !!td, 'at ' + tgx + ',' + tgz);
+  const td2 = G.theaterFor(tgx, tgz);
+  check('theater: theaterFor is deterministic across calls',
+    !!td2 && td2.x === td.x && td2.z === td.z && td2.yaw === td.yaw);
+  check('theater: spot uses its own hash residue %7===2 (disjoint from piano %7===5)',
+    G.theaterHash(tgx, tgz) % 7 === 2);
+
+  /* sit: walk up, the WATCH prompt shows, E (theaterEnter) seats the player */
+  const tcx = Math.floor(td.x / 48), tcz = Math.floor(td.z / 48);
+  G.player.position.set(td.x, groundY(td.x, td.z), td.z);
+  G.THEATER.key = '';
+  G.theaterRebuild(tcx, tcz);
+  frame(3);
+  const tslot = G.THEATER.slots.find(sl => sl.placed);
+  check('theater: rebuild places a theater at the seeded spot', !!tslot,
+    tslot ? 'd2=' + ((tslot.x - td.x) ** 2 + (tslot.z - td.z) ** 2).toFixed(2) : 'none placed');
+  check('theater: the fleet mesh holds 30 instances per theater slot',
+    G.theaterBoxIM.count === G.THEATER_N * G.T_INST);
+  G.player.position.set(tslot.x, groundY(tslot.x, tslot.z), tslot.z);
+  frame(3);
+  check('theater: WATCH hint shows near the theater',
+    G.THEATER.hintOn === true && G.theaterHintEl.style.opacity == 1);
+  const probs0 = consoleProblems.length;
+  G.theaterEnter();
+  check('theater: enter seats the player in the audience, chip shows',
+    G.THEATER.watching === true && G.theaterChipEl.style.display === 'block');
+  frame(3);
+  check('theater: chip reads NOW PLAYING - SET NAME | E LEAVE',
+    /^NOW PLAYING - [A-Z ]+  \|  E LEAVE$/.test(G.theaterChipEl.textContent), G.theaterChipEl.textContent);
+  const seatX = G.player.position.x, seatZ = G.player.position.z;
+  frame(30);   // ~0.5 s: music bars, crowd bounce, performer dance
+  check('theater: the player stays frozen at the seat while watching',
+    Math.abs(G.player.position.x - seatX) < 0.01 && Math.abs(G.player.position.z - seatZ) < 0.01
+    && G.THEATER.watching === true);
+
+  /* guards freeze locomotion, combat, melee, emotes while watching */
+  G.doPunch();
+  check('theater: melee is refused while watching', G.P.punchCd <= 0, 'punchCd=' + G.P.punchCd);
+  G.fireEmote('dance');
+  check('theater: emotes are refused while watching', G.EMO.key === null);
+  const fireCd0 = G.fireCd;
+  G.shoot();
+  check('theater: firing is refused while watching', G.fireCd === fireCd0);
+
+  /* set cycling: 16 bars = one set; the chip renames on the change */
+  const ws = G.THEATER.slots[G.THEATER.watchIdx];
+  const name0 = G.theaterSetName(ws);
+  ws.musicT = G.THEATER_BAR_LEN * 16 - 0.01; ws.bar = 15;
+  frame(3);
+  check('theater: the 16-bar loop rolls into a new set',
+    ws.setIdx === 1 && ws.cheerT > 0, 'setIdx=' + ws.setIdx + ' cheerT=' + ws.cheerT.toFixed(2));
+  check('theater: the chip renames on the set change',
+    G.theaterChipEl.textContent === 'NOW PLAYING - ' + G.theaterSetName(ws).toUpperCase() + '  |  E LEAVE',
+    G.theaterChipEl.textContent);
+  check('theater: set names are procedural (' + G.THEATER_SETS.length + ' in rotation)',
+    G.THEATER_SETS.includes(name0) && G.THEATER_SETS.includes(G.theaterSetName(ws)));
+
+  /* exit: E (theaterExit) frees the player, chip hides, never traps */
+  G.theaterExit();
+  check('theater: exit frees the player, chip hides, steps into the aisle',
+    G.THEATER.watching === false && G.theaterChipEl.style.display === 'none'
+    && Math.hypot(G.player.position.x - tslot.x, G.player.position.z - tslot.z) > 1.0);
+  check('theater: watch/exit round trip leaves zero console errors/warnings',
     consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
 }
 
