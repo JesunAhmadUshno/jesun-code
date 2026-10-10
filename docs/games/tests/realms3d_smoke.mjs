@@ -210,6 +210,15 @@ globalThis.__R3D = {
   kenoChipEl, kenoPanelEl, kenoPayEl, kenoGridEl, kenoBallsEl, kenoHitsEl,
   kenoStatusEl, kenoBetEl, kenoQuickEl, kenoClearEl, kenoDrawEl, kenoBigWinEl,
   KENO_BETS, KENO_PAY, KENO_BIG_MULT, KENO_HASH_A, KENO_HASH_B, HELP_LMKENO,
+  /* Phase 5 landmark casino wheel v1 (eighth table game: wheel of fortune) */
+  CASINOWHEEL, casinoWheelSit, casinoWheelStand,
+  wheelSpinSeed, wheelPickSector, wheelSectorAt, wheelCycleBet,
+  wheelSpin, wheelWinSting, wheelLand, wheelSettle, wheelUpdate,
+  wheelPayRows, wheelDraw, wheelRender,
+  wheelChipEl, wheelPanelEl, wheelPayEl, wheelCanvasEl, wheelStatusEl,
+  wheelBetEl, wheelSpinEl, wheelBigWinEl,
+  WHEEL_BETS, WHEEL_MULTS, WHEEL_W, WHEEL_TOTAL_W, WHEEL_N, WHEEL_STEP,
+  WHEEL_BIG_MULT, WHEEL_HASH_A, WHEEL_HASH_B, HELP_LMWHEEL,
   LMCASINO_COL, LMCAS_R, LMCAS_SEGS, LMCAS_GATE_K, LMCAS_CHIP_R2, LMCAS_DOOR, LMCAS_DOOR_R2,
   CASINO_ROOM_Y, LMCS_BETS, LMCS_SYMS, LMCS_WILD, LMCS_SEVEN, LMCS_LINES, LMCS_TAPE, LMCS_OUT_AT,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
@@ -6881,7 +6890,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('roul-static: single keydown listener (Q rides the existing one)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1
-    && html.includes("switch the table seat: slots, cards, roulette, dice, poker, baccarat or keno"));
+    && html.includes("switch the table seat: slots, cards, roulette, dice, poker, baccarat, keno or wheel"));
   check('roul-static: #roulchip pins its own top-left slot (no chip overlap)',
     html.includes('#roulchip {') && html.includes('top: 720px'));
 
@@ -7145,7 +7154,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
   G.closeShop(); G.casinoHallEnter();
   check('dice: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
-  /* the 7-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> slots */
+  /* the 8-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> wheel -> slots */
   G.CASINOHALL.seatKind = 'slots';
   G.casinoSeatToggle();
   check('dice: seat cycle slots -> cards', G.CASINOHALL.seatKind === 'bj');
@@ -7158,9 +7167,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.casinoSeatToggle();
   check('dice: seat cycle poker -> baccarat', G.CASINOHALL.seatKind === 'bacc');
   G.casinoSeatToggle();
-  check('dice: seat cycle baccarat -> keno (the 7-cycle)', G.CASINOHALL.seatKind === 'keno');
+  check('dice: seat cycle baccarat -> keno (the 8-cycle)', G.CASINOHALL.seatKind === 'keno');
   G.casinoSeatToggle();
-  check('dice: seat cycle keno -> slots (the 7-cycle closes)', G.CASINOHALL.seatKind === 'slots');
+  check('dice: seat cycle keno -> wheel (the 8-cycle)', G.CASINOHALL.seatKind === 'wheel');
+  G.casinoSeatToggle();
+  check('dice: seat cycle wheel -> slots (the 8-cycle closes)', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 4 && G.CASINOHALL.seatKind !== 'dice'; q++) G.casinoSeatToggle();
   frame(20);
   check('dice: PLAY DICE prompt shows inside',
@@ -7375,11 +7386,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
   G.closeShop(); G.casinoHallEnter();
   check('poker: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
-  /* the 7-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> slots */
+  /* the 8-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> wheel -> slots */
   G.CASINOHALL.seatKind = 'slots';
-  const pCyc = ['bj', 'roul', 'dice', 'poker', 'bacc', 'keno', 'slots'];
-  const pCycNames = ['cards', 'roulette', 'dice', 'poker', 'baccarat', 'keno', 'slots'];
-  for (let q = 0; q < 7; q++) {
+  const pCyc = ['bj', 'roul', 'dice', 'poker', 'bacc', 'keno', 'wheel', 'slots'];
+  const pCycNames = ['cards', 'roulette', 'dice', 'poker', 'baccarat', 'keno', 'wheel', 'slots'];
+  for (let q = 0; q < 8; q++) {
     G.casinoSeatToggle();
     check('poker: seat cycle lands ' + pCycNames[q], G.CASINOHALL.seatKind === pCyc[q]);
   }
@@ -7603,7 +7614,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bacc: the shoe reshuffles when under 15 cards',
     G.CASINOBACC.shoe.length === 51, 'shoe=' + G.CASINOBACC.shoe.length);
 
-  /* --- enter the hall and ride the 7-cycle to the baccarat seat --- */
+  /* --- enter the hall and ride the 8-cycle to the baccarat seat --- */
   let baccd = null;
   baccouter: for (let gx = -60; gx <= 60; gx++)
     for (let gz = -60; gz <= 60; gz++) {
@@ -7621,11 +7632,13 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bacc: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
   G.CASINOHALL.seatKind = 'slots';
   for (let q = 0; q < 5; q++) G.casinoSeatToggle();
-  check('bacc: five toggles land the baccarat seat (the 7-cycle)', G.CASINOHALL.seatKind === 'bacc');
+  check('bacc: five toggles land the baccarat seat (the 8-cycle)', G.CASINOHALL.seatKind === 'bacc');
   G.casinoSeatToggle();
-  check('bacc: the 7-cycle moves baccarat -> keno', G.CASINOHALL.seatKind === 'keno');
+  check('bacc: the 8-cycle moves baccarat -> keno', G.CASINOHALL.seatKind === 'keno');
   G.casinoSeatToggle();
-  check('bacc: the 7-cycle closes keno -> slots', G.CASINOHALL.seatKind === 'slots');
+  check('bacc: the 8-cycle moves keno -> wheel', G.CASINOHALL.seatKind === 'wheel');
+  G.casinoSeatToggle();
+  check('bacc: the 8-cycle closes wheel -> slots', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 5; q++) G.casinoSeatToggle();
   frame(20);
   check('bacc: PLAY BACCARAT prompt shows inside',
@@ -7863,7 +7876,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('keno: one short of 2/2 counts as one-short', G.kenoOneShort() === true);
   G.CASINOKENO.hits = 0; G.CASINOKENO.picks = [];
 
-  /* --- enter the hall and ride the 7-cycle to the keno seat --- */
+  /* --- enter the hall and ride the 8-cycle to the keno seat --- */
   let kenod = null;
   kenoouter: for (let gx = -60; gx <= 60; gx++)
     for (let gz = -60; gz <= 60; gz++) {
@@ -7881,9 +7894,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('keno: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
   G.CASINOHALL.seatKind = 'slots';
   for (let q = 0; q < 6; q++) G.casinoSeatToggle();
-  check('keno: six toggles land the keno seat (the 7-cycle)', G.CASINOHALL.seatKind === 'keno');
+  check('keno: six toggles land the keno seat (the 8-cycle)', G.CASINOHALL.seatKind === 'keno');
   G.casinoSeatToggle();
-  check('keno: the 7-cycle closes keno -> slots', G.CASINOHALL.seatKind === 'slots');
+  check('keno: the 8-cycle moves keno -> wheel', G.CASINOHALL.seatKind === 'wheel');
+  G.casinoSeatToggle();
+  check('keno: the 8-cycle closes wheel -> slots', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 6; q++) G.casinoSeatToggle();
   frame(20);
   check('keno: PLAY KENO prompt shows inside',
@@ -8033,6 +8048,216 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     !/keno/i.test(kSvStr) && !/CASINOKENO/.test(kSvStr), kSvStr.slice(0, 120));
   check('keno: the round trip leaves zero console errors/warnings',
     consoleProblems.length === probsK, consoleProblems.slice(probsK).join(' | '));
+
+  /* leave the world as the next block expects: player at origin */
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+  G.player.position.set(0, groundY(0, 0), 0);
+}
+
+/* ================= PHASE 5: LANDMARK CASINO WHEEL v1 ("WHEEL") ================= */
+{
+  /* --- static pins: the wheel block is seeded-only, canvas-2D-only, chip-clean --- */
+  const wheelSrc = html.slice(html.indexOf('CASINO WHEEL v1'), html.indexOf('PHASE 5: LANDMARK FIRE STATION v1'));
+  const probsW = consoleProblems.length;
+  check('wheel: the wheel block is found and self-contained',
+    wheelSrc.length > 8000, wheelSrc.length + ' chars');
+  check('wheel: the wheel block holds zero Math.random lines (seeded idiom only)',
+    !/Math\.random/.test(wheelSrc));
+  check('wheel: the wheel block adds zero InstancedMesh literals (pin holds at 48)',
+    !/new THREE\.InstancedMesh/.test(wheelSrc));
+  check('wheel: the wheel block creates zero THREE objects (canvas 2D is not the scene)',
+    !/new THREE\./.test(wheelSrc));
+  check('wheel: #wheelchip owns the next free top-left slot (918px, no overlap)',
+    /#wheelchip \{\s*position: absolute; top: 918px;/.test(html));
+  check('wheel: no placeholder or em dash text in the wheel block',
+    !/\b(TODO|FIXME|placeholder)\b/i.test(wheelSrc) && !wheelSrc.includes('—'));
+  check('wheel: one keydown listener only (Enter extends it, no new listener)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('wheel: zero new lights, zero new audio nodes (pins hold)',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(wheelSrc)
+    && !/createOscillator|createBufferSource/.test(wheelSrc));
+  check('wheel: zero setTimeout in the wheel path (tick loop only)',
+    !/setTimeout/.test(wheelSrc));
+
+  /* --- the seeded money wheel: 12 sectors, honest weights --- */
+  check('wheel: the spin seed lives in the fresh hash space (6541, 17)',
+    G.WHEEL_HASH_A === 6541 && G.WHEEL_HASH_B === 17 && G.wheelSpinSeed() !== 0
+    && G.WHEEL_HASH_A !== 6503 && G.WHEEL_HASH_A !== 6521 && G.WHEEL_HASH_A !== 6529
+    && G.WHEEL_HASH_A !== 6533 && G.WHEEL_HASH_A !== 6537);
+  check('wheel: 12 sectors in wheel order',
+    G.WHEEL_N === 12 && G.WHEEL_MULTS.length === 12 && G.WHEEL_W.length === 12);
+  check('wheel: the sector mults match the money-wheel spec',
+    G.WHEEL_MULTS.join(',') === '1,2,1,3,1,5,1,2,1,10,3,50');
+  check('wheel: the weights sum to the posted total (189)',
+    G.WHEEL_W.reduce((a, b) => a + b, 0) === 189 && G.WHEEL_TOTAL_W === 189);
+  check('wheel: the 50x headliner is the rare 1-in-189 sector',
+    G.WHEEL_W[11] === 1 && G.WHEEL_MULTS[11] === 50);
+  check('wheel: weights favor low multipliers (1x holds 150 of 189)',
+    G.WHEEL_W[0] + G.WHEEL_W[2] + G.WHEEL_W[4] + G.WHEEL_W[6] + G.WHEEL_W[8] === 150);
+  check('wheel: the bet tiers mirror the KENO_BETS idiom',
+    G.WHEEL_BETS.join(',') === '5,10,25');
+  check('wheel: the weighted pick is deterministic on the seed',
+    G.wheelPickSector(777) === G.wheelPickSector(777));
+  check('wheel: the weighted pick lands inside 0..11',
+    (() => { for (let s = 1; s < 40; s++) { const i = G.wheelPickSector(s); if (i < 0 || i > 11) return false; } return true; })());
+  check('wheel: a full weight sweep hits every sector (no dead sectors)',
+    (() => { const seen = new Set(); for (let s = 1; s < 20000; s++) seen.add(G.wheelPickSector(s)); return seen.size === 12; })());
+  check('wheel: the rim angle maps sector 0 under the top pointer at rest',
+    G.wheelSectorAt(0) === 0);
+  check('wheel: one step of rim rotation moves the pointer one sector',
+    G.wheelSectorAt(-G.WHEEL_STEP) === 1 && G.wheelSectorAt(-11 * G.WHEEL_STEP) === 11);
+  check('wheel: the posted paytable groups six multiplier rows with honest weights',
+    (() => { const rows = G.wheelPayRows(); return rows.length === 6 && rows[0].name === '1x x5 SECTORS' && rows[0].val === 'W 30 EA' && rows[5].name === '50x SECTOR' && rows[5].val === 'W 1 EA'; })(),
+    G.wheelPayRows().map(r => r.name + '=' + r.val).join(' | '));
+
+  /* --- enter the hall and ride the 8-cycle to the wheel seat --- */
+  let wheeld = null;
+  wheelouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'casino') { wheeld = a; break wheelouter; }
+    }
+  check('wheel: a seeded casino chunk exists in the scan window', !!wheeld);
+  G.P.dead = false; G.P.godT = 0;
+  const wheeldoor = G.casinoHallDoorWorld(wheeld);
+  G.player.position.set(wheeldoor.x, groundY(wheeldoor.x, wheeldoor.z), wheeldoor.z);
+  frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
+  G.closeShop(); G.casinoHallEnter();
+  check('wheel: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
+  G.CASINOHALL.seatKind = 'slots';
+  for (let q = 0; q < 7; q++) G.casinoSeatToggle();
+  check('wheel: seven toggles land the wheel seat (the 8-cycle)', G.CASINOHALL.seatKind === 'wheel');
+  G.casinoSeatToggle();
+  check('wheel: the 8-cycle closes wheel -> slots', G.CASINOHALL.seatKind === 'slots');
+  for (let q = 0; q < 7; q++) G.casinoSeatToggle();
+  frame(20);
+  check('wheel: PLAY WHEEL prompt shows inside',
+    G.casinoslothintEl.style.opacity == 1 && /PLAY WHEEL/.test(G.casinoslothintEl.textContent),
+    G.casinoslothintEl.textContent);
+  check('wheel: the toggle chip names the seat',
+    /TABLE: WHEEL/.test(G.casinobjselEl.textContent), G.casinobjselEl.textContent);
+
+  /* --- E sits at the south-west lounge spot --- */
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('wheel: KeyE sits at the wheel lounge spot (panel opens)',
+    G.CASINOHALL.seated === true && G.CASINOWHEEL.playing === true
+    && G.wheelPanelEl.style.display === 'block',
+    'seated=' + G.CASINOHALL.seated);
+  check('wheel: sit parks the player at the lounge spot, facing north',
+    Math.abs(G.player.position.x - G.CASINOHALL.wheelSeatX) < 0.01
+    && Math.abs(G.player.position.z - G.CASINOHALL.wheelSeatZ) < 0.01
+    && Math.abs(G.player.rotation.y - Math.PI) < 0.01,
+    'x=' + G.player.position.x.toFixed(2) + ' z=' + G.player.position.z.toFixed(2));
+  check('wheel: the status chip shows while playing',
+    G.wheelChipEl.style.display === 'block' && /^WHEEL /.test(G.wheelChipEl.textContent),
+    G.wheelChipEl.textContent);
+  check('wheel: the help line names the spin keys', /Enter/.test(G.HELP_LMWHEEL), G.HELP_LMWHEEL);
+  check('wheel: the wheel seat is clear of the keno seat',
+    Math.abs(G.CASINOHALL.wheelSeatX - G.CASINOHALL.kenoSeatX) + Math.abs(G.CASINOHALL.wheelSeatZ - G.CASINOHALL.kenoSeatZ) > 1);
+
+  /* --- BET cycles 10 -> 25 -> 5 -> 10 --- */
+  G.wheelCycleBet();
+  check('wheel: BET cycles 10 -> 25', G.WHEEL_BETS[G.CASINOWHEEL.betIdx] === 25);
+  G.wheelCycleBet();
+  check('wheel: BET cycles 25 -> 5', G.WHEEL_BETS[G.CASINOWHEEL.betIdx] === 5);
+  G.wheelCycleBet();
+  check('wheel: BET cycles 5 -> 10', G.WHEEL_BETS[G.CASINOWHEEL.betIdx] === 10);
+
+  /* --- SPIN: the outcome is seeded first, the rim sells it after --- */
+  G.cash = 100;
+  G.wheelSpin();
+  check('wheel: SPIN debits the $10 bet and opens the spin',
+    G.cash === 90 && G.CASINOWHEEL.phase === 'spin' && G.CASINOWHEEL.bet === 10
+    && G.CASINOWHEEL.target >= 0 && G.CASINOWHEEL.target < 12,
+    'cash=' + G.cash + ' phase=' + G.CASINOWHEEL.phase + ' target=' + G.CASINOWHEEL.target);
+  check('wheel: the spin parks 5-7 full turns of travel',
+    G.CASINOWHEEL.travel >= 5 * Math.PI * 2 && G.CASINOWHEEL.travel < 8 * Math.PI * 2,
+    'travel=' + (G.CASINOWHEEL.travel / (Math.PI * 2)).toFixed(2) + ' turns');
+  check('wheel: the spin runs 3.6-4.8s of rim time',
+    G.CASINOWHEEL.spinDur >= 3.6 && G.CASINOWHEEL.spinDur <= 4.8,
+    'dur=' + G.CASINOWHEEL.spinDur.toFixed(2) + 's');
+  const wT1 = G.CASINOWHEEL.target;
+  G.CASINOWHEEL.spins--; G.CASINOWHEEL.phase = 'idle'; G.CASINOWHEEL.bet = 0; G.cash = 100;   // rewind one spin
+  G.wheelSpin();
+  check('wheel: the same seed replays the same sector (outcome decided first)',
+    G.CASINOWHEEL.target === wT1, 'target=' + G.CASINOWHEEL.target + ' vs ' + wT1);
+
+  /* --- rig the 50x headliner: the headline is sized to the NET win --- */
+  G.CASINOWHEEL.target = 11;   // 50x, the rare headliner
+  G.CASINOWHEEL.spinT = G.CASINOWHEEL.spinDur;
+  G.wheelUpdate(1 / 60);
+  check('wheel: the rim parks into resolve on the 50x',
+    G.CASINOWHEEL.phase === 'resolve' && G.CASINOWHEEL.settleMult === 50,
+    'phase=' + G.CASINOWHEEL.phase);
+  check('wheel: the big-win headline shows at 50x, sized to the net win',
+    G.wheelBigWinEl.style.display === 'block' && /50x WHEEL! \+\$490/.test(G.wheelBigWinEl.textContent),
+    G.wheelBigWinEl.textContent);
+  check('wheel: the winning paytable row glows',
+    !!G.wheelPayRows().find(r => r.name === '50x SECTOR' && r.win === true));
+  check('wheel: the bankroll waits for the headline (cash untouched mid-resolve)',
+    G.cash === 90, 'cash=' + G.cash);
+  for (let f = 0; f < 160; f++) G.wheelUpdate(1 / 60);   // 2.67s: the 0.6s headline fires the settle, the 2.2s overlay clears
+  check('wheel: the settle pays the 50x return honestly ($90 -> $590)',
+    G.CASINOWHEEL.phase === 'done' && G.cash === 590 && G.CASINOWHEEL.lastDelta === 490,
+    'cash=' + G.cash + ' phase=' + G.CASINOWHEEL.phase);
+
+  /* --- rig a 1x push: the stake returns with no fanfare --- */
+  G.cash = 100;
+  G.wheelSpin();
+  G.CASINOWHEEL.target = 0;   // 1x
+  G.CASINOWHEEL.spinT = G.CASINOWHEEL.spinDur;
+  G.wheelUpdate(1 / 60);
+  check('wheel: the 1x landing parks without the big-win overlay (no loss-disguised-as-win)',
+    G.CASINOWHEEL.phase === 'resolve' && G.wheelBigWinEl.style.display === 'none'
+    && G.CASINOWHEEL.stingQ.length === 0);
+  for (let f = 0; f < 80; f++) G.wheelUpdate(1 / 60);
+  check('wheel: the push settles the stake back silently ($90 -> $100, net 0)',
+    G.CASINOWHEEL.phase === 'done' && G.cash === 100 && G.CASINOWHEEL.lastDelta === 0,
+    'cash=' + G.cash);
+
+  /* --- Enter spins when idle (the keydown capture) --- */
+  stubs.fireGlobal('keydown', { code: 'Enter', preventDefault() {} });
+  check('wheel: Enter spins when idle', G.CASINOWHEEL.phase === 'spin');
+
+  /* --- E stands mid-spin: the bet refunds, the pending spin/settle no-ops --- */
+  check('wheel: mid-spin the spin is live', G.CASINOWHEEL.phase === 'spin' && G.cash === 90);
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });   // E stands mid-spin and exits the hall
+  check('wheel: E stands mid-spin and exits (never trapped)',
+    G.CASINOHALL.inHall === false && G.CASINOWHEEL.playing === false
+    && G.CASINOWHEEL.phase === 'idle' && G.wheelPanelEl.style.display === 'none'
+    && G.wheelChipEl.style.display === 'none');
+  check('wheel: the mid-spin refund is exact ($90 -> $100)', G.cash === 100, 'cash=' + G.cash);
+  G.wheelUpdate(10);
+  check('wheel: the pending spin/settle no-ops after the stand (cash frozen)',
+    G.cash === 100 && G.CASINOWHEEL.phase === 'idle', 'cash=' + G.cash);
+
+  /* --- E spins at the seat when idle, then death ejects --- */
+  G.player.position.set(wheeldoor.x, groundY(wheeldoor.x, wheeldoor.z), wheeldoor.z);
+  frame(20);
+  G.closeShop(); G.casinoHallEnter();
+  for (let q = 0; q < 7 && G.CASINOHALL.seatKind !== 'wheel'; q++) G.casinoSeatToggle();
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });   // sit
+  check('wheel: re-seated at the wheel lounge', G.CASINOWHEEL.playing === true);
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });   // E spins when idle
+  check('wheel: KeyE spins when idle (never traps)', G.CASINOWHEEL.phase === 'spin');
+  G.P.dead = true;
+  for (let f = 0; f < 3; f++) G.casinoHallTick(1 / 60);   // the death-eject path, hermetic
+  check('wheel: death ejects from the hall (never trapped)',
+    G.CASINOHALL.inHall === false && G.CASINOWHEEL.playing === false
+    && G.wheelPanelEl.style.display === 'none' && G.wheelChipEl.style.display === 'none');
+  check('wheel: the death stand refunds the pending bet ($90 -> $100)', G.cash === 100, 'cash=' + G.cash);
+  G.P.dead = false;
+
+  /* --- session only: save/load round trip carries zero wheel keys --- */
+  G.saveGame();
+  G.loadSave();
+  const wSvStr = JSON.stringify(G.collectSave());
+  check('wheel: save schema carries zero wheel keys',
+    !/lmwheel/i.test(wSvStr) && !/CASINOWHEEL/.test(wSvStr), wSvStr.slice(0, 120));
+  check('wheel: the round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsW, consoleProblems.slice(probsW).join(' | '));
 
   /* leave the world as the next block expects: player at origin */
   if (G.CASINOHALL.inHall) G.casinoHallExit();

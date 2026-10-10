@@ -843,6 +843,44 @@
     text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
     animation: lmcs-bigwin .4s ease-in-out infinite alternate;
   }
+  /* ---- landmark casino: WHEEL v1 (eighth table game) HUD. The wheel panel
+         is DOM only (a 2D canvas wheel, the posted paytable, BET/SPIN
+         buttons, a win-headline overlay): zero THREE draw calls, the canvas
+         is not the WebGL scene. #wheelchip mirrors #kenochip in the
+         top-left stack (918px sits below #kenochip 885px, no overlap).
+         ---- */
+  #wheelchip {
+    position: absolute; top: 918px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #lmwheelpanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
+    padding: 14px 16px; display: none; text-align: center; z-index: 40;
+    user-select: none; -webkit-user-select: none; max-height: 88vh; overflow-y: auto;
+  }
+  #lmwheel-title { color: #ffd24a; font-size: 15px; letter-spacing: 4px; font-weight: bold; margin-bottom: 8px; }
+  #lmwheel-canvas { display: block; margin: 0 auto 8px; }
+  #lmwheel-pay { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; justify-content: center; margin: 0 auto 8px; max-width: 300px; text-align: left; }
+  .lmwheel-payrow { display: contents; }
+  .lmwheel-payname { color: #8b937a; font-size: 11px; letter-spacing: 1px; padding: 2px 0; }
+  .lmwheel-payval { color: #cfe8d8; font-size: 11px; font-weight: bold; text-align: right; padding: 2px 0; }
+  .lmwheel-payrow.win .lmwheel-payname, .lmwheel-payrow.win .lmwheel-payval { color: #ffd24a; text-shadow: 0 0 8px #ff9a2a; }
+  #lmwheel-status { color: #cfe8d8; font-size: 12px; letter-spacing: 1px; min-height: 18px; margin-bottom: 8px; }
+  #lmwheel-controls { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  #lmwheel-controls button {
+    font-size: 13px; letter-spacing: 1px; font-weight: bold; padding: 10px 14px;
+    border-radius: 6px; border: 1px solid #c9a227; cursor: pointer;
+  }
+  #lmwheel-bet { color: #ffd24a; background: #2a2416; }
+  #lmwheel-spin { color: #0c0e0a; background: #ffd24a; }
+  #lmwheel-bigwin {
+    position: absolute; left: 0; right: 0; top: 34%; color: #ffd24a;
+    font-size: 30px; font-weight: bold; letter-spacing: 4px; display: none;
+    text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
+    animation: lmcs-bigwin .4s ease-in-out infinite alternate;
+  }
   #lmdicepanel {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
@@ -1401,6 +1439,7 @@
   <div id="pokerchip"></div>
   <div id="baccchip"></div>
   <div id="kenochip"></div>
+  <div id="wheelchip"></div>
   <div id="lmcasinopanel">
     <div id="lmcs-title">ROYAL REELS</div>
     <div id="lmcs-reels">
@@ -1472,6 +1511,14 @@
     <div id="lmkeno-status">BET $10</div>
     <div id="lmkeno-controls"><button id="lmkeno-bet">BET $10</button><button id="lmkeno-quick">QUICK PICK</button><button id="lmkeno-clear">CLEAR</button><button id="lmkeno-draw">DRAW</button></div>
     <div id="lmkeno-bigwin"></div>
+  </div>
+  <div id="lmwheelpanel">
+    <div id="lmwheel-title">WHEEL OF FORTUNE</div>
+    <canvas id="lmwheel-canvas" width="300" height="300"></canvas>
+    <div id="lmwheel-pay"></div>
+    <div id="lmwheel-status">BET $10</div>
+    <div id="lmwheel-controls"><button id="lmwheel-bet">BET $10</button><button id="lmwheel-spin">SPIN</button></div>
+    <div id="lmwheel-bigwin"></div>
   </div>
   <div id="firestchip"><span id="firestarr">^</span> <span id="firesttxt"></span></div>
   <div id="heistchip"></div>
@@ -8814,8 +8861,8 @@ const CASINOHALL = {
   inHall: false, hintEnter: false, sitOn: false, nearIdx: -1,
   doorX: 0, doorZ: 0,
   standX: 0, standZ: 0, seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the machines (-Z)
-  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0, pokerSeatX: 0, pokerSeatZ: 0, baccSeatX: 0, baccSeatZ: 0, kenoSeatX: 0, kenoSeatZ: 0,   // the seven table seats
-  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice' | 'poker' | 'bacc' | 'keno': which seat E plays at
+  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0, pokerSeatX: 0, pokerSeatZ: 0, baccSeatX: 0, baccSeatZ: 0, kenoSeatX: 0, kenoSeatZ: 0, wheelSeatX: 0, wheelSeatZ: 0,   // the eight table seats
+  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice' | 'poker' | 'bacc' | 'keno' | 'wheel': which seat E plays at
   seated: false,
   hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
   hallPos: new THREE.Vector3(),
@@ -9042,6 +9089,7 @@ function casinoHallKeyE() {
   if (!CASINOHALL.inHall) return;
   if (CASINOBACC.playing && CASINOBACC.phase === 'squeeze') { baccSkipSqueeze(); }   // E skips the squeeze ritual to an instant reveal
   else if (CASINOKENO.playing && (CASINOKENO.phase === 'draw' || CASINOKENO.phase === 'resolve')) { casinoKenoStand(); casinoHallExit(); }   // E stands mid-draw: the bet refunds, the pending draw/settle no-ops
+  else if (CASINOWHEEL.playing && (CASINOWHEEL.phase === 'spin' || CASINOWHEEL.phase === 'resolve')) { casinoWheelStand(); casinoHallExit(); }   // E stands mid-spin: the bet refunds, the pending spin/settle no-ops
   else if (CASINOSLOT.playing) { casinoSlotStand(); casinoHallExit(); }
   else if (CASINOBJ.playing) { casinoBjStand(); casinoHallExit(); }
   else if (CASINOROUL.playing) { casinoRoulStand(); casinoHallExit(); }
@@ -9052,7 +9100,11 @@ function casinoHallKeyE() {
     if (CASINOKENO.phase === 'idle' && CASINOKENO.picks.length >= 2) kenoDraw();
     else { casinoKenoStand(); casinoHallExit(); }
   }
-  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else if (CASINOHALL.seatKind === 'poker') casinoPokerSit(); else if (CASINOHALL.seatKind === 'bacc') casinoBaccSit(); else if (CASINOHALL.seatKind === 'keno') casinoKenoSit(); else casinoSlotSit(); }
+  else if (CASINOWHEEL.playing) {   // idle or done: E spins, else stands and exits; E never traps
+    if (CASINOWHEEL.phase === 'idle' || CASINOWHEEL.phase === 'done') wheelSpin();
+    else { casinoWheelStand(); casinoHallExit(); }
+  }
+  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else if (CASINOHALL.seatKind === 'poker') casinoPokerSit(); else if (CASINOHALL.seatKind === 'bacc') casinoBaccSit(); else if (CASINOHALL.seatKind === 'keno') casinoKenoSit(); else if (CASINOHALL.seatKind === 'wheel') casinoWheelSit(); else casinoSlotSit(); }
   else casinoHallExit();
 }
 function casinoHallEnter() {
@@ -9079,6 +9131,7 @@ function casinoHallEnter() {
   CASINOHALL.pokerSeatX = a.x - 10.2; CASINOHALL.pokerSeatZ = a.z + 5.2;   // poker: the west-wall video-poker stool, faces the cabinets (-X)
   CASINOHALL.baccSeatX = a.x + 9.5; CASINOHALL.baccSeatZ = a.z + 4.5;     // baccarat: the east baccarat-table chair, faces the table (-Z)
   CASINOHALL.kenoSeatX = a.x; CASINOHALL.kenoSeatZ = a.z - 5.0;             // keno: the north-side lounge spot (all keno play is DOM)
+  CASINOHALL.wheelSeatX = a.x - 9.5; CASINOHALL.wheelSeatZ = a.z - 4.5;      // wheel: the south-west lounge spot (all wheel play is DOM)
   CASINOHALL.seatX = CASINOHALL.slotSeatX; CASINOHALL.seatZ = CASINOHALL.slotSeatZ; CASINOHALL.seatYaw = Math.PI;
   CASINOHALL.hallPos.set(a.x, CASINO_ROOM_Y, a.z - 6.0);
   player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
@@ -9124,7 +9177,7 @@ function casinoHallEnter() {
 }
 function casinoHallExit() {
   if (!CASINOHALL.inHall) return;
-  if (CASINOHALL.seated) { if (CASINOKENO.playing) casinoKenoStand(); else if (CASINOPOKER.playing) casinoPokerStand(); else if (CASINOBACC.playing) casinoBaccStand(); else if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
+  if (CASINOHALL.seated) { if (CASINOWHEEL.playing) casinoWheelStand(); else if (CASINOKENO.playing) casinoKenoStand(); else if (CASINOPOKER.playing) casinoPokerStand(); else if (CASINOBACC.playing) casinoBaccStand(); else if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
   CASINOHALL.inHall = false; CASINOHALL.sitOn = false; CASINOHALL.nearIdx = -1;
   casinoHallMesh.visible = false;
   casinoslothintEl.style.opacity = 0;
@@ -9136,6 +9189,7 @@ function casinoHallExit() {
   pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
   baccPanelEl.style.display = 'none'; baccChipEl.style.display = 'none'; baccBigWinEl.style.display = 'none';
   kenoPanelEl.style.display = 'none'; kenoChipEl.style.display = 'none'; kenoBigWinEl.style.display = 'none';
+  wheelPanelEl.style.display = 'none'; wheelChipEl.style.display = 'none'; wheelBigWinEl.style.display = 'none';
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
@@ -9162,6 +9216,7 @@ function casinoHallTick(dt) {
     CASINOPOKER.playing = false; pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
     CASINOBACC.playing = false; baccPanelEl.style.display = 'none'; baccChipEl.style.display = 'none'; baccBigWinEl.style.display = 'none';
     CASINOKENO.playing = false; kenoPanelEl.style.display = 'none'; kenoChipEl.style.display = 'none'; kenoBigWinEl.style.display = 'none';
+    CASINOWHEEL.playing = false; wheelPanelEl.style.display = 'none'; wheelChipEl.style.display = 'none'; wheelBigWinEl.style.display = 'none';
     lmcsPanelEl.style.display = 'none';
     bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
     casinChipEl.style.display = 'none';
@@ -9206,13 +9261,14 @@ function casinoHallTick(dt) {
       const playPoker = IS_TOUCH ? 'TAP TO PLAY POKER' : 'PLAY POKER [E]';
       const playBacc = IS_TOUCH ? 'TAP TO PLAY BACCARAT' : 'PLAY BACCARAT [E]';
       const playKeno = IS_TOUCH ? 'TAP TO PLAY KENO' : 'PLAY KENO [E]';
-      const playTxt = CASINOHALL.seatKind === 'keno' ? playKeno : (CASINOHALL.seatKind === 'bacc' ? playBacc : (CASINOHALL.seatKind === 'poker' ? playPoker : (CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots)))));
+      const playWheel = IS_TOUCH ? 'TAP TO PLAY WHEEL' : 'PLAY WHEEL [E]';
+      const playTxt = CASINOHALL.seatKind === 'wheel' ? playWheel : (CASINOHALL.seatKind === 'keno' ? playKeno : (CASINOHALL.seatKind === 'bacc' ? playBacc : (CASINOHALL.seatKind === 'poker' ? playPoker : (CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots))))));
       const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
       const txt = CASINOHALL.seated ? exitTxt : (CASINOHALL.sitOn ? playTxt : exitTxt);
       if (casinoslothintEl.textContent !== txt) casinoslothintEl.textContent = txt;
       casinoslothintEl.style.opacity = 1;
       /* seat toggle chip (touch-friendly): which table E plays at next */
-      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'keno' ? 'KENO' : (CASINOHALL.seatKind === 'bacc' ? 'BACCARAT' : (CASINOHALL.seatKind === 'poker' ? 'POKER' : (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS'))))));
+      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'wheel' ? 'WHEEL' : (CASINOHALL.seatKind === 'keno' ? 'KENO' : (CASINOHALL.seatKind === 'bacc' ? 'BACCARAT' : (CASINOHALL.seatKind === 'poker' ? 'POKER' : (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS')))))));
       if (casinobjselEl.textContent !== selTxt) casinobjselEl.textContent = selTxt;
       casinobjselEl.style.opacity = CASINOHALL.seated ? 0 : 1;
     }
@@ -9222,6 +9278,7 @@ function casinoHallTick(dt) {
     pokerUpdate(dt);  // video-poker draw cascade + win highlight + delayed settle
     baccUpdate(dt);   // baccarat squeeze cascade + win headline + delayed settle
     kenoUpdate(dt);   // keno draw beats + meters + delayed settle
+    wheelUpdate(dt);   // wheel spin ritual + land glow + delayed settle
     casinChipEl.style.display = 'none';
     return;
   }
@@ -9435,7 +9492,7 @@ function bjRender() {
 }
 function casinoSeatToggle() {
   if (!CASINOHALL.inHall || CASINOHALL.seated) return;
-  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : (CASINOHALL.seatKind === 'dice' ? 'poker' : (CASINOHALL.seatKind === 'poker' ? 'bacc' : (CASINOHALL.seatKind === 'bacc' ? 'keno' : 'slots')))));
+  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : (CASINOHALL.seatKind === 'dice' ? 'poker' : (CASINOHALL.seatKind === 'poker' ? 'bacc' : (CASINOHALL.seatKind === 'bacc' ? 'keno' : (CASINOHALL.seatKind === 'keno' ? 'wheel' : 'slots'))))));
   sfxBlip(760, 0.06, 'square', 0.14);
 }
 function casinoBjSit() {
@@ -10226,7 +10283,7 @@ const HELP_LMDICE = '<b>ROLL</b> play &nbsp; <b>E</b> exit &nbsp; <b>TOUCH</b> t
         driven, no setTimeout). E sits at the poker stool, E stands and exits
         (never traps: standing refunds any pending bet; a pending draw aborts
         cleanly). Q (or the TABLE chip) cycles seats: slots, cards, roulette,
-        dice, poker, baccarat, keno. Session only: the save schema is
+        dice, poker, baccarat, keno, wheel. Session only: the save schema is
         untouched. ---- */
 const POKER_BETS = [5, 10, 25];
 const POKER_HASH_A = 6529, POKER_HASH_B = 7;   // fresh hash space: not 6503, not the shoe space, not (6521, 99)
@@ -10588,7 +10645,7 @@ const HELP_LMPOKER = '<b>DEAL</b> play &nbsp; <b>E</b> exit &nbsp; <b>1-5</b> ho
         cards remain. E sits at the baccarat chair, E stands and exits (never
         traps: standing mid-squeeze refunds the pending bets; a pending
         settle no-ops). Q (or the TABLE chip) cycles seats: slots, cards,
-        roulette, dice, poker, baccarat, keno. Session only: the save schema
+        roulette, dice, poker, baccarat, keno, wheel. Session only: the save schema
         is untouched. Procedural WebAudio only (the sfxBlip fanfare idiom:
         zero new audio nodes). ---- */
 const BACC_BETS = [5, 10, 25];
@@ -10987,7 +11044,7 @@ const HELP_LMBACC = '<b>DEAL</b> play &nbsp; <b>E</b> skip/exit &nbsp; <b>1-3</b
         sits at the keno lounge spot, E draws when spots are picked, E stands
         mid-draw (refund) or after the settle (the casinoHallKeyE idiom, never
         traps). Q (or the TABLE chip) cycles seats: slots, cards, roulette,
-        dice, poker, baccarat, keno. Session only: the save schema is
+        dice, poker, baccarat, keno, wheel. Session only: the save schema is
         untouched. Procedural WebAudio only (the sfxBlip idiom, zero new
         audio nodes; the win sting is queued on the tick loop). ---- */
 const KENO_BETS = [5, 10, 25];
@@ -11332,6 +11389,332 @@ function kenoDrawBtn(e) { e.preventDefault(); e.stopPropagation(); kenoDraw(); }
 kenoDrawEl.addEventListener('touchstart', kenoDrawBtn, { passive: false });
 kenoDrawEl.addEventListener('click', kenoDrawBtn);
 const HELP_LMKENO = '<b>DRAW</b> play &nbsp; <b>E</b> draw/exit &nbsp; <b>Enter</b> draw &nbsp; <b>TOUCH</b> tap the card';
+
+
+/* ---- landmark casino: CASINO WHEEL v1 ("WHEEL"), the eighth table game in
+        the gaming hall. A seeded 12-sector money wheel: SPIN (the button, E,
+        or Enter) debits the bet, the outcome is decided FIRST on the seeded
+        RNG (a weighted sector pick in a fresh casino hash space), then the
+        canvas wheel sells the drama: a fast kick, per-sector-boundary ticks
+        on the sfxBlip idiom, exponential deceleration, a slow final approach
+        with the tick interval stretching as the rim crawls, the pointer
+        parked at the top. The landed sector glows; the bankroll settles 0.6s
+        later on the tick loop (the dice-settle idiom, no deferred timers anywhere).
+        The win headline is sized to the NET win: a 1x landing returns the
+        stake with no fanfare (a push is never dressed as a win). Standing
+        mid-spin refunds the bet and the pending spin/settle no-ops (no
+        double credit). The posted paytable lists every sector weight honestly.
+        Bet tiers $5/$10/$25 (the KENO_BETS idiom) on the cash economy. The
+        wheel is a 2D canvas inside the DOM overlay: zero THREE objects, zero
+        new draw calls, zero new lights, zero new audio nodes (sfxBlip only),
+        zero unseeded RNG (mulberry32/hash2i seeded streams only). E sits
+        at the south-west lounge spot, E spins when idle, E stands and exits
+        (never traps). Q (or the TABLE chip) cycles seats: slots, cards,
+        roulette, dice, poker, baccarat, keno, wheel. Session only: the save
+        schema is untouched. Procedural WebAudio only (the sfxBlip idiom). ---- */
+const WHEEL_BETS = [5, 10, 25];
+const WHEEL_HASH_A = 6541, WHEEL_HASH_B = 17;   // fresh hash space: not 6503, not the shoe space, not (6521, 99), not (6529, 7), not (6533, 11), not (6537, 13)
+/* the 12 sectors in clockwise wheel order from the top: multiplier + weight.
+   Honest weights (posted on the paytable): total 189. 1x lands 150/189
+   (79.4%), 2x 20/189, 3x 12/189, 5x 4/189, 10x 2/189, the 50x headliner
+   1/189 (0.53%). RTP = (150*1 + 20*2 + 12*3 + 4*5 + 2*10 + 1*50) / 189
+   = 316/189 = 1.672: the house runs the wheel as a promo loss-leader. */
+const WHEEL_MULTS = [1, 2, 1, 3, 1, 5, 1, 2, 1, 10, 3, 50];
+const WHEEL_W = [30, 10, 30, 6, 30, 4, 30, 10, 30, 2, 6, 1];
+const WHEEL_TOTAL_W = 189;
+const WHEEL_N = 12;
+const WHEEL_STEP = (Math.PI * 2) / WHEEL_N;   // one sector of rim, radians
+const WHEEL_BIG_MULT = 50;   // only the 50x headliner earns the big-win overlay
+const CASINOWHEEL = {
+  playing: false, betIdx: 1, spins: 0,
+  phase: 'idle',            // idle | spin | resolve | done
+  bet: 0, target: -1,       // the seeded landed sector (decided first, drama after)
+  ang: 0, ang0: 0, travel: 0, spinT: 0, spinDur: 4,
+  lastTick: -1,             // last rim sector that crossed the pointer
+  hlT: 0, bigWinT: 0,
+  settleMult: 0, lastDelta: 0,
+  stingQ: [], stingT: 0,    // tick-loop win-sting queue: [freq, dur, type, vol, gap]
+};
+function wheelSpinSeed() { return (hash2i(WHEEL_HASH_A, WHEEL_HASH_B) ^ (CASINOWHEEL.spins * 0x9e3779b9)) >>> 0; }
+/* the honest weighted pick: one mulberry32 draw over the posted weights. */
+function wheelPickSector(seed) {
+  const r = mulberry32(seed >>> 0);
+  let x = r() * WHEEL_TOTAL_W;
+  for (let i = 0; i < WHEEL_N; i++) { x -= WHEEL_W[i]; if (x < 0) return i; }
+  return WHEEL_N - 1;
+}
+/* the rim sector currently under the top pointer, for the boundary ticks. */
+function wheelSectorAt(ang) {
+  const m = ((-ang) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+  return Math.floor(m / WHEEL_STEP) % WHEEL_N;
+}
+function wheelCycleBet() {
+  if (!CASINOWHEEL.playing || (CASINOWHEEL.phase !== 'idle' && CASINOWHEEL.phase !== 'done')) return;
+  CASINOWHEEL.betIdx = (CASINOWHEEL.betIdx + 1) % WHEEL_BETS.length;
+  const b = WHEEL_BETS[CASINOWHEEL.betIdx];
+  wheelBetEl.textContent = 'BET $' + b;
+  wheelRender();
+}
+function wheelSpin() {
+  const K = CASINOWHEEL;
+  if (!K.playing || (K.phase !== 'idle' && K.phase !== 'done') || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  const bet = WHEEL_BETS[K.betIdx];
+  if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }
+  K.spins++;
+  cash -= bet; updateCashHUD(); floatCash('-$' + bet);              // the cash idiom
+  K.bet = bet;
+  /* the outcome is decided FIRST: a weighted sector on the seeded stream. */
+  const seed = wheelSpinSeed();
+  K.target = wheelPickSector(seed);
+  /* then the presentation sells it: 5-7 full turns plus the exact offset
+     that parks the pointer at a seeded spot inside the target sector. */
+  const r = mulberry32((seed ^ 0x5bd1e995) >>> 0);
+  const frac = 0.2 + 0.6 * r();                    // the pointer lands 20-80% into the sector
+  const turns = 5 + Math.floor(r() * 3);           // 5-7 full turns of drama
+  K.spinDur = 3.6 + 1.2 * r();                     // 3.6-4.8s of rim time
+  K.ang0 = K.ang; K.spinT = 0;
+  const want = (-(K.target + frac) * WHEEL_STEP);
+  let travel = (want - K.ang0) % (Math.PI * 2);
+  if (travel < 0) travel += Math.PI * 2;
+  K.travel = travel + turns * Math.PI * 2;
+  K.lastTick = wheelSectorAt(K.ang0);
+  K.phase = 'spin';
+  toast('SPINNING');
+  sfxBlip(240, 0.1, 'square', 0.16);   // the spin kick
+  wheelRender();
+}
+/* the win sting (the fanfare idiom, zero new audio nodes: sfxBlip notes
+   queued on the tick loop, no deferred timers anywhere in the wheel path). */
+function wheelWinSting(big) {
+  const notes = big ? [523, 659, 784, 1046, 1318, 1568, 2093] : [660, 880, 1174];
+  CASINOWHEEL.stingQ = notes.map(f => [f, 0.13, 'triangle', 0.2, 0.11]);
+  CASINOWHEEL.stingT = 0;
+}
+/* the rim parks: the landed sector glows, the headline is sized to the NET
+   win (a 1x push returns the stake with no fanfare, never a
+   loss-disguised-as-a-win). */
+function wheelLand() {
+  const K = CASINOWHEEL;
+  K.ang = K.ang0 + K.travel;   // exact park: the pointer sits inside the target sector
+  K.phase = 'resolve';
+  const mult = WHEEL_MULTS[K.target];
+  K.settleMult = mult;
+  K.lastDelta = mult * K.bet - K.bet;
+  K.hlT = 0.6;   // the win headline breathes before the bankroll settles
+  if (mult >= WHEEL_BIG_MULT) {
+    wheelWinSting(true);
+    wheelBigWinEl.textContent = mult + 'x WHEEL! +$' + K.lastDelta;
+    wheelBigWinEl.style.display = 'block';
+    K.bigWinT = 2.2;
+    toast(mult + 'x - +$' + K.lastDelta);
+  } else if (K.lastDelta > 0) {
+    wheelWinSting(false);
+    toast(mult + 'x - +$' + K.lastDelta);
+  }
+  wheelDraw();
+  wheelRender();
+}
+function wheelSettle() {
+  const K = CASINOWHEEL;
+  K.phase = 'done';
+  if (!K.playing) return;   // stood mid-resolve: the stand refund already covered it
+  const ret = K.settleMult * K.bet;
+  cash += ret; updateCashHUD();   // the cash idiom: total return (stakes back inside the multiplier)
+  const net = ret - K.bet;
+  if (net > 0) floatCash('+$' + net);
+  K.lastDelta = net;
+  K.bet = 0; K.settleMult = 0;
+  wheelRender();
+}
+/* one timing table, tick-loop driven: the exponential-decay spin with
+   per-boundary ticks (the interval stretches as the rim crawls), the
+   win-headline pause, the delayed settle, the win-sting queue. No deferred timers
+   anywhere. */
+function wheelUpdate(dt) {
+  const K = CASINOWHEEL;
+  if (!K.playing) return;
+  if (K.bigWinT > 0) {
+    K.bigWinT -= dt;
+    if (K.bigWinT <= 0) wheelBigWinEl.style.display = 'none';
+  }
+  if (K.stingQ.length) {   // the tick-loop sting drain
+    K.stingT -= dt;
+    while (K.stingQ.length && K.stingT <= 0) {
+      const s = K.stingQ.shift();
+      sfxBlip(s[0], s[1], s[2], s[3]);
+      K.stingT = s[4];
+    }
+  }
+  if (K.phase === 'spin') {
+    K.spinT += dt;
+    const p = Math.min(1, K.spinT / K.spinDur);
+    /* exponential deceleration: a fast kick, then a long slow crawl to the park */
+    K.ang = K.ang0 + K.travel * (1 - Math.exp(-3.2 * p)) / (1 - Math.exp(-3.2));
+    const sec = wheelSectorAt(K.ang);
+    if (sec !== K.lastTick) {   // one crisp tick per sector boundary, stretching as the rim slows
+      K.lastTick = sec;
+      sfxBlip(1200 + (sec % 2) * 300, 0.025, 'square', 0.07);
+    }
+    wheelDraw();
+    if (p >= 1) wheelLand();
+  } else if (K.phase === 'resolve') {
+    K.hlT -= dt;
+    if (K.hlT <= 0) wheelSettle();
+  }
+}
+/* the posted paytable: [{name, val, win}], grouped by multiplier with the
+   honest per-sector weight. The landed row glows while the result is up. */
+function wheelPayRows() {
+  const seen = {};
+  const rows = [];
+  for (let i = 0; i < WHEEL_N; i++) {
+    const m = WHEEL_MULTS[i];
+    if (seen[m]) continue;
+    seen[m] = true;
+    let count = 0;
+    for (let j = 0; j < WHEEL_N; j++) if (WHEEL_MULTS[j] === m) count++;
+    rows.push({
+      name: m + 'x' + (count > 1 ? ' x' + count + ' SECTORS' : ' SECTOR'),
+      val: 'W ' + WHEEL_W[i] + ' EA',
+      win: (CASINOWHEEL.phase === 'resolve' || CASINOWHEEL.phase === 'done') && m === CASINOWHEEL.settleMult && CASINOWHEEL.target >= 0,
+    });
+  }
+  return rows;
+}
+let wheelCtx = null;
+function wheelDraw() {
+  const K = CASINOWHEEL;
+  if (!wheelCanvasEl) return;
+  if (!wheelCtx) wheelCtx = wheelCanvasEl.getContext('2d');
+  const c = wheelCtx;
+  const S = 300, cx = S / 2, cy = S / 2, R = 138;
+  c.clearRect(0, 0, S, S);
+  for (let i = 0; i < WHEEL_N; i++) {
+    const a0 = K.ang + i * WHEEL_STEP - Math.PI / 2;
+    const a1 = a0 + WHEEL_STEP;
+    const m = WHEEL_MULTS[i];
+    const landed = K.target === i && (K.phase === 'resolve' || K.phase === 'done');
+    c.beginPath();
+    c.moveTo(cx, cy);
+    c.arc(cx, cy, R, a0, a1);
+    c.closePath();
+    if (landed) c.fillStyle = '#ffd24a';
+    else if (m >= 50) c.fillStyle = '#7a1020';
+    else if (m >= 10) c.fillStyle = '#8a1a2a';
+    else if (m >= 5) c.fillStyle = '#0a5a2a';
+    else if (m >= 3) c.fillStyle = '#0d6a34';
+    else if (m >= 2) c.fillStyle = '#0a4a5a';
+    else c.fillStyle = '#123a24';
+    c.fill();
+    c.strokeStyle = '#c9a227'; c.lineWidth = 2; c.stroke();
+    /* the sector label rides the rim, reading center-out */
+    const am = (a0 + a1) / 2;
+    c.save();
+    c.translate(cx, cy); c.rotate(am);
+    c.fillStyle = landed ? '#0c0e0a' : '#ffe9a8';
+    c.font = 'bold 15px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(m + 'x', R - 34, 0);
+    c.restore();
+  }
+  /* the hub */
+  c.beginPath(); c.arc(cx, cy, 30, 0, Math.PI * 2);
+  c.fillStyle = '#1a1408'; c.fill();
+  c.strokeStyle = '#c9a227'; c.lineWidth = 3; c.stroke();
+  c.fillStyle = '#ffd24a'; c.font = 'bold 11px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText('WHEEL', cx, cy);
+  /* the pointer at the top */
+  c.beginPath();
+  c.moveTo(cx - 12, 6); c.lineTo(cx + 12, 6); c.lineTo(cx, 30);
+  c.closePath();
+  c.fillStyle = '#ff3b30'; c.fill();
+  c.strokeStyle = '#ffe9a8'; c.lineWidth = 2; c.stroke();
+}
+function wheelRender() {
+  const K = CASINOWHEEL;
+  /* the posted paytable; the landed row glows on the result. */
+  wheelPayEl.innerHTML = '';
+  for (const r of wheelPayRows()) {
+    const row = document.createElement('div');
+    row.className = 'lmwheel-payrow' + (r.win ? ' win' : '');
+    const nm = document.createElement('div'); nm.className = 'lmwheel-payname'; nm.textContent = r.name;
+    const vl = document.createElement('div'); vl.className = 'lmwheel-payval'; vl.textContent = r.val;
+    row.appendChild(nm); row.appendChild(vl);
+    wheelPayEl.appendChild(row);
+  }
+  const bet = WHEEL_BETS[K.betIdx];
+  let st;
+  if (K.phase === 'idle') st = 'BET $' + bet + ' - PLACE YOUR SPIN';
+  else if (K.phase === 'spin') st = 'SPINNING...';
+  else if (K.phase === 'resolve' || K.phase === 'done') st = 'LANDED ' + WHEEL_MULTS[K.target] + 'x' + (K.lastDelta > 0 ? ' +$' + K.lastDelta : '');
+  else st = 'BET $' + bet;
+  wheelStatusEl.textContent = st;
+  /* the HUD status chip (the chip idiom): phase plus the last balance delta */
+  wheelChipEl.textContent = 'WHEEL ' + st;
+  wheelChipEl.style.display = K.playing ? 'block' : 'none';
+  wheelBetEl.textContent = 'BET $' + bet;
+  wheelDraw();
+}
+function casinoWheelSit() {
+  if (CASINOHALL.seated || !CASINOHALL.inHall) return;
+  emoteCancel();   // no emotes while gambling
+  CASINOHALL.seated = true; CASINOHALL.sitOn = false;
+  CASINOHALL.seatX = CASINOHALL.wheelSeatX; CASINOHALL.seatZ = CASINOHALL.wheelSeatZ; CASINOHALL.seatYaw = Math.PI;   // the south-west lounge spot
+  const K = CASINOWHEEL;
+  K.playing = true; K.betIdx = 1; K.spins = 0;
+  K.phase = 'idle'; K.bet = 0; K.target = -1;
+  K.ang = 0; K.ang0 = 0; K.travel = 0; K.spinT = 0; K.spinDur = 4;
+  K.lastTick = -1; K.hlT = 0; K.bigWinT = 0;
+  K.settleMult = 0; K.lastDelta = 0;
+  K.stingQ = []; K.stingT = 0;
+  player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
+  player.rotation.y = CASINOHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  wheelBetEl.textContent = 'BET $' + WHEEL_BETS[K.betIdx];
+  wheelRender();
+  wheelPanelEl.style.display = 'block';
+  casinoslothintEl.style.opacity = 0; casinobjselEl.style.opacity = 0;
+  helpEl.innerHTML = HELP_LMWHEEL;
+  toast('WHEEL OF FORTUNE');
+  sfxBlip(660, 0.09, 'triangle', 0.2);
+}
+function casinoWheelStand() {
+  if (!CASINOHALL.seated) return;
+  CASINOHALL.seated = false; CASINOHALL.sitOn = false;
+  const K = CASINOWHEEL;
+  if (K.bet > 0 && (K.phase === 'spin' || K.phase === 'resolve')) {   // never strands chips: the pending bet refunds; the pending spin/settle no-ops
+    cash += K.bet; updateCashHUD();
+    toast('BET REFUNDED $' + K.bet);
+  }
+  CASINOWHEEL.playing = false; CASINOWHEEL.phase = 'idle';
+  K.bet = 0; K.target = -1;
+  K.ang = 0; K.ang0 = 0; K.travel = 0; K.spinT = 0; K.spinDur = 4;
+  K.lastTick = -1; K.hlT = 0; K.bigWinT = 0;
+  K.settleMult = 0; K.lastDelta = 0;
+  K.stingQ = []; K.stingT = 0;
+  wheelPanelEl.style.display = 'none';
+  wheelChipEl.style.display = 'none';
+  wheelBigWinEl.style.display = 'none';
+  player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  helpEl.innerHTML = HELP_CASINOHALL;
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+const wheelChipEl = document.getElementById('wheelchip');
+const wheelPanelEl = document.getElementById('lmwheelpanel');
+const wheelPayEl = document.getElementById('lmwheel-pay');
+const wheelCanvasEl = document.getElementById('lmwheel-canvas');
+const wheelStatusEl = document.getElementById('lmwheel-status');
+const wheelBetEl = document.getElementById('lmwheel-bet');
+const wheelSpinEl = document.getElementById('lmwheel-spin');
+const wheelBigWinEl = document.getElementById('lmwheel-bigwin');
+function wheelBetBtn(e) { e.preventDefault(); e.stopPropagation(); wheelCycleBet(); }   // the touch-guard idiom
+wheelBetEl.addEventListener('touchstart', wheelBetBtn, { passive: false });
+wheelBetEl.addEventListener('click', wheelBetBtn);
+function wheelSpinBtn(e) { e.preventDefault(); e.stopPropagation(); wheelSpin(); }
+wheelSpinEl.addEventListener('touchstart', wheelSpinBtn, { passive: false });
+wheelSpinEl.addEventListener('click', wheelSpinBtn);
+const HELP_LMWHEEL = '<b>SPIN</b> play &nbsp; <b>E</b> spin/exit &nbsp; <b>Enter</b> spin &nbsp; <b>TOUCH</b> tap SPIN';
+
 
 
 /* ================= PHASE 5: LANDMARK FIRE STATION v1 (buildings/places) ================
@@ -14012,7 +14395,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette, dice, poker, baccarat or keno
+  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette, dice, poker, baccarat, keno or wheel
   if (CASINOPOKER.playing) {   // video poker captures 1-5 for card holds while seated (the shop-capture idiom)
     if (e.code === 'Digit1') { pokerToggleHold(0); return; }
     else if (e.code === 'Digit2') { pokerToggleHold(1); return; }
@@ -14028,6 +14411,7 @@ addEventListener('keydown', e => {
     /* every other key (E to skip the squeeze, then stand, Q, movement) falls through: E never traps */
   }
   if (CASINOKENO.playing && e.code === 'Enter') { kenoDraw(); return; }   // keno captures Enter for the draw while seated (the shop-capture idiom); E also draws via casinoHallKeyE
+  if (CASINOWHEEL.playing && e.code === 'Enter') { wheelSpin(); return; }   // wheel captures Enter for the spin while seated (the keno-capture idiom); E also spins via casinoHallKeyE
   if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
