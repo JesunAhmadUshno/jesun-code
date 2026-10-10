@@ -32,7 +32,7 @@ check('farm-static: seeded PRNG only (Math.random lines 92 = 91 + 1 boat splash 
   'lines=' + (html.match(/^.*Math\.random.*$/gm) || []).length);
 {
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('perf6: 41 IM literals after PERF-6 (41 - copTorso+copHead+copArms->copFleet - eBodyRus+eBodySho->eBodyAll Y-band - theater+stadium+amuse->venueBoxIM)', imCount === 41, 'count=' + imCount);
+  check('perf6: 42 IM literals after PERF-6 (42 = 41 + 1 signglyph v1 board fleet; 41 - copTorso+copHead+copArms->copFleet - eBodyRus+eBodySho->eBodyAll Y-band - theater+stadium+amuse->venueBoxIM)', imCount === 42, 'count=' + imCount);
 }
 check('farm-static: single renderer.render call site',
   (html.match(/renderer\.render\(/g) || []).length === 1);
