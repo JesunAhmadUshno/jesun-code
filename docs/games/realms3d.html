@@ -6524,6 +6524,17 @@ function buildGasGeo() {
     amenPart(parts, 0, 0.7, 0.3, 0.5, sx, 1.75, 0, WHITE);         // pump tops
   }
   amenPart(parts, 1, 0.14, 0.18, 6.4, 5.8, 3.2, 0, 0x23252a);      // sign pole
+  // props v1: venue-edge clutter, clear of the repair ring (trigR 6.5)
+  for (let t = 0; t < 3; t++)
+    amenPart(parts, 1, 0.45, 0.45, 0.22, -7.5, 0.11 + t * 0.22, -6, 0x1e2126); // tire stack
+  amenPart(parts, 1, 0.18, 0.18, 0.7, -7.5, 0.35, -6, 0x6b6f75);    // tire hub
+  const DRUMS = [[6.6, -6.2, 0x7a3b2e], [7.5, -6.1, 0x2e6fc2], [8.2, -6.5, 0x6b6f75]];
+  for (const [dx, dz, dc] of DRUMS)
+    amenPart(parts, 1, 0.45, 0.45, 1.1, dx, 0.55, dz, dc);         // oil drums
+  amenPart(parts, 1, 0.35, 0.35, 0.95, -7.5, 0.475, 5.5, 0x3a4a3f); // trash bin
+  amenPart(parts, 1, 0.38, 0.38, 0.08, -7.5, 0.99, 5.5, 0x2a3530);  // bin lid
+  amenPart(parts, 0, 1.2, 2.3, 0.8, 7.5, 1.15, 5.5, 0x2e3138);      // vending machine
+  amenPart(parts, 0, 1.0, 1.8, 0.08, 7.5, 1.2, 5.06, 0xf2b544);     // vending front panel
   const ss = vertCount(parts);
   amenPart(parts, 5, 4.2, 1.6, 0, 5.8, 6.9, 0, 0xffffff, Math.PI / 2);
   const geo = mergeAmenGeos(parts);
@@ -6538,6 +6549,25 @@ function buildGarageGeo() {
   for (const sx of [-2.2, 2.2])
     amenPart(parts, 0, 2.6, 2.4, 0.18, sx, 1.25, 3.05, 0x14161a); // open bays
   amenPart(parts, 0, 3.4, 1.0, 0.18, 0, 2.9, 3.02, 0xbfe0e8);     // office glass
+  // props v1: venue-edge clutter, clear of the repair zone (trigR 5.5)
+  for (const tx of [-7, 7]) {
+    for (let t = 0; t < 3; t++)
+      amenPart(parts, 1, 0.45, 0.45, 0.22, tx, 0.11 + t * 0.22, -5, 0x1e2126); // tire stacks
+    amenPart(parts, 1, 0.18, 0.18, 0.7, tx, 0.35, -5, 0x6b6f75);  // tire hubs
+  }
+  const GDR = [[-7.6, 4.3, 0x7a3b2e], [-6.8, 4.6, 0x2e6fc2], [-7.3, 5.2, 0x6b6f75]];
+  for (const [dx, dz, dc] of GDR)
+    amenPart(parts, 1, 0.45, 0.45, 1.1, dx, 0.55, dz, dc);        // oil drums
+  amenPart(parts, 0, 2.4, 0.18, 1.0, 7, 0.95, 4.5, 0x7a5c3e);      // workbench top
+  for (const lx of [-1.05, 1.05]) for (const lz of [-0.4, 0.4])
+    amenPart(parts, 0, 0.12, 0.86, 0.12, 7 + lx, 0.43, 4.5 + lz, 0x4a4038); // bench legs
+  amenPart(parts, 0, 1.2, 2.0, 0.6, -5.5, 1.0, -5.5, 0x8f3a32);    // tool cabinet
+  for (const dy of [0.7, 1.3])
+    amenPart(parts, 0, 1.0, 0.45, 0.06, -5.5, dy, -5.16, 0xb85a50); // cabinet drawers
+  for (const px of [-1.8, 1.8])
+    amenPart(parts, 0, 0.1, 1.6, 0.1, px, 4.55, 3.25, 0x2e3138);   // banner posts
+  amenPart(parts, 0, 4.4, 0.8, 0.15, 0, 5.35, 3.3, 0xc23b2e);      // OPEN board
+  amenPart(parts, 0, 4.0, 0.55, 0.06, 0, 5.35, 3.42, 0xe8e4da);    // OPEN panel
   const ss = vertCount(parts);
   amenPart(parts, 5, 5, 1.3, 0, 0, 4.6, 2.6, 0xffffff, 0);
   const geo = mergeAmenGeos(parts);
@@ -6795,9 +6825,11 @@ const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [],
 const AMEN_DEF_LIST = [
   { key: 'gas', cap: 6, tex: () => makeSignTex('GAS - REPAIR', '#c23b2e'), build: buildGasGeo, trigR: 6.5,
     colliders: [[-4.2, -3.2, 0.35], [4.2, -3.2, 0.35], [-4.2, 3.2, 0.35], [4.2, 3.2, 0.35],
-                [-3.2, 0, 0.55], [3.2, 0, 0.55], [5.8, 0, 0.3]] },
+                [-3.2, 0, 0.55], [3.2, 0, 0.55], [5.8, 0, 0.3],
+                [-7.5, -6, 0.7], [7.5, -6, 1.1], [-7.5, 5.5, 0.5], [7.5, 5.5, 1.0]] },
   { key: 'garage', cap: 6, tex: () => makeSignTex('GARAGE', '#2e6fc2'), build: buildGarageGeo, trigR: 5.5,
-    colliders: [[-2.5, -3.2, 2.3], [2.5, -3.2, 2.3], [-4.6, -0.5, 1.9], [4.6, -0.5, 1.9]] },
+    colliders: [[-2.5, -3.2, 2.3], [2.5, -3.2, 2.3], [-4.6, -0.5, 1.9], [4.6, -0.5, 1.9],
+                [-7, -5, 0.7], [7, -5, 0.7], [-7, 4.5, 1.1], [7, 4.5, 1.3], [-5.5, -5.5, 0.9]] },
   { key: 'rest', cap: 8, tex: () => makeSignTex('DINER', '#b0762a'), build: buildRestGeo, trigR: 0,
     colliders: [[-2.5, 0, 2.4], [2.5, 0, 2.4]] },
   { key: 'park', cap: 8, tex: makePlainTex, build: buildParkGeo, trigR: 0,
