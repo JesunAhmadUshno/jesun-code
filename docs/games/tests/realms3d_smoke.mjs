@@ -237,6 +237,11 @@ globalThis.__R3D = {
   HELP_FIRHALL,
   LMFS_COL, LMFS_R, LMFS_SEGS, LMFS_GATE_K, LMFS_CHIP_R2, LMFS_DOOR, LMFS_DOOR_R2, LMFS_BAY,
   FIRESTATION_ROOM_Y,
+  /* PERF-7 DPR ceiling clamp: pixel-budget governor internals (read-only) */
+  govBudgetCeilFor, govBudgetCeil, GOV_LADDER, GOV_PIXEL_BUDGET, GOV_KEY,
+  govTick, govFlashChip, perfEl,
+  get govCur() { return govCur; }, get govCeil() { return govCeil; },
+  get govFlashMsg() { return govFlashMsg; },
   /* Phase 5 fire station v2: firefighter dispatch */
   FIRECREW, INCIDENTS, fireIncidentOnIgnite, fireDispatch, fireCalloutId,
   fireStampInc, nearestFireStation, ffPostFor, fireIncidentDone, fireNearest,
@@ -7795,6 +7800,111 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.civicExit();
   for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
   G.setHeat(0, true); G.P.godT = 9999;
+}
+
+/* ================= PERF-7 DPR CEILING CLAMP ================= */
+{
+  /* pure math on the main (DPR-1 stub) boot: expected index computed from
+     GOV_LADDER, never hardcoded */
+  const ladder = G.GOV_LADDER;
+  let want = 0;
+  for (let i = 0; i < ladder.length; i++)
+    if (ladder[i] * ladder[i] * 2000 * 1200 <= G.GOV_PIXEL_BUDGET) want = i;
+  check('perf7: govBudgetCeilFor(2000,1200) picks the top budget-fitting rung',
+    G.govBudgetCeilFor(2000, 1200) === want,
+    'got=' + G.govBudgetCeilFor(2000, 1200) + ' want=' + want);
+  check('perf7: pixel budget is monotone in surface size',
+    G.govBudgetCeilFor(640, 360) >= G.govBudgetCeilFor(2000, 1200) &&
+    G.govBudgetCeilFor(2000, 1200) >= G.govBudgetCeilFor(4000, 3000));
+  check('perf7: boot starts at or below the budget ceiling',
+    G.govCur <= G.govBudgetCeil(), 'govCur=' + G.govCur);
+  check('perf7: governor step-up can never exceed the budget ceiling',
+    G.govCur <= G.govBudgetCeil(), 'govCur=' + G.govCur);
+}
+
+/* ---------- PERF-7 DPR clamp: a second boot at DPR 2 exercises the real ladder ---------- */
+{
+  /* The stub boots at devicePixelRatio=1, so GOV_LADDER is degenerate [1].
+     Re-extract the module source, boot a second instance with a
+     desktop-class surface, then restore the harness globals. The second boot
+     is fully hermetic: its resize listener is popped and localStorage is
+     snapshot-restored afterwards. */
+  const m2 = html.match(/<script type="module">([\s\S]*?)<\/script>/);
+  let src2 = m2[1].replace(
+    "import * as THREE from 'three';",
+    "import * as THREE from './vendor/three.module.js';"
+  ).replace('new THREE.WebGLRenderer', 'new __StubRenderer');
+  src2 += `
+globalThis.__R3D2 = {
+  govBudgetCeilFor, govBudgetCeil, GOV_LADDER, GOV_PIXEL_BUDGET, GOV_KEY,
+  govTick, govFlashChip, perfEl,
+  get govCur() { return govCur; }, set govCur(v) { govCur = v; },
+  get govCeil() { return govCeil; }, set govCeil(v) { govCeil = v; },
+  get govSettle() { return govSettle; }, set govSettle(v) { govSettle = v; },
+  get govBest() { return govBest; }, set govBest(v) { govBest = v; },
+  get govFlashMsg() { return govFlashMsg; },
+};`;
+  const boot2 = join(HERE, '.r3d_boot2.mjs');
+  writeFileSync(boot2, src2);
+  const storeSnap = globalThis.localStorage._dump();
+  globalThis.localStorage.clear();
+  globalThis.devicePixelRatio = 2;
+  globalThis.innerWidth = 1280; globalThis.innerHeight = 720;
+  await import(pathToFileURL(boot2).href);
+  const G2 = globalThis.__R3D2;
+  check('perf7: DPR2 boot happened', !!G2);
+  if (G2) {
+    /* boot with a surface where the budget binds below the ladder top:
+       1280x720 at DPR 1.5 is exactly the budget (2.25*921600), so the boot
+       clamp must hold the ladder at rung 1.5 instead of the DPR-2 top */
+    let want2 = 0;
+    const L2 = G2.GOV_LADDER;
+    for (let i = 0; i < L2.length; i++)
+      if (L2[i] * L2[i] * 1280 * 720 <= G2.GOV_PIXEL_BUDGET) want2 = i;
+    check('perf7: DPR2 boot clamps the ladder top to the budget ceiling',
+      G2.govCur === want2 && G2.govCeil === want2 && want2 === L2.length - 2,
+      'govCur=' + G2.govCur + ' govCeil=' + G2.govCeil + ' want=' + want2 +
+      ' ladder=' + L2.join(','));
+    /* step-up path: simulate a prior thermal step-down, then let the
+       governor climb; it must stop at the budget-clamped ceiling */
+    G2.govCur = 0; G2.govSettle = 0; G2.govBest = 16.7;
+    for (let i = 0; i < 200; i++) { stubs.clock.advance(16.667); G2.govTick(16.667); }
+    check('perf7: governor step-up stops at the budget-clamped ceiling',
+      G2.govCur === G2.govCeil && G2.govCur <= G2.govBudgetCeil(),
+      'govCur=' + G2.govCur + ' govCeil=' + G2.govCeil);
+    /* resize path: jump to a huge surface; the ceiling tightens, the rung
+       steps down, and the chip flash names the budget */
+    globalThis.innerWidth = 2000; globalThis.innerHeight = 1200;
+    const ceilBefore = G2.govCeil;
+    stubs.fireGlobal('resize');
+    check('perf7: resize to a huge surface tightens the in-session ceiling',
+      G2.govCeil < ceilBefore && G2.govCeil === G2.govBudgetCeil(),
+      'govCeil=' + G2.govCeil + ' was=' + ceilBefore);
+    check('perf7: resize steps the rung down with a PX BUDGET chip flash',
+      G2.govCur === G2.govCeil &&
+      G2.govFlashMsg.includes('QUAL DOWN') && G2.govFlashMsg.includes('PX BUDGET'),
+      'govCur=' + G2.govCur + ' flash=' + G2.govFlashMsg);
+    /* rotate back: the handler must NOT step up; the governor still
+       respects the tightened ceiling */
+    globalThis.innerWidth = 1280; globalThis.innerHeight = 720;
+    stubs.fireGlobal('resize');
+    check('perf7: resize handler never steps up',
+      G2.govCur === 0 && G2.govCeil === 0,
+      'govCur=' + G2.govCur + ' govCeil=' + G2.govCeil);
+    G2.govSettle = 0; G2.govBest = 16.7;
+    for (let i = 0; i < 200; i++) { stubs.clock.advance(16.667); G2.govTick(16.667); }
+    check('perf7: step-up stays under the budget-tightened ceiling after resize',
+      G2.govCur <= G2.govBudgetCeil(), 'govCur=' + G2.govCur);
+  }
+  /* restore the harness: drop the second instance's resize listener,
+     rebuild localStorage from the snapshot, reset the surface globals */
+  if (stubs.listeners.resize && stubs.listeners.resize.length > 1) stubs.listeners.resize.pop();
+  globalThis.localStorage.clear();
+  for (const k of Object.keys(storeSnap)) globalThis.localStorage.setItem(k, storeSnap[k]);
+  globalThis.devicePixelRatio = 1;
+  globalThis.innerWidth = 1280; globalThis.innerHeight = 720;
+  delete globalThis.__R3D2;
+  try { unlinkSync(boot2); } catch (e) {}
 }
 
 /* ---------- zero console errors ---------- */
