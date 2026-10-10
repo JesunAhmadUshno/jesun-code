@@ -74,6 +74,7 @@ globalThis.__R3D = {
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
+  cops, copFleet, COP_MAX, eBodyAll, ENEMY_BAND, ENEMY_MIX,   /* PERF-6 merge regression */
   SAVE_KEY,
   DIFF, diffEval, animals,
   birds, wings, PET, tamePet, releasePet, acquirePrey, petRejoin,
@@ -148,19 +149,20 @@ globalThis.__R3D = {
   THEATER, theaterFor, theaterHash, theaterEnter, theaterExit, theaterRebuild,
   theaterUpdate, theaterAnimate, theaterPlace, theaterPark, theaterBarMusic,
   theaterSetName, updateTheaterChip, theaterBox, theaterTint, theaterArm,
-  theaterBoxIM, theaterHintEl, theaterChipEl, HELP_THEATER,
+  venueBoxIM, VENUE_CAP, VENUE_THEATER_OFF, VENUE_STADIUM_OFF, VENUE_AMUSE_OFF,
+  theaterHintEl, theaterChipEl, HELP_THEATER,
   THEATER_N, THEATER_SCAN, T_INST, THEATER_BAR_LEN, THEATER_SETS, THEATER_POSES,
   /* Phase 5 stadium v1 */
   STADIUM, stadiumFor, stadiumHash, stadiumEnter, stadiumExit, stadiumRebuild,
   stadiumUpdate, stadiumAnimate, stadiumPlace, stadiumPark, stadiumGoalCheer,
   stadiumMatchName, updateStadiumChip, stadiumBox, stadiumTint,
-  stadiumBoxIM, stadiumHintEl, stadiumChipEl, stadbearingEl, stadarrEl, stadtxtEl, HELP_STADIUM,
+  stadiumHintEl, stadiumChipEl, stadbearingEl, stadarrEl, stadtxtEl, HELP_STADIUM,
   STADIUM_N, STADIUM_SCAN, S_INST, STADIUM_GOAL_EVERY, STADIUM_NAMES, STADIUM_LX, STADIUM_LZ,
   /* Phase 5 amusement park v1 */
   AMUSE, amusementFor, amusementHash, amuseEnter, amuseExit, amuseRebuild,
   amuseUpdate, amuseAnimate, amusePlace, amusePark, amuseBox, amuseTint,
   amuseSlotWorld, amuseRideName, updateAmuseChip,
-  amuseBoxIM, amuseHintEl, amuseChipEl, HELP_AMUSE,
+  amuseHintEl, amuseChipEl, HELP_AMUSE,
   AMUSE_N, AMUSE_SCAN, A_INST, AMUSE_WHEEL_W, AMUSE_CAR_W, AMUSE_NAMES,
   AMUSE_FW_LX, AMUSE_FW_LZ, AMUSE_FW_CY, AMUSE_FW_R,
   /* Phase 5 rural civic buildings v1 */
@@ -702,7 +704,40 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf5: 46 IM literals (48 - PERF-5 + stadium fleet + amusement fleet: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)', imCount === 46, 'count=' + imCount);
+  check('perf6: 41 IM literals (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 41, 'count=' + imCount);
+
+  /* PERF-6 merge regression: slot maps, Y-band lifts, identity colors */
+  {
+    check('perf6: copFleet holds all cop parts (capacity COP_MAX*4)',
+      G.copFleet.count === G.COP_MAX * 4, 'count=' + G.copFleet.count);
+    check('perf6: copFleet userData slot map resolves torso/head/arm to the same cop',
+      G.copFleet.userData.copBase === 0 && G.copFleet.userData.headBase === G.COP_MAX &&
+      G.copFleet.userData.armBase === G.COP_MAX * 2 && G.copFleet.userData.perCop === 1);
+    const _m4 = new THREE.Matrix4(), _c = new THREE.Color();
+    G.copFleet.getColorAt(0, _c);
+    check('perf6: cop torso slot carries the old copUniM blue', _c.getHex() === 0x1d4ed8, 'hex=' + _c.getHexString());
+    G.copFleet.getColorAt(G.COP_MAX, _c);
+    check('perf6: cop head slot carries the old copHeadM skin tone', _c.getHex() === 0x8a6a52, 'hex=' + _c.getHexString());
+    G.copFleet.getColorAt(G.COP_MAX * 2, _c);
+    check('perf6: cop arm slot carries the old copUniM blue', _c.getHex() === 0x1d4ed8, 'hex=' + _c.getHexString());
+    check('perf6: eBodyAll holds rusher+shooter (capacity 4)',
+      G.eBodyAll.count === 4, 'count=' + G.eBodyAll.count);
+    check('perf6: merged enemy fleet keeps the type->slot map for hitscan',
+      G.eBodyAll.userData.enemyOf.length === 4 &&
+      G.eBodyAll.userData.enemyOf[0].type === 'rusher' &&
+      G.eBodyAll.userData.enemyOf[2].type === 'shooter');
+    for (const e of G.enemies) {
+      if (e.type === 'brute' || e.state === 'dead') continue;   // parked dead bodies carry no band lift
+      G.eBodyAll.getMatrixAt(e.bodyInst, _m4);
+      const liftY = _m4.elements[13] - e.group.position.y;
+      const want = e.type === 'shooter' ? G.ENEMY_BAND : 0;
+      if (Math.abs(liftY - want) > 0.01) {
+        check('perf6: Y-band lift on ' + e.type + ' instance ' + e.bodyInst, false, 'lift=' + liftY.toFixed(2));
+        break;
+      }
+    }
+    check('perf6: Y-band lift matches the type band (shooter +1000, rusher 0)', true);
+  }
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1163,8 +1198,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf5: 46 IM literals after PERF-5 + stadium fleet + amusement fleet (bike section)',
-    imCount2 === 46, 'count=' + imCount2);
+  check('perf6: 41 IM literals (bike section)',
+    imCount2 === 41, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1264,8 +1299,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf5: 46 IM literals after PERF-5 + stadium fleet + amusement fleet (bicycle section)',
-    imCount3 === 46, 'count=' + imCount3);
+  check('perf6: 41 IM literals (bicycle section)',
+    imCount3 === 41, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1366,8 +1401,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf5: 46 IM literals after PERF-5 + stadium fleet + amusement fleet (scooter section)',
-    imCount4 === 46, 'count=' + imCount4);
+  check('perf6: 41 IM literals (scooter section)',
+    imCount4 === 41, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1683,8 +1718,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf5: 46 IM literals after PERF-5 + stadium fleet + amusement fleet (wildlife5 section)',
-      imCount5 === 46, 'count=' + imCount5);
+    check('perf6: 41 IM literals (wildlife5 section)',
+      imCount5 === 41, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2032,8 +2067,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf5: 46 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
-      n === 46 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf6: 41 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
+      n === 41 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2177,8 +2212,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 46 (48 - PERF-5 consolidation + stadium fleet + amusement fleet: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('food-static: InstancedMesh literal sites pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2407,8 +2442,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 46 (48 - PERF-5 consolidation + stadium fleet + amusement fleet: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('farmv1-static: InstancedMesh literal sites pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2779,8 +2814,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 46 (48 - PERF-5 consolidation + stadium fleet + amusement fleet: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2999,8 +3034,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 46 (48 - PERF-5 consolidation + stadium fleet + amusement fleet: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3796,8 +3831,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no em dashes in the casino block', !casinoSrc.includes('\u2014'));
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
-  check('casino-static: whole-file IM literals pin at 46 (48 - PERF-5 consolidation + stadium fleet + amusement fleet: trunks+fol, npcLegs, copGuns, brute->Mesh; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('casino-static: whole-file IM literals pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
   check('casino-static: 6 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet, apartment owns its fleet)',
     G.bldgMeshes.length === 6);
   check('casino-static: casino def shares the store fleet mesh',
@@ -3925,8 +3960,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('theater-static: no em dashes in the theater block', !theaterSrc.includes('\u2014'));
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
-  check('theater-static: whole-file IM literals pin at 46 (48 - PERF-5 consolidation + stadium fleet + amusement fleet: trunks+fol, npcLegs, copGuns, brute->Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('theater-static: whole-file IM literals pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',
@@ -3972,8 +4007,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const tslot = G.THEATER.slots.find(sl => sl.placed);
   check('theater: rebuild places a theater at the seeded spot', !!tslot,
     tslot ? 'd2=' + ((tslot.x - td.x) ** 2 + (tslot.z - td.z) ** 2).toFixed(2) : 'none placed');
-  check('theater: the fleet mesh holds 30 instances per theater slot',
-    G.theaterBoxIM.count === G.THEATER_N * G.T_INST);
+  check('theater: the merged venue fleet has full capacity (PERF-6: theater+stadium+amuse in one mesh)',
+    G.venueBoxIM.count === G.VENUE_CAP, 'count=' + G.venueBoxIM.count);
   G.player.position.set(tslot.x, groundY(tslot.x, tslot.z), tslot.z);
   frame(3);
   check('theater: WATCH hint shows near the theater',
@@ -4059,8 +4094,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('civic-static: no em dashes in the civic block', !civicSrc.includes('—'));
   check('civic-static: no external URLs in the civic block', !/https?:\/\//.test(civicSrc));
   check('civic-static: no TODO markers in the civic block', !/\bTODO\b/.test(civicSrc));
-  check('civic-static: whole-file IM literals pin at 46 (48 - PERF-5 consolidation + stadium fleet + amusement fleet: trunks+fol, npcLegs, copGuns, brute->Mesh; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('civic-static: whole-file IM literals pin at 41 (41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
   check('civic-static: 6 runtime building meshes (house, barn, store, civic, worship, apartment)',
@@ -4328,16 +4363,16 @@ const groundY = (x, z) => G.terrainHeight(x, z);
      no em dashes, no external URLs, no TODO text in the stadium block */
   const stadiumSrc = html.slice(html.indexOf('/* ================= PHASE 5: STADIUM v1 (sports)'),
                                 html.indexOf('/* ================= PHASE 5: AMUSEMENT PARK v1 (places)'));
-  check('stadium-static: exactly one new fleet mesh literal in the stadium block',
-    (stadiumSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('stadium-static: zero fleet mesh literals in the stadium block (PERF-6: rides the shared venueBoxIM)',
+    (stadiumSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
   check('stadium-static: stadium block creates no lights',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(stadiumSrc));
   check('stadium-static: no unseeded RNG in the stadium block', !/Math\.random/.test(stadiumSrc));
   check('stadium-static: no em dashes in the stadium block', !stadiumSrc.includes('—'));
   check('stadium-static: no external URLs in the stadium block', !/https?:\/\//.test(stadiumSrc));
   check('stadium-static: no TODO markers in the stadium block', !/\bTODO\b/.test(stadiumSrc));
-  check('stadium-static: whole-file IM literals pin at 46 (44 + stadium fleet + amusement fleet)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('stadium-static: whole-file IM literals pin at 41 (41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
   check('stadium-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('stadium-static: audio nodes pin unchanged (17 osc, 30 gain: cheer reuses sfxBlip)',
@@ -4398,8 +4433,11 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const sslot = G.STADIUM.slots.find(sl => sl.placed);
   check('stadium: rebuild places a stadium at the seeded spot', !!sslot,
     sslot ? 'd2=' + ((sslot.x - sd.x) ** 2 + (sslot.z - sd.z) ** 2).toFixed(2) : 'none placed');
-  check('stadium: the fleet mesh holds 50 instances per stadium slot',
-    G.stadiumBoxIM.count === G.STADIUM_N * G.S_INST);
+  check('stadium: venue fleet region offsets match the section constants (PERF-6)',
+    G.VENUE_STADIUM_OFF === G.THEATER_N * G.T_INST &&
+    G.VENUE_AMUSE_OFF === G.VENUE_STADIUM_OFF + G.STADIUM_N * G.S_INST &&
+    G.VENUE_CAP === G.VENUE_AMUSE_OFF + G.AMUSE_N * G.A_INST,
+    'offs=' + G.VENUE_STADIUM_OFF + '/' + G.VENUE_AMUSE_OFF + '/' + G.VENUE_CAP);
   G.player.position.set(sslot.x, groundY(sslot.x, sslot.z), sslot.z);
   frame(3);
   check('stadium: WATCH hint shows near the stadium',
@@ -4470,16 +4508,16 @@ const groundY = (x, z) => G.terrainHeight(x, z);
      no em dashes, no external URLs, no TODO text in the amusement block */
   const amuseSrc = html.slice(html.indexOf('/* ================= PHASE 5: AMUSEMENT PARK v1 (places)'),
                               html.indexOf('/* ============================== GAME LOOP'));
-  check('amuse-static: exactly one new fleet mesh literal in the amusement block',
-    (amuseSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('amuse-static: zero fleet mesh literals in the amusement block (PERF-6: rides the shared venueBoxIM)',
+    (amuseSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
   check('amuse-static: amusement block creates no lights',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(amuseSrc));
   check('amuse-static: no unseeded RNG in the amusement block', !/Math\.random/.test(amuseSrc));
   check('amuse-static: no em dashes in the amusement block', !amuseSrc.includes('—'));
   check('amuse-static: no external URLs in the amusement block', !/https?:\/\//.test(amuseSrc));
   check('amuse-static: no TODO markers in the amusement block', !/\bTODO\b/.test(amuseSrc));
-  check('amuse-static: whole-file IM literals pin at 46 (45 + amusement fleet)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('amuse-static: whole-file IM literals pin at 41 (41 - PERF-6: amuse rides the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 41);
   check('amuse-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('amuse-static: audio nodes pin unchanged (17 osc, 30 gain: chimes reuse sfxBlip)',
@@ -4544,8 +4582,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const aslot = G.AMUSE.slots.find(sl => sl.placed);
   check('amuse: rebuild places a park at the seeded spot', !!aslot,
     aslot ? 'd2=' + ((aslot.x - ad.x) ** 2 + (aslot.z - ad.z) ** 2).toFixed(2) : 'none placed');
-  check('amuse: the fleet mesh holds 106 instances per park slot',
-    G.amuseBoxIM.count === G.AMUSE_N * G.A_INST);
+  check('amuse: the merged venue fleet holds all three venue regions (PERF-6)',
+    G.venueBoxIM.count === G.VENUE_THEATER_OFF + 4 * 30 + 4 * 50 + 4 * 106 &&
+    G.VENUE_AMUSE_OFF + aslot.base >= G.VENUE_AMUSE_OFF);
   G.player.position.set(aslot.x, groundY(aslot.x, aslot.z), aslot.z);
   frame(3);
   check('amuse: RIDE hint shows near the park',
@@ -4579,13 +4618,13 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   let maxTilt = 0, moved = false;
   const yBefore = [];
   for (let k = 0; k < 8; k++) {
-    G.amuseBoxIM.getMatrixAt(abase + 23 + k * 3 + 2, m4);
+    G.venueBoxIM.getMatrixAt(G.VENUE_AMUSE_OFF + abase + 23 + k * 3 + 2, m4);
     yBefore.push(m4.elements[13]);
   }
   frame(180);   // ~3 s of wheel time
   check('amuse: the wheel keeps turning under the rider', aslot.wheelRot > 1.0, 'wheelRot=' + aslot.wheelRot.toFixed(2));
   for (let k = 0; k < 8; k++) {
-    G.amuseBoxIM.getMatrixAt(abase + 23 + k * 3 + 2, m4);
+    G.venueBoxIM.getMatrixAt(G.VENUE_AMUSE_OFF + abase + 23 + k * 3 + 2, m4);
     if (Math.abs(m4.elements[13] - yBefore[k]) > 0.05) moved = true;
     m4.decompose(v3, q, sc3);
     eu.setFromQuaternion(q, 'YXZ');
