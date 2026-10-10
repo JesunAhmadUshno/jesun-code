@@ -7130,7 +7130,7 @@ const BLDG_DEF_LIST = [
   { key: 'hospital', cap: 2, shared: 'civic', tint: 0xe8eef4,
     colliders: [[0, 0, 5.5]], porch: { seat: 8.0, hint: 7.5 } },
   { key: 'bank', cap: 2, shared: 'civic', tint: 0x9db8a4,
-    colliders: [[0, 0, 8.0]], porch: { seat: 10.5, hint: 10.0 } },
+    colliders: [[0, 0, 8.0]], porch: { seat: 14.5, hint: 14.0 } },   // porch sits outside the 12.8u corrected collider
   { key: 'hotel', cap: 2, shared: 'civic', tint: 0xe8c98a,
     colliders: [[0, 0, 6.5]], porch: { seat: 9.0, hint: 8.5 } },
   { key: 'school', cap: 2, shared: 'civic', tint: 0xc25a44,
@@ -7242,7 +7242,9 @@ function redistributeBuildings(pcx, pcz) {
       const c = Math.cos(b.yaw), s = Math.sin(b.yaw);
       for (const [ox, oz, r] of def.colliders) {
         const wx = b.x + ox * c + oz * s, wz = b.z - ox * s + oz * c;
-        const wr = r * b.scale;
+        const wr = r * Math.max(b.sx, b.sz);   // civic visuals are per-axis scaled
+                                                   // (CIVIC_SCALE): size the circular collider to the widest
+                                                   // horizontal axis so walls are never walk-through
         AMEN.colliders.push({ x: wx, z: wz, r: wr });   // cars/bikes/scooters resolve here
         BLDG.foot.push({ x: wx, z: wz, r: wr });        // player foot collision
       }

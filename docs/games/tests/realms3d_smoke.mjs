@@ -4090,8 +4090,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
     G.BLDG.active[type].push({ x: cpx + 3, z: cpz, y: groundY(cpx + 3, cpz), yaw: 0, gx: 0, gz: 0, name: type.toUpperCase(), type });
     /* stand 6.5u from the new building: inside every porch hint radius
-       (7.5/10/8.5), outside every foot collider, so each synthetic starts
-       with a live hint regardless of where the last porch left the player */
+       (7.5/14.0/8.5). Synthetic buildings bypass redistributeBuildings, so
+       they add no foot colliders of their own. */
     G.player.position.set(cpx + 3 + 6.5, groundY(cpx + 9.5, cpz), cpz);
   };
   const probs0 = consoleProblems.length;
@@ -4238,6 +4238,48 @@ const groundY = (x, z) => G.terrainHeight(x, z);
         check('civic: foot collision pushes the player out of the footprint',
           dOut >= 5.5, 'd=' + dOut.toFixed(2));
       }
+    }
+  }
+  /* QA-found regression (commit 5ad9309): the collider loop sized foot colliders
+     with r*b.scale, but civic visuals are per-axis scaled (CIVIC_SCALE), so
+     bank/hotel/school walls were walk-through. Fixed: wr = r*max(sx,sz). */
+  {
+    const sb = found.school;
+    check('civic-collider-fix: a seeded school exists', !!sb);
+    if (sb) {
+      G.redistributeBuildings(sb.gx, sb.gz);
+      const wr = 10.5 * Math.max(G.CIVIC_SCALE.school[0], G.CIVIC_SCALE.school[2]);   // 22.05 (was 10.5 under the bug)
+      const foot = G.BLDG.foot.find(c => Math.hypot(c.x - sb.x, c.z - sb.z) < 1);
+      check('civic-collider-fix: school world collider covers the scaled visual footprint',
+        !!foot && Math.abs(foot.r - wr) < 0.01,
+        foot ? 'r=' + foot.r.toFixed(2) + ' expected=' + wr.toFixed(2) : 'no foot entry');
+      /* stand well inside the corrected collider: the player must be pushed
+         outside it (under the bug the 10.5u collider never touched the player) */
+      G.player.position.set(sb.x + wr * 0.5, groundY(sb.x + wr * 0.5, sb.z), sb.z);
+      frame(1);
+      const dOut = Math.hypot(G.player.position.x - sb.x, G.player.position.z - sb.z);
+      check('civic-collider-fix: player is pushed out of the scaled school footprint',
+        dOut >= wr - 0.5, 'd=' + dOut.toFixed(2) + ' expected>=' + (wr - 0.5).toFixed(2));
+    }
+  }
+  {
+    const bb = found.bank;
+    check('civic-collider-fix: a seeded bank exists', !!bb);
+    if (bb) {
+      G.redistributeBuildings(bb.gx, bb.gz);
+      const wr = 8.0 * Math.max(G.CIVIC_SCALE.bank[0], G.CIVIC_SCALE.bank[2]);   // 12.8
+      const def = G.BLDG_DEF.bank;
+      check('civic-collider-fix: bank porch hint/seat sit outside the corrected collider',
+        def.porch.hint > wr && def.porch.seat > wr,
+        'hint=' + def.porch.hint + ' seat=' + def.porch.seat + ' wr=' + wr.toFixed(1));
+      /* stand just outside the wall (12.8+0.5), inside the hint radius (14.0):
+         the ATM must be reachable without entering the collider */
+      const px = bb.x + wr + 0.5, pz = bb.z;
+      G.player.position.set(px, groundY(px, pz), pz);
+      frame(2);
+      check('civic-collider-fix: bank ATM hint is live from outside the corrected collider',
+        G.CIVIC.hintOn === true && G.CIVIC.nearType === 'bank',
+        'hintOn=' + G.CIVIC.hintOn + ' near=' + G.CIVIC.nearType);
     }
   }
   check('civic: enter/heal/ATM/rest/exit round trips leave zero console errors/warnings',
