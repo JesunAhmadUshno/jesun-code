@@ -119,6 +119,9 @@ globalThis.__R3D = {
   hoopsBallNear, hoopsCanShoot, doHoopShot, hoopsResetBall, hoopsScore,
   hoopsMiss, hoopsHoopCollide, hoopsTick, hoopChipEl, shootHintEl,
   AMEN, hash2i, sportHash,
+  /* Phase 5 boats/ships v1 */
+  BOAT, boatEnter, boatExit, boatRebuild, boatFloat, waterSurfaceY, dockFor,
+  boatBodyIM, boatHintEl, boatChipEl, BOAT_N, sfxSplash,
 };
 `;
 writeFileSync(BOOT, src);
@@ -638,7 +641,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (46 literals: 44 + 1 farming crops + 1 soccer ball)', imCount === 46, 'count=' + imCount);
+  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (47 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh)', imCount === 47, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1099,8 +1102,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bike: InstancedMesh count is 46 (44 + 1 farming crops + 1 soccer ball literal)',
-    imCount2 === 46, 'count=' + imCount2);
+  check('bike: InstancedMesh count is 47 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh literal)',
+    imCount2 === 47, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1200,8 +1203,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bicycle: InstancedMesh count is 46 (44 + 1 farming crops + 1 soccer ball literal)',
-    imCount3 === 46, 'count=' + imCount3);
+  check('bicycle: InstancedMesh count is 47 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh literal)',
+    imCount3 === 47, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1302,8 +1305,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('scooter: InstancedMesh count is 46 (44 + 1 farming crops + 1 soccer ball literal)',
-    imCount4 === 46, 'count=' + imCount4);
+  check('scooter: InstancedMesh count is 47 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh literal)',
+    imCount4 === 47, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1619,8 +1622,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (46 literals: 44 + 1 farming crops + 1 soccer ball)',
-      imCount5 === 46, 'count=' + imCount5);
+    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (47 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh)',
+      imCount5 === 47, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -1968,8 +1971,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (46 literals after farming + soccer)',
-      n === 46 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (47 literals: 46 + 1 boat fleet mesh)',
+      n === 47 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2113,19 +2116,19 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 46 (45 + soccer ball)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('food-static: InstancedMesh literal sites pin at 47 (46 + 1 boat fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
-  check('food-static: Math.random lines pin at 91 (seeded PRNG only)',
-    (html.match(/^.*Math\.random.*$/gm) || []).length === 91);
+  check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('food-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('food-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('food-static: no new audio nodes (sfxBlip reused)',
-    (html.match(/\.createOscillator\(/g) || []).length === 10 &&
-    (html.match(/\.createGain\(/g) || []).length === 20 &&
+  check('food-static: audio nodes pin (12 osc, 22 gain: +2 motor osc, +1 motor gain, +1 splash gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 12 &&
+    (html.match(/\.createGain\(/g) || []).length === 22 &&
     (html.match(/AudioContext/g) || []).length === 2);
   {
     const foodSrc = html.slice(
@@ -2343,19 +2346,19 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 46',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('farmv1-static: InstancedMesh literal sites pin at 47 (46 + 1 boat fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
-  check('farmv1-static: Math.random lines pin at 91 (seeded PRNG only)',
-    (html.match(/^.*Math\.random.*$/gm) || []).length === 91);
+  check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('farmv1-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('farmv1-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('farmv1-static: no new audio nodes (sfxBlip/sfxSizzle reuse the idiom)',
-    (html.match(/\.createOscillator\(/g) || []).length === 10 &&
-    (html.match(/\.createGain\(/g) || []).length === 20 &&
+  check('farmv1-static: audio nodes pin (12 osc, 22 gain: +2 motor osc, +1 motor gain, +1 splash gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 12 &&
+    (html.match(/\.createGain\(/g) || []).length === 22 &&
     (html.match(/AudioContext/g) || []).length === 2);
   check('farmv1-static: no TODO/FIXME markers', !/\b(TODO|FIXME)\b/.test(html));
   check('farmv1-static: no em dashes', !html.includes('—'));
@@ -2715,8 +2718,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 46',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 47 (46 + 1 boat fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2935,8 +2938,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 46',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 47 (46 + 1 boat fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -2947,6 +2950,163 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('hoops-static: SHOOT hint click wiring pins doHoopShot',
     html.includes("shootHintEl.addEventListener('click', () => { doHoopShot(); })"));
   check('hoops-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+}
+
+/* ================= 23. BOATS/SHIPS v1 (Phase 5 vehicles) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+
+  check('boat: one shared body InstancedMesh holds the fleet',
+    G.boatBodyIM.isInstancedMesh === true && G.BOAT.slots.length === 4 && G.BOAT_N === 4);
+  check('boat: 4 per-instance tints allocated (white/red/blue/yellow)',
+    G.boatBodyIM.instanceColor.count === 4);
+  check('boat: tuned slower than the car', G.BOAT.topSpeed < G.CAR.topSpeed,
+    'boat=' + G.BOAT.topSpeed + ' car=' + G.CAR.topSpeed);
+
+  /* seeded docks: deterministic, on a real shore, mooring on water */
+  let dockChunk = null;
+  for (let gx = -10; gx <= 10 && !dockChunk; gx++)
+    for (let gz = -10; gz <= 10 && !dockChunk; gz++) {
+      const d = G.dockFor(gx, gz);
+      if (d) dockChunk = { gx, gz, d };
+    }
+  check('boat: seeded docks exist in the world', !!dockChunk,
+    dockChunk ? 'chunk ' + dockChunk.gx + ',' + dockChunk.gz : 'none in -10..10');
+  const dd = dockChunk.d, dd2 = G.dockFor(dockChunk.gx, dockChunk.gz);
+  check('boat: dockFor is deterministic on revisit',
+    !!dd2 && dd.x === dd2.x && dd.z === dd2.z && dd.yaw === dd2.yaw &&
+    dd.bx === dd2.bx && dd.bz === dd2.bz && dd.byaw === dd2.byaw);
+  check('boat: dock sits on a low shore, mooring floats on water',
+    dd.y >= -0.25 && dd.y <= 0.85 && G.terrainHeight(dd.bx, dd.bz) < -0.55,
+    'shoreY=' + dd.y.toFixed(2) + ' mooringBed=' + G.terrainHeight(dd.bx, dd.bz).toFixed(2));
+
+  /* moorings: teleport to the dock chunk, the rebuild moors the fleet */
+  const dcx = (dockChunk.gx + 0.5) * 48, dcz = (dockChunk.gz + 0.5) * 48;
+  G.player.position.set(dcx, groundY(dcx, dcz), dcz);
+  frame(3);
+  const placed0 = G.BOAT.slots.filter(s => s.placed);
+  check('boat: rebuild moors boats at docks', placed0.length >= 1, 'placed=' + placed0.length);
+  check('boat: every moored boat sits on water',
+    placed0.every(s => G.terrainHeight(s.x, s.z) < -0.55));
+
+  /* determinism on revisit: leave, come back, same moorings */
+  const poses = G.BOAT.slots.map(s => [s.x, s.z, s.yaw, s.placed]);
+  G.player.position.set(dcx + 400, groundY(dcx + 400, dcz), dcz);
+  frame(3);
+  G.player.position.set(dcx, groundY(dcx, dcz), dcz);
+  G.BOAT.anchorCx = 1e9; G.BOAT.anchorCz = 1e9; G.BOAT.key = '';
+  frame(3);
+  const samePose = (s, p) => (s.placed === p[3]) &&
+    (!s.placed || (Math.abs(s.x - p[0]) < 1e-9 && Math.abs(s.z - p[1]) < 1e-9 && Math.abs(s.yaw - p[2]) < 1e-9));
+  check('boat: moorings are deterministic on revisit',
+    G.BOAT.slots.every((s, i) => samePose(s, poses[i])));
+
+  /* BOARD hint: stand at a moored boat */
+  const s0 = G.BOAT.slots.find(s => s.placed);
+  G.player.position.set(s0.x, 0.5, s0.z);
+  frame(2);
+  check('boat: BOARD hint appears near a moored boat on water',
+    G.BOAT.hintOn === true && G.BOAT.nearIdx >= 0 && G.boatHintEl.style.opacity === 1,
+    'hintOn=' + G.BOAT.hintOn);
+  check('boat: hint text carries the E key',
+    G.boatHintEl.textContent === 'BOARD [E]' || G.boatHintEl.textContent === 'TAP TO BOARD',
+    G.boatHintEl.textContent);
+
+  /* board: E near the boat enters */
+  G.boatEnter();
+  check('boat: E near boat enters (BOAT.driving true)',
+    G.BOAT.driving === true && G.player.visible === false);
+  check('boat: board toast fires', G.toastEl.textContent === 'BOAT');
+  check('boat: chip shows while driving', G.boatChipEl.style.display === 'block');
+
+  /* throttle: W moves the boat (max speed is robust to beaching mid-run) */
+  const bStart = G.BOAT.pos.clone();
+  let bMaxSpd = 0;
+  G.keys.KeyW = true;
+  for (let f = 0; f < 60; f++) { frame(1); bMaxSpd = Math.max(bMaxSpd, G.BOAT.speed); }
+  G.keys.KeyW = false;
+  const bMoved = Math.hypot(G.BOAT.pos.x - bStart.x, G.BOAT.pos.z - bStart.z);
+  check('boat: throttle moves the boat', bMoved > 1.0 && bMaxSpd > 1.0,
+    'moved=' + bMoved.toFixed(1) + 'u maxSpd=' + bMaxSpd.toFixed(1));
+  check('boat: chip reads speed while driving',
+    /^BOAT - \d+ KM\/H$/.test(G.boatChipEl.textContent), G.boatChipEl.textContent);
+
+  /* rudder: A/D yaws the boat while it has way */
+  G.BOAT.pos.set(s0.x, s0.y, s0.z); G.BOAT.heading = s0.yaw;
+  G.BOAT.speed = 0; G.BOAT.groundT = 0; G.BOAT.steer = 0;
+  G.BOAT.speed = 8;
+  const h0 = G.BOAT.heading;
+  G.keys.KeyD = true;
+  frame(20);
+  G.keys.KeyD = false;
+  check('boat: rudder turns the boat',
+    Math.abs(G.BOAT.heading - h0) > 0.08, 'dHeading=' + (G.BOAT.heading - h0).toFixed(3));
+
+  /* buoyancy: damped springs settle near the water plane, no cork bounce */
+  G.BOAT.pos.set(s0.x, s0.y, s0.z); G.BOAT.speed = 0; G.BOAT.groundT = 0;
+  let maxYV = 0, maxDev = 0;
+  for (let f = 0; f < 120; f++) {
+    frame(1);
+    maxYV = Math.max(maxYV, Math.abs(G.BOAT.yVel));
+    maxDev = Math.max(maxDev, Math.abs(G.BOAT.y + 0.6));
+  }
+  check('boat: buoyancy settles near the water plane', maxDev < 1.2, 'maxDev=' + maxDev.toFixed(2));
+  check('boat: no cork bounce (heavily damped)', maxYV < 2.5, 'maxYV=' + maxYV.toFixed(2));
+  check('boat: pitch/roll stay gentle',
+    Math.abs(G.BOAT.pitch) < 0.3 && Math.abs(G.BOAT.roll) < 0.3,
+    'pitch=' + G.BOAT.pitch.toFixed(3) + ' roll=' + G.BOAT.roll.toFixed(3));
+
+  /* run aground: beaching stops the boat with a thud + pushback */
+  let landPt = null;
+  for (let r = 4; r <= 40 && !landPt; r += 4)
+    for (let a = 0; a < 8 && !landPt; a++) {
+      const sx = s0.x + Math.cos(a / 8 * Math.PI * 2) * r;
+      const sz = s0.z + Math.sin(a / 8 * Math.PI * 2) * r;
+      if (G.terrainHeight(sx, sz) > 0.5) landPt = [sx, sz];
+    }
+  check('boat: land exists near the dock (aground setup)', !!landPt);
+  if (landPt) {
+    G.BOAT.pos.set(landPt[0], 0, landPt[1]);
+    G.BOAT.heading = 0; G.BOAT.speed = 8; G.BOAT.groundT = 0;
+    G.toastEl.textContent = '';
+    frame(3);
+    check('boat: running aground stops the boat', G.BOAT.speed === 0, 'speed=' + G.BOAT.speed);
+    check('boat: aground thud toast fires', G.toastEl.textContent === 'RAN AGROUND', G.toastEl.textContent);
+    const pushed = Math.hypot(G.BOAT.pos.x - landPt[0], G.BOAT.pos.z - landPt[1]);
+    check('boat: aground pushes the boat back toward water', pushed > 1.0, 'pushed=' + pushed.toFixed(2) + 'u');
+  }
+
+  /* exit: E while driving disembarks on the nearest shore */
+  G.mountToggle();
+  check('boat: E while driving exits (BOAT.driving false)',
+    G.BOAT.driving === false && G.player.visible === true);
+  check('boat: exit toast fires', G.toastEl.textContent === 'ON FOOT');
+  check('boat: player lands on shore, never in the water',
+    G.terrainHeight(G.player.position.x, G.player.position.z) > -0.55,
+    'bed=' + G.terrainHeight(G.player.position.x, G.player.position.z).toFixed(2));
+  check('boat: chip hides after exit', G.boatChipEl.style.display === 'none');
+  const si = G.BOAT.slots.findIndex(s => s.placed);
+  check('boat: slot keeps the pose on leave (park-on-leave)',
+    si >= 0 && Math.abs(G.BOAT.slots[si].x - G.BOAT.pos.x) < 1e-9,
+    'placed=' + G.BOAT.slots.filter(s => s.placed).length);
+
+  /* static pins for the boat block */
+  const boatSrc = html.slice(html.indexOf('/* ================= PHASE 5: BOATS'),
+                             html.indexOf('/* ============================== GAME LOOP'));
+  check('boat-static: exactly one new InstancedMesh literal in the boat block',
+    (boatSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('boat-static: boat block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(boatSrc));
+  check('boat-static: boat block creates no meshes outside the fleet IM',
+    !/new THREE\.Mesh\(/.test(boatSrc));
+  check('boat-static: no external URLs in the boat block', !/https?:\/\//.test(boatSrc));
+  check('boat-static: BOARD hint click wiring pins boatEnter',
+    html.includes("boatHintEl.addEventListener('click', () => { if (BOAT.hintOn) boatEnter(); })"));
+  check('boat-static: docks bake into the shared park geometry (zero new dock draws)',
+    html.includes('wooden dock deck baked into the shared park geometry'));
+  check('boat-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
 }
 
