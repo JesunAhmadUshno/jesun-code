@@ -259,6 +259,9 @@ to seed_game with s
     G["lpx"] is 15
     G["lpy"] is 15
     G["block_npc"] is nothing
+    G["nid"] is 0
+    G["bump_npc"] is nothing
+    G["bump_freeze"] is 0
     G["sx"] is 0
     G["sy"] is 0
     G["upx"] is 0 - 1
@@ -412,6 +415,8 @@ to mk_ov_npc with nkind and nm and x and y
     n["kind"] is "npc"
     n["nkind"] is nkind
     n["name"] is nm
+    G["nid"] is G["nid"] + 1
+    n["nid"] is G["nid"]
     n["x"] is s["x"]
     n["y"] is s["y"]
     n["tick"] is rnd with 4
@@ -567,6 +572,8 @@ to gen_overworld
     G["lpx"] is 15
     G["lpy"] is 15
     G["block_npc"] is nothing
+    G["bump_npc"] is nothing
+    G["bump_freeze"] is 0
     note Spawn clearing: the seed is random every run, so the knight must
     note never wake up boxed in by river, trees or houses. Pave the ring
     note around spawn to grass.
@@ -792,6 +799,8 @@ to gen_floor with d
     G["map"] is "dungeon"
     G["depth"] is d
     G["block_npc"] is nothing
+    G["bump_npc"] is nothing
+    G["bump_freeze"] is 0
     mw is 60
     mh is 42
     grid is []
@@ -958,6 +967,8 @@ to gen_floor with d
         n is a new table
         n["kind"] is "npc"
         n["nkind"] is nkind
+        G["nid"] is G["nid"] + 1
+        n["nid"] is G["nid"]
         n["x"] is s["x"]
         n["y"] is s["y"]
         n["used"] is false
@@ -1332,8 +1343,12 @@ to try_move with dx and dy
         give back nothing
     if e is not nothing then
         note Remember the blocker so E always reaches them, even if they
-        note wander a step before the player presses it.
+        note wander a step before the player presses it. The sticky bump
+        note memory (by unique npc id) survives one successful step, and
+        note the freeze keeps them from wandering off for a beat.
         G["block_npc"] is e
+        G["bump_npc"] is e["nid"]
+        G["bump_freeze"] is 120
         msg with e["name"] + " blocks the way. Press E to talk."
         give back nothing
     G["pph"] is G["pph"] + 1
@@ -1544,7 +1559,24 @@ to interact
         n is bn
     if n is nothing then
         n is adjacent_npc
+    used_bump is false
+    if n is nothing then
+        bnid is G["bump_npc"]
+        if bnid is not nothing then
+            note The last bumped NPC answers E from a few tiles away, even
+            note after one step and their wander. This closes the playtest
+            note dead end where Elder Marla went unreachable.
+            for each q in G["npcs"]
+                if q["nid"] is bnid then
+                    bdx is absv with q["x"] - G["px"]
+                    bdy is absv with q["y"] - G["py"]
+                    if bdx is less than 5 and bdy is less than 5 then
+                        n is q
+                        used_bump is true
     G["block_npc"] is nothing
+    if used_bump then
+        G["bump_npc"] is nothing
+        G["bump_freeze"] is 0
     if n is nothing then
         msg with "Nobody to talk to here."
         give back nothing
@@ -1721,7 +1753,14 @@ to enemy_ai
     give back nothing
 
 to npc_wander
+    if G["bump_freeze"] is greater than 0 then
+        G["bump_freeze"] is G["bump_freeze"] - 1
     for each n in G["npcs"]
+        if G["bump_freeze"] is greater than 0 then
+            if n["nid"] is G["bump_npc"] then
+                note The just-bumped NPC holds still for a beat so E can
+                note still reach them after the player steps.
+                skip
         n["tick"] is n["tick"] + 1
         if n["tick"] is less than 4 then
             skip
