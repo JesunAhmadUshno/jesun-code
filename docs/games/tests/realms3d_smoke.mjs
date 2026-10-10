@@ -141,6 +141,10 @@ globalThis.__R3D = {
   LMTHEATER_COL, LMTH_R, LMTH_SEGS, LMTH_GATE_K, LMTH_CHIP_R2, LMTH_DOOR, LMTH_DOOR_R2,
   THEATER_ROOM_Y, THEATER_SHOWS, theaterShowFor, theaterBoardShow, theaterDrawScreen,
   theaterComedySting, theaterConcertSting,
+  /* THEATER CONCESSIONS v1 */
+  CONCH, CONCH_ITEMS, CONCH_BUFF_S, CONCH_BUFF_R, openConcession, conchTick,
+  snackhintEl, conchChipEl,
+  get conchT() { return conchT; }, set conchT(v) { conchT = v; },
   /* Phase 5 landmark casino v1 */
   CASINOHALL, CASINOSLOT, casinoHallEnter, casinoHallExit, casinoHallKeyE, casinoHallTick,
   casinoSlotSit, casinoSlotStand, casinoHallDoorWorld, buildLandmarkCasinoGeo, buildCasinoHallGeo,
@@ -8649,6 +8653,160 @@ globalThis.__R3D2 = {
   globalThis.innerWidth = 1280; globalThis.innerHeight = 720;
   delete globalThis.__R3D2;
   try { unlinkSync(boot2); } catch (e) {}
+}
+
+/* ================= THEATER CONCESSIONS v1 ================= */
+{
+  /* static pins: DOM only, zero new pins */
+  const conchSrc = html.slice(
+    html.indexOf('/* ================= THEATER CONCESSIONS v1'),
+    html.indexOf('/* ================= PHASE 5: LANDMARK CASINO v1'));
+  check('conch-static: concession block is present and non-trivial',
+    conchSrc.length > 1000, conchSrc.length + ' chars');
+  check('conch-static: no THREE objects in the concession block', !/new THREE\./.test(conchSrc));
+  check('conch-static: no unseeded RNG in the concession block', !/Math\.random/.test(conchSrc));
+  check('conch-static: no em dashes in the concession block', !conchSrc.includes('—'));
+  check('conch-static: no TODO markers in the concession block', !/\bTODO\b/.test(conchSrc));
+  check('conch-static: no external URLs in the concession block', !/https?:\/\//.test(conchSrc));
+  check('conch-static: no new renderer.render in the concession block', !/renderer\.render\(/.test(conchSrc));
+  check('conch-static: whole-file InstancedMesh literal sites pin at 48',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('conch-static: Math.random lines pin at 92',
+    html.split('\n').filter(l => l.includes('Math.random')).length === 92);
+  check('conch-static: light count pins at 6 (zero new lights)',
+    (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
+  check('conch-static: single renderer.render call site',
+    (html.match(/renderer\.render\(/g) || []).length === 1);
+  check('conch-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('conch-static: single allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('conch-static: KeyC opens snacks in the single keydown handler',
+    html.includes("if (e.code === 'KeyC' && CONCH.promptOn) openConcession();"));
+  {
+    /* the openConcession guard copies the theaterHallEnter exclusion list term for term */
+    const guardSrc = html.slice(html.indexOf('function openConcession()'), html.indexOf('function conchTick'));
+    const terms = ['THEATERHALL.inHall', 'FIRESTHALL.inHall', 'THEATER.watching', 'AMUSE.riding',
+      'STADIUM.watching', 'CIVIC.state', 'WORSHIP.state', 'APARTMENT.state', 'SLOT.playing',
+      'PIANO.playing', 'CAR.driving', 'BUS.driving', 'BUS.riding', 'TX.riding', 'HORSE.riding',
+      'BIKE.driving', 'BC.driving', 'SC.driving', 'BOAT.driving', 'HELI.flying', 'PLANE.flying',
+      'TRAIN.riding', 'FT.driving', '!playing()', 'P.dead', 'shopOpen', 'P.godT > 0'];
+    check('conch-static: openConcession copies the theaterHallEnter guard list',
+      terms.every(t => guardSrc.includes(t)), terms.filter(t => !guardSrc.includes(t)).join(','));
+  }
+
+  /* item table pin: prices $2/$4/$7, keybinds 1/2/3, labels name the effect */
+  check('conch: three items pinned',
+    G.CONCH_ITEMS.length === 3);
+  check('conch: prices pin at $2/$4/$7',
+    G.CONCH_ITEMS[0].price === 2 && G.CONCH_ITEMS[1].price === 4 && G.CONCH_ITEMS[2].price === 7,
+    JSON.stringify(G.CONCH_ITEMS.map(i => i.price)));
+  check('conch: labels name the snack and the effect',
+    G.CONCH_ITEMS[0].label() === 'POPCORN +15 HP' && G.CONCH_ITEMS[1].label() === 'SODA REFRESHED 60S'
+    && G.CONCH_ITEMS[2].label() === 'HOTDOG +40 HP');
+  check('conch: keybinds are 1/2/3',
+    G.CONCH_ITEMS[0].key === '1' && G.CONCH_ITEMS[1].key === '2' && G.CONCH_ITEMS[2].key === '3');
+
+  /* panel opens through the shared shop idiom */
+  G.closeShop();
+  G.cash = 100; G.P.hp = 50; G.P.dead = false; G.P.godT = 0; G.CONCH.promptOn = true;
+  G.openConcession();
+  check('conch: panel opens with the concession list',
+    G.shopOpen === true && G.SHOP_LIST === G.CONCH_ITEMS && G.shopNameEl.textContent === 'CONCESSIONS');
+
+  /* popcorn: +15 HP, -$2, exact toast */
+  G.buyItem(0);
+  check('conch: popcorn heals +15 for $2',
+    G.P.hp === 65 && G.cash === 98, 'hp=' + G.P.hp + ' cash=' + G.cash);
+  check('conch: popcorn toast is "+15 HP"', G.toastEl.textContent === '+15 HP', G.toastEl.textContent);
+
+  /* hotdog: +40 HP, -$7, capped at 100, exact toast */
+  G.P.hp = 95;
+  G.buyItem(2);
+  check('conch: hotdog heals +40 capped at 100',
+    G.P.hp === 100 && G.cash === 91, 'hp=' + G.P.hp + ' cash=' + G.cash);
+  check('conch: hotdog toast is "+40 HP"', G.toastEl.textContent === '+40 HP', G.toastEl.textContent);
+
+  /* state NA logic: hp-full */
+  check('conch: popcorn and hotdog are NA at full HP',
+    G.CONCH_ITEMS[0].state() === 'NA' && G.CONCH_ITEMS[2].state() === 'NA');
+  const hpBefore = G.P.hp, cashBefore = G.cash;
+  G.buyItem(0);
+  check('conch: NA rows are not purchasable', G.P.hp === hpBefore && G.cash === cashBefore);
+
+  /* denied-cash path: the existing denied idiom */
+  G.cash = 3; G.P.hp = 50;
+  G.buyItem(2);
+  check('conch: denied cash keeps cash and HP with the denied toast',
+    G.cash === 3 && G.P.hp === 50 && G.toastEl.textContent === 'NOT ENOUGH CASH', G.toastEl.textContent);
+
+  /* soda: REFRESHED buff 60s, -$4, exact toast, NA while active (one slot) */
+  G.cash = 100; G.P.hp = 50; G.conchT = 0;
+  G.buyItem(1);
+  check('conch: soda sets REFRESHED 60S for $4',
+    G.conchT === 60 && G.cash === 96, 'conchT=' + G.conchT + ' cash=' + G.cash);
+  check('conch: soda toast is "REFRESHED 60S"',
+    G.toastEl.textContent === 'REFRESHED 60S', G.toastEl.textContent);
+  check('conch: soda is NA while the buff is active (one buff slot)',
+    G.CONCH_ITEMS[1].state() === 'NA');
+
+  /* buff tick math: 2 HP/s for 60s, capped at 100, chip shows the countdown */
+  G.conchTick(30);
+  check('conch: buff heals 2 HP/s (50 -> 100 capped over 30s)',
+    G.P.hp === 100 && G.conchT === 30, 'hp=' + G.P.hp + ' conchT=' + G.conchT);
+  check('conch: chip shows the remaining seconds',
+    G.conchChipEl.style.display === 'block' && G.conchChipEl.textContent === 'REFRESHED 30S',
+    G.conchChipEl.textContent);
+  G.P.hp = 10;
+  G.conchTick(30);
+  check('conch: buff expires at 60s and hides the chip',
+    G.conchT === 0 && G.P.hp === 70 && G.conchChipEl.style.display === 'none',
+    'hp=' + G.P.hp + ' conchT=' + G.conchT);
+
+  /* the buff never runs while dead */
+  G.P.hp = 40; G.conchT = 30; G.P.dead = true;
+  G.conchTick(10);
+  check('conch: buff never ticks while dead',
+    G.P.hp === 40 && G.conchT === 30, 'hp=' + G.P.hp + ' conchT=' + G.conchT);
+  G.P.dead = false; G.conchT = 0;
+
+  /* guard list: blocked in every excluded state, opens on foot at the door */
+  G.closeShop();
+  G.P.dead = true; G.openConcession();
+  check('conch: guard blocks while dead', G.shopOpen === false);
+  G.P.dead = false; G.CAR.driving = true; G.openConcession();
+  check('conch: guard blocks while driving', G.shopOpen === false);
+  G.CAR.driving = false; G.THEATERHALL.inHall = true; G.openConcession();
+  check('conch: guard blocks inside the hall', G.shopOpen === false);
+  G.THEATERHALL.inHall = false; G.HELI.flying = true; G.openConcession();
+  check('conch: guard blocks while flying', G.shopOpen === false);
+  G.HELI.flying = false; G.openConcession();
+  check('conch: guard passes on foot at the door', G.shopOpen === true);
+  G.closeShop();
+
+  /* KeyC: opens snacks at the door prompt, stays the emote elsewhere */
+  G.CONCH.promptOn = true;
+  stubs.fireGlobal('keydown', { code: 'KeyC' });
+  check('conch: KeyC opens the panel at the snack prompt',
+    G.shopOpen === true && G.SHOP_LIST === G.CONCH_ITEMS);
+  G.closeShop();
+  G.CONCH.promptOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyC' });
+  check('conch: KeyC away from the door does not open snacks', G.shopOpen === false);
+
+  /* session-only: save/load round trip carries zero concession keys */
+  G.conchT = 45;
+  G.saveGame();
+  G.loadSave();
+  const svStr = JSON.stringify(G.collectSave());
+  check('conch: save schema carries zero concession keys',
+    !/conch/i.test(svStr) && !/REFRESHED/.test(svStr), svStr.slice(0, 120));
+  check('conch: the live buff is untouched by load (session only)', G.conchT === 45, 'conchT=' + G.conchT);
+  G.conchT = 0; G.conchChipEl.style.display = 'none';
+  G.closeShop();
+  check('conch: prompt and panel leave zero console errors/warnings',
+    consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */

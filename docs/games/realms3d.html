@@ -551,6 +551,14 @@
     letter-spacing: 2px; display: none; pointer-events: none;
   }
   #thallarr { display: inline-block; color: #d8a0e0; font-size: 14px; }
+  /* ---- THEATER CONCESSIONS v1: buff chip mirrors #thallchip, stacked below
+         #roulchip (720px) in the top-left stack so live chips never overlap.
+         DOM only, zero draw calls. ---- */
+  #conchchip {
+    position: absolute; top: 753px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #8a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
   #thallhint {
     position: absolute; bottom: 758px; left: 50%; transform: translateX(-50%);
     color: #0c0e0a; background: #e8c8e0; font-size: 13px; letter-spacing: 3px;
@@ -560,6 +568,15 @@
   #tshowhint {
     position: absolute; bottom: 848px; left: 50%; transform: translateX(-50%);
     color: #0c0e0a; background: #f0d8a8; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  /* ---- THEATER CONCESSIONS v1: second door prompt, stacked above #thallhint
+         (758px) and below #tshowhint (848px) so the two door prompts never
+         overlap. Mirrors the #thallhint pattern (clickable, touch-friendly). ---- */
+  #snackhint {
+    position: absolute; bottom: 804px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #ffd24a; font-size: 13px; letter-spacing: 3px;
     font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
@@ -1151,9 +1168,11 @@
   <div id="hospchip"><span id="hosparr">^</span> <span id="hosptxt"></span></div>
   <div id="firechip"><span id="firearr">^</span> <span id="firetxt"></span></div>
   <div id="thallchip"><span id="thallarr">^</span> <span id="thalltxt"></span></div>
+  <div id="conchchip"></div>
   <div id="hospheal"></div>
   <div id="thallhint"></div>
   <div id="tshowhint"></div>
+  <div id="snackhint"></div>
   <div id="casinchip"><span id="casinarr">^</span> <span id="casintxt"></span></div>
   <div id="casinohallhint"></div>
   <div id="casinoslothint"></div>
@@ -8065,6 +8084,7 @@ function theaterHallEnter() {
   THEATERHALL.showTxt = IS_TOUCH ? THEATER_SHOWS[_sidx].name + ' (TAP)' : THEATER_SHOWS[_sidx].name + ' [E]';
   theaterBoardShow(_sidx);
   THEATERHALL.hintEnter = false; thallhintEl.style.opacity = 0;   // door prompt off: E now watches
+  CONCH.promptOn = false; snackhintEl.style.opacity = 0;   // THEATER CONCESSIONS v1: snack prompt off too
   THEATERHALL.doorX = player.position.x; THEATERHALL.doorZ = player.position.z;
   THEATERHALL.seatX = a.x; THEATERHALL.seatZ = a.z + 5.2; THEATERHALL.seatYaw = Math.PI;
   THEATERHALL.hallPos.set(a.x, THEATER_ROOM_Y, a.z + 5.2);
@@ -8145,6 +8165,7 @@ function theaterHallTick(dt) {
   if (!playing() || P.dead) {
     if (THEATERHALL.inHall) theaterHallExit();   // death always ejects: no show while dead
     THEATERHALL.hintEnter = false; thallhintEl.style.opacity = 0;
+    CONCH.promptOn = false; snackhintEl.style.opacity = 0;   // THEATER CONCESSIONS v1: no snacks while dead
     THEATERHALL.showOn = false; tshowhintEl.style.opacity = 0;
     thallChipEl.style.display = 'none';
     return;
@@ -8174,6 +8195,7 @@ function theaterHallTick(dt) {
     amuseHintEl.style.opacity = 0; stadiumHintEl.style.opacity = 0; hosphealEl.style.opacity = 0;
     petHintEl.style.opacity = 0; casinohallhintEl.style.opacity = 0; casinoslothintEl.style.opacity = 0;
     firesthallhintEl.style.opacity = 0; firestbayhintEl.style.opacity = 0; firestpolehintEl.style.opacity = 0;
+    snackhintEl.style.opacity = 0; CONCH.promptOn = false;   // THEATER CONCESSIONS v1: snacks live at the door, never inside
     if (THEATERHALL.tickT >= 0.25) {
       THEATERHALL.tickT = 0;
       const showTxt = THEATERHALL.showTxt;   // cached at entry: the picked show name, never placeholder text
@@ -8208,6 +8230,16 @@ function theaterHallTick(dt) {
     }
     const enterTxt = IS_TOUCH ? 'TAP TO ENTER' : 'ENTER [E]';
     if (thallhintEl.textContent !== enterTxt) thallhintEl.textContent = enterTxt;
+    /* THEATER CONCESSIONS v1: second door prompt, same zone and radius as
+       ENTER, armed only on foot (best is only set when onFoot). C opens the
+       panel; the prompt is also tappable for touch and mouse. */
+    const conchOn = best >= 0;
+    if (conchOn !== CONCH.promptOn) {
+      CONCH.promptOn = conchOn;
+      snackhintEl.style.opacity = conchOn ? 1 : 0;
+    }
+    const snackTxt = IS_TOUCH ? 'TAP FOR SNACKS' : 'SNACKS [C]';
+    if (snackhintEl.textContent !== snackTxt) snackhintEl.textContent = snackTxt;
   }
   /* bearing chip (landchip idiom): nearest active theater within 500m */
   THEATERHALL.chipT += dt;
@@ -8231,6 +8263,72 @@ function theaterHallTick(dt) {
 }
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(theaterHallTick));
+
+/* ================= THEATER CONCESSIONS v1 (Gameplay: snack stand) ==============
+   A concession stand at every seeded landmark theater. The door zone that
+   arms THEATERHALL.hintEnter arms a second prompt, SNACKS [C] on desktop and
+   TAP FOR SNACKS on touch. C opens the concession panel (the C key is the
+   emote key elsewhere; at the snack prompt it yields to concessions, nowhere
+   else). The panel reuses the existing #shop DOM and the openRest idiom
+   (shopOpen / SHOP_LIST / refreshShopPanel / closeShop); the shop keydown
+   branch already owns 1-3/E/Esc while it is open.
+   Cash economy, honest prices: POPCORN $2 (+15 HP), SODA $4 (REFRESHED buff:
+   +2 HP/s for 60s, capped at 100 HP, one slot, session only), HOTDOG $7
+   (+40 HP). The denied-cash path uses the existing denied idiom. The buff
+   ticks in the main player tick and never while dead. DOM only: zero new
+   THREE objects, zero new draw calls, zero unseeded RNG. */
+const CONCH = { promptOn: false };   // snack prompt armed in the theater door zone
+const snackhintEl = document.getElementById('snackhint');
+const conchChipEl = document.getElementById('conchchip');
+snackhintEl.addEventListener('click', () => { if (CONCH.promptOn) openConcession(); });
+let conchT = 0;                                // REFRESHED buff seconds left, session only
+const CONCH_BUFF_S = 60, CONCH_BUFF_R = 2;     // 60s at +2 HP/s, capped at 100 HP
+const CONCH_ITEMS = [
+  { key: '1', label: () => 'POPCORN +15 HP', price: 2, verb: '+15', dishName: 'HP',
+    state: () => P.hp >= 100 ? 'NA' : 'BUY',
+    buy() { P.hp = Math.min(100, P.hp + 15); updateHpHUD();   // the diner heal idiom
+      sfxBlip(700, 0.07, 'square', 0.2);                      // munch, the sfxBlip idiom
+      setTimeout(() => sfxBlip(940, 0.07, 'square', 0.2), 80); } },
+  { key: '2', label: () => 'SODA REFRESHED 60S', price: 4, verb: 'REFRESHED', dishName: '60S',
+    state: () => conchT > 0 ? 'NA' : 'BUY',                  // one buff slot: rebuy shows NA
+    buy() { conchT = CONCH_BUFF_S;
+      sfxBlip(1500, 0.25, 'sine', 0.1);                      // fizz, the sfxBlip idiom
+      setTimeout(() => sfxBlip(1900, 0.2, 'sine', 0.08), 120);
+      setTimeout(() => sfxBlip(2300, 0.25, 'sine', 0.06), 240); } },
+  { key: '3', label: () => 'HOTDOG +40 HP', price: 7, verb: '+40', dishName: 'HP',
+    state: () => P.hp >= 100 ? 'NA' : 'BUY',
+    buy() { P.hp = Math.min(100, P.hp + 40); updateHpHUD();   // the diner heal idiom
+      sfxBlip(420, 0.1, 'square', 0.22);                     // eat, the sfxBlip idiom
+      setTimeout(() => sfxBlip(560, 0.12, 'square', 0.22), 110); } },
+];
+function openConcession() {
+  /* the theaterHallEnter exclusion guard, copied term for term: no stand
+     while inside, seated, watching, riding, driving, flying, dead, shopping,
+     paused, or under spawn protection */
+  if (THEATERHALL.inHall || FIRESTHALL.inHall || THEATER.watching || AMUSE.riding || STADIUM.watching || CIVIC.state || WORSHIP.state || APARTMENT.state
+      || SLOT.playing || PIANO.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || FT.driving || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  shopOpen = true; shopOpenIdx = -1;
+  SHOP_LIST = CONCH_ITEMS; shopRest = false;   // the openRest shared-panel idiom
+  shopBaseTitle = 'CONCESSIONS';
+  shopNameEl.textContent = 'CONCESSIONS';
+  refreshShopPanel();
+  shopEl.style.display = 'block';
+  sfxShopOpen();
+}
+function conchTick(dt) {
+  /* REFRESHED buff in the main player tick: +2 HP/s for 60s, capped at 100.
+     Never ticks while dead; the chip shows the seconds left. */
+  if (conchT <= 0) return;
+  if (!playing() || P.dead) { conchChipEl.style.display = 'none'; return; }
+  const heal = Math.min(dt, conchT);   // heal for the buff time that actually elapses
+  if (P.hp < 100) { P.hp = Math.min(100, P.hp + CONCH_BUFF_R * heal); updateHpHUD(); }
+  conchT -= dt;
+  if (conchT <= 0) { conchT = 0; conchChipEl.style.display = 'none'; return; }
+  conchChipEl.style.display = 'block';
+  conchChipEl.textContent = 'REFRESHED ' + Math.ceil(conchT) + 'S';
+}
+queueMicrotask(() => worldTickers.push(conchTick));
 
 /* ================= PHASE 5: LANDMARK CASINO v1 (buildings/places) ================
    One seeded landmark casino per rare chunk (the 'casino' amenity type: own
@@ -8703,6 +8801,7 @@ function casinoHallEnter() {
   amuseHintEl.style.opacity = 0; AMUSE.hintOn = false;
   theaterHintEl.style.opacity = 0; THEATER.hintOn = false;
   thallhintEl.style.opacity = 0; THEATERHALL.hintEnter = false;
+  snackhintEl.style.opacity = 0; CONCH.promptOn = false;   // THEATER CONCESSIONS v1: no snack prompt in the casino hall
   tshowhintEl.style.opacity = 0;
   hosphealEl.style.opacity = 0; HOSP.hintOn = false;
   if (IS_TOUCH) {
@@ -9695,6 +9794,7 @@ function firestHallEnter() {
   amuseHintEl.style.opacity = 0; AMUSE.hintOn = false;
   theaterHintEl.style.opacity = 0; THEATER.hintOn = false;
   thallhintEl.style.opacity = 0; THEATERHALL.hintEnter = false;
+  snackhintEl.style.opacity = 0; CONCH.promptOn = false;   // THEATER CONCESSIONS v1: no snack prompt in the fire hall
   tshowhintEl.style.opacity = 0;
   casinohallhintEl.style.opacity = 0; CASINOHALL.hintEnter = false;
   casinoslothintEl.style.opacity = 0;
@@ -12102,7 +12202,10 @@ addEventListener('keydown', e => {
   if (pk >= 0 && PIANO.playing) pianoNote(pk);
   else {
     const emk = EMOTE_KEYS.indexOf(e.code);                           // Phase 5 emotes: Z/X/C/V/G/B
-    if (emk >= 0 && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) fireEmote(EMOTE_ORDER[emk]);       // (1-6 are weapons/shop)
+    if (emk >= 0 && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
+      if (e.code === 'KeyC' && CONCH.promptOn) openConcession();      // THEATER CONCESSIONS v1: C opens snacks at the theater door
+      else fireEmote(EMOTE_ORDER[emk]);                               // (1-6 are weapons/shop)
+    }
   }
 });
 addEventListener('keyup', e => keys[e.code] = false);
