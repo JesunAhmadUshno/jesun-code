@@ -444,6 +444,29 @@
     letter-spacing: 2px; display: none; pointer-events: none;
   }
   #civarr { display: inline-block; color: #7dd8e0; font-size: 14px; }
+  /* ---- stadium HUD (Phase 5): WATCH prompt mirrors the civic hint pattern,
+         stacked above it so live prompts never overlap. The #stadiumchip
+         match readout sits top-right below the civic chip. The #stadbearing
+         chip mirrors the civic bearing chip (landmark-chip pattern) and is
+         the visible venue sign. DOM only, zero draw calls. ---- */
+  #stadiumhint {
+    position: absolute; bottom: 704px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #3fae5a; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #stadiumchip {
+    position: absolute; top: 1010px; right: 18px; color: #3fae5a; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #2a6a3a; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #stadbearing {
+    position: absolute; top: 291px; left: 18px; color: #d8f4d8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #2a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #stadarr { display: inline-block; color: #3fae5a; font-size: 14px; }
   #civicpanel {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: rgba(12,14,12,.94); border: 2px solid #3a6a6e; border-radius: 10px;
@@ -684,6 +707,9 @@
   <div id="civichint"></div>
   <div id="civicchip"></div>
   <div id="civicbearing"><span id="civarr">^</span> <span id="civtxt"></span></div>
+  <div id="stadiumhint"></div>
+  <div id="stadiumchip"></div>
+  <div id="stadbearing"><span id="stadarr">^</span> <span id="stadtxt"></span></div>
   <div id="civicpanel">
     <div id="civictitle">CIVIC</div>
     <div class="tbtn" id="civicact">ACT</div>
@@ -3227,7 +3253,7 @@ function petLoadStr(s) {
 function petSteer(a, dt) {
   const p = a.pos, pp = player.position;
   _petMoving = false; _petSpd = 0;
-  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state;
+  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching;
   const dx = pp.x - p.x, dz = pp.z - p.z;
   /* death, any vehicle mode, or >120m: the pet stops and waits */
   if (P.dead || inVehicle || dx * dx + dz * dz > 14400) { setPetMode('wait'); return; }
@@ -4059,7 +4085,7 @@ function emoteCancel() {
 }
 function fireEmote(name) {
   if (!playing() || P.dead || P.godT > 0) return;                 // dead or busted/spawn-protection
-  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) return;
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) return;
   if (shopOpen) return;
   const E = EMOTES[name];
   if (!E) return;
@@ -4109,7 +4135,7 @@ function doPunch() {
   if (BIKE.driving) return;   // no melee from the bike: both hands on the bars
   if (BC.driving) return;     // no melee from the bicycle: both hands on the bars
   if (SC.driving) return;     // no melee from the scooter: both hands on the bar
-  if (BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) return;    // no melee from a vehicle
+  if (BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) return;    // no melee from a vehicle
   if (!playing() || P.dead || P.punchCd > 0) return;
   P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
   P.comboWin = 0.6;
@@ -4565,7 +4591,7 @@ const tmpV2 = new THREE.Vector3(), tmpEnd = new THREE.Vector3();
 const jitterPt = new THREE.Vector2();   // per-pellet spread offset, zero alloc
 function shoot() {
   emoteCancel();   // combat layer wins: firing kills the emote instantly
-  if (!playing() || P.dead || fireCd > 0 || THEATER.watching || CIVIC.state) return;
+  if (!playing() || P.dead || fireCd > 0 || THEATER.watching || CIVIC.state || STADIUM.watching) return;
   let w = WEAPONS[curWeapon];
   if (w.ammo <= 0) {   // dry weapon: fall back to the rifle, never soft-lock
     curWeapon = 'rifle'; w = WEAPONS.rifle; updateWeaponHUD();
@@ -5367,6 +5393,7 @@ function busted() {
   else if (SLOT.playing) slotExit();   // busted off the slot machine too
   else if (PIANO.playing) pianoExit();   // busted off the piano bench too
   else if (THEATER.watching) theaterExit();   // busted out of the audience too
+  else if (STADIUM.watching) stadiumExit();   // busted out of the stands too
   const seized = Math.floor(cash * 0.25);
   cash -= seized; updateCashHUD();
   setHeat(0, true);
@@ -5426,7 +5453,7 @@ function wantedTick(dt) {
   if (W.tickT < 0.25) return;
   W.tickT = 0;
   const px = player.position.x, pz = player.position.z;
-  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
+  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
   let seen = false, bust = false;
   for (const c of cops) {
     if (!c.active || c.state === 'dead') continue;
@@ -5434,7 +5461,7 @@ function wantedTick(dt) {
     const d2 = dx * dx + dz * dz;
     if (d2 < see2) seen = true;
     if (P.godT > 0) continue;
-    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state) { if (d2 < 6.25) { bust = true; break; } }
+    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching) { if (d2 < 6.25) { bust = true; break; } }
     else if (CAR.driving && d2 < 9 && Math.abs(CAR.speed) < 3) { bust = true; break; }
     else if ((BUS.driving || BUS.riding) && d2 < 9 && Math.abs(BUS.speed) < 3) { bust = true; break; }
     else if (TX.riding && d2 < 9 && Math.abs(TX.speed) < 3) { bust = true; break; }
@@ -5702,7 +5729,7 @@ function missionTick(dt) {
 
   const px = player.position.x, pz = player.position.z;
   if (MS.state === 'IDLE') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) ? 6 : 3;   // markers are enterable on foot and while driving
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) ? 6 : 3;   // markers are enterable on foot and while driving
     for (let i = 0; i < 5; i++) {
       if (MS.done[i] || !missionAvailable(i)) continue;
       const dx = MISSIONS[i].mx - px, dz = MISSIONS[i].mz - pz;
@@ -5713,7 +5740,7 @@ function missionTick(dt) {
   /* ACTIVE: evaluate the current phase */
   const o = MISSIONS[MS.idx].obj[MS.phase];
   if (o.type === 'collect') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) ? 4.5 : 2.5;
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) ? 4.5 : 2.5;
     for (let s = 0; s < crateSpots.length; s++) {
       const c = crateSpots[s];
       if (c.taken) continue;
@@ -5994,7 +6021,7 @@ function lootTick(dt) {
       if (L.respawnT <= 0) { L.taken = false; showLoot(L); }
     }
   }
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) return;   // pickups are on-foot only
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) return;   // pickups are on-foot only
   lootCheckT += dt;
   if (lootCheckT < 0.15) return;                      // radius checks throttled
   lootCheckT = 0;
@@ -6134,7 +6161,7 @@ function refreshShopPanel() {
   renderShopRows();
 }
 function openShop(i) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || !playing()) return;
   shopOpen = true; shopOpenIdx = i;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;   // Phase 3: panel is shared with diners
   shopBaseTitle = SHOPS[i].name;              // Phase 5 cooking: list-swap restore title
@@ -6192,7 +6219,7 @@ function shopTick(dt) {
   shopCheckT += dt;
   if (shopCheckT < 0.15) return;           // proximity check throttled
   shopCheckT = 0;
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) return;
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) return;
   const px = player.position.x, pz = player.position.z;
   for (let i = 0; i < SHOPS.length; i++) {
     const S = SHOPS[i];
@@ -6565,6 +6592,31 @@ function buildParkGeo() {
   flatRect(0.14, 3.24, -3.87, 7.8, 0.13, TSTAGEL);
   flatRect(5.0, 0.12, -6.5, 4.6, 0.13, TSTAGEL);                    // audience row markers
   flatRect(5.0, 0.12, -6.5, 3.0, 0.13, TSTAGEL);
+  /* ---- Phase 5 stadium: neighborhood pitch baked into the shared park
+         geometry (zero new draw calls), the theater-corner idiom: the corner
+         reads as a small pitch in every park, gameplay (bowl, crowd wave,
+         goal cheers, watch mode) only at seeded stadium parks
+         (stadiumHash%7===4, own residue disjoint from theater %7===2 and
+         piano %7===5; parks whose 3D props would stand inside the bowl
+         (basketball %5===2, tennis %5===3, heli %5===4), runway parks
+         (%5===0), dock parks, and theater parks are excluded). Pitch at
+         park-local (10.5, -9): clear of the runway (x = -12), the piano
+         stage (x +/-1.7), the dock deck (+x, z +/-1.8), the courts
+         (|z| < 6), and the tree/bench colliders. Painted at y 0.14/0.15
+         above the theater paint (0.12/0.13) so nothing z-fights. ---- */
+  const SPITCH = 0x3f7a3a, SLINE = 0xf2f5ee;
+  flatRect(11, 7.5, 10.5, -9, 0.14, SPITCH);                        // pitch surface
+  flatRect(11.2, 0.16, 10.5, -5.25, 0.15, SLINE);                   // boundary
+  flatRect(11.2, 0.16, 10.5, -12.75, 0.15, SLINE);
+  flatRect(0.16, 7.5, 16, -9, 0.15, SLINE);
+  flatRect(0.16, 7.5, 5, -9, 0.15, SLINE);
+  flatRect(0.16, 7.5, 10.5, -9, 0.15, SLINE);                       // halfway
+  amenPart(parts, 4, 1.1, 1.2, 0, 10.5, 0.15, -9, SLINE);           // center circle
+  for (const sx of [-1, 1]) {                                       // penalty boxes
+    flatRect(1.6, 0.14, 10.5 + sx * 4.7, -9 + 1.6, 0.15, SLINE);
+    flatRect(1.6, 0.14, 10.5 + sx * 4.7, -9 - 1.6, 0.15, SLINE);
+    flatRect(0.14, 3.34, 10.5 + sx * 3.9, -9, 0.15, SLINE);
+  }
   return mergeAmenGeos(parts);
 }
 function buildLandGeo() {
@@ -6857,7 +6909,7 @@ const REST_ITEMS = [
 ];
 let shopRest = false, shopRestSlot = -1, SHOP_LIST = SHOP_ITEMS;
 function openRest(R, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || !playing()) return;
   shopOpen = true; shopRest = true; shopRestSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = REST_ITEMS;
   shopBaseTitle = R.name;                     // Phase 5 cooking: list-swap restore title
@@ -6878,7 +6930,7 @@ function amenTick(dt) {
   amenT += dt;
   if (amenT >= 0.15) {
     amenT = 0;
-    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching) {
       const arr = AMEN.active.rest;
       for (let i = 0; i < arr.length; i++) {
         const R = arr[i];
@@ -7352,7 +7404,7 @@ function redistributeBuildings(pcx, pcz) {
    health with cash, walk out to re-arm. No new economy code. */
 let shopBldg = false, shopBldgSlot = -1;
 function openBldgStore(S, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || !playing()) return;
   shopOpen = true; shopBldg = true; shopBldgSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;
   shopNameEl.textContent = S.name;
@@ -7372,7 +7424,7 @@ function bldgTick(dt) {
   bldgT += dt;
   if (bldgT >= 0.15) {
     bldgT = 0;
-    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching) {
       const arr = BLDG.active.store;
       for (let i = 0; i < arr.length; i++) {
         const S = arr[i];
@@ -7697,7 +7749,7 @@ function farmTryHarvest() {
   if (FPLOT.nearIdx < 0) return false;
   if (!playing() || P.dead || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) return false;
   if (HORSE.hintOn || BUS.hintOn || TX.hintOn || BIKE.hintOn || BC.hintOn ||
       SC.hintOn || PET.hintOn) return false;
   if (FPLOT.nearMature) farmHarvest(FPLOT.nearIdx);
@@ -8182,8 +8234,8 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyE') { if (CIVIC.state) civicExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the watcher first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
-  if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
+  if (e.code === 'KeyE') { if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
+  if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -8192,7 +8244,7 @@ addEventListener('keydown', e => {
   if (pk >= 0 && PIANO.playing) pianoNote(pk);
   else {
     const emk = EMOTE_KEYS.indexOf(e.code);                           // Phase 5 emotes: Z/X/C/V/G/B
-    if (emk >= 0 && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state) fireEmote(EMOTE_ORDER[emk]);       // (1-6 are weapons/shop)
+    if (emk >= 0 && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching) fireEmote(EMOTE_ORDER[emk]);       // (1-6 are weapons/shop)
   }
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -8555,7 +8607,7 @@ function soccerBallNear() {
 function soccerCanKick() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) return false;
   return soccerBallNear();
 }
 function doKick() {
@@ -8851,7 +8903,7 @@ function hoopsBallNear() {
 function hoopsCanShoot() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) return false;
   return hoopsBallNear();
 }
 /* set shot: auto-aim (ball->rim unit vector), arc via forward+up vector
@@ -9275,7 +9327,7 @@ function tennisBallNear() {
 function tennisCanHit() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching) return false;
   return tennisBallNear();
 }
 /* forehand return: auto-aim at the far court, seeded depth/angle error via
@@ -10364,7 +10416,7 @@ function ensureEngineAudio() {
 }
 
 function carEnter() {
-  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || !playing() || P.dead) return;
+  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || !playing() || P.dead) return;
   emoteCancel();   // no emotes while driving
   const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
   if (dx * dx + dz * dz > 16) return;        // 4u enter radius
@@ -10641,7 +10693,7 @@ function ensureHoofAudio() {
 }
 
 function horseEnter() {
-  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || shopOpen) return;
+  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || shopOpen) return;
   emoteCancel();   // no emotes while riding
   const a = HORSE.nearA;
   if (!a || a.mountLocked || a.fleeT > 0) return;
@@ -10698,7 +10750,8 @@ function horseExit() {
    tames (pet prompt sits after the vehicle prompts so boarding wins ties; the
    car fallback stays last). */
 function mountToggle() {
-  if (CIVIC.state) civicExit();   // Phase 5 civic: E never traps the visitor
+  if (STADIUM.watching) stadiumExit();   // Phase 5 stadium: E never traps the fan
+  else if (CIVIC.state) civicExit();   // Phase 5 civic: E never traps the visitor
   else if (THEATER.watching) theaterExit();   // Phase 5 theater: E never traps the watcher
   else if (SLOT.playing) slotExit();   // Phase 5 casino: E never traps the gambler
   else if (PIANO.playing) pianoExit();   // Phase 5 pianos: E never traps the player
@@ -10727,16 +10780,17 @@ function mountToggle() {
   else if (PET.hintOn && PET.nearA) tamePet(PET.nearA);
   else if (SLOT.hintOn) slotEnter();   // Phase 5 casino: E boards a slot machine
   else if (THEATER.hintOn) theaterEnter();   // Phase 5 theater: E sits in the audience
+  else if (STADIUM.hintOn) stadiumEnter();   // Phase 5 stadium: E takes a seat in the stand
   else carEnter();
 }
 /* the touch EXIT button doubles as the dismount button while riding */
-function vehicleExit() { if (CIVIC.state) civicExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); }
+function vehicleExit() { if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); }
 
 /* ---- horse ticker: prompt, controller, procedural gait, audio, HUD ---- */
 function horseUpdate(sdt, now) {
   if (!HORSE.riding) {
     // parked: nearest non-fleeing horse inside 2.2u shows the RIDE prompt
-    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state) && !shopOpen;
+    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || STADIUM.watching) && !shopOpen;
     let best = null, bestD2 = RIDE_R2;
     if (onFoot) {
       for (const a of animals) {
@@ -11150,7 +11204,7 @@ function busDwellService() {
 }
 
 function busEnter() {
-  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || !playing() || P.dead || shopOpen) return;
+  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a bus passenger
   if (!BUS.active || BUS.speed > 3) { toast('WAIT FOR THE BUS TO STOP'); return; }
   const door = busDoorWorld();
@@ -11293,7 +11347,7 @@ function busUpdate(sdt, now) {
 
   // ---- board prompt: on foot, near the door, bus stopped ----
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state) && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || STADIUM.watching) && !shopOpen;
   let nearDoor = false;
   if (onFoot && BUS.speed < 3) {
     const door = busDoorWorld();
@@ -11697,7 +11751,7 @@ function txPursuit(sdt) {
   if (TX.speed > 0.05) TX.heading += (TX.speed / TX.wheelbase) * Math.tan(delta) * sdt;
 }
 function taxiEnter() {
-  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state
+  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching
       || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a taxi passenger
   if (!TX.active || TX.speed > 3) { toast('WAIT FOR THE TAXI TO STOP'); return; }
@@ -11759,7 +11813,7 @@ function txUpdate(sdt) {
   if (TX.riding) { player.position.copy(TX.pos); player.rotation.y = TX.heading; }
   /* board prompt: on foot, near the door, taxi slow */
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state) && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || STADIUM.watching) && !shopOpen;
   let nearDoor = false;
   if (onFoot && TX.speed < 3) {
     const door = txDoorWorld();
@@ -11930,7 +11984,7 @@ function bikeRebuild(pcx, pcz) {
   bikeBodyIM.instanceMatrix.needsUpdate = true;
 }
 function bikeEnter() {
-  if (BIKE.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state
+  if (BIKE.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = BIKE.nearIdx;
@@ -12022,7 +12076,7 @@ function bikeUpdate(sdt) {
   if (!BIKE.driving) {
     // parked: nearest slot inside 3.5u shows the RIDE prompt (horse idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state) && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || STADIUM.watching) && !shopOpen;
     let best = -1, bestD2 = BIKE.boardR2;
     if (onFoot) {
       for (let i = 0; i < 3; i++) {
@@ -12308,7 +12362,7 @@ function bcRebuild(pcx, pcz) {
   bcBodyIM.instanceMatrix.needsUpdate = true;
 }
 function bcEnter() {
-  if (BC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state
+  if (BC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = BC.nearIdx;
@@ -12402,7 +12456,7 @@ function bcUpdate(sdt) {
   if (!BC.driving) {
     // parked: nearest slot inside 3.5u shows the RIDE prompt (bike idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state) && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || STADIUM.watching) && !shopOpen;
     let best = -1, bestD2 = BC.boardR2;
     if (onFoot) {
       for (let i = 0; i < 3; i++) {
@@ -12670,7 +12724,7 @@ function scRebuild(pcx, pcz) {
   scBodyIM.instanceMatrix.needsUpdate = true;
 }
 function scEnter() {
-  if (SC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state
+  if (SC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = SC.nearIdx;
@@ -13034,7 +13088,7 @@ function boatRebuild(pcx, pcz, now) {
   boatBodyIM.instanceMatrix.needsUpdate = true;
 }
 function boatEnter() {
-  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || BOAT.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || BOAT.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while sailing
   const i = BOAT.nearIdx;
@@ -13476,7 +13530,7 @@ function heliRebuild(pcx, pcz, now) {
   heliBodyIM.instanceMatrix.needsUpdate = true;
 }
 function heliEnter() {
-  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || SC.driving || BOAT.driving || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while flying
   const i = HELI.nearIdx;
@@ -13912,7 +13966,7 @@ function planeRebuild(pcx, pcz, now) {
 }
 function planeEnter() {
   if (PLANE.flying || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
-      || SC.driving || BOAT.driving || HELI.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || !playing() || P.dead || shopOpen || P.godT > 0) return;
+      || SC.driving || BOAT.driving || HELI.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while flying
   const i = PLANE.nearIdx;
   if (i < 0 || i >= PLANE_N) return;
@@ -14028,7 +14082,7 @@ function planeUpdate(sdt, now) {
   if (!PLANE.flying) {
     // parked: nearest airplane inside 6u shows the BOARD prompt (boat idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state) && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || STADIUM.watching) && !shopOpen;
     let best = -1, bestD2 = PLANE.boardR2;
     if (onFoot) {
       for (let i = 0; i < PLANE_N; i++) {
@@ -14363,7 +14417,7 @@ trainChipEl.addEventListener('click', () => { if (TRAIN.riding) camYaw = TRAIN.h
 
 function trainEnter() {
   if (TRAIN.riding || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
-      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || !playing() || P.dead || shopOpen || P.godT > 0) return;
+      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = TRAIN.nearTrain, j = TRAIN.nearCar;
   if (i < 0 || i >= TRAIN_N || j < 0 || j >= TRAIN_CARS) return;
@@ -14465,7 +14519,7 @@ function trainUpdate(sdt, now) {
 
   // ---- on foot: board prompt, danger, station sign ----
   const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-    && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state) && !shopOpen;
+    && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || STADIUM.watching) && !shopOpen;
   let bestT = -1, bestC = -1, bestD2 = TRAIN.boardR2;
   if (onFoot) {
     for (let i = 0; i < TRAIN_N; i++) {
@@ -14785,7 +14839,7 @@ function pianoUpdate(sdt, now) {
   if (!PIANO.playing) {
     // parked: nearest piano inside the sit radius shows the SIT prompt (heli idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state) && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !(THEATER.watching || CIVIC.state || STADIUM.watching) && !shopOpen;
     let best = -1, bestD2 = PIANO.boardR2;
     if (onFoot) {
       for (let i = 0; i < PIANO_N; i++) {
@@ -14966,7 +15020,7 @@ function sfxSlotCoin() {
 }
 
 function slotEnter() {
-  if (SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while gambling
   const i = SLOT.nearIdx;
@@ -15087,7 +15141,7 @@ function slotUpdate(sdt, now) {
   if (!SLOT.playing) {
     // parked: nearest casino inside the play radius shows the PLAY prompt (heli idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !SLOT.playing && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching && !SLOT.playing && !shopOpen;
     let best = -1, bestD2 = SLOT.boardR2;
     if (onFoot) {
       const arr = BLDG.active.casino;
@@ -15220,7 +15274,7 @@ function updateCivicChip() {
 }
 
 function civicEnter() {
-  if (CIVIC.state || SLOT.playing || PIANO.playing || THEATER.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (CIVIC.state || SLOT.playing || PIANO.playing || THEATER.watching || STADIUM.watching || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while inside
   const i = CIVIC.nearIdx, type = CIVIC.nearType;
@@ -15326,7 +15380,7 @@ function civicTick(dt) {
   if (!CIVIC.state) {
     // parked: nearest interactive civic inside its porch hint radius shows the prompt (slot idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching && !shopOpen;
     let best = -1, bestType = null, bestD2 = 1e18, bestHintR2 = 0;
     if (onFoot) {
       for (const type of CIVIC_ORDER) {
@@ -15605,7 +15659,7 @@ function updateTheaterChip() {
 }
 
 function theaterEnter() {
-  if (THEATER.watching || PIANO.playing || SLOT.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (STADIUM.watching || THEATER.watching || PIANO.playing || SLOT.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while watching
   const i = THEATER.nearIdx;
@@ -15718,10 +15772,10 @@ function theaterAnimate(s, sdt) {
 function theaterUpdate(sdt, now) {
   const pcx = Math.floor(player.position.x / CHUNK), pcz = Math.floor(player.position.z / CHUNK);
   if (pcx !== THEATER.anchorCx || pcz !== THEATER.anchorCz) theaterRebuild(pcx, pcz);
-  if (!THEATER.watching) {
+  if (!THEATER.watching && !STADIUM.watching) {
     // parked: nearest theater inside the watch radius shows the WATCH prompt (heli idiom)
     const onFoot = playing() && !P.dead && !shopOpen && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !STADIUM.watching;
     let best = -1, bestD2 = THEATER.boardR2;
     if (onFoot) {
       for (let i = 0; i < THEATER_N; i++) {
@@ -15756,6 +15810,390 @@ function theaterUpdate(sdt, now) {
   }
 }
 worldTickers.push(theaterUpdate);
+/* ================= PHASE 5: STADIUM v1 (sports) =================
+   Neighborhood stadium in parks. Seeded stadium spots (stadiumFor, pure
+   deterministic, own hash salt and residue %7===4, disjoint from theater
+   %7===2 and piano %7===5; parks whose 3D props would stand inside the bowl
+   (basketball %5===2, tennis %5===3, heli %5===4), runway parks (%5===0),
+   dock parks, and theater parks are excluded). One shared unit-box fleet
+   mesh (exactly +1 draw call): a parametric 3-tier elliptical bowl (3 x 12
+   segments, home/away section tints, seeded per-segment wave phase), two
+   goals, four floodlight towers with lamp heads. The crowd wave is a phase
+   wave around the bowl (Y bob + sway from the phase only, the theater
+   audience idiom); goal cheers fire on a seeded timer (crowd bounce surge
+   plus layered one-shot sfxBlip cheer, no persistent oscillators). The lamp
+   heads brighten at dusk/night via per-instance color lerp, zero new
+   lights. E sits in the stand (WATCH), E leaves any time (never traps).
+   Session-only; save v3 untouched. Pure hash functions only, no RNG
+   anywhere in this block. */
+function stadiumHash(gx, gz) {
+  return hash2i(gx ^ 0x51A7B3, gz ^ 0x2E9D41);
+}
+const STADIUM_LX = 10.5, STADIUM_LZ = -9;   // park-local pitch center
+function stadiumFor(gx, gz) {
+  if (amenityTypeFor(gx, gz) !== 'park' || !amenityAccepted(gx, gz)) return null;
+  if (dockFor(gx, gz)) return null;                          // docks own their parks
+  if (stadiumHash(gx, gz) % 7 !== 4) return null;             // own residue, disjoint from theater %7===2 / piano %7===5
+  if (theaterHash(gx, gz) % 7 === 2) return null;             // the theater corner crowds the bowl's west tip
+  const sh = sportHash(gx, gz) % 5;
+  if (sh === 0 || sh === 2 || sh === 3 || sh === 4) return null;   // runway, basketball, tennis, heli: 3D props inside the bowl
+  const a = amenityCenterFor(gx, gz);
+  if (!a) return null;
+  const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+  const x = a.x + STADIUM_LX * c + STADIUM_LZ * s;
+  const z = a.z - STADIUM_LX * s + STADIUM_LZ * c;
+  const y = terrainHeight(x, z);
+  if (y < WATER_Y + 0.4) return null;                        // dry land only
+  if (Math.abs(terrainHeight(x + 4, z) - y) > 1.5) return null;
+  if (Math.abs(terrainHeight(x, z + 4) - y) > 1.5) return null;
+  if (Math.abs(terrainHeight(x - 4, z) - y) > 1.5) return null;
+  if (Math.abs(terrainHeight(x, z - 4) - y) > 1.5) return null;
+  return { x, z, y, gx, gz, yaw: a.yaw };
+}
+
+/* ---- the fleet: one unit box, RGBA-ish vertex gradient, per-instance
+        tints. EXACTLY +1 draw call. Instance layout per stadium (S_INST):
+        0-35 bowl tiers (tier = idx/12|0, seg = idx%12), 36-41 goals
+        (posts + crossbar, two ends), 42-45 floodlight poles, 46-49 lamp
+        heads (the dusk/night brighten targets). ---- */
+const STADIUM_N = 4, STADIUM_SCAN = 4, S_INST = 50;
+const STADIUM_GOAL_EVERY = 26;   // seconds between goal cheers, plus seeded jitter
+const STAD_TIER_RX = [4.6, 5.65, 6.7], STAD_TIER_RZ = 0.72, STAD_SEG = 12;
+const stadiumUnitGeo = new THREE.BoxGeometry(1, 1, 1);
+{
+  const pp = stadiumUnitGeo.attributes.position;
+  const pc = new Float32Array(pp.count * 3);
+  for (let vi = 0; vi < pp.count; vi++) {
+    const t = pp.getY(vi) * 0.5 + 0.5;   // 0 bottom .. 1 top: subtle top-light gradient
+    const v = 0.72 + 0.28 * t;
+    pc[vi * 3] = v; pc[vi * 3 + 1] = v; pc[vi * 3 + 2] = v;
+  }
+  stadiumUnitGeo.setAttribute('color', new THREE.BufferAttribute(pc, 3));
+}
+const stadiumBoxIM = new THREE.InstancedMesh(stadiumUnitGeo,
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05 }), STADIUM_N * S_INST);
+stadiumBoxIM.castShadow = false; stadiumBoxIM.frustumCulled = false;
+stadiumBoxIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(stadiumBoxIM);
+const _stM = new THREE.Matrix4(), _stQ = new THREE.Quaternion(),
+      _stE = new THREE.Euler(0, 0, 0, 'YXZ'), _stP = new THREE.Vector3(),
+      _stS = new THREE.Vector3(1, 1, 1), _stC = new THREE.Color(), _stC2 = new THREE.Color();
+/* stage-local (lx, lz) -> world, using the slot's yaw (sy = park yaw + PI,
+   so the bowl's local frame matches the painted pitch). Zero per-frame
+   allocation. */
+function stadiumBox(s, idx, lx, ly, lz, w, h, d, rx, ry, rz) {
+  _stP.set(s.x + lx * s._c + lz * s._s, s.y + ly, s.z - lx * s._s + lz * s._c);
+  _stE.set(rx || 0, ry || 0, rz || 0); _stQ.setFromEuler(_stE);
+  _stS.set(w, h, d); _stM.compose(_stP, _stQ, _stS);
+  stadiumBoxIM.setMatrixAt(s.base + idx, _stM);
+}
+function stadiumTint(s, idx, hex) {
+  _stC.setHex(hex); stadiumBoxIM.setColorAt(s.base + idx, _stC);
+}
+const STADIUM = {
+  watching: false, watchIdx: -1, hintOn: false, nearIdx: -1,
+  anchorCx: 1e9, anchorCz: 1e9, key: '',
+  boardR2: 36,                                   // 6u watch radius (piano sit idiom)
+  camDist: 9, camH: 3.2,                         // fixed behind-the-stand framing over the pitch
+  camAng: 0, seatX: 0, seatY: 0, seatZ: 0, seatYaw: 0,
+  pos: new THREE.Vector3(),
+  slots: [],
+};
+for (let i = 0; i < STADIUM_N; i++) STADIUM.slots.push({
+  placed: false, x: 0, z: 0, y: 0, sy: 0, idx: i, base: i * S_INST,
+  _c: 1, _s: 0, watchX: 0, watchY: 0, watchZ: 0,
+  matchT: 0, matchIdx: 0, nextGoal: 0, cheerT: 0, seed: 0,
+  phases: new Array(36).fill(0),
+});
+/* park an instance far underground: invisible until its slot activates */
+function stadiumPark(i) {
+  _stM.makeScale(0.0001, 0.0001, 0.0001); _stM.setPosition(0, -60, 0);
+  for (let k = 0; k < S_INST; k++) stadiumBoxIM.setMatrixAt(i * S_INST + k, _stM);
+}
+for (let i = 0; i < STADIUM_N; i++) {
+  stadiumPark(i);
+  for (let k = 0; k < S_INST; k++) { _stC.setHex(0xffffff); stadiumBoxIM.setColorAt(i * S_INST + k, _stC); }
+}
+stadiumBoxIM.instanceMatrix.needsUpdate = true;
+if (stadiumBoxIM.instanceColor) stadiumBoxIM.instanceColor.needsUpdate = true;
+
+const STADIUM_NAMES = ['Unity Arena', 'Harbor Stadium', 'Northgate Field', 'Ember Park',
+                       'Lakeshore Dome', 'Founders Field', 'Comet Arena', 'Maple Stadium'];
+function stadiumPlace(s, d) {
+  s.placed = true; s.x = d.x; s.z = d.z; s.y = d.y; s.sy = d.yaw + Math.PI;
+  s._c = Math.cos(s.sy); s._s = Math.sin(s.sy);
+  s.seed = stadiumHash(d.gx, d.gz);
+  s.matchT = 0; s.matchIdx = 0; s.cheerT = 0;
+  const r = mulberry32((s.seed ^ 0x57AD1A) >>> 0);
+  s.nextGoal = STADIUM_GOAL_EVERY + r() * 10;
+  /* watch seat: stage-local (0, -4.07) on the middle tier, facing the pitch */
+  s.watchX = d.x + (-4.07) * s._s;
+  s.watchZ = d.z + (-4.07) * s._c;
+  s.watchY = d.y + 2.42;
+  /* bowl: 3 tiers x 12 segments; home/away section tints, seeded wave phase */
+  const HOME = 0x2a4a7a, AWAY = 0x7a2a2a;
+  for (let t = 0; t < 3; t++) {
+    const rx = STAD_TIER_RX[t], rz = rx * STAD_TIER_RZ;
+    for (let k = 0; k < STAD_SEG; k++) {
+      const a = k / STAD_SEG * Math.PI * 2;
+      const idx = t * STAD_SEG + k;
+      s.phases[idx] = a * 2;
+      stadiumBox(s, idx, rx * Math.cos(a), 0.58 + t * 1.25, rz * Math.sin(a),
+                 (2 * Math.PI * rx / STAD_SEG) * 0.96, 1.15, 2.0, 0, -a - Math.PI / 2, 0);
+      _stC.setHex(Math.floor(k / 3) % 2 === 0 ? HOME : AWAY).multiplyScalar(1 - t * 0.12);
+      stadiumBoxIM.setColorAt(s.base + idx, _stC);
+    }
+  }
+  /* goals: posts + crossbar at both ends of the pitch */
+  for (const gx of [-5.5, 5.5]) {
+    const b = gx < 0 ? 36 : 39;
+    stadiumBox(s, b, gx, 1.1, -1.1, 0.16, 2.2, 0.16, 0, 0, 0); stadiumTint(s, b, 0xf4f8f4);
+    stadiumBox(s, b + 1, gx, 1.1, 1.1, 0.16, 2.2, 0.16, 0, 0, 0); stadiumTint(s, b + 1, 0xf4f8f4);
+    stadiumBox(s, b + 2, gx, 2.28, 0, 0.16, 0.16, 2.36, 0, 0, 0); stadiumTint(s, b + 2, 0xf4f8f4);
+  }
+  /* floodlight towers: poles + lamp heads (the dusk/night brighten targets) */
+  const FL = [[-7.6, -5.2], [7.6, -5.2], [-7.6, 5.2], [7.6, 5.2]];
+  for (let f = 0; f < 4; f++) {
+    stadiumBox(s, 42 + f, FL[f][0], 1.6, FL[f][1], 0.32, 3.2, 0.32, 0, 0, 0);
+    stadiumTint(s, 42 + f, 0x2e3238);
+    stadiumBox(s, 46 + f, FL[f][0], 3.35, FL[f][1], 1.0, 0.55, 0.45, 0, 0, 0);
+    stadiumTint(s, 46 + f, 0x9aa0a8);
+  }
+  stadiumBoxIM.instanceMatrix.needsUpdate = true;
+  if (stadiumBoxIM.instanceColor) stadiumBoxIM.instanceColor.needsUpdate = true;
+}
+function stadiumRebuild(pcx, pcz) {
+  const key = pcx + ',' + pcz;
+  if (key === STADIUM.key) return;
+  STADIUM.key = key; STADIUM.anchorCx = pcx; STADIUM.anchorCz = pcz;
+  const cx = (pcx + 0.5) * CHUNK, cz = (pcz + 0.5) * CHUNK;
+  /* nearest stadium parks to the anchor center: deterministic and
+     player-position independent, so the same anchor rebuilds the same
+     spawns. */
+  const found = [];
+  for (let gx = pcx - STADIUM_SCAN; gx <= pcx + STADIUM_SCAN; gx++)
+    for (let gz = pcz - STADIUM_SCAN; gz <= pcz + STADIUM_SCAN; gz++) {
+      const d = stadiumFor(gx, gz);
+      if (d) found.push(d);
+    }
+  found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
+                     - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
+  for (let i = 0; i < STADIUM_N; i++) {
+    const s = STADIUM.slots[i];
+    if (i === STADIUM.watchIdx) continue;   // never yank the watched stadium
+    const d = found[i];
+    if (!d) { s.placed = false; stadiumPark(i); continue; }
+    /* Hysteresis (boat idiom): if the player is already at the slot,
+       keep it. Without this the spawn would jump every chunk crossing
+       while the player watches the match. */
+    const pdx = player.position.x - s.x, pdz = player.position.z - s.z;
+    if (s.placed && pdx * pdx + pdz * pdz < 400) continue;
+    stadiumPlace(s, d);
+  }
+  stadiumBoxIM.instanceMatrix.needsUpdate = true;
+}
+
+/* ---- goal cheer: layered one-shot sfxBlip crowd roar (the theater cheer
+        idiom). No oscillator chain, nodes die with the note. Only audible
+        in earshot. ---- */
+function stadiumGoalCheer(s) {
+  const dx = player.position.x - s.x, dz = player.position.z - s.z;
+  const hear = (STADIUM.watching && STADIUM.watchIdx === s.idx) || (dx * dx + dz * dz < 2304);
+  if (!hear) return;
+  sfxBlip(660, 0.14, 'sine', 0.16);
+  sfxBlip(880, 0.14, 'sine', 0.16);
+  sfxBlip(990, 0.18, 'sine', 0.14);
+  sfxBlip(1175, 0.22, 'sine', 0.13);
+  sfxBlip(1320, 0.30, 'sine', 0.11);
+}
+function stadiumMatchName(s) {
+  return STADIUM_NAMES[(s.seed + s.matchIdx) % STADIUM_NAMES.length];
+}
+
+/* ---- HUD refs: watch prompt, match chip, venue bearing chip, help footer ---- */
+const stadiumHintEl = document.getElementById('stadiumhint');
+const stadiumChipEl = document.getElementById('stadiumchip');
+const stadbearingEl = document.getElementById('stadbearing');
+const stadarrEl = document.getElementById('stadarr');
+const stadtxtEl = document.getElementById('stadtxt');
+const HELP_STADIUM = '<b>E</b> leave &nbsp; <b>TOUCH</b> tap EXIT';
+stadiumHintEl.textContent = IS_TOUCH ? 'TAP TO WATCH' : 'WATCH [E]';
+stadiumHintEl.addEventListener('click', () => { if (STADIUM.hintOn) stadiumEnter(); });
+function updateStadiumChip() {
+  if (!STADIUM.watching) { stadiumChipEl.style.display = 'none'; return; }
+  stadiumChipEl.style.display = 'block';
+  const s = STADIUM.slots[STADIUM.watchIdx];
+  stadiumChipEl.textContent = 'NOW PLAYING - ' + (s ? stadiumMatchName(s).toUpperCase() : 'HOUSE MATCH') + '  |  E LEAVE';
+}
+
+function stadiumEnter() {
+  if (STADIUM.watching || THEATER.watching || CIVIC.state || PIANO.playing || SLOT.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  emoteCancel();   // no emotes while watching
+  const i = STADIUM.nearIdx;
+  if (i < 0 || i >= STADIUM_N) return;
+  const s = STADIUM.slots[i];
+  if (!s.placed) return;
+  const dx = player.position.x - s.x, dz = player.position.z - s.z;
+  if (dx * dx + dz * dz > STADIUM.boardR2) return;
+  STADIUM.watching = true; STADIUM.watchIdx = i;
+  /* take a seat on the middle tier, facing the pitch (stage-local +Z) */
+  STADIUM.seatX = s.watchX; STADIUM.seatY = s.watchY; STADIUM.seatZ = s.watchZ;
+  STADIUM.seatYaw = s.sy;
+  STADIUM.pos.set(s.x, s.y, s.z);
+  STADIUM.camAng = s.sy + Math.PI;             // fixed behind-the-stand framing
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = true;
+  stadiumChipEl.style.display = 'block';
+  updateStadiumChip();
+  stadiumHintEl.style.opacity = 0; STADIUM.hintOn = false; STADIUM.nearIdx = -1;
+  theaterHintEl.style.opacity = 0; THEATER.hintOn = false;
+  civichintEl.style.opacity = 0; CIVIC.hintOn = false;
+  carHintEl.style.opacity = 0; CAR.hintOn = false;
+  busHintEl.style.opacity = 0; BUS.hintOn = false;
+  txHintEl.style.opacity = 0; TX.hintOn = false;
+  rideHintEl.style.opacity = 0; HORSE.hintOn = false;
+  bikeHintEl.style.opacity = 0; BIKE.hintOn = false;
+  bcHintEl.style.opacity = 0; BC.hintOn = false;
+  scHintEl.style.opacity = 0; SC.hintOn = false;
+  boatHintEl.style.opacity = 0; BOAT.hintOn = false;
+  heliHintEl.style.opacity = 0; HELI.hintOn = false;
+  planeHintEl.style.opacity = 0; PLANE.hintOn = false;
+  trainHintEl.style.opacity = 0; TRAIN.hintOn = false;
+  pianoHintEl.style.opacity = 0; PIANO.hintOn = false;
+  casinohintEl.style.opacity = 0; SLOT.hintOn = false;
+  if (IS_TOUCH) {
+    exitBtnEl.style.display = 'flex';              // touch exit path
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'none';   // JUMP/FIRE/PUNCH hidden while watching
+  }
+  helpEl.innerHTML = HELP_STADIUM;
+  toast('STADIUM');
+  sfxBlip(523, 0.09, 'triangle', 0.2);
+}
+function stadiumExit() {
+  if (!STADIUM.watching) return;
+  STADIUM.watching = false; STADIUM.watchIdx = -1;
+  stadiumChipEl.style.display = 'none';
+  exitBtnEl.style.display = 'none';
+  if (IS_TOUCH) {
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'flex';
+  }
+  /* step out of the stand past the top tier, never inside the bowl */
+  const ox = -Math.sin(STADIUM.seatYaw), oz = -Math.cos(STADIUM.seatYaw);
+  const ex = STADIUM.seatX + ox * 2.4, ez = STADIUM.seatZ + oz * 2.4;
+  player.position.set(ex, terrainHeight(ex, ez), ez);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = true;
+  helpEl.innerHTML = HELP_FOOT;
+  toast('ON FOOT');
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+
+/* ---- per-frame: crowd wave around the bowl from the seeded phase, goal
+        cheer surges on the seeded match timer, floodlight sweep + dusk/night
+        brighten. Only placed stadiums in earshot animate: zero per-frame
+        cost otherwise. ---- */
+function stadiumAnimate(s, sdt) {
+  s.matchT += sdt;
+  if (s.matchT >= s.nextGoal) {
+    s.matchIdx++;
+    s.cheerT = 2.4;                                // crowd energy burst
+    const r = mulberry32(((s.seed ^ Math.imul(s.matchIdx + 1, 0x9e3779b9)) >>> 0));
+    s.nextGoal = s.matchT + STADIUM_GOAL_EVERY + r() * 10;
+    stadiumGoalCheer(s);
+    if (STADIUM.watching && STADIUM.watchIdx === s.idx) updateStadiumChip();
+  }
+  if (s.cheerT > 0) s.cheerT -= sdt;
+  const surge = s.cheerT > 0 ? 3 : 1;
+  /* crowd wave: Y bob + sway from the seeded per-segment phase */
+  for (let t = 0; t < 3; t++) {
+    const rx = STAD_TIER_RX[t], rz = rx * STAD_TIER_RZ;
+    for (let k = 0; k < STAD_SEG; k++) {
+      const idx = t * STAD_SEG + k, ph = s.phases[idx];
+      const a = k / STAD_SEG * Math.PI * 2;
+      const bob = Math.sin(s.matchT * 3.0 + ph) * 0.09 * surge;
+      const sway = Math.sin(s.matchT * 1.5 + ph * 1.3) * 0.05 * surge;
+      stadiumBox(s, idx, rx * Math.cos(a), 0.58 + t * 1.25 + bob, rz * Math.sin(a),
+                 (2 * Math.PI * rx / STAD_SEG) * 0.96, 1.15, 2.0, 0, -a - Math.PI / 2, sway);
+    }
+  }
+  /* floodlights: brighten at dusk/night with a per-tower sweep pulse
+     (per-instance color lerp, no new lights) */
+  const glow = isNight ? 1 : (Math.abs(dayPhase - 0.5) < 0.08 ? 0.7 : 0.25);
+  for (let f = 0; f < 4; f++) {
+    const pulse = 0.75 + 0.25 * Math.sin(s.matchT * 2.2 + f * 1.57);
+    _stC.setHex(0x9aa0a8).lerp(_stC2.setHex(0xfff3cf), Math.min(1, glow * pulse));
+    stadiumBoxIM.setColorAt(s.base + 46 + f, _stC);
+  }
+  stadiumBoxIM.instanceMatrix.needsUpdate = true;
+  if (stadiumBoxIM.instanceColor) stadiumBoxIM.instanceColor.needsUpdate = true;
+}
+let stadbearingT = 0;
+function stadiumUpdate(sdt, now) {
+  const pcx = Math.floor(player.position.x / CHUNK), pcz = Math.floor(player.position.z / CHUNK);
+  if (pcx !== STADIUM.anchorCx || pcz !== STADIUM.anchorCz) stadiumRebuild(pcx, pcz);
+  if (!STADIUM.watching) {
+    // parked: nearest stadium inside the watch radius shows the WATCH prompt (theater idiom)
+    const onFoot = playing() && !P.dead && !shopOpen && !CAR.driving && !BUS.driving && !BUS.riding
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching;
+    let best = -1, bestD2 = STADIUM.boardR2;
+    if (onFoot) {
+      for (let i = 0; i < STADIUM_N; i++) {
+        const s = STADIUM.slots[i];
+        if (!s.placed) continue;
+        const dx = player.position.x - s.x, dz = player.position.z - s.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bestD2) { bestD2 = d2; best = i; }
+      }
+    }
+    if ((best >= 0) !== STADIUM.hintOn) {
+      STADIUM.hintOn = best >= 0;
+      stadiumHintEl.style.opacity = STADIUM.hintOn ? 1 : 0;
+    }
+    STADIUM.nearIdx = best;
+    /* venue bearing chip: nearest placed stadium is the visible venue sign
+       (civic bearing-chip idiom, zero draws) */
+    stadbearingT += sdt;
+    if (stadbearingT >= 0.25) {
+      stadbearingT = 0;
+      let b2 = null, bd = 1e18;
+      for (const s of STADIUM.slots) {
+        if (!s.placed) continue;
+        const dx = s.x - player.position.x, dz = s.z - player.position.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bd) { bd = d2; b2 = s; }
+      }
+      if (b2 && playing() && !P.dead) {
+        stadbearingEl.style.display = 'block';
+        camera.getWorldDirection(_mB);
+        const dx = b2.x - player.position.x, dz = b2.z - player.position.z;
+        const deg = -(Math.atan2(dx, dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
+        stadarrEl.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
+        stadtxtEl.textContent = stadiumMatchName(b2).toUpperCase() + ' ' + Math.round(Math.sqrt(bd)) + 'M';
+      } else stadbearingEl.style.display = 'none';
+    }
+  } else {
+    if (P.dead) { stadiumExit(); return; }   // death always ejects: no match while dead
+    /* seat the fan: frozen on the middle tier, facing the pitch. The
+       locomotion skip-chain (tick) and the vehicle guards own the rest. */
+    player.position.set(STADIUM.seatX, STADIUM.seatY, STADIUM.seatZ);
+    player.rotation.y = STADIUM.seatYaw;
+    P.vel.set(0, 0, 0); P.vy = 0;
+    stadbearingEl.style.display = 'none';   // the match chip owns the readout while watching
+  }
+  /* animate the watched stadium plus any placed stadium in earshot: crowd
+     wave, goal cheers, floodlights. Zero per-frame cost for distant ones. */
+  for (let i = 0; i < STADIUM_N; i++) {
+    const s = STADIUM.slots[i];
+    if (!s.placed) continue;
+    const dx = player.position.x - s.x, dz = player.position.z - s.z;
+    if (dx * dx + dz * dz > 3600 && !(STADIUM.watching && STADIUM.watchIdx === i)) continue;
+    stadiumAnimate(s, sdt);
+  }
+}
+worldTickers.push(stadiumUpdate);
 
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
@@ -15843,7 +16281,7 @@ function tick() {
 
   /* --- accelerate / decelerate (no ice-skating, no teleport).
          Skipped while driving or riding: the vehicle ticker owns motion instead. --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching) {
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize().multiplyScalar(maxSpeed);
       tmpV.copy(wishDir).sub(P.vel);
@@ -15874,7 +16312,7 @@ function tick() {
 
   /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching) {
     if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -15885,7 +16323,7 @@ function tick() {
 
   /* --- procedural walk cycle (frozen while driving: the driver is seated;
          frozen while riding: the horse ticker poses the rider) --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -15928,7 +16366,7 @@ function tick() {
 
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
   const inBus = BUS.driving || BUS.riding;
-  const inVeh = CAR.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || HORSE.riding || inBus || TX.riding;
+  const inVeh = CAR.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || STADIUM.watching || HORSE.riding || inBus || TX.riding;
   if (IS_TOUCH) {   // emote button lives only on touch; hide while driving/riding/dead
     const emShow = !inVeh && !P.dead && playing();
     if (emShow !== EMO.btnOn) { EMO.btnOn = emShow; emoteBtnEl.style.display = emShow ? 'flex' : 'none'; }
@@ -15936,12 +16374,12 @@ function tick() {
   if (inVeh) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
     const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
-    const camAng = (CIVIC.state ? CIVIC.camAng : (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (THEATER.watching ? THEATER.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading))))))))))))))
-      + (CAR.driving ? CAR.slip * driftBlend : 0);
-    const vPos = CIVIC.state ? CIVIC.pos : (SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (THEATER.watching ? THEATER.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos)))))))))))));
-    const vDist = CIVIC.state ? CIVIC.camDist : (SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (THEATER.watching ? THEATER.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist)))))))))))));
-    const vH = CIVIC.state ? CIVIC.camH : (SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (THEATER.watching ? THEATER.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH)))))))))))));
-    lookTarget.copy(vPos); lookTarget.y += CIVIC.state ? 1.2 : (SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (THEATER.watching ? 1.6 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1)))))))))));
+    const camAng = (CIVIC.state ? CIVIC.camAng : (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (STADIUM.watching ? STADIUM.camAng : (THEATER.watching ? THEATER.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading))))))))))))))
+      + (CAR.driving ? CAR.slip * driftBlend : 0));
+    const vPos = CIVIC.state ? CIVIC.pos : (SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (STADIUM.watching ? STADIUM.pos : (THEATER.watching ? THEATER.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos))))))))))))));
+    const vDist = CIVIC.state ? CIVIC.camDist : (SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (STADIUM.watching ? STADIUM.camDist : (THEATER.watching ? THEATER.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist))))))))))))));
+    const vH = CIVIC.state ? CIVIC.camH : (SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (STADIUM.watching ? STADIUM.camH : (THEATER.watching ? THEATER.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH))))))))))))));
+    lookTarget.copy(vPos); lookTarget.y += CIVIC.state ? 1.2 : (SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (STADIUM.watching ? 1.2 : (THEATER.watching ? 1.6 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1))))))))))));
     camTargetPos.set(
       lookTarget.x - Math.sin(camAng) * vDist,
       lookTarget.y + vH,
@@ -15967,7 +16405,7 @@ function tick() {
   camera.position.copy(camPos);
   }
   /* wider FOV while driving or galloping, eases back to normal after */
-  const fovT = CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk)))))))))))));
+  const fovT = CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (STADIUM.watching ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk))))))))))))));
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
@@ -15975,7 +16413,7 @@ function tick() {
   /* --- melee camera punch: tiny shake (2-3 frames) on connect, bigger on the
          3rd hit. Touches only the camera offset: pointer lock and touch-drag
          look (camYaw/camPitch) are never disturbed. --- */
-  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state) {
+  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !STADIUM.watching) {
     P.shakeT -= dt;
     const m = P.shakeMag * Math.max(0, P.shakeT / Math.max(P.shakeDur, 0.001));
     camera.position.x += (Math.random() * 2 - 1) * m;
@@ -16006,7 +16444,7 @@ function tick() {
   /* --- HUD position readout --- */
   if ((hudTick += dt) > 0.12) {
     hudTick = 0;
-    const mode = CIVIC.state ? 'CIVIC' : (SLOT.playing ? 'SLOT' : (PIANO.playing ? 'PIANO' : (THEATER.watching ? 'WATCH' : (CAR.driving ? 'DRIVE' : (BIKE.driving ? 'BIKE' : (BC.driving ? 'BC' : (SC.driving ? 'SC' : (BOAT.driving ? 'BOAT' : (PLANE.flying ? 'PLANE' : (HELI.flying ? 'HELI' : (TRAIN.riding ? 'TRAIN' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE'))))))))))))))));
+    const mode = CIVIC.state ? 'CIVIC' : (SLOT.playing ? 'SLOT' : (PIANO.playing ? 'PIANO' : (STADIUM.watching ? 'MATCH' : (THEATER.watching ? 'WATCH' : (CAR.driving ? 'DRIVE' : (BIKE.driving ? 'BIKE' : (BC.driving ? 'BC' : (SC.driving ? 'SC' : (BOAT.driving ? 'BOAT' : (PLANE.flying ? 'PLANE' : (HELI.flying ? 'HELI' : (TRAIN.riding ? 'TRAIN' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE')))))))))))))))));
     posEl.textContent = 'X ' + player.position.x.toFixed(0) + '  Z ' + player.position.z.toFixed(0)
       + '  [' + Math.floor(player.position.x / CHUNK) + ',' + Math.floor(player.position.z / CHUNK) + ']'
       + '  ' + mode;
@@ -16033,6 +16471,7 @@ function tick() {
     else if (SLOT.playing) slotExit();  // ...and no slots while dead either
     else if (PIANO.playing) pianoExit();  // ...and no piano recital while dead either
     else if (THEATER.watching) theaterExit();  // ...and no show while dead either
+    else if (STADIUM.watching) stadiumExit();  // ...and no match while dead either
     P.deadT += sdt;
     if (P.deadT > 1.2) {   // redeploy at spawn with full health
       player.position.set(0, terrainHeight(0, 0), 0);
