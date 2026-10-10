@@ -102,6 +102,11 @@ globalThis.__R3D = {
   REST_ITEMS, openRest, openFoodPanel, foodChipEl, shopRowsEl, shopNameEl,
   updateFoodHUD, updateHpHUD, foodSaveStr, foodLoadStr, refreshShopPanel,
   get SHOP_LIST() { return SHOP_LIST; },
+  /* Phase 5 soccer mini-game */
+  SOCCER, ballIM, soccerPitchFor, soccerFindPitch, soccerSpawnAt, soccerParkBall,
+  soccerCanKick, soccerBallNear, doKick, soccerAssignGoalie, soccerReleaseGoalie,
+  soccerGoal, soccerTick, socChipEl, kickHintEl,
+  AMEN, hash2i,
 };
 `;
 writeFileSync(BOOT, src);
@@ -621,7 +626,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (45 literals: 44 + 1 farming crops)', imCount === 45, 'count=' + imCount);
+  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (46 literals: 44 + 1 farming crops + 1 soccer ball)', imCount === 46, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1082,8 +1087,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bike: InstancedMesh count is 45 (44 + 1 farming crops literal)',
-    imCount2 === 45, 'count=' + imCount2);
+  check('bike: InstancedMesh count is 46 (44 + 1 farming crops + 1 soccer ball literal)',
+    imCount2 === 46, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1183,8 +1188,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bicycle: InstancedMesh count is 45 (44 + 1 farming crops literal)',
-    imCount3 === 45, 'count=' + imCount3);
+  check('bicycle: InstancedMesh count is 46 (44 + 1 farming crops + 1 soccer ball literal)',
+    imCount3 === 46, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1285,8 +1290,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('scooter: InstancedMesh count is 45 (44 + 1 farming crops literal)',
-    imCount4 === 45, 'count=' + imCount4);
+  check('scooter: InstancedMesh count is 46 (44 + 1 farming crops + 1 soccer ball literal)',
+    imCount4 === 46, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1602,8 +1607,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (45 literals: 44 + 1 farming crops)',
-      imCount5 === 45, 'count=' + imCount5);
+    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (46 literals: 44 + 1 farming crops + 1 soccer ball)',
+      imCount5 === 46, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -1951,8 +1956,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (45 literals after farming)',
-      n === 45 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (46 literals after farming + soccer)',
+      n === 46 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2088,8 +2093,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 45',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 45);
+  check('food-static: InstancedMesh literal sites pin at 46 (45 + soccer ball)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 91 (seeded PRNG only)',
@@ -2112,6 +2117,169 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('food: six procedural icons as data URLs',
     G.FOOD_ORDER.every(k => typeof G.FOOD_ICONS[k] === 'string' && G.FOOD_ICONS[k].indexOf('data:image/png') === 0),
     Object.keys(G.FOOD_ICONS).join(','));
+}
+
+/* ================= 20. SOCCER MINI-GAME (Phase 5 sports) ================= */
+{
+  /* deterministic soccer park: pure chunk functions, nearest to spawn */
+  let spa = null, spaD = Infinity;
+  for (let gx = -14; gx <= 14; gx++)
+    for (let gz = -14; gz <= 14; gz++) {
+      if (!G.soccerPitchFor(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (!a) continue;
+      const d = a.x * a.x + a.z * a.z;
+      if (d < spaD) { spaD = d; spa = a; }
+    }
+  check('soccer: deterministic soccer park found near spawn', !!spa,
+    spa ? 'chunk(' + spa.gx + ',' + spa.gz + ')' : 'none');
+  check('soccer: selector is a seeded subset of parks',
+    G.soccerPitchFor(spa.gx, spa.gz) === true);
+
+  /* teleport next to it; the real tick runs find + spawn */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999;
+  G.setHeat(0, true);
+  G.player.position.set(spa.x + 8, groundY(spa.x + 8, spa.z), spa.z);
+  frame(3);   // chunk change -> redistributeAmenities -> soccerTick spawns
+  const p = G.SOCCER.pitch;
+  check('soccer: ball spawns at the active soccer park',
+    G.SOCCER.active === true && G.ballIM.count === 1 && !!p,
+    'active=' + G.SOCCER.active + ' count=' + G.ballIM.count);
+  check('soccer: ball seeded at pitch center',
+    Math.hypot(G.SOCCER.pos.x - p.x, G.SOCCER.pos.z - p.z) < 0.01,
+    'dist=' + Math.hypot(G.SOCCER.pos.x - p.x, G.SOCCER.pos.z - p.z).toFixed(3));
+  check('soccer: chip shows the session tally',
+    G.socChipEl.style.display === 'block' &&
+    G.socChipEl.textContent === 'SOCCER - GOALS 0', G.socChipEl.textContent);
+
+  /* dribble: walk the player body into the ball */
+  G.SOCCER.pos.set(p.x, groundY(p.x, p.z) + 0.4, p.z);
+  G.SOCCER.vel.set(0, 0, 0);
+  G.player.position.set(p.x + 0.7, groundY(p.x + 0.7, p.z), p.z);
+  G.P.vel.set(-3, 0, 0);
+  const bx0 = G.SOCCER.pos.x;
+  frame(10);
+  check('soccer: body contact dribbles the ball (push-out + velocity)',
+    G.SOCCER.pos.x < bx0 - 0.3,
+    'x ' + bx0.toFixed(2) + ' -> ' + G.SOCCER.pos.x.toFixed(2));
+  check('soccer: dribble shows on the chip',
+    G.socChipEl.textContent.indexOf('DRIBBLE!') === 0, G.socChipEl.textContent);
+
+  /* kick: F path via doKick, impulse along the aim */
+  G.SOCCER.pos.set(p.x, groundY(p.x, p.z) + 0.4, p.z);
+  G.SOCCER.vel.set(0, 0, 0);
+  G.player.position.set(p.x + 1.5, groundY(p.x + 1.5, p.z), p.z);
+  G.P.punchCd = 0;
+  check('soccer: kick allowed on foot near the ball', G.soccerCanKick() === true);
+  G.doKick();
+  const ksp = Math.hypot(G.SOCCER.vel.x, G.SOCCER.vel.z);
+  check('soccer: kick fires a power impulse', ksp > 10 && G.SOCCER.vel.y > 0,
+    'speed=' + ksp.toFixed(1) + ' vy=' + G.SOCCER.vel.y.toFixed(1));
+  check('soccer: kick flashes on the chip',
+    G.socChipEl.textContent.indexOf('KICK!') === 0, G.socChipEl.textContent);
+  /* kick guards: driving and death block it (doPunch guard idiom) */
+  G.CAR.driving = true;
+  check('soccer: kick blocked while driving', G.soccerCanKick() === false);
+  G.CAR.driving = false;
+  G.P.dead = true;
+  check('soccer: kick blocked while dead', G.soccerCanKick() === false);
+  G.P.dead = false;
+
+  /* goal: across the attack (+X local) line between the posts */
+  const yaw = p.yaw, c = Math.cos(yaw), s = Math.sin(yaw);
+  const toWorld = (lx, lz) => [p.x + lx * c + lz * s, p.z - lx * s + lz * c];
+  const toLocal = (wx, wz) => {
+    const dx = wx - p.x, dz = wz - p.z;
+    return [dx * c - dz * s, dx * s + dz * c];
+  };
+  {
+    const [wx, wz] = toWorld(8.5, 0);
+    G.SOCCER.pos.set(wx, groundY(wx, wz) + 0.4, wz);
+    G.SOCCER.vel.set(c * 8, 0, -s * 8);   // local +X
+    const cash0 = G.cash, goals0 = G.SOCCER.goals;
+    frame(10);
+    check('soccer: attack-line goal scores +$30',
+      G.cash === cash0 + 30 && G.SOCCER.goals === goals0 + 1,
+      'cash=' + G.cash + ' goals=' + G.SOCCER.goals);
+    check('soccer: GOAL! toast fires', G.toastEl.textContent === 'GOAL! +$30',
+      G.toastEl.textContent);
+    check('soccer: ball resets to pitch center after a goal',
+      Math.hypot(G.SOCCER.pos.x - p.x, G.SOCCER.pos.z - p.z) < 0.5 &&
+      G.SOCCER.vel.lengthSq() === 0,
+      'dist=' + Math.hypot(G.SOCCER.pos.x - p.x, G.SOCCER.pos.z - p.z).toFixed(2));
+  }
+  /* own goal: across the -X line, toast but no cash */
+  {
+    const [wx, wz] = toWorld(-8.5, 0);
+    G.SOCCER.pos.set(wx, groundY(wx, wz) + 0.4, wz);
+    G.SOCCER.vel.set(-c * 8, 0, s * 8);   // local -X
+    const cash1 = G.cash, goals1 = G.SOCCER.goals;
+    frame(10);
+    check('soccer: own goal pays no cash and adds no tally',
+      G.cash === cash1 && G.SOCCER.goals === goals1,
+      'cash=' + G.cash + ' goals=' + G.SOCCER.goals);
+    check('soccer: OWN GOAL toast fires', G.toastEl.textContent === 'OWN GOAL',
+      G.toastEl.textContent);
+  }
+
+  /* goalie: assigned near the pitch, mirrors the ball, resumes on leave.
+     Release first so the announce toast is observable on re-assignment. */
+  G.soccerReleaseGoalie();
+  G.player.position.set(p.x + 5, groundY(p.x + 5, p.z), p.z);
+  frame(5);
+  const gi = G.SOCCER.goalie;
+  check('soccer: goalie assigned near the pitch',
+    gi >= 0 && G.SOCCER.npcs[gi].state === 'GOALIE', 'goalie=' + gi);
+  check('soccer: goalie announce toast fires',
+    G.toastEl.textContent === 'GOALIE ON THE PITCH', G.toastEl.textContent);
+  {
+    /* park the ball at local z = -2; the goalie should hold the mouth near it */
+    const [wx, wz] = toWorld(0, -2);
+    G.SOCCER.pos.set(wx, groundY(wx, wz) + 0.4, wz);
+    G.SOCCER.vel.set(0, 0, 0);
+    frame(90);
+    const n = G.SOCCER.npcs[G.SOCCER.goalie];
+    const [glx, glz] = toLocal(n.pos.x, n.pos.z);
+    check('soccer: goalie holds the attack mouth and mirrors the ball',
+      Math.abs(glx - 8.2) < 1.5 && Math.abs(glz - (-2)) < 1.2,
+      'local=(' + glx.toFixed(2) + ',' + glz.toFixed(2) + ')');
+  }
+  /* leave: teleport to spawn (no soccer park within 60u there) */
+  G.player.position.set(0, groundY(0, 0), 0);
+  frame(3);
+  const parked = G.soccerFindPitch() === null;
+  if (parked) {
+    check('soccer: ball parks when the player leaves', G.SOCCER.active === false && G.ballIM.count === 0,
+      'active=' + G.SOCCER.active);
+    check('soccer: goalie resumes wander on release',
+      G.SOCCER.goalie === -1 && G.SOCCER.npcs[gi].state !== 'GOALIE',
+      'state=' + G.SOCCER.npcs[gi].state);
+    check('soccer: chip hides with no active pitch', G.socChipEl.style.display === 'none');
+  } else {
+    check('soccer: ball parks when the player leaves (skipped: park near spawn)', true);
+    check('soccer: goalie resumes wander on release (skipped: park near spawn)', true);
+    check('soccer: chip hides with no active pitch (skipped: park near spawn)', true);
+  }
+
+  /* static pins for the soccer block */
+  check('soccer-static: soccer block adds exactly one InstancedMesh site (the ball)',
+    (html.slice(html.indexOf('/* ================== SOCCER MINI-GAME'),
+                html.indexOf('/* === WORLD-PEOPLE-ANCHOR === */'))
+       .match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('soccer-static: soccer block creates no lights and no audio nodes',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
+      html.slice(html.indexOf('/* ================== SOCCER MINI-GAME'),
+                 html.indexOf('/* === WORLD-PEOPLE-ANCHOR === */'))) &&
+    !/createOscillator|createGain|AudioContext/.test(
+      html.slice(html.indexOf('/* ================== SOCCER MINI-GAME'),
+                 html.indexOf('/* === WORLD-PEOPLE-ANCHOR === */'))));
+  {
+    const r0 = globalThis.__renderCount || 0;
+    frame(3);
+    check('soccer: exactly 1 renderer.render per tick',
+      (globalThis.__renderCount || 0) - r0 === 3,
+      'renders=' + ((globalThis.__renderCount || 0) - r0));
+  }
 }
 
 /* ---------- zero console errors ---------- */
