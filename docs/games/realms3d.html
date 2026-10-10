@@ -4385,18 +4385,22 @@ const E_SKIN = 0x7a5f4c, E_DARKC = 0x141416;
 const eBodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
 const eEyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 /* merged static parts per type: same offsets as the old per-mesh build */
-const eBodyRus = new THREE.InstancedMesh(mergeAnimalParts([
+/* PERF-6: rusher + shooter bodies merge into one Y-band fleet (2 draw calls
+   become 1). Shooter parts sit one ENEMY_BAND below the fleet origin (the
+   worship Y-band idiom); the shooter instance matrix lifts them back up, so
+   one static geometry serves both silhouettes. Same material (eBodyMat),
+   zero visual change. Slots: rusher 0..1, shooter 2..3. */
+const ENEMY_BAND = 1000;
+const eBodyAll = new THREE.InstancedMesh(mergeAnimalParts([
   animalBox(0.42, 0.58, 0.26, 0x9e2121, 0, 1.11, 0),   // slim torso, rusher red
   animalBox(0.3, 0.32, 0.3, E_SKIN, 0, 1.52, 0),        // head
-]), eBodyMat, 2);
-const eBodySho = new THREE.InstancedMesh(mergeAnimalParts([
-  animalBox(0.52, 0.62, 0.32, 0x9a8655, 0, 1.21, 0),   // torso, shooter tan
-  animalBox(0.56, 0.4, 0.38, E_DARKC, 0, 1.18, 0.01),  // vest
-  animalBox(0.3, 0.32, 0.3, E_SKIN, 0, 1.68, 0),       // head
-  animalBox(0.36, 0.2, 0.36, E_DARKC, 0, 1.82, 0),     // helm
-  animalBox(0.08, 0.11, 0.45, E_DARKC, 0.30, 1.15, 0.30),  // held carbine
-  animalBox(0.045, 0.045, 0.4, E_DARKC, 0.30, 1.19, 0.62),
-]), eBodyMat, 2);
+  animalBox(0.52, 0.62, 0.32, 0x9a8655, 0, 1.21 - ENEMY_BAND, 0),   // torso, shooter tan
+  animalBox(0.56, 0.4, 0.38, E_DARKC, 0, 1.18 - ENEMY_BAND, 0.01),  // vest
+  animalBox(0.3, 0.32, 0.3, E_SKIN, 0, 1.68 - ENEMY_BAND, 0),       // head
+  animalBox(0.36, 0.2, 0.36, E_DARKC, 0, 1.82 - ENEMY_BAND, 0),     // helm
+  animalBox(0.08, 0.11, 0.45, E_DARKC, 0.30, 1.15 - ENEMY_BAND, 0.30),  // held carbine
+  animalBox(0.045, 0.045, 0.4, E_DARKC, 0.30, 1.19 - ENEMY_BAND, 0.62),
+]), eBodyMat, 4);
 /* PERF-5: the brute is one body, so the cap-1 InstancedMesh becomes a regular
    Mesh (was an IM literal site): matrix.copy replaces setMatrixAt, and a
    cloned material's color replaces the per-instance flash tint. Same draw
@@ -4458,7 +4462,7 @@ for (let ni = 0; ni < NPC_LEG_N; ni++) limbIM.setColorAt(NPC_LEG_BASE + ni, _NPC
 for (let gi = 0; gi < COP_GUN_N; gi++) limbIM.setColorAt(COP_GUN_BASE + gi, _COP_GUNC);
 limbIM.instanceColor.needsUpdate = true;
 const eEyes = new THREE.InstancedMesh(EGEO.eye, eEyeMat, 10);
-const enemyMeshes = [eBodyRus, eBodySho, eBodyBruMesh, limbIM, eEyes];
+const enemyMeshes = [eBodyAll, eBodyBruMesh, limbIM, eEyes];
 for (const m of enemyMeshes) {
   m.frustumCulled = false; m.castShadow = true;
   if (m.isInstancedMesh) m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -4486,11 +4490,11 @@ const enemyRing = (() => {
 })();
 /* per-type joint offsets, limb half-lengths, limb scales, eye offsets */
 const ESLOT = {
-  rusher:  { body: eBodyRus, n: 0,
+  rusher:  { body: eBodyAll, base: 0, lift: 0, n: 0,
     legJ: 0.13, legY: 0.82, legHalf: 0.41, legS: [0.15/0.2, 0.41/0.45, 0.17/0.24],
     armJ: 0.29, armY: 1.34, armHalf: 0.29, armS: [0.12/0.16, 0.29/0.31, 0.15/0.2],
     eyeX: 0.08, eyeY: 1.54, eyeZ: 0.16 },
-  shooter: { body: eBodySho, n: 0,
+  shooter: { body: eBodyAll, base: 2, lift: ENEMY_BAND, n: 0,
     legJ: 0.16, legY: 0.9, legHalf: 0.45, legS: [1, 1, 1],
     armJ: 0.36, armY: 1.45, armHalf: 0.31, armS: [1, 1, 1],
     eyeX: 0.08, eyeY: 1.7, eyeZ: 0.16 },
@@ -4504,11 +4508,14 @@ const _eM1 = new THREE.Matrix4(), _eM2 = new THREE.Matrix4();
 const _eCol = new THREE.Color();
 const _eParkM = new THREE.Matrix4();
 let eDirty = false;
-function eBodyM(mesh, inst, gx, gy, gz, yaw, fall, ox, oy, oz) {
+function eBodyM(mesh, inst, gx, gy, gz, yaw, fall, ox, oy, oz, lift) {
   _eM1.makeRotationY(yaw);
   _eM2.makeRotationX(fall); _eM1.multiply(_eM2);
   _eM1.setPosition(gx, gy, gz);
   _eM2.makeTranslation(ox, oy, oz); _eM1.multiply(_eM2);
+  /* PERF-6: Y-band lift in world space (shooter bodies live one ENEMY_BAND
+     below the fleet origin); premultiplied so fall tilts do not bend it */
+  if (lift) { _eM2.makeTranslation(0, lift, 0); _eM1.premultiply(_eM2); }
   /* PERF-5: the brute body is a Mesh now; matrix.copy + an immediate
      matrixWorld refresh (so hitscan never reads a stale frame) */
   if (mesh.isInstancedMesh) mesh.setMatrixAt(inst, _eM1);
@@ -4546,7 +4553,7 @@ function setEnemyFlash(e, hex) {
 }
 function poseEnemy(e, fall, swing, armTgt) {
   const gp = e.group.position, yaw = e.group.rotation.y, gy = gp.y, s = e.slot;
-  eBodyM(e.bodyMesh, e.bodyInst, gp.x, gy, gp.z, yaw, fall, 0, 0, 0);
+  eBodyM(e.bodyMesh, e.bodyInst, gp.x, gy, gp.z, yaw, fall, 0, 0, 0, e.bandLift);
   eLimbM(limbIM, e.idx * 2, gp.x, gy, gp.z, yaw, fall,
     -s.legJ, s.legY, 0, swing, s.legHalf, s.legS[0], s.legS[1], s.legS[2]);
   eLimbM(limbIM, e.idx * 2 + 1, gp.x, gy, gp.z, yaw, fall,
@@ -4577,7 +4584,7 @@ function makeEnemy(type, idx) {
   scene.add(g);
   const slot = ESLOT[type];
   return { idx, type, cfg, group: g, slot,
-    bodyMesh: slot.body, bodyInst: slot.n++,
+    bodyMesh: slot.body, bodyInst: slot.base + slot.n++, bandLift: slot.lift || 0,
     hp: cfg.hp, state: 'wander', target: new THREE.Vector3(),
     attackCd: 0, deadT: 0, respawnT: 0, walkPhase: Math.random() * 6,
     speed: 0, hitT: 0, aggroT: 0, yaw: 0,
@@ -4640,9 +4647,9 @@ for (let i = 0; i < ENEMY_MIX.length; i++) {
   placeEnemy(e, spawnPos(false));
   enemies.push(e);
 }
-/* instanceId -> enemy mapping for hitscan */
-eBodyRus.userData.enemyOf = [enemies[0], enemies[1]];
-eBodySho.userData.enemyOf = [enemies[2], enemies[3]];
+/* instanceId -> enemy mapping for hitscan (PERF-6: the merged eBodyAll
+   fleet holds rushers in slots 0..1 and shooters in slots 2..3) */
+eBodyAll.userData.enemyOf = [enemies[0], enemies[1], enemies[2], enemies[3]];
 eBodyBruMesh.userData.enemyOf = [enemies[4]];
 for (const m of [eEyes]) {
   m.userData.enemyOf = [];
@@ -4721,9 +4728,17 @@ function shoot() {
            cop holding them. NPC leg slots map past the cops array and fall
            through the cc guard below, like enemy slots. */
         const _ub = h.object.userData;
-        const idx = (_ub.gunBase !== undefined && h.instanceId >= _ub.gunBase)
-          ? h.instanceId - _ub.gunBase
-          : Math.floor((h.instanceId - (_ub.copBase || 0)) / _ub.perCop);
+        /* PERF-6: copFleet shares slots differently per part: arms (2 per
+           cop) at armBase+, heads at headBase+, torsos at copBase (1 each).
+           Checked highest range first so the contiguous ranges resolve. */
+        let idx;
+        if (_ub.gunBase !== undefined && h.instanceId >= _ub.gunBase)
+          idx = h.instanceId - _ub.gunBase;
+        else if (_ub.armBase !== undefined && h.instanceId >= _ub.armBase)
+          idx = Math.floor((h.instanceId - _ub.armBase) / 2);
+        else if (_ub.headBase !== undefined && h.instanceId >= _ub.headBase)
+          idx = h.instanceId - _ub.headBase;
+        else idx = Math.floor((h.instanceId - (_ub.copBase || 0)) / _ub.perCop);
         if (idx < 0) continue;
         const cc = cops[idx];
         if (cc && cc.active && cc.state !== 'dead') { cHit = h; cIdx = idx; break; }
@@ -5210,25 +5225,46 @@ const COP_CFG = { hp: 3, chase: 5.2, walk: 2.2, aggro: 300, eye: 0x4488ff };
 const COP_SEE = 55, COP_SEE_CAR = 75, EVADE_T = 10;
 const heatEl = document.getElementById('heat');
 
-/* --- cop visuals: instanced parts, hostile geometry reused, one shared
-       blue uniform material set. No new textures, no new geometry. --- */
-const copUniM = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.85 });
-const copHeadM = new THREE.MeshStandardMaterial({ color: 0x8a6a52, roughness: 0.85 });
+/* --- cop visuals: instanced parts, hostile geometry reused. PERF-6: copTorso
+       + copHead + copArms merge into one copFleet InstancedMesh (3 draw calls
+       become 1). The torso/head/arm boxes render via EGEO.limb with per-axis
+       scale compensation folded into each instance matrix (the PERF-4/5
+       idiom); white base + instanceColor reproduces copUniM (0x1d4ed8) and
+       copHeadM (0x8a6a52) exactly, roughness 0.85 kept. No new textures,
+       no new geometry.
+       Slots: torso 0..COP_MAX-1, head COP_MAX..2*COP_MAX-1,
+       arms 2*COP_MAX..4*COP_MAX-1 (2 per cop). --- */
 const copEyeMat = new THREE.MeshBasicMaterial({ color: COP_CFG.eye });
-const copTorso = new THREE.InstancedMesh(EGEO.torso, copUniM, COP_MAX);
-const copHead = new THREE.InstancedMesh(EGEO.head, copHeadM, COP_MAX);
+const COP_TORSO_BASE = 0, COP_HEAD_BASE = COP_MAX, COP_ARM_BASE = COP_MAX * 2;const TORSO_FX = 0.52 / 0.2, TORSO_FY = 0.62 / 0.9, TORSO_FZ = 0.32 / 0.24;
+const HEAD_FX = 0.3 / 0.2, HEAD_FY = 0.32 / 0.9, HEAD_FZ = 0.3 / 0.24;
+const copFleet = new THREE.InstancedMesh(EGEO.limb,
+  new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }), COP_MAX * 4);
+{
+  const _cu = new THREE.Color(0x1d4ed8), _ch = new THREE.Color(0x8a6a52);
+  for (let ci = 0; ci < COP_MAX; ci++) {
+    copFleet.setColorAt(COP_TORSO_BASE + ci, _cu);
+    copFleet.setColorAt(COP_HEAD_BASE + ci, _ch);
+    copFleet.setColorAt(COP_ARM_BASE + ci * 2, _cu);
+    copFleet.setColorAt(COP_ARM_BASE + ci * 2 + 1, _cu);
+  }
+  copFleet.instanceColor.needsUpdate = true;
+}
 /* PERF-4: cop legs live in the shared limbIM (slots COP_LEG_BASE+), zero new draws */
 /* PERF-5: cop guns live in the shared limbIM too (slots COP_GUN_BASE+), zero
    new draws. The old copGunM is gone; instanceColor carries its color. */
-const copArms = new THREE.InstancedMesh(EGEO.arm, copUniM, COP_MAX * 2);
-const copMeshes = [copTorso, copHead, limbIM, copArms];
+const copMeshes = [copFleet, limbIM];
 for (const m of copMeshes) {
   m.frustumCulled = false; m.castShadow = true;
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  m.userData.perCop = (m === limbIM || m === copArms) ? 2 : 1;   // instances per cop
   if (m === limbIM) {
     m.userData.copBase = COP_LEG_BASE;   // cop leg slots start here
     m.userData.gunBase = COP_GUN_BASE;   // cop gun slots start here (PERF-5)
+  } else {
+    /* PERF-6: copFleet slot map for the hitscan resolver below */
+    m.userData.copBase = COP_TORSO_BASE; // torso slots: one per cop
+    m.userData.headBase = COP_HEAD_BASE; // head slots: one per cop
+    m.userData.armBase = COP_ARM_BASE;   // arm slots: two per cop
+    m.userData.perCop = 1;
   }
   scene.add(m);
 }
@@ -5245,12 +5281,17 @@ const _copM1 = new THREE.Matrix4(), _copM2 = new THREE.Matrix4(),
 const _copD = new THREE.Object3D();
 let copDirty = false, copAnyActive = false;
 
-function copBody(mesh, inst, gx, gy, gz, yaw, fall, ox, oy, oz) {
+/* PERF-6: torso + head pose into the merged copFleet (slots COP_TORSO_BASE+ /
+   COP_HEAD_BASE+). The old torso/head boxes render via the limb box with
+   per-axis scale compensation folded into the matrix (the PERF-4/5 idiom);
+   identical vertices. Zero per-frame allocation, like the old copBody. */
+function copPart(inst, gx, gy, gz, yaw, fall, ox, oy, oz, fx, fy, fz) {
   _copM1.makeRotationY(yaw);
   _copM2.makeRotationX(fall); _copM1.multiply(_copM2);
   _copM1.setPosition(gx, gy, gz);
   _copM2.makeTranslation(ox, oy, oz); _copM1.multiply(_copM2);
-  mesh.setMatrixAt(inst, _copM1);
+  _copM3.makeScale(fx, fy, fz); _copM1.multiply(_copM3);
+  copFleet.setMatrixAt(inst, _copM1);
   copDirty = true;
 }
 /* PERF-5: cop guns pose into the shared limbIM (slots COP_GUN_BASE+). The old
@@ -5265,13 +5306,16 @@ function copGun(inst, gx, gy, gz, yaw, fall, ox, oy, oz) {
   limbIM.setMatrixAt(inst, _copM1);
   copDirty = true;
 }
-function copLimb(mesh, inst, gx, gy, gz, yaw, fall, jx, jy, jz, swing, half) {
+function copLimb(mesh, inst, gx, gy, gz, yaw, fall, jx, jy, jz, swing, half, sx, sy, sz) {
   _copM1.makeRotationY(yaw);
   _copM2.makeRotationX(fall); _copM1.multiply(_copM2);
   _copM1.setPosition(gx, gy, gz);
   _copM2.makeTranslation(jx, jy, jz); _copM1.multiply(_copM2);
   _copM2.makeRotationX(swing); _copM1.multiply(_copM2);
   _copM2.makeTranslation(0, -half, 0); _copM1.multiply(_copM2);
+  /* PERF-6: optional limb->box scale compensation (cop arms render via
+     EGEO.limb with ARM_FX/FY/FZ folded in, the PERF-4 idiom) */
+  if (sx !== undefined) { _copM3.makeScale(sx, sy, sz); _copM1.multiply(_copM3); }
   mesh.setMatrixAt(inst, _copM1);
   copDirty = true;
 }
@@ -5279,26 +5323,30 @@ function copLimb(mesh, inst, gx, gy, gz, yaw, fall, jx, jy, jz, swing, half) {
    hip/shoulder joints, whole figure tipping over by `fall` when dead */
 function poseCop(c, fall, swing, armTgt) {
   const gp = c.group.position, yaw = c.group.rotation.y, i = c.idx, gy = gp.y;
-  copBody(copTorso, i, gp.x, gy, gp.z, yaw, fall, 0, 1.21, 0);
-  copBody(copHead, i, gp.x, gy, gp.z, yaw, fall, 0, 1.68, 0);
+  copPart(COP_TORSO_BASE + i, gp.x, gy, gp.z, yaw, fall, 0, 1.21, 0,
+    TORSO_FX, TORSO_FY, TORSO_FZ);
+  copPart(COP_HEAD_BASE + i, gp.x, gy, gp.z, yaw, fall, 0, 1.68, 0,
+    HEAD_FX, HEAD_FY, HEAD_FZ);
   copGun(COP_GUN_BASE + i, gp.x, gy, gp.z, yaw, fall, 0.30, 1.15, 0.30);
   copLimb(limbIM, COP_LEG_BASE + i * 2, gp.x, gy, gp.z, yaw, fall, -0.16, 0.9, 0, swing, 0.45);
   copLimb(limbIM, COP_LEG_BASE + i * 2 + 1, gp.x, gy, gp.z, yaw, fall, 0.16, 0.9, 0, -swing, 0.45);
-  copLimb(copArms, i * 2, gp.x, gy, gp.z, yaw, fall, -0.36, 1.45, 0, armTgt, 0.31);
-  copLimb(copArms, i * 2 + 1, gp.x, gy, gp.z, yaw, fall, 0.36, 1.45, 0, armTgt, 0.31);
+  copLimb(copFleet, COP_ARM_BASE + i * 2, gp.x, gy, gp.z, yaw, fall, -0.36, 1.45, 0,
+    armTgt, 0.31, ARM_FX, ARM_FY, ARM_FZ);
+  copLimb(copFleet, COP_ARM_BASE + i * 2 + 1, gp.x, gy, gp.z, yaw, fall, 0.36, 1.45, 0,
+    armTgt, 0.31, ARM_FX, ARM_FY, ARM_FZ);
 }
 /* park a cop's instances far underground: invisible and unhittable */
 function parkCop(c) {
   _copD.position.set(0, -60, 0); _copD.rotation.set(0, 0, 0); _copD.scale.set(1, 1, 1);
   _copD.updateMatrix();
   const i = c.idx;
-  copTorso.setMatrixAt(i, _copD.matrix);
-  copHead.setMatrixAt(i, _copD.matrix);
+  copFleet.setMatrixAt(COP_TORSO_BASE + i, _copD.matrix);
+  copFleet.setMatrixAt(COP_HEAD_BASE + i, _copD.matrix);
   limbIM.setMatrixAt(COP_GUN_BASE + i, _copD.matrix);   // PERF-5: gun slots ride limbIM
   limbIM.setMatrixAt(COP_LEG_BASE + i * 2, _copD.matrix);
   limbIM.setMatrixAt(COP_LEG_BASE + i * 2 + 1, _copD.matrix);
-  copArms.setMatrixAt(i * 2, _copD.matrix);
-  copArms.setMatrixAt(i * 2 + 1, _copD.matrix);
+  copFleet.setMatrixAt(COP_ARM_BASE + i * 2, _copD.matrix);
+  copFleet.setMatrixAt(COP_ARM_BASE + i * 2 + 1, _copD.matrix);
   copDirty = true;
 }
 
@@ -5351,10 +5399,8 @@ function spawnCop(c) {
   poseCop(c, 0, 0, -0.5);
 }
 for (let i = 0; i < COP_MAX; i++) { const c = makeCop(i); parkCop(c); cops.push(c); }
-copTorso.instanceMatrix.needsUpdate = true;
-copHead.instanceMatrix.needsUpdate = true;
+copFleet.instanceMatrix.needsUpdate = true;
 limbIM.instanceMatrix.needsUpdate = true;
-copArms.instanceMatrix.needsUpdate = true;
 
 /* --- heat state --- */
 function updateHeatHUD() {
@@ -5540,10 +5586,8 @@ function wantedTick(dt) {
   for (const c of cops) updateCop(c, dt, now);
   if (copDirty) {
     copDirty = false;
-    copTorso.instanceMatrix.needsUpdate = true;
-    copHead.instanceMatrix.needsUpdate = true;
+    copFleet.instanceMatrix.needsUpdate = true;
     limbIM.instanceMatrix.needsUpdate = true;
-    copArms.instanceMatrix.needsUpdate = true;
   }
   W.tickT += dt;
   if (W.tickT < 0.25) return;
@@ -15918,22 +15962,34 @@ function theaterFor(gx, gz) {
         performer (torso/head/armL/armR). ---- */
 const THEATER_N = 4, THEATER_SCAN = 4, T_INST = 30;
 const THEATER_BAR_LEN = 1.5;   // seconds per bar; 16 bars = one set
-const theaterUnitGeo = new THREE.BoxGeometry(1, 1, 1);
+/* ---- the fleet: ONE unit box (RGBA-ish vertex gradient) shared by all
+        three venue systems (theater, stadium, amusement). PERF-6: three
+        identical fleets merge into one venueBoxIM (3 draw calls become 1).
+        Same geometry, same material, same flags; each system keeps its slot
+        layout at a fixed fleet offset. Instance regions:
+        theater VENUE_THEATER_OFF .. +THEATER_N*T_INST-1,
+        stadium VENUE_STADIUM_OFF .. +STADIUM_N*S_INST-1,
+        amuse   VENUE_AMUSE_OFF .. +AMUSE_N*A_INST-1. ---- */
+const VENUE_THEATER_OFF = 0;
+const VENUE_STADIUM_OFF = 4 * 30;             // THEATER_N * T_INST (theater consts above)
+const VENUE_AMUSE_OFF = 4 * 30 + 4 * 50;      // + STADIUM_N * S_INST (stadium section below)
+const VENUE_CAP = 4 * 30 + 4 * 50 + 4 * 106;  // + AMUSE_N * A_INST = 744 (amuse section below)
+const venueUnitGeo = new THREE.BoxGeometry(1, 1, 1);
 {
-  const pp = theaterUnitGeo.attributes.position;
+  const pp = venueUnitGeo.attributes.position;
   const pc = new Float32Array(pp.count * 3);
   for (let vi = 0; vi < pp.count; vi++) {
     const t = pp.getY(vi) * 0.5 + 0.5;   // 0 bottom .. 1 top: subtle top-light gradient
     const v = 0.72 + 0.28 * t;
     pc[vi * 3] = v; pc[vi * 3 + 1] = v; pc[vi * 3 + 2] = v;
   }
-  theaterUnitGeo.setAttribute('color', new THREE.BufferAttribute(pc, 3));
+  venueUnitGeo.setAttribute('color', new THREE.BufferAttribute(pc, 3));
 }
-const theaterBoxIM = new THREE.InstancedMesh(theaterUnitGeo,
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05 }), THEATER_N * T_INST);
-theaterBoxIM.castShadow = false; theaterBoxIM.frustumCulled = false;
-theaterBoxIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-scene.add(theaterBoxIM);
+const venueBoxIM = new THREE.InstancedMesh(venueUnitGeo,
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05 }), VENUE_CAP);
+venueBoxIM.castShadow = false; venueBoxIM.frustumCulled = false;
+venueBoxIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(venueBoxIM);
 const _thM = new THREE.Matrix4(), _thQ = new THREE.Quaternion(),
       _thE = new THREE.Euler(0, 0, 0, 'YXZ'), _thP = new THREE.Vector3(),
       _thS = new THREE.Vector3(1, 1, 1), _thC = new THREE.Color(), _thC2 = new THREE.Color();
@@ -15943,10 +15999,10 @@ function theaterBox(s, idx, lx, ly, lz, w, h, d, rx, ry, rz) {
   _thP.set(s.x + lx * s._c + lz * s._s, s.y + ly, s.z - lx * s._s + lz * s._c);
   _thE.set(rx || 0, ry || 0, rz || 0); _thQ.setFromEuler(_thE);
   _thS.set(w, h, d); _thM.compose(_thP, _thQ, _thS);
-  theaterBoxIM.setMatrixAt(s.base + idx, _thM);
+  venueBoxIM.setMatrixAt(VENUE_THEATER_OFF + s.base + idx, _thM);   // PERF-6: theater region
 }
 function theaterTint(s, idx, hex) {
-  _thC.setHex(hex); theaterBoxIM.setColorAt(s.base + idx, _thC);
+  _thC.setHex(hex); venueBoxIM.setColorAt(VENUE_THEATER_OFF + s.base + idx, _thC);
 }
 function theaterArm(s, idx, shX, a, side) {
   /* a: 0 = arm down .. PI = arm up; rotate the box around the shoulder */
@@ -15971,14 +16027,14 @@ for (let i = 0; i < THEATER_N; i++) THEATER.slots.push({
 /* park an instance far underground: invisible until its slot activates */
 function theaterPark(i) {
   _thM.makeScale(0.0001, 0.0001, 0.0001); _thM.setPosition(0, -60, 0);
-  for (let k = 0; k < T_INST; k++) theaterBoxIM.setMatrixAt(i * T_INST + k, _thM);
+  for (let k = 0; k < T_INST; k++) venueBoxIM.setMatrixAt(VENUE_THEATER_OFF + i * T_INST + k, _thM);
 }
 for (let i = 0; i < THEATER_N; i++) {
   theaterPark(i);
-  for (let k = 0; k < T_INST; k++) { _thC.setHex(0xffffff); theaterBoxIM.setColorAt(i * T_INST + k, _thC); }
+  for (let k = 0; k < T_INST; k++) { _thC.setHex(0xffffff); venueBoxIM.setColorAt(VENUE_THEATER_OFF + i * T_INST + k, _thC); }
 }
-theaterBoxIM.instanceMatrix.needsUpdate = true;
-if (theaterBoxIM.instanceColor) theaterBoxIM.instanceColor.needsUpdate = true;
+venueBoxIM.instanceMatrix.needsUpdate = true;
+if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 
 const THEATER_SETS = ['Moonlight Set', 'Starlight Set', 'Ember Set', 'Neon Set',
                       'Tide Set', 'Comet Set', 'Velvet Set', 'Lantern Set'];
@@ -16029,8 +16085,8 @@ function theaterPlace(s, d) {
   }
   theaterTint(s, 26, 0xf2f5ee); theaterTint(s, 27, 0xc9a183);
   theaterTint(s, 28, 0xd8c84a); theaterTint(s, 29, 0xd8c84a);
-  theaterBoxIM.instanceMatrix.needsUpdate = true;
-  if (theaterBoxIM.instanceColor) theaterBoxIM.instanceColor.needsUpdate = true;
+  venueBoxIM.instanceMatrix.needsUpdate = true;
+  if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 }
 function theaterRebuild(pcx, pcz) {
   const key = pcx + ',' + pcz;
@@ -16060,7 +16116,7 @@ function theaterRebuild(pcx, pcz) {
     if (s.placed && pdx * pdx + pdz * pdz < 400) continue;
     theaterPlace(s, d);
   }
-  theaterBoxIM.instanceMatrix.needsUpdate = true;
+  venueBoxIM.instanceMatrix.needsUpdate = true;
 }
 
 /* ---- procedural show music: layered one-shot sfxBlip loops (kick/bass/
@@ -16203,12 +16259,12 @@ function theaterAnimate(s, sdt) {
   const glow = isNight ? 1 : (Math.abs(dayPhase - 0.5) < 0.08 ? 0.75 : 0.3);
   const pulse = 0.72 + 0.28 * Math.sin(s.musicT * 3.1);
   _thC.setHex(0x4a4436).lerp(_thC2.setHex(0xfff2c8), Math.min(1, glow * pulse));
-  theaterBoxIM.setColorAt(s.base + 8, _thC);
-  theaterBoxIM.setColorAt(s.base + 9, _thC);
+  venueBoxIM.setColorAt(s.base + 8, _thC);
+  venueBoxIM.setColorAt(s.base + 9, _thC);
   theaterBox(s, 8, -2.3, 2.3, 1.2, 0.55, 2.8, 0.55, -0.3, sweep, 0.45);
   theaterBox(s, 9, 2.3, 2.3, 1.2, 0.55, 2.8, 0.55, -0.3, -sweep, -0.45);
-  theaterBoxIM.instanceMatrix.needsUpdate = true;
-  if (theaterBoxIM.instanceColor) theaterBoxIM.instanceColor.needsUpdate = true;
+  venueBoxIM.instanceMatrix.needsUpdate = true;
+  if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 }
 function theaterUpdate(sdt, now) {
   const pcx = Math.floor(player.position.x / CHUNK), pcz = Math.floor(player.position.z / CHUNK);
@@ -16292,30 +16348,15 @@ function stadiumFor(gx, gz) {
   return { x, z, y, gx, gz, yaw: a.yaw };
 }
 
-/* ---- the fleet: one unit box, RGBA-ish vertex gradient, per-instance
-        tints. EXACTLY +1 draw call. Instance layout per stadium (S_INST):
-        0-35 bowl tiers (tier = idx/12|0, seg = idx%12), 36-41 goals
-        (posts + crossbar, two ends), 42-45 floodlight poles, 46-49 lamp
-        heads (the dusk/night brighten targets). ---- */
+/* ---- the fleet: PERF-6: stadium boxes ride the shared venueBoxIM
+        (region VENUE_STADIUM_OFF). Same unit-box geometry, same material,
+        same flags as theater/amuse; zero new draw calls. Instance layout
+        per stadium (S_INST): 0-35 bowl tiers (tier = idx/12|0, seg = idx%12),
+        36-41 goals (posts + crossbar, two ends), 42-45 floodlight poles,
+        46-49 lamp heads (the dusk/night brighten targets). ---- */
 const STADIUM_N = 4, STADIUM_SCAN = 4, S_INST = 50;
 const STADIUM_GOAL_EVERY = 26;   // seconds between goal cheers, plus seeded jitter
 const STAD_TIER_RX = [4.6, 5.65, 6.7], STAD_TIER_RZ = 0.72, STAD_SEG = 12;
-const stadiumUnitGeo = new THREE.BoxGeometry(1, 1, 1);
-{
-  const pp = stadiumUnitGeo.attributes.position;
-  const pc = new Float32Array(pp.count * 3);
-  for (let vi = 0; vi < pp.count; vi++) {
-    const t = pp.getY(vi) * 0.5 + 0.5;   // 0 bottom .. 1 top: subtle top-light gradient
-    const v = 0.72 + 0.28 * t;
-    pc[vi * 3] = v; pc[vi * 3 + 1] = v; pc[vi * 3 + 2] = v;
-  }
-  stadiumUnitGeo.setAttribute('color', new THREE.BufferAttribute(pc, 3));
-}
-const stadiumBoxIM = new THREE.InstancedMesh(stadiumUnitGeo,
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05 }), STADIUM_N * S_INST);
-stadiumBoxIM.castShadow = false; stadiumBoxIM.frustumCulled = false;
-stadiumBoxIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-scene.add(stadiumBoxIM);
 const _stM = new THREE.Matrix4(), _stQ = new THREE.Quaternion(),
       _stE = new THREE.Euler(0, 0, 0, 'YXZ'), _stP = new THREE.Vector3(),
       _stS = new THREE.Vector3(1, 1, 1), _stC = new THREE.Color(), _stC2 = new THREE.Color();
@@ -16326,10 +16367,10 @@ function stadiumBox(s, idx, lx, ly, lz, w, h, d, rx, ry, rz) {
   _stP.set(s.x + lx * s._c + lz * s._s, s.y + ly, s.z - lx * s._s + lz * s._c);
   _stE.set(rx || 0, ry || 0, rz || 0); _stQ.setFromEuler(_stE);
   _stS.set(w, h, d); _stM.compose(_stP, _stQ, _stS);
-  stadiumBoxIM.setMatrixAt(s.base + idx, _stM);
+  venueBoxIM.setMatrixAt(VENUE_STADIUM_OFF + s.base + idx, _stM);   // PERF-6: stadium region
 }
 function stadiumTint(s, idx, hex) {
-  _stC.setHex(hex); stadiumBoxIM.setColorAt(s.base + idx, _stC);
+  _stC.setHex(hex); venueBoxIM.setColorAt(VENUE_STADIUM_OFF + s.base + idx, _stC);
 }
 const STADIUM = {
   watching: false, watchIdx: -1, hintOn: false, nearIdx: -1,
@@ -16349,14 +16390,14 @@ for (let i = 0; i < STADIUM_N; i++) STADIUM.slots.push({
 /* park an instance far underground: invisible until its slot activates */
 function stadiumPark(i) {
   _stM.makeScale(0.0001, 0.0001, 0.0001); _stM.setPosition(0, -60, 0);
-  for (let k = 0; k < S_INST; k++) stadiumBoxIM.setMatrixAt(i * S_INST + k, _stM);
+  for (let k = 0; k < S_INST; k++) venueBoxIM.setMatrixAt(VENUE_STADIUM_OFF + i * S_INST + k, _stM);
 }
 for (let i = 0; i < STADIUM_N; i++) {
   stadiumPark(i);
-  for (let k = 0; k < S_INST; k++) { _stC.setHex(0xffffff); stadiumBoxIM.setColorAt(i * S_INST + k, _stC); }
+  for (let k = 0; k < S_INST; k++) { _stC.setHex(0xffffff); venueBoxIM.setColorAt(VENUE_STADIUM_OFF + i * S_INST + k, _stC); }
 }
-stadiumBoxIM.instanceMatrix.needsUpdate = true;
-if (stadiumBoxIM.instanceColor) stadiumBoxIM.instanceColor.needsUpdate = true;
+venueBoxIM.instanceMatrix.needsUpdate = true;
+if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 
 const STADIUM_NAMES = ['Unity Arena', 'Harbor Stadium', 'Northgate Field', 'Ember Park',
                        'Lakeshore Dome', 'Founders Field', 'Comet Arena', 'Maple Stadium'];
@@ -16382,7 +16423,7 @@ function stadiumPlace(s, d) {
       stadiumBox(s, idx, rx * Math.cos(a), 0.58 + t * 1.25, rz * Math.sin(a),
                  (2 * Math.PI * rx / STAD_SEG) * 0.96, 1.15, 2.0, 0, -a - Math.PI / 2, 0);
       _stC.setHex(Math.floor(k / 3) % 2 === 0 ? HOME : AWAY).multiplyScalar(1 - t * 0.12);
-      stadiumBoxIM.setColorAt(s.base + idx, _stC);
+      venueBoxIM.setColorAt(VENUE_STADIUM_OFF + s.base + idx, _stC);
     }
   }
   /* goals: posts + crossbar at both ends of the pitch */
@@ -16400,8 +16441,8 @@ function stadiumPlace(s, d) {
     stadiumBox(s, 46 + f, FL[f][0], 3.35, FL[f][1], 1.0, 0.55, 0.45, 0, 0, 0);
     stadiumTint(s, 46 + f, 0x9aa0a8);
   }
-  stadiumBoxIM.instanceMatrix.needsUpdate = true;
-  if (stadiumBoxIM.instanceColor) stadiumBoxIM.instanceColor.needsUpdate = true;
+  venueBoxIM.instanceMatrix.needsUpdate = true;
+  if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 }
 function stadiumRebuild(pcx, pcz) {
   const key = pcx + ',' + pcz;
@@ -16431,7 +16472,7 @@ function stadiumRebuild(pcx, pcz) {
     if (s.placed && pdx * pdx + pdz * pdz < 400) continue;
     stadiumPlace(s, d);
   }
-  stadiumBoxIM.instanceMatrix.needsUpdate = true;
+  venueBoxIM.instanceMatrix.needsUpdate = true;
 }
 
 /* ---- goal cheer: layered one-shot sfxBlip crowd roar (the theater cheer
@@ -16566,10 +16607,10 @@ function stadiumAnimate(s, sdt) {
   for (let f = 0; f < 4; f++) {
     const pulse = 0.75 + 0.25 * Math.sin(s.matchT * 2.2 + f * 1.57);
     _stC.setHex(0x9aa0a8).lerp(_stC2.setHex(0xfff3cf), Math.min(1, glow * pulse));
-    stadiumBoxIM.setColorAt(s.base + 46 + f, _stC);
+    venueBoxIM.setColorAt(VENUE_STADIUM_OFF + s.base + 46 + f, _stC);
   }
-  stadiumBoxIM.instanceMatrix.needsUpdate = true;
-  if (stadiumBoxIM.instanceColor) stadiumBoxIM.instanceColor.needsUpdate = true;
+  venueBoxIM.instanceMatrix.needsUpdate = true;
+  if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 }
 let stadbearingT = 0;
 function stadiumUpdate(sdt, now) {
@@ -16686,8 +16727,10 @@ function amusementFor(gx, gz) {
   return { x, z, y, gx, gz, yaw: a.yaw };
 }
 
-/* ---- the fleet: one unit box, RGBA-ish vertex gradient, per-instance
-        tints. EXACTLY +1 draw call. Instance layout per park (A_INST=106):
+/* ---- the fleet: PERF-6: amusement boxes ride the shared venueBoxIM
+        (region VENUE_AMUSE_OFF). Same unit-box geometry, same material,
+        same flags as theater/stadium; zero new draw calls. Instance layout
+        per park (A_INST=106):
         0-1 wheel towers, 2-13 rim segments, 14-21 spokes, 22 axle,
         23-46 gondolas (8 slots x 3: hanger, roof, basket),
         47 platform base, 48 platform trim, 49 canopy, 50 column,
@@ -16696,22 +16739,6 @@ function amusementFor(gx, gz) {
         78-93 fence posts (16), 94-99 light poles (6),
         100-105 lamp heads (the dusk/night brighten targets). ---- */
 const AMUSE_N = 4, AMUSE_SCAN = 4, A_INST = 106;
-const amuseUnitGeo = new THREE.BoxGeometry(1, 1, 1);
-{
-  const pp = amuseUnitGeo.attributes.position;
-  const pc = new Float32Array(pp.count * 3);
-  for (let vi = 0; vi < pp.count; vi++) {
-    const t = pp.getY(vi) * 0.5 + 0.5;   // 0 bottom .. 1 top: subtle top-light gradient
-    const v = 0.72 + 0.28 * t;
-    pc[vi * 3] = v; pc[vi * 3 + 1] = v; pc[vi * 3 + 2] = v;
-  }
-  amuseUnitGeo.setAttribute('color', new THREE.BufferAttribute(pc, 3));
-}
-const amuseBoxIM = new THREE.InstancedMesh(amuseUnitGeo,
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05 }), AMUSE_N * A_INST);
-amuseBoxIM.castShadow = false; amuseBoxIM.frustumCulled = false;
-amuseBoxIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-scene.add(amuseBoxIM);
 const _amM = new THREE.Matrix4(), _amQ = new THREE.Quaternion(),
       _amE = new THREE.Euler(0, 0, 0, 'YXZ'), _amP = new THREE.Vector3(),
       _amS = new THREE.Vector3(1, 1, 1), _amC = new THREE.Color(), _amC2 = new THREE.Color(),
@@ -16724,10 +16751,10 @@ function amuseBox(s, idx, lx, ly, lz, w, h, d, rx, yawL, rz) {
   _amP.set(s.x + lx * s._c + lz * s._s, s.y + ly, s.z - lx * s._s + lz * s._c);
   _amE.set(rx || 0, s.sy + (yawL || 0), rz || 0); _amQ.setFromEuler(_amE);
   _amS.set(w, h, d); _amM.compose(_amP, _amQ, _amS);
-  amuseBoxIM.setMatrixAt(s.base + idx, _amM);
+  venueBoxIM.setMatrixAt(VENUE_AMUSE_OFF + s.base + idx, _amM);   // PERF-6: amuse region
 }
 function amuseTint(s, idx, hex) {
-  _amC.setHex(hex); amuseBoxIM.setColorAt(s.base + idx, _amC);
+  _amC.setHex(hex); venueBoxIM.setColorAt(VENUE_AMUSE_OFF + s.base + idx, _amC);
 }
 const AMUSE = {
   riding: false, rideIdx: -1, hintOn: false, nearIdx: -1,
@@ -16748,14 +16775,14 @@ for (let i = 0; i < AMUSE_N; i++) AMUSE.slots.push({
 /* park an instance far underground: invisible until its slot activates */
 function amusePark(i) {
   _amM.makeScale(0.0001, 0.0001, 0.0001); _amM.setPosition(0, -60, 0);
-  for (let k = 0; k < A_INST; k++) amuseBoxIM.setMatrixAt(i * A_INST + k, _amM);
+  for (let k = 0; k < A_INST; k++) venueBoxIM.setMatrixAt(VENUE_AMUSE_OFF + i * A_INST + k, _amM);
 }
 for (let i = 0; i < AMUSE_N; i++) {
   amusePark(i);
-  for (let k = 0; k < A_INST; k++) { _amC.setHex(0xffffff); amuseBoxIM.setColorAt(i * A_INST + k, _amC); }
+  for (let k = 0; k < A_INST; k++) { _amC.setHex(0xffffff); venueBoxIM.setColorAt(VENUE_AMUSE_OFF + i * A_INST + k, _amC); }
 }
-amuseBoxIM.instanceMatrix.needsUpdate = true;
-if (amuseBoxIM.instanceColor) amuseBoxIM.instanceColor.needsUpdate = true;
+venueBoxIM.instanceMatrix.needsUpdate = true;
+if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 
 const AMUSE_NAMES = ['Starlight Pier', 'Comet Carnival', 'Neon Midway', 'Luna Park',
                      'Ember Fair', 'Jubilee Wheel', 'Aurora Expo', 'Tivoli Gardens'];
@@ -16863,8 +16890,8 @@ function amusePlace(s, d) {
     amuseBox(s, 94 + p, px, 2.1, pz, 0.16, 4.2, 0.16, 0, 0, 0); amuseTint(s, 94 + p, 0x2e3238);
     amuseBox(s, 100 + p, px, 4.35, pz, 0.55, 0.4, 0.55, 0, 0, 0); amuseTint(s, 100 + p, 0x6a6f78);
   }
-  amuseBoxIM.instanceMatrix.needsUpdate = true;
-  if (amuseBoxIM.instanceColor) amuseBoxIM.instanceColor.needsUpdate = true;
+  venueBoxIM.instanceMatrix.needsUpdate = true;
+  if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 }
 function amuseRebuild(pcx, pcz) {
   const key = pcx + ',' + pcz;
@@ -16894,7 +16921,7 @@ function amuseRebuild(pcx, pcz) {
     if (s.placed && pdx * pdx + pdz * pdz < 400) continue;
     amusePlace(s, d);
   }
-  amuseBoxIM.instanceMatrix.needsUpdate = true;
+  venueBoxIM.instanceMatrix.needsUpdate = true;
 }
 
 /* ---- HUD refs: ride prompt, ride chip, help footer ---- */
@@ -16997,7 +17024,7 @@ function amuseAnimate(s, sdt) {
   const glow = isNight ? 1 : (Math.abs(dayPhase - 0.5) < 0.08 ? 0.7 : 0.25);
   for (let p = 0; p < 6; p++) {
     _amC.setHex(0x6a6f78).lerp(_amC2.setHex(0xffe6a8), glow);
-    amuseBoxIM.setColorAt(s.base + 100 + p, _amC);
+    venueBoxIM.setColorAt(VENUE_AMUSE_OFF + s.base + 100 + p, _amC);
   }
   /* carousel chime: seeded music-box arpeggio in earshot (the sfxBlip
      one-shot idiom, no persistent nodes) */
@@ -17014,8 +17041,8 @@ function amuseAnimate(s, sdt) {
       sfxBlip(base * 1.5, 0.2, 'triangle', 0.07);
     }
   }
-  amuseBoxIM.instanceMatrix.needsUpdate = true;
-  if (amuseBoxIM.instanceColor) amuseBoxIM.instanceColor.needsUpdate = true;
+  venueBoxIM.instanceMatrix.needsUpdate = true;
+  if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
   /* the ride ends after 2 wheel rotations (or 60 s): never traps the rider */
   if (AMUSE.riding && AMUSE.rideIdx === s.idx) {
     s.rideT += sdt;
@@ -17760,8 +17787,7 @@ function tick() {
   for (const e of enemies) updateEnemy(e, sdt, eNow);
   if (eDirty) {
     eDirty = false;
-    eBodyRus.instanceMatrix.needsUpdate = true;
-    eBodySho.instanceMatrix.needsUpdate = true;
+    eBodyAll.instanceMatrix.needsUpdate = true;
     limbIM.instanceMatrix.needsUpdate = true;
     eEyes.instanceMatrix.needsUpdate = true;
   }
