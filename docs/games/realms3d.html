@@ -662,6 +662,14 @@
     font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
+  /* ---- bank heist HUD (Phase 5): live take/heat chip mirrors #firechip,
+         stacked below #firestchip in the top-left stack (#firestchip owns
+         621px) so live chips never overlap. DOM only, zero draw calls. ---- */
+  #heistchip {
+    position: absolute; top: 654px; left: 18px; color: #ffd9c8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #a03a2e; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
   /* ---- worship HUD (Phase 5): ENTER prompt mirrors the amusement hint
          pattern, stacked above it so live prompts never overlap. The
          #worshipchip state readout sits top-right below the amusement chip.
@@ -740,15 +748,15 @@
     display: flex; align-items: center; justify-content: center;
   }
   #civicact:active { background: #7dd8e0; }
-  /* Phase 5 bank: deposit/withdraw share the #civicact look exactly.
+  /* Phase 5 bank: deposit/withdraw/rob share the #civicact look exactly.
      Hidden by default: shown only while CIVIC.state === 'bank'. */
-  #civicact2, #civicact3 {
+  #civicact2, #civicact3, #civicact4 {
     position: relative; width: 100%; height: 52px; left: auto; bottom: auto;
     margin-top: 8px; font-size: 16px; letter-spacing: 4px; font-weight: bold;
     background: rgba(125,216,224,.9); color: #0c0e0a;
     display: none; align-items: center; justify-content: center;
   }
-  #civicact2:active, #civicact3:active { background: #7dd8e0; }
+  #civicact2:active, #civicact3:active, #civicact4:active { background: #7dd8e0; }
   #civicfoot { color: #8a927e; font-size: 10px; letter-spacing: 2px; margin-top: 8px; }
   #slotpanel {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -993,6 +1001,7 @@
     <div class="tbtn" id="civicact">ACT</div>
     <div class="tbtn" id="civicact2">DEPOSIT</div>
     <div class="tbtn" id="civicact3">WITHDRAW</div>
+    <div class="tbtn" id="civicact4">ROB BANK</div>
     <div id="civicfoot"></div>
   </div>
   <div id="worshippanel">
@@ -1056,6 +1065,7 @@
     <div id="lmcs-bigwin"></div>
   </div>
   <div id="firestchip"><span id="firestarr">^</span> <span id="firesttxt"></span></div>
+  <div id="heistchip"></div>
   <div id="firesthallhint"></div>
   <div id="firestbayhint"></div>
   <div id="firestpolehint"></div>
@@ -5002,6 +5012,7 @@ function hurtPlayer(d) {
   if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; diffRecordDeath();
     const lost = Math.floor(cash * 0.15); cash -= lost; updateCashHUD();   // Phase 5 bank: only carried cash is seized; the bank is never touched
     toast('ELIMINATED - $' + lost + ' LOST'); missionOnDeath();
+    endHeist('death');   // Phase 5 heist: the take stays in the wallet; the 15% seizure above already punished
     closeShop();
     curWeapon = 'rifle'; updateWeaponHUD(); updateHpHUD(); }
 }
@@ -5771,6 +5782,7 @@ function busted() {
   P.hp = 100; P.dead = false; P.godT = 2;
   updateHpHUD(); closeShop();
   missionOnDeath();
+  endHeist('busted');   // Phase 5 heist: the take stays in the wallet; the 25% seizure above already punished
   sfxBusted();
   toast('BUSTED - $' + seized + ' SEIZED | BANK SAFE');
 }
@@ -19158,6 +19170,8 @@ const civicTitleEl = document.getElementById('civictitle');
 const civicActEl = document.getElementById('civicact');
 const civicActEl2 = document.getElementById('civicact2');   // Phase 5 bank: DEPOSIT
 const civicActEl3 = document.getElementById('civicact3');   // Phase 5 bank: WITHDRAW
+const civicActEl4 = document.getElementById('civicact4');   // Phase 5 bank: ROB BANK
+const heistChipEl = document.getElementById('heistchip');   // Phase 5 bank heist: live take/heat chip
 const civicFootEl = document.getElementById('civicfoot');
 civichintEl.textContent = IS_TOUCH ? 'TAP TO ENTER' : 'ENTER [E]';
 civichintEl.addEventListener('click', () => { if (CIVIC.hintOn) civicEnter(); });
@@ -19172,6 +19186,10 @@ civicActEl2.addEventListener('click', civicDepositBtn);
 function civicWithdrawBtn(e) { e.preventDefault(); e.stopPropagation(); civicWithdraw(); }
 civicActEl3.addEventListener('touchstart', civicWithdrawBtn, { passive: false });
 civicActEl3.addEventListener('click', civicWithdrawBtn);
+/* Phase 5 bank heist: ROB BANK carries the same touch parity */
+function civicHeistBtn(e) { e.preventDefault(); e.stopPropagation(); civicHeist(); }
+civicActEl4.addEventListener('touchstart', civicHeistBtn, { passive: false });
+civicActEl4.addEventListener('click', civicHeistBtn);
 function updateCivicChip() {
   if (!CIVIC.state) { civicChipEl.style.display = 'none'; return; }
   civicChipEl.style.display = 'block';
@@ -19210,9 +19228,10 @@ function civicEnter() {
   civicActEl.textContent = CIVIC_ACT_TXT[type];
   civicFootEl.textContent = CIVIC_FOOT_TXT[type];
   civicPanelEl.style.display = 'block';
-  const isBank = CIVIC.state === 'bank';   // Phase 5 bank: deposit/withdraw buttons are bank-only
+  const isBank = CIVIC.state === 'bank';   // Phase 5 bank: deposit/withdraw/rob buttons are bank-only
   civicActEl2.style.display = isBank ? 'flex' : 'none';
   civicActEl3.style.display = isBank ? 'flex' : 'none';
+  civicActEl4.style.display = isBank ? 'flex' : 'none';
   updateCivicChip();
   civichintEl.style.opacity = 0; CIVIC.hintOn = false; CIVIC.nearIdx = -1; CIVIC.nearType = null;
   carHintEl.style.opacity = 0; CAR.hintOn = false;
@@ -19243,6 +19262,7 @@ function civicExit() {
   civicPanelEl.style.display = 'none';
   civicActEl2.style.display = 'none';   // Phase 5 bank: hide on exit
   civicActEl3.style.display = 'none';
+  civicActEl4.style.display = 'none';
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
@@ -19298,6 +19318,84 @@ function civicWithdraw() {
   sfxBuy(); toast('WITHDREW $' + amt);
   updateCivicChip();
 }
+/* Phase 5 bank heist: rob the bank. Session-only state machine, no save
+   touch, zero THREE objects (loot sacks are data only, walk-over pickup like
+   the loot boxes). The bank balance is never at risk: the take rides in the
+   wallet, still seizable by death (15%) and BUSTED (25%). No double-punish:
+   endHeist only clears state; the seizure hooks above already punished. */
+const HEIST = { active: false, loot: 0, tick: 0, escT: 0, bx: 0, bz: 0, sacks: [] };
+const HEIST_N = 5, HEIST_R2 = 900, HEIST_GRAB_R2 = 4, HEIST_ESCALATE_S = 45;   // 30u getaway radius, 2u grab radius, +1 star per 45s
+function updateHeistChip() {
+  if (!HEIST.active) { heistChipEl.style.display = 'none'; return; }
+  heistChipEl.style.display = 'block';
+  heistChipEl.textContent = 'HEIST $' + HEIST.loot + ' | HEAT ' + W.heat;
+}
+function seedHeistSacks() {
+  HEIST.sacks.length = 0;
+  const seed = hash2i(Math.round(HEIST.bx), Math.round(HEIST.bz));   // seeded: same vault, same sacks
+  for (let k = 0; k < HEIST_N; k++) {
+    const h1 = hash2i(seed + k * 131, 7), h2 = hash2i(seed + k * 131, 917);
+    let r = 7 + (h1 % 6);                                          // 7-12u ring around the vault
+    const a = (k / HEIST_N) * Math.PI * 2 + (h2 % 100) / 100 * 0.6;
+    let sx = HEIST.bx + Math.cos(a) * r, sz = HEIST.bz + Math.sin(a) * r;
+    /* never hand the player a free sack at the porch: deterministic nudge */
+    const pdx = sx - player.position.x, pdz = sz - player.position.z;
+    if (pdx * pdx + pdz * pdz < 9) {
+      r += 5; sx = HEIST.bx + Math.cos(a) * r; sz = HEIST.bz + Math.sin(a) * r;
+    }
+    HEIST.sacks.push({ x: sx, z: sz, amt: 200 + (hash2i(seed + k * 131, 4242) % 801), taken: false });   // $200-$1000
+  }
+}
+function civicHeist() {
+  if (CIVIC.state !== 'bank') return;
+  if (HEIST.active) { sfxDenied(); toast('HEIST IN PROGRESS'); return; }   // the shop denied idiom
+  HEIST.bx = CIVIC.pos.x; HEIST.bz = CIVIC.pos.z;   // the bank center, before the exit moves the player
+  civicExit();   // storm out: the heist plays on foot, the panel is gone
+  seedHeistSacks();
+  HEIST.active = true; HEIST.loot = 0; HEIST.tick = 0; HEIST.escT = 0;
+  addHeat(2);   // the alarm: cops pursue at heat >= 1
+  toast('HEIST STARTED - GRAB THE CASH');
+  updateHeistChip();
+}
+function heistGrab(s) {
+  s.taken = true; HEIST.loot += s.amt;
+  cash += s.amt; updateCashHUD();   // the cash idiom: the take rides in the wallet, still seizable
+  sfxPickup(); toast('GRABBED $' + s.amt);
+  updateHeistChip();
+}
+function endHeist(reason) {
+  if (!HEIST.active) return;
+  HEIST.active = false; HEIST.sacks.length = 0;
+  heistChipEl.style.display = 'none';
+  if (reason === 'left') {
+    if (HEIST.loot > 0 && W.heat <= 0) toast('HEIST CLEAN - KEPT $' + HEIST.loot);
+    else toast('HEIST ENDED');
+  }
+  /* 'busted' and 'death' stay silent: the 25%/15% seizure hooks already
+     punished, heat was zeroed by busted()/death, evade rules unchanged. */
+}
+function heistTick(dt) {
+  if (!HEIST.active || !playing()) return;
+  /* escalation: the longer you stay, the hotter it gets (+1 star per 45s, cap 5) */
+  HEIST.tick += dt; HEIST.escT += dt;
+  if (HEIST.escT >= HEIST_ESCALATE_S) {
+    HEIST.escT = 0;
+    if (W.heat < 5) { addHeat(1); updateHeistChip(); }
+  }
+  const px = player.position.x, pz = player.position.z;
+  const ldx = px - HEIST.bx, ldz = pz - HEIST.bz;
+  if (ldx * ldx + ldz * ldz > HEIST_R2) { endHeist('left'); return; }   // getaway: clean only at heat 0
+  /* vault loot: walk-over grab, on-foot only (the loot pickup idiom) */
+  if (!P.dead && !CIVIC.state && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !HORSE.riding
+      && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding) {
+    for (const s of HEIST.sacks) {
+      if (s.taken) continue;
+      const dx = s.x - px, dz = s.z - pz;
+      if (dx * dx + dz * dz < HEIST_GRAB_R2) { heistGrab(s); break; }
+    }
+  }
+}
+queueMicrotask(() => worldTickers.push(heistTick));   // the civicTick registration idiom
 function civicRest() {
   if (cash < CIVIC_REST_COST) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
   cash -= CIVIC_REST_COST; updateCashHUD(); floatCash('-$' + CIVIC_REST_COST);   // the cash idiom
@@ -21568,6 +21666,7 @@ function applySave(d) {
   }
   refreshMarkerColors(); updateMissionHUD();
   setHeat(0, true); W.evading = false; updateHeatHUD();
+  endHeist('load');   // Phase 5 heist: session-only, a loaded game starts clean (silent)
   updateCashHUD(); updateCombatHUD(); updateWeaponHUD(); updateHpHUD(); updateFoodHUD();
 }
 
@@ -21615,6 +21714,8 @@ function newGame() {
   MS.state = 'IDLE'; MS.idx = -1; MS.phase = 0; MS.prog = 0; MS.giverT = 0;
   for (let i = 0; i < MS.done.length; i++) MS.done[i] = false;
   cash = 0; kills = 0; bankBal = 0;   // Phase 5 bank: a new game starts broke
+  HEIST.active = false; HEIST.loot = 0; HEIST.tick = 0; HEIST.escT = 0; HEIST.sacks.length = 0;
+  heistChipEl.style.display = 'none';   // Phase 5 heist: session-only, a new game starts clean
   SOCCER.goals = 0; updateSoccerChip(true);   // Phase 5 soccer: new session, new tally
   HOOPS.pts = 0; HOOPS.streak = 0; HOOPS.shots = 0; updateHoopsChip(true);  // Phase 5 hoops
   TENNIS.pts = 0; TENNIS.rally = 0; updateTennisChip(true);  // Phase 5 tennis: new session, new tally
