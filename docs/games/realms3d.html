@@ -7827,10 +7827,12 @@ queueMicrotask(() => worldTickers.push(hospTick));
    merged mesh + one screen quad, both visible=false until entered: zero net
    draws when cached). The room holds merged seat rows, a stage, red
    curtains, and one big NOW SHOWING screen, lit by constant emissive (no
-   new runtime lights; never a black doorway). Inside, WATCH SHOW [E] costs
-   $5, advances game time 2 hours through the day/night tick, restores +25
-   HP, and plays a short WebAudio jingle; EXIT [E] teleports back to the
-   door. The HUD prompt and the post-show toast keep the mechanic visible:
+   new runtime lights; never a black doorway). Inside, WATCH [E] buys the
+   picked show of three (COMEDY NIGHT $3/1h/+15HP, ACTION MOVIE $5/2h/+25HP,
+   LIVE CONCERT $8/3h/+40HP: the pick is deterministic per visit, the board
+   and the hint follow it), advances game time through the day/night tick,
+   restores HP, and plays that show's WebAudio sting; EXIT [E] teleports back
+   to the door. The HUD prompt and the post-show toast keep the mechanic visible:
    no silent mechanics. Pure seeded math, no RNG anywhere in this block.
    Naming note: the street-performer venue system already owns the THEATER
    const, the #theaterchip div, and the #theaterhint div, so this landmark
@@ -7841,9 +7843,17 @@ const LMTH_CHIP_R2 = 500 * 500;             // chip shows within 500m
 const LMTH_DOOR = [0, 6.8];                 // door trigger, park-local (just outside the doors)
 const LMTH_DOOR_R2 = 3.5 * 3.5;             // door prompt radius
 const THEATER_ROOM_Y = -300;                // the cached screening room sits far below the world
-const THEATER_SHOW_COST = 5;
-const THEATER_SHOW_HEAL = 25;
-const THEATER_SHOW_HOURS = 2;
+/* THEATER SHOW VARIETY v1: three rotating shows on the one board, picked
+   deterministically per hall visit (the hash2i seeded idiom; the seeded
+   path only, no unseeded RNG). ACTION MOVIE keeps the v1 slot ($5, 2 hours, +25 HP). */
+const THEATER_SHOWS = [
+  { name: 'COMEDY NIGHT', cost: 3, hours: 1, heal: 15 },
+  { name: 'ACTION MOVIE', cost: 5, hours: 2, heal: 25 },
+  { name: 'LIVE CONCERT', cost: 8, hours: 3, heal: 40 },
+];
+function theaterShowFor(ax, az, visit) {   // pure seeded pick: same inputs -> same show; consecutive visits rotate through all three
+  return (hash2i(ax | 0, az | 0) + (visit | 0)) % 3;
+}
 /* radial colliders, park-local [x, z, r]: hedge-ring wall (gate gap open),
    lobby/auditorium edges (the door column x=0 stays open), marquee posts,
    poster boards, door posts, ticket booth, gate posts. Mirrors the
@@ -7947,21 +7957,31 @@ function buildTheaterHallGeo() {
     amenPart(parts, 0, 0.25, 1.4, 0.5, _wx, 4.2, _wz, SCONCE);  // sconces
   return mergeAmenGeos(parts);
 }
-function makeTheaterScreenTex() {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 144;
-  const g = c.getContext('2d');
+function theaterDrawScreen(g, name) {   // the NOW SHOWING board face for one show
   g.fillStyle = '#0a1626'; g.fillRect(0, 0, 256, 144);
   g.fillStyle = '#c9a227';
   g.fillRect(6, 6, 244, 4); g.fillRect(6, 134, 244, 4);
   g.fillRect(6, 6, 4, 132); g.fillRect(246, 6, 4, 132);
   g.fillStyle = '#f2ede0'; g.font = 'bold 26px sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('NOW SHOWING', 128, 62);
-  g.fillStyle = '#8a9cc8'; g.font = '15px sans-serif';
-  g.fillText('A REALMS PICTURE', 128, 96);
+  g.fillText('NOW SHOWING', 128, 58);
+  g.fillStyle = '#ffd76a'; g.font = 'bold 19px sans-serif';
+  g.fillText(name, 128, 96);
+}
+let theaterBoardCtx = null, theaterBoardIdx = 1;   // redrawn only when the picked show changes
+function makeTheaterScreenTex() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 144;
+  theaterBoardCtx = c.getContext('2d');
+  theaterDrawScreen(theaterBoardCtx, THEATER_SHOWS[1].name);   // the v1 default board
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+function theaterBoardShow(idx) {   // redraw the board for the picked show: same mesh, same texture, zero new draw calls
+  if (idx === theaterBoardIdx || !theaterBoardCtx) return;
+  theaterBoardIdx = idx;
+  theaterDrawScreen(theaterBoardCtx, THEATER_SHOWS[idx].name);
+  theaterHallScreen.material.map.needsUpdate = true;
 }
 const theaterHallMesh = new THREE.Mesh(buildTheaterHallGeo(),
   new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xfff1d8,
@@ -7976,9 +7996,9 @@ theaterHallScreen.frustumCulled = false;
 theaterHallMesh.add(theaterHallScreen);   // rides the room when it parks under a theater
 freezeStatic(theaterHallScreen);   // PERF-7: screen is fixed inside the room (the room itself still moves)
 scene.add(theaterHallMesh);
-/* ---- landmark theater gameplay: ENTER the cached screening room, WATCH
-        SHOW ($5, +2 game hours, +25 HP, jingle), EXIT back to the door.
-        The E chain (after the hospital heal) runs WATCH SHOW first, then
+/* ---- landmark theater gameplay: ENTER the cached screening room, WATCH the
+        picked show (3 rotating shows, deterministic per visit), EXIT back to
+        the door. The E chain (after the hospital heal) runs WATCH first, then
         EXIT, so E never traps: a broke visitor is denied the show and
         offered the exit. HUD prompts + toasts + sfx: no silent mechanics. ---- */
 const THEATERHALL = {
@@ -7987,6 +8007,7 @@ const THEATERHALL = {
   seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the stage (-Z)
   hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
   hallPos: new THREE.Vector3(),
+  visits: 0, showIdx: 1, show: THEATER_SHOWS[1], showTxt: 'ACTION MOVIE [E]',   // per-visit show pick (session only)
   tickT: 0, chipT: 0,
 };
 const thallhintEl = document.getElementById('thallhint');
@@ -8002,11 +8023,24 @@ function theaterHallDoorWorld(a) {   // door trigger in world coords (the redist
   return { x: a.x + LMTH_DOOR[0] * c + LMTH_DOOR[1] * s,
            z: a.z - LMTH_DOOR[0] * s + LMTH_DOOR[1] * c };
 }
-function theaterJingle() {   // short show jingle: C-E-G-C arpeggio, the sfxBusted setTimeout idiom
+function theaterJingle() {   // ACTION MOVIE: short show jingle, C-E-G-C arpeggio, the sfxBusted setTimeout idiom
   sfxBlip(523, 0.12, 'triangle', 0.22);
   setTimeout(() => sfxBlip(659, 0.12, 'triangle', 0.22), 140);
   setTimeout(() => sfxBlip(784, 0.12, 'triangle', 0.22), 280);
   setTimeout(() => sfxBlip(1047, 0.26, 'triangle', 0.22), 420);
+}
+function theaterComedySting() {   // COMEDY NIGHT: quick playful ascending arpeggio
+  sfxBlip(659, 0.07, 'triangle', 0.2);
+  setTimeout(() => sfxBlip(784, 0.07, 'triangle', 0.2), 90);
+  setTimeout(() => sfxBlip(880, 0.07, 'triangle', 0.2), 180);
+  setTimeout(() => sfxBlip(1047, 0.18, 'triangle', 0.2), 270);
+}
+function theaterConcertSting() {   // LIVE CONCERT: bass pulse + melody plucks, a bigger celebration
+  sfxBlip(98, 0.16, 'sine', 0.3);
+  setTimeout(() => sfxBlip(440, 0.1, 'triangle', 0.2), 110);
+  setTimeout(() => sfxBlip(98, 0.16, 'sine', 0.3), 220);
+  setTimeout(() => sfxBlip(523, 0.1, 'triangle', 0.2), 330);
+  setTimeout(() => sfxBlip(659, 0.24, 'triangle', 0.2), 440);
 }
 function theaterHallEnter() {
   if (THEATERHALL.inHall || FIRESTHALL.inHall || THEATER.watching || AMUSE.riding || STADIUM.watching || CIVIC.state || WORSHIP.state || APARTMENT.state
@@ -8022,6 +8056,14 @@ function theaterHallEnter() {
   const dx = player.position.x - d.x, dz = player.position.z - d.z;
   if (dx * dx + dz * dz > LMTH_DOOR_R2) return;
   THEATERHALL.inHall = true; THEATERHALL.showOn = true;
+  /* SHOW VARIETY v1: deterministic per-visit pick; the board and the WATCH
+     hint follow the pick (never placeholder text) */
+  THEATERHALL.visits++;
+  const _sidx = theaterShowFor(a.x, a.z, THEATERHALL.visits);
+  THEATERHALL.showIdx = _sidx;
+  THEATERHALL.show = THEATER_SHOWS[_sidx];
+  THEATERHALL.showTxt = IS_TOUCH ? THEATER_SHOWS[_sidx].name + ' (TAP)' : THEATER_SHOWS[_sidx].name + ' [E]';
+  theaterBoardShow(_sidx);
   THEATERHALL.hintEnter = false; thallhintEl.style.opacity = 0;   // door prompt off: E now watches
   THEATERHALL.doorX = player.position.x; THEATERHALL.doorZ = player.position.z;
   THEATERHALL.seatX = a.x; THEATERHALL.seatZ = a.z + 5.2; THEATERHALL.seatYaw = Math.PI;
@@ -8084,13 +8126,16 @@ function theaterHallExit() {
 }
 function theaterWatchShow() {
   if (!THEATERHALL.inHall || !THEATERHALL.showOn) return;
-  if (cash < THEATER_SHOW_COST) { sfxDenied(); toast('NOT ENOUGH CASH'); }   // the shop denied idiom
+  const show = THEATERHALL.show;
+  if (cash < show.cost) { sfxDenied(); toast('NOT ENOUGH CASH'); }   // the shop denied idiom
   else {
-    cash -= THEATER_SHOW_COST; updateCashHUD(); floatCash('-$' + THEATER_SHOW_COST);   // the cash idiom
-    P.hp = Math.min(100, P.hp + THEATER_SHOW_HEAL); updateHpHUD();   // the diner heal idiom
-    dayPhase = (dayPhase + THEATER_SHOW_HOURS / 24) % 1;   // 2 game hours through the day/night tick
-    theaterJingle();
-    toast('ENJOY THE SHOW');
+    cash -= show.cost; updateCashHUD(); floatCash('-$' + show.cost);   // the cash idiom
+    P.hp = Math.min(100, P.hp + show.heal); updateHpHUD();   // the diner heal idiom
+    dayPhase = (dayPhase + show.hours / 24) % 1;   // the day/night tick, per-show hours
+    if (THEATERHALL.showIdx === 0) theaterComedySting();
+    else if (THEATERHALL.showIdx === 2) theaterConcertSting();
+    else theaterJingle();   // ACTION MOVIE keeps the v1 jingle
+    toast('ENJOY ' + show.name);
   }
   THEATERHALL.showOn = false;   // one show per visit: E now exits, never traps
   tshowhintEl.textContent = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';   // flip now, not on the 0.25s tick
@@ -8131,7 +8176,7 @@ function theaterHallTick(dt) {
     firesthallhintEl.style.opacity = 0; firestbayhintEl.style.opacity = 0; firestpolehintEl.style.opacity = 0;
     if (THEATERHALL.tickT >= 0.25) {
       THEATERHALL.tickT = 0;
-      const showTxt = IS_TOUCH ? 'TAP TO WATCH' : 'WATCH SHOW [E]';
+      const showTxt = THEATERHALL.showTxt;   // cached at entry: the picked show name, never placeholder text
       const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
       const txt = THEATERHALL.showOn ? showTxt : exitTxt;
       if (tshowhintEl.textContent !== txt) tshowhintEl.textContent = txt;
