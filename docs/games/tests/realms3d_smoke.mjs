@@ -97,6 +97,10 @@ globalThis.__R3D = {
   /* Phase 5 farming plots (harvest gate for the food tests) */
   farmHarvest, farmTryHarvest, farmPlotCenterFor, farmPlotMatureCount,
   FPLOT, FARM_MATURE_NEED,
+  farmFallow, farmTryPlant, farmPlant, cycleFarmSeed, cropStageFor, farmPaintCrops,   /* Phase 5 farming v1 */
+  CROPS, FARM_SEED_ORDER, FARM_MATURE_COL, CROP_IM, farmChipEl, farmHintEl, updateFarmChip,
+  cashFloatEl, floatCash, sfxSizzle,
+  foodCanAfford, foodSpend, foodRawTotal, foodDishCount, foodSellValue, DISH_SELL, foodCostStr,
   /* Phase 5 cooking + food */
   FOOD, FOOD_ORDER, FOOD_MAX, RECIPES, COOK_ITEMS, EAT_ITEMS, FOOD_ICONS,
   REST_ITEMS, openRest, openFoodPanel, foodChipEl, shopRowsEl, shopNameEl,
@@ -2035,19 +2039,27 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('cook: five recipe rows plus a BACK row', G.COOK_ITEMS.length === 6);
   check('cook: recipe rows carry procedural icons',
     G.COOK_ITEMS.slice(0, 5).every(it => typeof it.icon === 'string' && it.icon.indexOf('data:image/png') === 0));
-  check('cook: recipe rows show the corn cost', G.COOK_ITEMS[1].cost === 3, 'cost=' + G.COOK_ITEMS[1].cost);
-  const soupIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'CORN SOUP');
-  check('cook: soup row is BUY with 3 corn', G.COOK_ITEMS[soupIdx].state() === 'BUY');
+  check('cook: recipe costs are produce maps (farming v1)',
+    G.COOK_ITEMS[0].cost.corn === 2 && G.COOK_ITEMS[1].cost.tomato === 3 &&
+    G.COOK_ITEMS[3].cost.corn === 2 && G.COOK_ITEMS[3].cost.tomato === 2,
+    JSON.stringify(G.COOK_ITEMS.map(it => it.cost)));
+  check('cook: cost labels read as produce ("3 TOMATO", "2 CORN + 2 TOMATO")',
+    G.foodCostStr({ tomato: 3 }) === '3 TOMATO' &&
+    G.foodCostStr({ corn: 2, tomato: 2 }) === '2 CORN + 2 TOMATO',
+    G.foodCostStr({ tomato: 3 }));
+  const soupIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'TOMATO SOUP');
+  G.FOOD.tomato = 3; G.updateFoodHUD();
+  check('cook: soup row is BUY with 3 tomato', G.COOK_ITEMS[soupIdx].state() === 'BUY');
   G.buyItem(soupIdx);
-  check('cook: 3 corn -> CORN SOUP (subset match)',
-    G.FOOD.soup === 1 && G.FOOD.corn === 0, 'corn=' + G.FOOD.corn + ' soup=' + G.FOOD.soup);
-  check('cook: toast confirms the dish', G.toastEl.textContent === 'COOKED CORN SOUP', G.toastEl.textContent);
-  const fritIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'CORN FRITTERS');
-  check('cook: fritters row is NA with 0 corn (mismatch denied)', G.COOK_ITEMS[fritIdx].state() === 'NA');
-  const cornBefore = G.FOOD.corn, fritBefore = G.FOOD.fritters;
-  G.buyItem(fritIdx);
+  check('cook: 3 tomato -> TOMATO SOUP',
+    G.FOOD.soup === 1 && G.FOOD.tomato === 0, 'tomato=' + G.FOOD.tomato + ' soup=' + G.FOOD.soup);
+  check('cook: toast confirms the dish', G.toastEl.textContent === 'COOKED TOMATO SOUP', G.toastEl.textContent);
+  const pieIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'PUMPKIN PIE');
+  check('cook: pie row is NA with 0 pumpkin (mismatch denied)', G.COOK_ITEMS[pieIdx].state() === 'NA');
+  const pumpBefore = G.FOOD.pumpkin, pieBefore = G.FOOD.pie;
+  G.buyItem(pieIdx);
   check('cook: denied cook changes nothing',
-    G.FOOD.corn === cornBefore && G.FOOD.fritters === fritBefore);
+    G.FOOD.pumpkin === pumpBefore && G.FOOD.pie === pieBefore);
   G.FOOD.corn = 1; G.updateFoodHUD();   // odd leftover: the SCRAPS fallback row
   const scrIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'SCRAPS');
   G.buyItem(scrIdx);
@@ -2064,12 +2076,12 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   G.openFoodPanel();
   check('eat: food panel opens anywhere',
     G.shopOpen === true && G.SHOP_LIST === G.EAT_ITEMS && G.shopNameEl.textContent === 'FIELD KITCHEN');
-  const eatSoupIdx = G.EAT_ITEMS.findIndex(it => it.dishName === 'CORN SOUP');
+  const eatSoupIdx = G.EAT_ITEMS.findIndex(it => it.dishName === 'TOMATO SOUP');
   check('eat: soup row is BUY below full HP', G.EAT_ITEMS[eatSoupIdx].state() === 'BUY');
   G.buyItem(eatSoupIdx);
-  check('eat: CORN SOUP heals +65 (capped at 100)',
-    G.P.hp === 95 && G.FOOD.soup === 0, 'hp=' + G.P.hp + ' soup=' + G.FOOD.soup);
-  check('eat: toast confirms the meal', G.toastEl.textContent === 'ATE CORN SOUP', G.toastEl.textContent);
+  check('eat: TOMATO SOUP heals +70 (capped at 100)',
+    G.P.hp === 100 && G.FOOD.soup === 0, 'hp=' + G.P.hp + ' soup=' + G.FOOD.soup);
+  check('eat: toast confirms the meal', G.toastEl.textContent === 'ATE TOMATO SOUP', G.toastEl.textContent);
   G.P.hp = 100; G.updateHpHUD();
   check('eat: rows go NA at full HP (no wasted food)',
     G.EAT_ITEMS.find(it => it.dishName === 'ROASTED CORN').state() === 'NA');
@@ -2091,14 +2103,14 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('food: chip reappears after load', G.foodChipEl.style.display === 'block');
   const before = G.foodSaveStr();
   const env = JSON.parse(stubs.localStorage.getItem(G.SAVE_KEY));
-  env.data.food = '7:0:99999:1:0:0';   // tampered: 99999 exceeds the cap
+  env.data.food = '7:0:99999:1:0:0:0:0:0';   // tampered: 99999 exceeds the cap
   stubs.localStorage.setItem(G.SAVE_KEY, JSON.stringify(env));
   G.loadSave();
   check('food: tampered food field is rejected (state kept)', G.foodSaveStr() === before, G.foodSaveStr());
   G.FOOD.corn = 5; G.updateFoodHUD();
   G.newGame();
   check('food: new game empties the pantry',
-    G.foodSaveStr() === '0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
+    G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
   check('food-static: InstancedMesh literal sites pin at 46 (45 + soccer ball)',
@@ -2122,9 +2134,239 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     check('food-static: food block creates no THREE objects',
       foodSrc.length > 1000 && !/new THREE\./.test(foodSrc), foodSrc.length + ' chars');
   }
-  check('food: six procedural icons as data URLs',
+  check('food: nine procedural icons as data URLs (farming v1: +tomato/pumpkin/pie)',
     G.FOOD_ORDER.every(k => typeof G.FOOD_ICONS[k] === 'string' && G.FOOD_ICONS[k].indexOf('data:image/png') === 0),
     Object.keys(G.FOOD_ICONS).join(','));
+}
+
+/* ================= 18. FARMING v1 DELTAS (Phase 5 food/farming) ================= */
+{
+  /* clean preconditions + farm session state reset (17 harvested a plot) */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
+  G.closeShop();
+  G.CAR.driving = false; G.HORSE.riding = false;
+  G.BUS.driving = false; G.BUS.riding = false; G.TX.riding = false;
+  G.BIKE.driving = false; G.BC.driving = false; G.SC.driving = false;
+  for (const k of G.FOOD_ORDER) G.FOOD[k] = 0;
+  G.updateFoodHUD();
+  G.FPLOT.harvestT.clear(); G.FPLOT.planted.clear(); G.FPLOT.pop.clear();
+  G.FPLOT.harvested = 0; G.FPLOT.seedSel = 'corn'; G.FPLOT.t = 0;
+
+  /* deterministic plot */
+  let plot0 = null, pChunk = null;
+  for (let gx = -12; gx <= 12 && !plot0; gx++)
+    for (let gz = -12; gz <= 12 && !plot0; gz++) {
+      const p = G.farmPlotCenterFor(gx, gz);
+      if (p) { pChunk = [gx, gz]; plot0 = p; }
+    }
+  check('farmv1: deterministic farm plot found', !!plot0,
+    plot0 ? 'chunk(' + pChunk[0] + ',' + pChunk[1] + ')' : 'none');
+  if (plot0) {
+    const p = G.FPLOT.active.find(q => q.gx === pChunk[0] && q.gz === pChunk[1]);
+    const pkey = p.gx + ',' + p.gz;
+    const j = G.FPLOT.active.indexOf(p), base = j * 24;
+    let ripeT = -1;
+    for (let t = 0; t <= 600 && ripeT < 0; t += 5)
+      if (G.farmPlotMatureCount(p, t) >= 8) ripeT = t;
+    check('farmv1: a ripe moment exists', ripeT >= 0, 'ripeT=' + ripeT);
+    G.FPLOT.t = ripeT;
+    G.player.position.set(p.x, groundY(p.x, p.z), p.z);
+    frame(15);
+    check('farmv1: E gate arms on the ripe plot',
+      G.FPLOT.nearIdx >= 0 && G.FPLOT.nearMature === true, 'nearIdx=' + G.FPLOT.nearIdx);
+    check('farmv1: chip shows FARM - READY!',
+      G.farmChipEl.style.display === 'block' && G.farmChipEl.textContent === 'FARM - READY!',
+      G.farmChipEl.textContent);
+
+    /* harvest juice: cash float + scale pop + produce + counter */
+    const harv0 = G.FPLOT.harvested, cash0 = G.cash, corn0 = G.FOOD.corn;
+    check('farmv1: E harvests via the real gate', G.farmTryHarvest() === true);
+    const delta = G.cash - cash0;
+    check('farmv1: harvest cash in the corn band (+$15..$23)', delta >= 15 && delta <= 23, 'delta=' + delta);
+    check('farmv1: cash float shows the gain', G.cashFloatEl.textContent === '+$' + delta,
+      G.cashFloatEl.textContent);
+    check('farmv1: harvest yields corn produce', G.FOOD.corn > corn0, 'corn=' + G.FOOD.corn);
+    check('farmv1: harvest toast names cash and crop',
+      G.toastEl.textContent.indexOf('HARVEST +$') === 0 && G.toastEl.textContent.indexOf('CORN') > 0,
+      G.toastEl.textContent);
+    check('farmv1: scale pop is armed on the plot', G.FPLOT.pop.has(pkey));
+    check('farmv1: harvest counter increments', G.FPLOT.harvested === harv0 + 1);
+
+    /* fallow window: replant hint + chip */
+    check('farmv1: plot is fallow after harvest', G.farmFallow(p, G.FPLOT.t) === true);
+    frame(15);
+    check('farmv1: fallow hint offers planting',
+      G.farmHintEl.textContent === 'PLANT CORN [E]', G.farmHintEl.textContent);
+    check('farmv1: chip shows FARM - HARVESTED n',
+      G.farmChipEl.textContent === 'FARM - HARVESTED 1', G.farmChipEl.textContent);
+
+    /* seed selection cycles corn -> tomato -> pumpkin -> corn */
+    G.cycleFarmSeed();
+    check('farmv1: chip click cycles seed to tomato',
+      G.FPLOT.seedSel === 'tomato' && G.toastEl.textContent === 'SEED: TOMATO (FREE)',
+      G.FPLOT.seedSel + ' / ' + G.toastEl.textContent);
+    G.cycleFarmSeed();
+    check('farmv1: seed cycles to pumpkin', G.FPLOT.seedSel === 'pumpkin', G.FPLOT.seedSel);
+    G.cycleFarmSeed();
+    check('farmv1: seed cycles back to corn', G.FPLOT.seedSel === 'corn', G.FPLOT.seedSel);
+
+    /* plant tomato: free, restarts growth, deterministic stages */
+    G.cycleFarmSeed();   // -> tomato
+    const cash1 = G.cash;
+    check('farmv1: E plants the selected seed', G.farmTryPlant() === true);
+    check('farmv1: plant toast names the crop', G.toastEl.textContent === 'PLANTED TOMATO (FREE SEEDS)',
+      G.toastEl.textContent);
+    check('farmv1: seeds are free (cash unchanged)', G.cash === cash1);
+    check('farmv1: planted type is recorded', G.FPLOT.planted.get(pkey) === 'tomato');
+    check('farmv1: planting is no longer fallow', G.farmFallow(p, G.FPLOT.t) === false);
+    const st0 = G.cropStageFor(p.gx, p.gz, 0, G.FPLOT.t);
+    check('farmv1: planted crop restarts at sprout', st0 === 0, 'stage=' + st0);
+    G.FPLOT.t += 61;   // past the cooldown: stages go time-based again
+    const sa = G.cropStageFor(p.gx, p.gz, 3, G.FPLOT.t);
+    const sb = G.cropStageFor(p.gx, p.gz, 3, G.FPLOT.t);
+    check('farmv1: stage progression is deterministic (pure function)', sa === sb && sa >= 0 && sa <= 2,
+      'stage=' + sa);
+
+    /* planting wins over pet-tame near a fallow plot */
+    G.FPLOT.harvestT.set(pkey, G.FPLOT.t);
+    G.FPLOT.planted.delete(pkey);
+    check('farmv1: fallow can be forced for the priority test', G.farmFallow(p, G.FPLOT.t) === true);
+    G.PET.hintOn = true;
+    const plantWins = G.farmTryPlant();
+    G.PET.hintOn = false;
+    check('farmv1: planting wins over pet-tame', plantWins === true &&
+      G.FPLOT.planted.get(pkey) === 'tomato', 'planted=' + G.FPLOT.planted.get(pkey));
+
+    /* blocked while driving */
+    G.CAR.driving = true;
+    frame(3);
+    check('farmv1: plant is blocked while driving', G.farmTryPlant() === false);
+    check('farmv1: harvest is blocked while driving', G.farmTryHarvest() === false);
+    G.CAR.driving = false;
+    /* driving seats the player in the car (chunk jump unloads the farm):
+       walk back to the plot and re-acquire it */
+    G.player.position.set(plot0.x, groundY(plot0.x, plot0.z), plot0.z);
+    frame(3);
+    const pBack = G.FPLOT.active.find(q => q.gx === pChunk[0] && q.gz === pChunk[1]);
+    check('farmv1: plot is active again after the drive', !!pBack);
+    const j2 = G.FPLOT.active.indexOf(pBack), base2 = j2 * 24;
+
+    /* harvest the tomato plot: produce + cash band + type revert */
+    let ripeT2 = -1;
+    for (let t = Math.ceil(G.FPLOT.t) + 1; t <= G.FPLOT.t + 900 && ripeT2 < 0; t += 5)
+      if (G.farmPlotMatureCount(p, t) >= 8) ripeT2 = t;
+    check('farmv1: the tomato plot ripens', ripeT2 >= 0, 'ripeT2=' + ripeT2);
+    if (ripeT2 >= 0) {
+      G.FPLOT.t = ripeT2;
+      /* mature tint: repaint synchronously at exactly ripeT2 (the test jumps
+         the farm clock, so the 1Hz ticker cannot be relied on), then read */
+      G.farmPaintCrops();
+      let midx = -1;
+      for (let k = 0; k < 24 && midx < 0; k++) {
+        const sd = G.FPLOT.seed[base2 + k];
+        if (sd && G.cropStageFor(sd.gx, sd.gz, sd.k, ripeT2) === 2) midx = base2 + k;
+      }
+      check('farmv1: a mature instance exists to tint', midx >= 0, 'idx=' + midx);
+      if (midx >= 0) {
+        const tc = G.FARM_MATURE_COL.tomato.clone();
+        G.CROP_IM.getColorAt(midx, tc);
+        check('farmv1: mature instance wears the tomato tint', tc.getHex() === 0xd8452e,
+          'hex=' + tc.getHex().toString(16));
+      }
+      G.player.position.set(p.x, groundY(p.x, p.z), p.z);
+      frame(15);   // settles nearIdx/nearMature/hint/chip for the harvest below
+      const tom0 = G.FOOD.tomato, cash2 = G.cash;
+      check('farmv1: tomato harvest via the real gate', G.farmTryHarvest() === true);
+      const d2 = G.cash - cash2;
+      check('farmv1: tomato cash in the tomato band (+$18..$30)', d2 >= 18 && d2 <= 30, 'delta=' + d2);
+      check('farmv1: tomato harvest yields tomatoes', G.FOOD.tomato > tom0, 'tomato=' + G.FOOD.tomato);
+      check('farmv1: toast names the tomato crop',
+        G.toastEl.textContent.indexOf('TOMATO') > 0, G.toastEl.textContent);
+      check('farmv1: plot reverts to ambient corn after harvest',
+        !G.FPLOT.planted.has(pkey));
+    }
+
+    /* cooking: pumpkin pie + field hash + meal selling at the diner */
+    G.closeShop();
+    G.FOOD.pumpkin = 3; G.updateFoodHUD();
+    G.openRest({ name: 'TEST DINER' }, 0);
+    const cookIdx = G.REST_ITEMS.findIndex(it => it.state() === 'COOK');
+    G.buyItem(cookIdx);
+    const pieIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'PUMPKIN PIE');
+    check('farmv1: pie row is BUY with 3 pumpkin', G.COOK_ITEMS[pieIdx].state() === 'BUY');
+    G.buyItem(pieIdx);
+    check('farmv1: 3 pumpkin -> PUMPKIN PIE',
+      G.FOOD.pie === 1 && G.FOOD.pumpkin === 0, 'pumpkin=' + G.FOOD.pumpkin + ' pie=' + G.FOOD.pie);
+    G.FOOD.corn = 2; G.FOOD.tomato = 2; G.updateFoodHUD();
+    const hashIdx = G.COOK_ITEMS.findIndex(it => it.dishName === 'FIELD HASH');
+    check('farmv1: hash row is BUY with 2 corn + 2 tomato', G.COOK_ITEMS[hashIdx].state() === 'BUY');
+    G.buyItem(hashIdx);
+    check('farmv1: mixed cost is deducted exactly',
+      G.FOOD.hash === 1 && G.FOOD.corn === 0 && G.FOOD.tomato === 0,
+      'corn=' + G.FOOD.corn + ' tomato=' + G.FOOD.tomato + ' hash=' + G.FOOD.hash);
+    G.buyItem(G.COOK_ITEMS.length - 1);   // BACK to the diner menu
+    for (const k of G.FOOD_ORDER) G.FOOD[k] = 0;
+    G.FOOD.soup = 2; G.FOOD.pie = 1; G.updateFoodHUD();
+    const sellIdx = G.REST_ITEMS.findIndex(it => it.dishName === 'MEALS');
+    check('farmv1: diner menu has a SELL MEALS row', sellIdx === 3, 'idx=' + sellIdx);
+    check('farmv1: sell row is BUY with dishes carried', G.REST_ITEMS[sellIdx].state() === 'BUY');
+    const cash3 = G.cash;
+    G.buyItem(sellIdx);
+    check('farmv1: selling 2 soup + 1 pie pays $70',
+      G.cash - cash3 === 70 && G.FOOD.soup === 0 && G.FOOD.pie === 0,
+      'delta=' + (G.cash - cash3));
+    check('farmv1: sell toast confirms', G.toastEl.textContent === 'SOLD MEALS', G.toastEl.textContent);
+    check('farmv1: cash float shows the sale', G.cashFloatEl.textContent === '+$70',
+      G.cashFloatEl.textContent);
+    G.closeShop();
+
+    /* legacy 6-part pantry still loads */
+    G.foodLoadStr('1:2:3:4:5:6');
+    check('farmv1: legacy 6-part pantry loads into the first six keys',
+      G.foodSaveStr() === '1:2:3:4:5:6:0:0:0', G.foodSaveStr());
+    for (const k of G.FOOD_ORDER) G.FOOD[k] = 0;
+    G.updateFoodHUD();
+
+    /* growing chip state on a non-ripe, non-fallow moment (1s of stability
+       so the frame cadence cannot straddle a stage boundary) */
+    let growT = -1;
+    for (let t = Math.ceil(G.FPLOT.t) + 61; t <= G.FPLOT.t + 900 && growT < 0; t += 5)
+      if (G.farmPlotMatureCount(pBack, t) < 8 && G.farmPlotMatureCount(pBack, t + 1) < 8) growT = t;
+    check('farmv1: a stable growing moment exists', growT >= 0, 'growT=' + growT);
+    if (growT >= 0) {
+      G.FPLOT.t = growT;
+      G.player.position.set(pBack.x, groundY(pBack.x, pBack.z), pBack.z);
+      frame(15);
+      check('farmv1: chip shows FARM - GROWING n/24',
+        G.farmChipEl.textContent.indexOf('FARM - GROWING') === 0, G.farmChipEl.textContent);
+    }
+  }
+
+  /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
+  check('farmv1-static: InstancedMesh literal sites pin at 46',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('farmv1-static: single renderer.render call site',
+    (html.match(/renderer\.render\(/g) || []).length === 1);
+  check('farmv1-static: Math.random lines pin at 91 (seeded PRNG only)',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 91);
+  check('farmv1-static: light count pins at 6 (zero new lights)',
+    (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
+  check('farmv1-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('farmv1-static: no new audio nodes (sfxBlip/sfxSizzle reuse the idiom)',
+    (html.match(/\.createOscillator\(/g) || []).length === 10 &&
+    (html.match(/\.createGain\(/g) || []).length === 20 &&
+    (html.match(/AudioContext/g) || []).length === 2);
+  check('farmv1-static: no TODO/FIXME markers', !/\b(TODO|FIXME)\b/.test(html));
+  check('farmv1-static: no em dashes', !html.includes('—'));
+  {
+    const dSrc = html.slice(
+      html.indexOf('FARMING v1 DELTAS'),
+      html.indexOf('/* ================== COOKING + FOOD'));
+    check('farmv1-static: delta block adds no meshes, one THREE.Color literal (mature tints)',
+      dSrc.length > 1000 && (dSrc.match(/new THREE\./g) || []).length === 1,
+      (dSrc.match(/new THREE\./g) || []).length + ' THREE news');
+  }
 }
 
 /* ================= 20. SOCCER MINI-GAME (Phase 5 sports) ================= */

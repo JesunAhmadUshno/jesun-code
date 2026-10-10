@@ -61,6 +61,8 @@ globalThis.__R3D = {
   redistributeFarm, farmRectDist, farmPlotMatureCount, resolveFarmFoot,
   FPLOT, CROP_IM, CROP_MAT, CROP_TIME, ZONE_PADS, FARM_PLOT_CAP,
   FARM_MATURE_NEED, FARM_COOL, FARM_STAGE_LEN, FARM_PER_PLOT,
+  farmFallow, farmTryPlant, farmPlant, cycleFarmSeed,   /* Phase 5 farming v1 */
+  CROPS, FARM_SEED_ORDER, farmChipEl, updateFarmChip,
   player, P, CAR, HORSE, BUS, TX, BIKE, BC, SC, PET,
   get cash() { return cash; }, set cash(v) { cash = v; },
   get shopOpen() { return shopOpen; },
@@ -169,15 +171,45 @@ if (plot0) {
       delta >= 15 && delta <= 25, 'delta=' + delta);
     check('farm: harvest toast fires',
       G.toastEl.textContent.indexOf('HARVEST +$') === 0, G.toastEl.textContent);
-    /* E re-arm: the same press inside the cooldown says NOT RIPE YET */
-    frame(15);   // let the stage repaint + hint recompute see the cooldown
+    /* E re-arm (farming v1): the same press inside the fallow window replants
+       the plot with the selected seed (free). Planting wins over pet-tame. */
+    frame(15);   // let the stage repaint + hint recompute see the fallow state
+    check('farm: plot is fallow right after harvest',
+      G.farmFallow(p, G.FPLOT.t) === true);
+    check('farm: fallow hint offers planting',
+      G.farmHintEl.textContent === 'PLANT CORN [E]',
+      G.farmHintEl.textContent);
+    G.PET.hintOn = true;   // a tame prompt is up: planting still wins
     const cash1 = G.cash;
-    press('KeyE');
-    check('farm: E inside the cooldown shows NOT RIPE YET, cash unchanged',
-      G.toastEl.textContent === 'NOT RIPE YET' && G.cash === cash1,
-      'toast=' + G.toastEl.textContent + ' cash=' + G.cash);
-    check('farm: harvested plot is all sprout during the cooldown',
+    const planted = G.farmTryPlant();
+    G.PET.hintOn = false;
+    check('farm: planting wins over pet-tame near a fallow plot', planted === true);
+    check('farm: plant toast names the seed', G.toastEl.textContent === 'PLANTED CORN (FREE SEEDS)',
+      G.toastEl.textContent);
+    check('farm: planting is free (cash unchanged)', G.cash === cash1, 'cash=' + G.cash);
+    check('farm: planted type is recorded on the plot',
+      G.FPLOT.planted.get(p.gx + ',' + p.gz) === 'corn');
+    check('farm: planted plot restarts at sprout',
       G.farmPlotMatureCount(p, G.FPLOT.t) === 0);
+    /* the replant window closes after FARM_COOL seconds */
+    G.FPLOT.t += G.FARM_COOL + 1;
+    frame(15);
+    check('farm: fallow window expires after the cooldown',
+      G.farmFallow(p, G.FPLOT.t) === false);
+    /* past the window the E press is harvest-or-NOT-RIPE again (phase-dependent) */
+    const cash2 = G.cash;
+    frame(15);
+    if (G.FPLOT.nearMature) {
+      press('KeyE');
+      const d2 = G.cash - cash2;
+      check('farm: E harvests the replanted plot once ripe (+$15..$25)',
+        d2 >= 15 && d2 <= 25, 'delta=' + d2);
+    } else {
+      press('KeyE');
+      check('farm: E on a growing plot shows NOT RIPE YET, cash unchanged',
+        G.toastEl.textContent === 'NOT RIPE YET' && G.cash === cash2,
+        'toast=' + G.toastEl.textContent + ' cash=' + G.cash);
+    }
   }
 }
 

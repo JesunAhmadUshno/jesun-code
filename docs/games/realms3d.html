@@ -302,6 +302,27 @@
     font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
+  /* ---- farming v1 HUD (Phase 5): farm chip reuses the sports-chip chip
+         language, stacked below #tennischip; clickable (touch works) to cycle
+         the selected seed. DOM only, zero draw calls. ---- */
+  #farmchip {
+    position: absolute; top: 670px; right: 18px; color: #7dff9a; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  /* ---- cash float (Phase 5 farming juice): a single reusable DOM layer that
+         pops a "+$N" above the cash HUD and fades. Zero draw calls. ---- */
+  #cashfloat {
+    position: absolute; top: 108px; right: 26px; color: #7dff9a; font-size: 15px;
+    font-weight: bold; letter-spacing: 2px; opacity: 0; pointer-events: none;
+    text-shadow: 0 1px 3px #000; white-space: nowrap;
+  }
+  #cashfloat.go { animation: cashfloatup .9s ease-out; }
+  @keyframes cashfloatup {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-34px); }
+  }
   /* ---- cooking HUD (Phase 5): food chip reuses the pet-chip chip language,
          stacked below it; clickable (touch works) to open the eat panel.
          DOM only, zero draw calls. ---- */
@@ -437,6 +458,8 @@
   <div id="petchip">PET</div>
   <div id="foodchip"></div>
   <div id="farmhint"></div>
+  <div id="farmchip"></div>
+  <div id="cashfloat"></div>
   <div id="socchip"></div>
   <div id="kickhint"></div>
   <div id="hoopchip"></div>
@@ -5669,7 +5692,7 @@ function renderShopRows() {
     }
     const pr = document.createElement('span');
     pr.className = 'p';
-    pr.textContent = it.cost ? it.cost + ' CORN'       // Phase 5 cooking: corn-priced rows
+    pr.textContent = it.cost ? foodCostStr(it.cost)     // Phase 5 farming v1: produce-priced rows
       : st === 'OWNED' ? 'OWNED' : st === 'NA' ? 'N/A' : '$' + it.price;
     row.appendChild(key); row.appendChild(name); row.appendChild(pr);
     row.addEventListener('click', () => buyItem(idx));
@@ -5726,7 +5749,7 @@ function buyItem(i) {
   }
   if (st !== 'BUY') { sfxDenied(); return; }
   if (cash < it.price) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }
-  if (it.cost && FOOD.corn < it.cost) { sfxDenied(); toast('NOT ENOUGH CORN'); return; }
+  if (it.cost && !foodCanAfford(it.cost)) { sfxDenied(); toast('NOT ENOUGH PRODUCE'); return; }
   cash -= it.price; updateCashHUD();
   it.buy();
   sfxBuy();
@@ -6285,9 +6308,13 @@ const REST_ITEMS = [
   { key: '2', label: () => 'FULL HEAL TO 100 HP', price: 40,
     state: () => P.hp >= 100 ? 'NA' : 'BUY',
     buy() { P.hp = 100; updateHpHUD(); } },
-  { key: '3', label: () => 'COOK FROM HARVEST (' + FOOD.corn + ' CORN)', price: 0,
-    state: () => FOOD.corn > 0 ? 'COOK' : 'NA',   // Phase 5 cooking: swaps the panel to COOK_ITEMS
+  { key: '3', label: () => 'COOK FROM HARVEST (' + foodRawTotal() + ' PRODUCE)', price: 0,
+    state: () => foodRawTotal() > 0 ? 'COOK' : 'NA',   // Phase 5 cooking: swaps the panel to COOK_ITEMS
     buy() {} },
+  { key: '4', label: () => 'SELL MEALS (' + foodDishCount() + ')', price: 0,
+    dishName: 'MEALS', verb: 'SOLD',   // Phase 5 farming v1: raw -> meal = more cash
+    state: () => foodDishCount() > 0 ? 'BUY' : 'NA',
+    buy() { const v = foodSellValue(); cash += v; updateCashHUD(); floatCash('+$' + v); updateFoodHUD(); } },
 ];
 let shopRest = false, shopRestSlot = -1, SHOP_LIST = SHOP_ITEMS;
 function openRest(R, slot) {
@@ -6748,7 +6775,14 @@ function resolveBldgFoot() {
    count, reusing the sfxBlip idiom. Only mature plots harvest; the rest show
    NOT RIPE YET. Foot-only rect collision (vehicles pass over crops). Crops
    get a night emissive ramp from the day/night tick: readable, zero new
-   lights. */
+   lights.
+   FARMING v1 (Phase 5 founder spec): after a harvest the plot is fallow for
+   FARM_COOL seconds and E replants it with the selected seed (free seeds,
+   corn/tomato/pumpkin, chip click cycles the seed, planting wins over
+   pet-tame near a fallow plot). Planted plots keep the crop type until the
+   next harvest, then revert to ambient corn. Mature tint + type scale make
+   the crop read (one shared geometry, one InstancedMesh, zero new draws).
+   Harvest juice: scale pop on the plot instances + a "+$N" cash float. */
 const FARM_ROWS = 4, FARM_COLS = 6, FARM_PER_PLOT = FARM_ROWS * FARM_COLS;   // 24 plants
 const FARM_CROP_CAP = FARM_PLOT_CAP * FARM_PER_PLOT;                         // 144 instances
 const FARM_STAGE_LEN = 75;      // seconds per growth stage (sprout/growing/mature)
@@ -6757,7 +6791,8 @@ const FARM_MATURE_NEED = 8;     // mature plants that call a plot ripe
 const FARM_PLOT_HX = 5, FARM_PLOT_HZ = 3.5;   // tilled rect half extents
 const FARM_HARVEST_R = 3;       // E reach from the plot edge
 const FPLOT = { active: [], foot: [], seed: new Array(FARM_CROP_CAP).fill(null),
-  harvestT: new Map(), t: 0, nearIdx: -1, nearMature: false, stageT: 0, hintState: '' };
+  harvestT: new Map(), t: 0, nearIdx: -1, nearMature: false, stageT: 0, hintState: '',
+  planted: new Map(), pop: new Map(), harvested: 0, seedSel: 'corn' };
 
 /* corn-like plant: tapered stalk + 4 drooping cross-plane leaves + a
    golden head. Baked vertex colors, pseudo-AO darkens the base. */
@@ -6875,19 +6910,27 @@ const FARM_STAGE_SCALE = [0.38, 0.68, 1.0];
 const FARM_STAGE_COL = [new THREE.Color(0x9ae06a),   // sprout: bright green
                         new THREE.Color(0x5da83a),   // growing: leaf green
                         new THREE.Color(0xd8b84a)];  // mature: golden
-/* repaint every active crop instance (scale + tint by stage); 1 Hz, chunk-scoped */
+/* repaint every active crop instance (scale + tint by stage and crop type);
+   1 Hz, chunk-scoped. A plot harvested within the last 0.5s pops (juice). */
 function farmPaintCrops() {
   const t = FPLOT.t;
   for (let i = 0; i < CROP_IM.count; i++) {
     const sd = FPLOT.seed[i];
     if (!sd) continue;
+    const key = sd.gx + ',' + sd.gz;
+    const type = FPLOT.planted.get(key) || 'corn';
     const st = cropStageFor(sd.gx, sd.gz, sd.k, t);
-    const sc = FARM_STAGE_SCALE[st];
+    let sc = FARM_STAGE_SCALE[st] * CROPS[type].tscale;
+    const pop0 = FPLOT.pop.get(key);
+    if (pop0 !== undefined) {
+      const pt = (t - pop0) / 0.5;
+      if (pt < 1) sc *= 1 + 0.7 * (1 - pt);   // harvest pop, decays to 1.0
+    }
     _aE.set(0, sd.yaw, 0); _aQ.setFromEuler(_aE);
     _aP.set(sd.x, sd.y, sd.z); _aS.set(sc, sc, sc);
     _aM.compose(_aP, _aQ, _aS);
     CROP_IM.setMatrixAt(i, _aM);
-    CROP_IM.setColorAt(i, FARM_STAGE_COL[st]);
+    CROP_IM.setColorAt(i, st === 2 ? FARM_MATURE_COL[type] : FARM_STAGE_COL[st]);
   }
   CROP_IM.instanceMatrix.needsUpdate = true;
   if (CROP_IM.instanceColor) CROP_IM.instanceColor.needsUpdate = true;
@@ -6953,11 +6996,15 @@ function redistributeFarm(pcx, pcz) {
   farmPaintCrops();
 }
 
-/* harvest: $15 + $2 per ripe row ($15..$23), plot resets to sprout */
+/* harvest: crop-type cash ($15..$30 by type and ripe rows, deterministic),
+   1 produce per ripe row into the pantry. The plot goes fallow for
+   FARM_COOL seconds (the replant window), then reverts to ambient corn. */
 function farmHarvest(j) {
   const p = FPLOT.active[j];
   if (!p) return;
   const tNow = FPLOT.t, base = j * FARM_PER_PLOT;
+  const type = FPLOT.planted.get(p.gx + ',' + p.gz) || 'corn';
+  const C = CROPS[type];
   let rows = 0;
   for (let r = 0; r < FARM_ROWS; r++) {
     let m = 0;
@@ -6967,14 +7014,18 @@ function farmHarvest(j) {
     }
     if (m >= 3) rows++;
   }
-  const reward = 15 + rows * 2;
+  const reward = Math.min(C.cash[1], C.cash[0] + rows * 2);
   cash += reward; updateCashHUD();
-  const cornGain = rows;                               // Phase 5 cooking: 1 corn per ripe row
-  FOOD.corn = Math.min(FOOD_MAX, FOOD.corn + cornGain);
+  floatCash('+$' + reward);                            // juice: cash float
+  const gain = rows;                                   // 1 produce per ripe row
+  FOOD[C.produce] = Math.min(FOOD_MAX, FOOD[C.produce] + gain);
   updateFoodHUD();
+  FPLOT.planted.delete(p.gx + ',' + p.gz);             // revert to ambient corn
   FPLOT.harvestT.set(p.gx + ',' + p.gz, tNow);
+  FPLOT.pop.set(p.gx + ',' + p.gz, tNow);              // juice: scale pop
+  FPLOT.harvested++;
   farmPaintCrops();                                    // immediate sprout look
-  toast('HARVEST +$' + reward + ' +' + cornGain + ' CORN');
+  toast('HARVEST +$' + reward + ' +' + gain + ' ' + C.name);
   sfxBlip(660, 0.12, 'square', 0.25);                  // existing idiom, no new nodes
   setTimeout(() => sfxBlip(880, 0.16, 'square', 0.25), 120);
 }
@@ -7023,12 +7074,19 @@ function resolveFarmFoot() {
 /* ---- farm ticker: wind clock + 1 Hz stage paint + E/hint proximity ---- */
 const farmHintEl = document.getElementById('farmhint');
 farmHintEl.addEventListener('click', () => {
-  if (FPLOT.nearMature && FPLOT.nearIdx >= 0) farmHarvest(FPLOT.nearIdx);
+  if (FPLOT.nearIdx < 0) return;
+  if (FPLOT.nearMature) farmHarvest(FPLOT.nearIdx);
+  else if (farmFallow(FPLOT.active[FPLOT.nearIdx], FPLOT.t))
+    farmPlant(FPLOT.nearIdx, FPLOT.seedSel);
 });
 let farmTickT = 0;
 function farmTick(dt) {
   FPLOT.t += dt;
   CROP_TIME.value = FPLOT.t;                       // shader sway, zero CPU per crop
+  if (FPLOT.pop.size > 0) {                        // harvest pop animates at tick rate
+    FPLOT.pop.forEach((t0, key) => { if (FPLOT.t - t0 >= 0.55) FPLOT.pop.delete(key); });
+    farmPaintCrops();
+  }
   FPLOT.stageT += dt;
   if (FPLOT.stageT >= 1) { FPLOT.stageT = 0; farmPaintCrops(); }
   farmTickT += dt;
@@ -7048,7 +7106,10 @@ function farmTick(dt) {
     if (FPLOT.nearIdx >= 0)
       FPLOT.nearMature = farmPlotMatureCount(FPLOT.active[FPLOT.nearIdx], FPLOT.t) >= FARM_MATURE_NEED;
   }
-  const want = FPLOT.nearIdx < 0 ? '' : (FPLOT.nearMature ? 'ready' : 'growing');
+  updateFarmChip();   // Phase 5 farming v1: status chip, 0.15s cadence
+  const nearP = FPLOT.nearIdx >= 0 ? FPLOT.active[FPLOT.nearIdx] : null;
+  const want = FPLOT.nearIdx < 0 ? '' : (FPLOT.nearMature ? 'ready' :
+    (nearP && farmFallow(nearP, FPLOT.t) ? 'fallow' : 'growing'));
   if (want === FPLOT.hintState) return;
   FPLOT.hintState = want;
   if (want === '') { farmHintEl.style.opacity = 0; return; }
@@ -7057,6 +7118,10 @@ function farmTick(dt) {
     farmHintEl.textContent = 'HARVEST [E]';
     farmHintEl.style.color = '#0c0e0a';
     farmHintEl.style.background = '#ffd24a';
+  } else if (want === 'fallow') {
+    farmHintEl.textContent = 'PLANT ' + CROPS[FPLOT.seedSel].name + ' [E]';
+    farmHintEl.style.color = '#0c0e0a';
+    farmHintEl.style.background = '#7dff9a';
   } else {
     farmHintEl.textContent = 'GROWING...';
     farmHintEl.style.color = '#8b937a';
@@ -7065,6 +7130,100 @@ function farmTick(dt) {
 }
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(farmTick));
+
+/* ================== FARMING v1 DELTAS (Phase 5 food/farming) ==================
+   Player planting, harvest juice, the #farmchip status chip, shared juice
+   helpers (cash float, sizzle). DOM + instance recolor only: zero new draw
+   calls, zero new meshes, zero new lights, zero new audio nodes, zero new
+   keybinds. Planted crop types are session-only (persistence deferred);
+   the food pantry itself stays in save schema v3. */
+const CROPS = {
+  corn:    { name: 'CORN',    mature: 0xd8b84a, tscale: 1.0,  cash: [15, 23], produce: 'corn' },
+  tomato:  { name: 'TOMATO',  mature: 0xd8452e, tscale: 0.85, cash: [18, 26], produce: 'tomato' },
+  pumpkin: { name: 'PUMPKIN', mature: 0xe07820, tscale: 0.9,  cash: [22, 30], produce: 'pumpkin' },
+};
+const FARM_SEED_ORDER = ['corn', 'tomato', 'pumpkin'];
+const FARM_MATURE_COL = {};
+for (const _ck of FARM_SEED_ORDER) FARM_MATURE_COL[_ck] = new THREE.Color(CROPS[_ck].mature);
+
+/* a plot is fallow (plantable) for FARM_COOL seconds after a harvest, until
+   the player replants it; unplanted plots revert to ambient corn */
+function farmFallow(p, tNow) {
+  if (!p) return false;
+  const hv = FPLOT.harvestT.get(p.gx + ',' + p.gz);
+  return hv !== undefined && (tNow - hv) < FARM_COOL &&
+    !FPLOT.planted.has(p.gx + ',' + p.gz);
+}
+/* plant the selected seed on a fallow plot: free seeds for v1, growth
+   restarts at sprout. Returns false when there is nothing to plant. */
+function farmPlant(j, type) {
+  const p = FPLOT.active[j];
+  if (!farmFallow(p, FPLOT.t)) return false;
+  if (!CROPS[type]) type = 'corn';
+  FPLOT.planted.set(p.gx + ',' + p.gz, type);
+  FPLOT.harvestT.set(p.gx + ',' + p.gz, FPLOT.t);   // fresh sprout cycle
+  farmPaintCrops();
+  toast('PLANTED ' + CROPS[type].name + ' (FREE SEEDS)');
+  sfxBlip(520, 0.1, 'square', 0.2);
+  setTimeout(() => sfxBlip(780, 0.12, 'square', 0.2), 100);
+  return true;
+}
+/* E press: plant on a fallow plot. Planting wins over pet-tame near a plot
+   (Phase 5 spec); driving/riding/dead/shopping are already excluded because
+   nearIdx is only computed on foot. */
+function farmTryPlant() {
+  if (FPLOT.nearIdx < 0) return false;
+  if (!playing() || P.dead || shopOpen) return false;
+  const p = FPLOT.active[FPLOT.nearIdx];
+  if (!farmFallow(p, FPLOT.t)) return false;
+  farmPlant(FPLOT.nearIdx, FPLOT.seedSel);
+  return true;
+}
+
+/* ---- cash float: one reusable DOM layer, "+$N" pops above the cash HUD ---- */
+const cashFloatEl = document.getElementById('cashfloat');
+function floatCash(txt) {
+  cashFloatEl.textContent = txt;
+  cashFloatEl.classList.remove('go');
+  void cashFloatEl.offsetWidth;          // restart the CSS animation
+  cashFloatEl.classList.add('go');
+}
+/* ---- procedural sizzle: rapid descending blips, sfxBlip idiom only ---- */
+function sfxSizzle() {
+  sfxBlip(1400, 0.05, 'square', 0.1);
+  setTimeout(() => sfxBlip(1100, 0.05, 'square', 0.1), 70);
+  setTimeout(() => sfxBlip(900, 0.06, 'square', 0.1), 140);
+  setTimeout(() => sfxBlip(1300, 0.05, 'square', 0.08), 210);
+}
+
+/* ---- #farmchip status chip: READY! / GROWING n / HARVESTED n. Click cycles
+        the selected seed (touch works). ---- */
+const farmChipEl = document.getElementById('farmchip');
+function cycleFarmSeed() {
+  const i = FARM_SEED_ORDER.indexOf(FPLOT.seedSel);
+  FPLOT.seedSel = FARM_SEED_ORDER[(i + 1) % FARM_SEED_ORDER.length];
+  toast('SEED: ' + CROPS[FPLOT.seedSel].name + ' (FREE)');
+  sfxBlip(700, 0.08, 'square', 0.18);
+}
+farmChipEl.addEventListener('click', cycleFarmSeed);
+function updateFarmChip() {
+  if (FPLOT.nearIdx < 0) { farmChipEl.style.display = 'none'; return; }
+  const p = FPLOT.active[FPLOT.nearIdx];
+  farmChipEl.style.display = 'block';
+  if (FPLOT.nearMature) {
+    farmChipEl.textContent = 'FARM - READY!';
+    farmChipEl.style.color = '#ffd24a';
+  } else if (p && farmFallow(p, FPLOT.t)) {
+    farmChipEl.textContent = 'FARM - HARVESTED ' + FPLOT.harvested;
+    farmChipEl.style.color = '#8b937a';
+  } else if (p) {
+    farmChipEl.textContent = 'FARM - GROWING ' +
+      farmPlotMatureCount(p, FPLOT.t) + '/' + FARM_PER_PLOT;
+    farmChipEl.style.color = '#7dff9a';
+  } else {
+    farmChipEl.style.display = 'none';
+  }
+}
 
 /* ================== COOKING + FOOD (Phase 5 food/farming) ==================
    Harvested crops now also yield CORN produce into a small food inventory.
@@ -7078,18 +7237,66 @@ queueMicrotask(() => worldTickers.push(farmTick));
    data URLs used only in the DOM rows: zero draw calls, zero meshes, zero
    lights, zero audio nodes, zero new keybinds. Save schema v2 -> v3 adds
    the food field. */
-const FOOD_ORDER = ['corn', 'roasted', 'soup', 'hash', 'fritters', 'scraps'];
-const FOOD = { corn: 0, roasted: 0, soup: 0, hash: 0, fritters: 0, scraps: 0 };
+const FOOD_ORDER = ['corn', 'roasted', 'soup', 'hash', 'fritters', 'scraps',
+                    'tomato', 'pumpkin', 'pie'];
+const FOOD = { corn: 0, roasted: 0, soup: 0, hash: 0, fritters: 0, scraps: 0,
+               tomato: 0, pumpkin: 0, pie: 0 };
 const FOOD_MAX = 999;
-/* recipe table: ingredient list -> dish. Heals beat the diner $40 full heal
-   per dollar (diner meal: $15 -> +40HP; soup: 3 corn ~= $18 of harvest -> +65HP). */
+/* 'fritters' stays as a legacy key for v3 save compat; no v1 recipe makes it.
+   recipe table: ingredient list -> dish. Cooking beats the diner on value:
+   diner meal $15 -> +40HP; tomato soup (3 tomato ~= $18 of harvest) -> +70HP;
+   every dish also sells for real cash at the diner (raw -> meal = more cash). */
 const RECIPES = [
-  { id: 'roasted',  name: 'ROASTED CORN',  cost: 2, hp: 40 },
-  { id: 'soup',     name: 'CORN SOUP',     cost: 3, hp: 65 },
-  { id: 'hash',     name: 'FIELD HASH',    cost: 4, hp: 80 },
-  { id: 'fritters', name: 'CORN FRITTERS', cost: 5, hp: 95 },
-  { id: 'scraps',   name: 'SCRAPS',        cost: 1, hp: 15 },
+  { id: 'roasted', name: 'ROASTED CORN', cost: { corn: 2 },            hp: 40, sell: 12 },
+  { id: 'soup',    name: 'TOMATO SOUP',  cost: { tomato: 3 },          hp: 70, sell: 22 },
+  { id: 'pie',     name: 'PUMPKIN PIE',  cost: { pumpkin: 3 },         hp: 80, sell: 26 },
+  { id: 'hash',    name: 'FIELD HASH',   cost: { corn: 2, tomato: 2 }, hp: 95, sell: 34 },
+  { id: 'scraps',  name: 'SCRAPS',       cost: { any: 1 },             hp: 15, sell: 4 },
 ];
+const DISH_SELL = {};
+for (const _r of RECIPES) DISH_SELL[_r.id] = _r.sell;
+const DISH_IDS = RECIPES.map(_r => _r.id);
+/* pantry helpers: cost is {produce: n} or {any: n} (scraps fallback) */
+function foodRawTotal() { return FOOD.corn + FOOD.tomato + FOOD.pumpkin; }
+function foodDishCount() {
+  let n = 0;
+  for (const id of DISH_IDS) n += FOOD[id] || 0;
+  return n + (FOOD.fritters || 0);
+}
+function foodCanAfford(cost) {
+  for (const k of Object.keys(cost)) {
+    if (k === 'any') { if (foodRawTotal() < cost.any) return false; }
+    else if ((FOOD[k] || 0) < cost[k]) return false;
+  }
+  return true;
+}
+function foodSpend(cost) {
+  for (const k of Object.keys(cost)) {
+    if (k === 'any') {
+      let n = cost.any;
+      for (const rk of ['corn', 'tomato', 'pumpkin']) {
+        const take = Math.min(n, FOOD[rk]);
+        FOOD[rk] -= take; n -= take;
+      }
+    } else FOOD[k] -= cost[k];
+  }
+}
+/* '2 CORN + 2 TOMATO' style cost label for the shop rows */
+function foodCostStr(cost) {
+  const parts = [];
+  for (const k of Object.keys(cost)) {
+    if (k === 'any') parts.push(cost.any + ' ANY');
+    else parts.push(cost[k] + ' ' + CROPS[k].name);
+  }
+  return parts.join(' + ');
+}
+/* sell every carried dish at the diner; returns the cash gained */
+function foodSellValue() {
+  let v = 0;
+  for (const id of DISH_IDS) { v += (FOOD[id] || 0) * DISH_SELL[id]; FOOD[id] = 0; }
+  v += (FOOD.fritters || 0) * 30; FOOD.fritters = 0;   // legacy stock still sells
+  return v;
+}
 
 /* ---- food icons: one 288x48 offscreen canvas holds six 48x48 procedural
         icons (fixed geometry, no randomness), sliced into data URLs for the
@@ -7167,15 +7374,52 @@ function paintScrapsIcon(g, S) {
   g.fillStyle = '#4a443c';
   g.fillRect(21, 24, 3, 3); g.fillRect(14, 31, 3, 3); g.fillRect(30, 31, 3, 3);
 }
+function paintTomatoIcon(g, S) {
+  _ficBg(g, S);
+  g.fillStyle = '#d8452e';                                     // tomato body
+  g.beginPath(); g.arc(24, 27, 14, 0, 6.2832); g.fill();
+  g.fillStyle = '#b03220';                                     // shading
+  g.beginPath(); g.arc(19, 31, 9, 0, 6.2832); g.fill();
+  g.fillStyle = '#3e7a28';                                     // calyx star
+  for (let i = 0; i < 5; i++) {
+    const a = i * 1.2566 - 1.5708;
+    g.fillRect(24 + Math.cos(a) * 7 - 2, 14 + Math.sin(a) * 7 - 1, 4, 3);
+  }
+  g.fillStyle = '#2e5a1e'; g.fillRect(22, 8, 4, 8);            // stem
+}
+function paintPumpkinIcon(g, S) {
+  _ficBg(g, S);
+  g.fillStyle = '#c96a1e';                                     // ribbed body
+  for (let i = 0; i < 5; i++) {
+    g.beginPath(); g.ellipse(24, 27, 8 + Math.abs(i - 2) * -1.5 + 6, 13, 0, 0, 6.2832); g.fill();
+  }
+  g.fillStyle = '#e07820';
+  g.beginPath(); g.ellipse(24, 27, 9, 12, 0, 0, 6.2832); g.fill();
+  g.fillStyle = '#a85412';                                     // ribs
+  for (const x of [15, 33]) { g.beginPath(); g.ellipse(x, 27, 3, 11, 0, 0, 6.2832); g.fill(); }
+  g.fillStyle = '#3e5a1e'; g.fillRect(22, 8, 5, 8);            // stem
+}
+function paintPieIcon(g, S) {
+  _ficBg(g, S);
+  g.fillStyle = '#c98a3a';                                     // crust
+  g.beginPath(); g.moveTo(8, 38); g.lineTo(40, 38); g.lineTo(24, 8); g.closePath(); g.fill();
+  g.fillStyle = '#e07820';                                     // filling
+  g.beginPath(); g.moveTo(13, 34); g.lineTo(35, 34); g.lineTo(24, 13); g.closePath(); g.fill();
+  g.fillStyle = '#f2ede0';                                     // steam
+  g.fillRect(22, 2, 4, 4);
+}
 const FOOD_ICONS = {};
 function buildFoodIcons() {
   const S = 48, sheet = document.createElement('canvas');
-  sheet.width = S * 6; sheet.height = S;
+  sheet.width = S * FOOD_ORDER.length; sheet.height = S;
   const g = sheet.getContext('2d');
-  const paints = [paintCornIcon, paintSoupIcon, paintRoastIcon,
-                  paintHashIcon, paintFrittersIcon, paintScrapsIcon];
-  for (let i = 0; i < 6; i++) { g.save(); g.translate(i * S, 0); paints[i](g, S); g.restore(); }
-  for (let i = 0; i < 6; i++) {
+  /* order matches FOOD_ORDER exactly (this also fixes a shipped swap where
+     the roasted and soup icons were assigned to each other's keys) */
+  const paints = [paintCornIcon, paintRoastIcon, paintSoupIcon,
+                  paintHashIcon, paintFrittersIcon, paintScrapsIcon,
+                  paintTomatoIcon, paintPumpkinIcon, paintPieIcon];
+  for (let i = 0; i < paints.length; i++) { g.save(); g.translate(i * S, 0); paints[i](g, S); g.restore(); }
+  for (let i = 0; i < paints.length; i++) {
     const cell = document.createElement('canvas');
     cell.width = S; cell.height = S;
     cell.getContext('2d').drawImage(sheet, i * S, 0, S, S, 0, 0, S, S);
@@ -7185,24 +7429,26 @@ function buildFoodIcons() {
 buildFoodIcons();
 
 /* cook list: one row per recipe row in the table (keys 1-5), plus a BACK row.
-   The ingredient list is an exact subset match against the carried corn. */
+   Cost is a {produce: n} map (or {any: n} for the scraps fallback). */
 const COOK_ITEMS = RECIPES.map((r, i) => ({
   key: '' + (i + 1), dishName: r.name, icon: FOOD_ICONS[r.id], verb: 'COOKED',
   label: () => r.name + ' (+' + r.hp + ' HP)', price: 0, cost: r.cost,
-  state: () => FOOD.corn >= r.cost ? 'BUY' : 'NA',
-  buy() { FOOD.corn -= r.cost; FOOD[r.id] = Math.min(FOOD_MAX, FOOD[r.id] + 1); updateFoodHUD(); },
+  state: () => foodCanAfford(r.cost) ? 'BUY' : 'NA',
+  buy() { foodSpend(r.cost); FOOD[r.id] = Math.min(FOOD_MAX, FOOD[r.id] + 1); updateFoodHUD(); sfxSizzle(); },
 }));
 COOK_ITEMS.push({ key: '0', dishName: 'DINER MENU', label: () => 'BACK TO DINER MENU', price: 0,
   state: () => 'BACK', buy() {} });   // click/tap only: E closes the panel instead
 
-/* eat panel: dishes eaten anywhere via the food chip. Raw corn is edible
-   too (+10 HP). Selling cooked dishes stays out of scope. */
+/* eat panel: dishes eaten anywhere via the food chip. Raw produce is edible
+   too (small heal). Dishes sell for cash at the diner (the SELL MEALS row). */
+const RAW_NAMES = { corn: 'RAW CORN', tomato: 'RAW TOMATO', pumpkin: 'RAW PUMPKIN' };
 const EAT_DEFS = [
-  { id: 'soup', hp: 65 }, { id: 'hash', hp: 80 }, { id: 'fritters', hp: 95 },
-  { id: 'roasted', hp: 40 }, { id: 'corn', hp: 10 }, { id: 'scraps', hp: 15 },
+  { id: 'soup', hp: 70 }, { id: 'pie', hp: 80 }, { id: 'hash', hp: 95 },
+  { id: 'roasted', hp: 40 }, { id: 'scraps', hp: 15 },
+  { id: 'corn', hp: 10 }, { id: 'tomato', hp: 12 }, { id: 'pumpkin', hp: 15 },
 ];
 const EAT_ITEMS = EAT_DEFS.map((d, i) => {
-  const nm = d.id === 'corn' ? 'RAW CORN' : RECIPES.find(r => r.id === d.id).name;
+  const nm = RAW_NAMES[d.id] || RECIPES.find(r => r.id === d.id).name;
   return {
     key: '' + (i + 1), dishName: nm, icon: FOOD_ICONS[d.id], verb: 'ATE',
     label: () => nm + ' x' + FOOD[d.id] + ' (+' + d.hp + ' HP)', price: 0,
@@ -7211,14 +7457,15 @@ const EAT_ITEMS = EAT_DEFS.map((d, i) => {
   };
 });
 
-/* ---- food HUD chip: hidden until the first harvest, then CORN xN MEALS xM.
+/* ---- food HUD chip: hidden until the first harvest, then produce + meals.
         Clickable (touch works); no silent mechanics. ---- */
 const foodChipEl = document.getElementById('foodchip');
 function updateFoodHUD() {
-  const dishes = FOOD.roasted + FOOD.soup + FOOD.hash + FOOD.fritters + FOOD.scraps;
-  if (FOOD.corn + dishes <= 0) { foodChipEl.style.display = 'none'; return; }
+  const dishes = foodDishCount(), raw = foodRawTotal();
+  if (raw + dishes <= 0) { foodChipEl.style.display = 'none'; return; }
   foodChipEl.style.display = 'block';
-  foodChipEl.textContent = 'CORN x' + FOOD.corn + '  MEALS x' + dishes;
+  foodChipEl.textContent = 'CORN x' + FOOD.corn + ' TOM x' + FOOD.tomato +
+    ' PUM x' + FOOD.pumpkin + '  MEALS x' + dishes;
 }
 foodChipEl.addEventListener('click', () => { openFoodPanel(); });
 function openFoodPanel() {
@@ -7232,19 +7479,22 @@ function openFoodPanel() {
 }
 updateFoodHUD();   // chip starts hidden until the first harvest
 
-/* ---- save helpers: compact "corn:roasted:soup:hash:fritters:scraps" string,
-        validated like the pet string (untrusted input). ---- */
+/* ---- save helpers: compact colon-joined pantry string (schema v3),
+        validated like the pet string (untrusted input). Accepts the legacy
+        6-part pantry (before tomato/pumpkin/pie); the first six keys keep
+        their positions. ---- */
 function foodSaveStr() { return FOOD_ORDER.map(k => FOOD[k]).join(':'); }
 function foodLoadStr(s) {
   for (const k of FOOD_ORDER) FOOD[k] = 0;
   if (typeof s !== 'string') return;
   const parts = s.split(':'), vals = [];
-  if (parts.length !== FOOD_ORDER.length) return;
+  const legacy = parts.length === 6;
+  if (parts.length !== FOOD_ORDER.length && !legacy) return;
   for (const p of parts) {
     if (!/^\d{1,4}$/.test(p) || +p > FOOD_MAX) return;   // tampered: keep the zeroed pantry
     vals.push(+p);
   }
-  for (let i = 0; i < FOOD_ORDER.length; i++) FOOD[FOOD_ORDER[i]] = vals[i];
+  for (let i = 0; i < vals.length; i++) FOOD[FOOD_ORDER[i]] = vals[i];
 }
 
 /* ============================ CAMERA (OVER-SHOULDER) ====================== */
@@ -7270,7 +7520,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyE') { if (!farmTryHarvest()) mountToggle(); }        // farm harvest wins over mounts near a plot
+  if (e.code === 'KeyE') { if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
@@ -12450,7 +12700,7 @@ function collectSave() {
     done: MS.done.map(b => b ? 1 : 0).join(''),
     heat: 0,                                       // never persist wanted heat
     pet: petSaveStr(),                             // Phase 5 wildlife: "kind:ox:oz" or ""
-    food: foodSaveStr()                            // Phase 5 cooking: "corn:roasted:soup:hash:fritters:scraps"
+    food: foodSaveStr()                            // Phase 5 farming v1: 9-part pantry (legacy 6-part loads)
   };
 }
 
@@ -12478,12 +12728,12 @@ function validSave(d) {
       if (!pm || Math.abs(+pm[2]) > 120 || Math.abs(+pm[3]) > 120) return false;
     }
   }
-  /* Phase 5 cooking: food is optional (v2 saves lack it).
-     "corn:roasted:soup:hash:fritters:scraps". */
+  /* Phase 5 farming v1: food is optional (v2 saves lack it).
+     9-part pantry; the legacy 6-part pantry still loads. */
   if (d.food !== undefined) {
     if (typeof d.food !== 'string') return false;
     const fp = d.food.split(':');
-    if (fp.length !== 6) return false;
+    if (fp.length !== 9 && fp.length !== 6) return false;
     for (const s of fp) { if (!/^\d{1,4}$/.test(s) || +s > 999) return false; }
   }
   return true;
