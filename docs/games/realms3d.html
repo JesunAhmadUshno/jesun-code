@@ -6073,14 +6073,15 @@ let mArrowT = 0;
 function missionTick(dt) {
   const now = performance.now() / 1000;
   /* start-marker icons bob and spin; rings pulse (shared material) */
+  let miStartD = false;   // PERF-7: dirty-once
   for (let i = 0; i < 5; i++) {
     const m = MISSIONS[i];
     _mDummy.position.set(m.mx, startBaseY[i] + 3.0 + Math.sin(now * 2 + i * 1.3) * 0.3, m.mz);
     _mDummy.rotation.set(0, now * 1.5 + i, 0);
     _mDummy.scale.set(1, 1, 1);
-    _mDummy.updateMatrix(); startIcons.setMatrixAt(i, _mDummy.matrix);
+    _mDummy.updateMatrix(); startIcons.setMatrixAt(i, _mDummy.matrix); miStartD = true;
   }
-  startIcons.instanceMatrix.needsUpdate = true;
+  if (miStartD) startIcons.instanceMatrix.needsUpdate = true;
   startRingMat.opacity = 0.6 + 0.3 * Math.sin(now * 3);
   if (!playing() || P.dead) return;
   if (MS.giverT > 0) { MS.giverT -= dt; if (MS.giverT <= 0) setObjectiveText(); }
@@ -6355,21 +6356,22 @@ let lootCheckT = 0;
 function lootTick(dt) {
   const now = performance.now() / 1000;
   /* bob and spin icons and gun props (zero allocation: shared _mDummy) */
+  let lootIconD = false, lootGunD = false;   // PERF-7: dirty-once
   for (let i = 0; i < LOOT.length; i++) {
     const L = LOOT[i];
     if (L.taken) continue;
     _mDummy.position.set(L.x, L.baseY + 2.2 + Math.sin(now * 2 + i * 1.7) * 0.25, L.z);
     _mDummy.rotation.set(0, now * 1.8 + i, 0);
     _mDummy.scale.set(1, 1, 1);
-    _mDummy.updateMatrix(); lootIcons.setMatrixAt(i, _mDummy.matrix);
+    _mDummy.updateMatrix(); lootIcons.setMatrixAt(i, _mDummy.matrix); lootIconD = true;
     if (L.kind === 'weapon') {
       _mDummy.position.set(L.x, L.baseY + 1.15 + Math.sin(now * 2.4 + i) * 0.15, L.z);
       _mDummy.rotation.set(0, now * 2.2 + i * 2.1, 0);
-      _mDummy.updateMatrix(); lootGuns.setMatrixAt(L.gunIdx, _mDummy.matrix);
+      _mDummy.updateMatrix(); lootGuns.setMatrixAt(L.gunIdx, _mDummy.matrix); lootGunD = true;
     }
   }
-  lootIcons.instanceMatrix.needsUpdate = true;
-  lootGuns.instanceMatrix.needsUpdate = true;
+  if (lootIconD) lootIcons.instanceMatrix.needsUpdate = true;
+  if (lootGunD) lootGuns.instanceMatrix.needsUpdate = true;
   lootRingMat.opacity = 0.55 + 0.3 * Math.sin(now * 3);
   /* respawn timers for health (60s) and ammo (45s) */
   for (let i = 0; i < LOOT.length; i++) {
@@ -7370,7 +7372,9 @@ function lmauseUpdate(sdt, now) {
   lmauseCabinIM.count = _n * LMAUSE_CABINS;
   lmauseCarIM.count = _n;
   lmauseTrainIM.count = _n;
+  let lmD = false;   // PERF-7: dirty-once (all four fleets ride the one loop)
   for (let _i = 0; _i < _n; _i++) {
+    lmD = true;
     const _a = _arr[_i];
     _lmE.set(0, _a.yaw, 0); _lmQ.setFromEuler(_lmE);
     _lmP.set(_a.x, _a.y, _a.z);
@@ -7407,10 +7411,12 @@ function lmauseUpdate(sdt, now) {
     _lmM2.multiplyMatrices(_lmPark, _lmM);
     lmauseTrainIM.setMatrixAt(_i, _lmM2);
   }
-  lmauseWheelIM.instanceMatrix.needsUpdate = true;
-  lmauseCabinIM.instanceMatrix.needsUpdate = true;
-  lmauseCarIM.instanceMatrix.needsUpdate = true;
-  lmauseTrainIM.instanceMatrix.needsUpdate = true;
+  if (lmD) {
+    lmauseWheelIM.instanceMatrix.needsUpdate = true;
+    lmauseCabinIM.instanceMatrix.needsUpdate = true;
+    lmauseCarIM.instanceMatrix.needsUpdate = true;
+    lmauseTrainIM.instanceMatrix.needsUpdate = true;
+  }
 }
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(lmauseUpdate));
@@ -12710,41 +12716,46 @@ const BUSNPC = { npcs: null, hideNPC: null };
      -0.45 hip offset baked in, now folded into the matrix (PERF-5), and the
      leg->limb per-axis scale compensation (LEG_FX/LEG_FZ) with it. */
   function poseNPCs() {
+    /* PERF-7: dirty-once instance marks. Every frame that wrote matrices
+       before still writes and marks; frames that wrote nothing skip the
+       GPU re-upload. */
+    let poseBodyD = false, poseHeadD = false, poseLimbD = false;
     for (let i = 0; i < npcs.length; i++) {
       const n = npcs[i], p = n.pos;
       _nM1.makeRotationY(n.yaw);
       _nM1.setPosition(p.x, p.y, p.z);
       _nM2.makeTranslation(0, 1.21, 0); _nM2.premultiply(_nM1);
-      npcBodyIM.setMatrixAt(i, _nM2);
+      npcBodyIM.setMatrixAt(i, _nM2); poseBodyD = true;
       _nM2.makeTranslation(0, 1.68, 0); _nM2.premultiply(_nM1);
-      npcHeadIM.setMatrixAt(i, _nM2);
+      npcHeadIM.setMatrixAt(i, _nM2); poseHeadD = true;
       _nM2.makeTranslation(-0.16, 0.9, 0); _nM2.premultiply(_nM1);
       _nM3.makeRotationX(n.swingL); _nM2.multiply(_nM3);
       _nM4.makeScale(LEG_FX, 1, LEG_FZ);
       _nM3.makeTranslation(0, -0.45, 0); _nM3.multiply(_nM4);
       _nM2.multiply(_nM3);
-      limbIM.setMatrixAt(NPC_LEG_BASE + i * 2, _nM2);
+      limbIM.setMatrixAt(NPC_LEG_BASE + i * 2, _nM2); poseLimbD = true;
       _nM2.makeTranslation(0.16, 0.9, 0); _nM2.premultiply(_nM1);
       _nM3.makeRotationX(n.swingR); _nM2.multiply(_nM3);
       _nM4.makeScale(LEG_FX, 1, LEG_FZ);
       _nM3.makeTranslation(0, -0.45, 0); _nM3.multiply(_nM4);
       _nM2.multiply(_nM3);
-      limbIM.setMatrixAt(NPC_LEG_BASE + i * 2 + 1, _nM2);
+      limbIM.setMatrixAt(NPC_LEG_BASE + i * 2 + 1, _nM2); poseLimbD = true;
     }
-    npcBodyIM.instanceMatrix.needsUpdate = true;
-    npcHeadIM.instanceMatrix.needsUpdate = true;
-    limbIM.instanceMatrix.needsUpdate = true;
+    if (poseBodyD) npcBodyIM.instanceMatrix.needsUpdate = true;
+    if (poseHeadD) npcHeadIM.instanceMatrix.needsUpdate = true;
+    if (poseLimbD) limbIM.instanceMatrix.needsUpdate = true;
     /* Phase 5 fire station v2: helmet shells ride the firefighter slots
        (head at y 1.68, box top ~1.84: the shell sits over it). */
+    let poseHelmD = false;
     for (let k = 0; k < 2; k++) {
       const n = npcs[NPC_FF_BASE + k], p = n.pos;
       _nM1.makeRotationY(n.yaw);
       _nM1.setPosition(p.x, p.y, p.z);
       _nM2.makeTranslation(0, 1.78, 0.02); _nM2.premultiply(_nM1);
       _nM3.makeScale(1.05, 0.8, 1.15); _nM2.multiply(_nM3);
-      npcHelmIM.setMatrixAt(k, _nM2);
+      npcHelmIM.setMatrixAt(k, _nM2); poseHelmD = true;
     }
-    npcHelmIM.instanceMatrix.needsUpdate = true;
+    if (poseHelmD) npcHelmIM.instanceMatrix.needsUpdate = true;
   }
   poseNPCs();   /* pose once before the first tick so no instance sits at the origin */
 
@@ -12759,13 +12770,16 @@ const BUSNPC = { npcs: null, hideNPC: null };
     const s = hide ? 0 : 1;
     _nM1.makeScale(s, s, s);
     if (hide) _nM1.setPosition(0, -100, 0);
-    npcBodyIM.setMatrixAt(i, _nM1);
-    npcHeadIM.setMatrixAt(i, _nM1);
-    limbIM.setMatrixAt(NPC_LEG_BASE + i * 2, _nM1);
-    limbIM.setMatrixAt(NPC_LEG_BASE + i * 2 + 1, _nM1);
-    npcBodyIM.instanceMatrix.needsUpdate = true;
-    npcHeadIM.instanceMatrix.needsUpdate = true;
-    limbIM.instanceMatrix.needsUpdate = true;
+    let hideD = false;   // PERF-7: dirty-once (always written here, flag documents the write)
+    npcBodyIM.setMatrixAt(i, _nM1); hideD = true;
+    npcHeadIM.setMatrixAt(i, _nM1); hideD = true;
+    limbIM.setMatrixAt(NPC_LEG_BASE + i * 2, _nM1); hideD = true;
+    limbIM.setMatrixAt(NPC_LEG_BASE + i * 2 + 1, _nM1); hideD = true;
+    if (hideD) {
+      npcBodyIM.instanceMatrix.needsUpdate = true;
+      npcHeadIM.instanceMatrix.needsUpdate = true;
+      limbIM.instanceMatrix.needsUpdate = true;
+    }
   };
   /* higher-IQ: expose the amenity finder for the bus/NPC bridge (function
      declarations hoist, so this runs before the def below). */
@@ -14850,10 +14864,13 @@ function busUpdate(sdt, now) {
   // ---- write the two bus instances ----
   _busE.set(0, BUS.heading, 0); _busQ.setFromEuler(_busE);
   _busP.copy(BUS.pos); _busM.compose(_busP, _busQ, _busS);
-  busBodyIM.setMatrixAt(0, _busM);
-  busLightIM.setMatrixAt(0, _busM);
-  busBodyIM.instanceMatrix.needsUpdate = true;
-  busLightIM.instanceMatrix.needsUpdate = true;
+  let busPoseD = false;   // PERF-7: dirty-once (skips the upload on inactive frames)
+  busBodyIM.setMatrixAt(0, _busM); busPoseD = true;
+  busLightIM.setMatrixAt(0, _busM); busPoseD = true;
+  if (busPoseD) {
+    busBodyIM.instanceMatrix.needsUpdate = true;
+    busLightIM.instanceMatrix.needsUpdate = true;
+  }
 
   // ---- boarded NPCs stay hidden: the people ticker poses them first, and
   //      this ticker is registered after it (queueMicrotask), so this wins ----
@@ -15667,8 +15684,9 @@ function ftUpdate(sdt, now) {
   FT.pos.x += Math.sin(FT.heading) * FT.speed * sdt;
   FT.pos.z += Math.cos(FT.heading) * FT.speed * sdt;
   FT.pos.y = terrainHeight(FT.pos.x, FT.pos.z);   // v1: same water behavior as the car
-  ftPose(FT.pos.x, FT.pos.y, FT.pos.z, FT.heading);
-  ftBodyIM.instanceMatrix.needsUpdate = true;
+  let ftPoseD = false;   // PERF-7: dirty-once (ftPose writes the truck instance)
+  ftPose(FT.pos.x, FT.pos.y, FT.pos.z, FT.heading); ftPoseD = true;
+  if (ftPoseD) ftBodyIM.instanceMatrix.needsUpdate = true;
   player.position.copy(FT.pos); player.rotation.y = FT.heading;
   spdNumEl.textContent = Math.round(Math.abs(FT.speed) * 3.6);
 
@@ -16420,7 +16438,8 @@ function bcUpdate(sdt) {
   player.position.copy(BC.pos);
   player.rotation.y = BC.heading;
   const i = BC.activeIdx;
-  if (i >= 0) bcPose(i, BC.pos.x, BC.pos.y, BC.pos.z, BC.heading + wob, roll, pitch);
+  let bcPoseD = false;   // PERF-7: dirty-once
+  if (i >= 0) { bcPose(i, BC.pos.x, BC.pos.y, BC.pos.z, BC.heading + wob, roll, pitch); bcPoseD = true; }
 
   // ---- no engine on a bicycle: fade the shared engine gain out ----
   if (engGain) engGain.gain.value *= 0.9;
@@ -16431,7 +16450,7 @@ function bcUpdate(sdt) {
     BC.hudT = 0;
     spdNumEl.textContent = Math.round(Math.abs(BC.speed) * 3.6);
   }
-  bcBodyIM.instanceMatrix.needsUpdate = true;
+  if (bcPoseD) bcBodyIM.instanceMatrix.needsUpdate = true;
 }
 queueMicrotask(() => worldTickers.push(bikeUpdate));
 worldTickers.push(bcUpdate);
@@ -16778,7 +16797,8 @@ function scUpdate(sdt) {
   player.position.y += SC.hopY;
   player.rotation.y = SC.heading;
   const i = SC.activeIdx;
-  if (i >= 0) scPose(i, SC.pos.x, SC.pos.y + SC.hopY, SC.pos.z, SC.heading + wob, roll, pitch);
+  let scPoseD = false;   // PERF-7: dirty-once
+  if (i >= 0) { scPose(i, SC.pos.x, SC.pos.y + SC.hopY, SC.pos.z, SC.heading + wob, roll, pitch); scPoseD = true; }
 
   // ---- no engine on a scooter: fade the shared engine gain out ----
   if (engGain) engGain.gain.value *= 0.9;
@@ -16789,7 +16809,7 @@ function scUpdate(sdt) {
     SC.hudT = 0;
     spdNumEl.textContent = Math.round(SC.speed * 3.6);
   }
-  scBodyIM.instanceMatrix.needsUpdate = true;
+  if (scPoseD) scBodyIM.instanceMatrix.needsUpdate = true;
 }
 worldTickers.push(scUpdate);
 
@@ -17065,13 +17085,14 @@ function boatUpdate(sdt, now) {
     BOAT.nearIdx = best;
     if (boatGain) boatGain.gain.value *= 0.9;
     // moored boats ride the waves gently (damped springs, zero allocation)
+    let boatMooredD = false;   // PERF-7: dirty-once
     for (let i = 0; i < BOAT_N; i++) {
       const s = BOAT.slots[i];
       if (!s.placed || i === BOAT.activeIdx) continue;
       boatFloat(s.x, s.z, s.yaw, s, sdt, now, 0);
-      boatPose(i, s.x, s.y, s.z, s.yaw, s.pitch, s.roll);
+      boatPose(i, s.x, s.y, s.z, s.yaw, s.pitch, s.roll); boatMooredD = true;
     }
-    boatBodyIM.instanceMatrix.needsUpdate = true;
+    if (boatMooredD) boatBodyIM.instanceMatrix.needsUpdate = true;
     return;
   }
   if (P.dead) { boatExit(); return; }   // death always ejects: no sailing while dead
@@ -17136,8 +17157,9 @@ function boatUpdate(sdt, now) {
   player.position.copy(BOAT.pos);
   player.position.y += 0.9;   // seated in the hull
   player.rotation.y = BOAT.heading;
-  boatPose(BOAT.activeIdx, BOAT.pos.x, BOAT.pos.y, BOAT.pos.z, BOAT.heading, BOAT.pitch, BOAT.roll);
-  boatBodyIM.instanceMatrix.needsUpdate = true;
+  let boatDriveD = false;   // PERF-7: dirty-once (boatPose writes the hull instance)
+  boatPose(BOAT.activeIdx, BOAT.pos.x, BOAT.pos.y, BOAT.pos.z, BOAT.heading, BOAT.pitch, BOAT.roll); boatDriveD = true;
+  if (boatDriveD) boatBodyIM.instanceMatrix.needsUpdate = true;
 
   // ---- motor audio: gain rides throttle, pitch rides speed ----
   if (boatGain) {
@@ -18338,15 +18360,17 @@ function trainUpdate(sdt, now) {
   }
   if (P.dead && TRAIN.riding) trainExit();   // death always ejects: no riding while dead
   // pose the fleet
+  let trainPoseD = false;   // PERF-7: dirty-once
   for (let i = 0; i < TRAIN_N; i++) {
     const t = TRAIN.trains[i];
     const hd = t.dir > 0 ? 0 : Math.PI;
     for (let j = 0; j < TRAIN_CARS; j++) {
       const cs = t.s - t.dir * j * TRAIN_CAR_GAP;
       trainPose(i * TRAIN_CARS + j, TRAIN_TRACK_X, terrainHeight(TRAIN_TRACK_X, cs) + TRAIN_RAIL_Y, cs, hd);
+      trainPoseD = true;
     }
   }
-  trainBodyIM.instanceMatrix.needsUpdate = true;
+  if (trainPoseD) trainBodyIM.instanceMatrix.needsUpdate = true;
 
   if (TRAIN.riding) {
     const t = TRAIN.trains[TRAIN.trainIdx];
@@ -19595,6 +19619,7 @@ function theaterExit() {
         poses, spotlight sweep + dusk/night brighten, 16-bar set loop. Only
         placed theaters in earshot animate: zero per-frame cost otherwise. ---- */
 function theaterAnimate(s, sdt) {
+  let thMatD = false, thColD = false;   // PERF-7: dirty-once (venueBoxIM matrices + colors)
   s.musicT += sdt;
   const bar = Math.floor(s.musicT / THEATER_BAR_LEN);
   if (bar !== s.bar) {
@@ -19618,6 +19643,7 @@ function theaterAnimate(s, sdt) {
     const sway = Math.sin(s.musicT * 2.2 + ph * 1.7) * 0.07 * energy;
     theaterBox(s, 10 + ci, lx, 0.56 + bob, lz, 0.5, 0.62, 0.34, 0, 0, sway);
     theaterBox(s, 18 + ci, lx, 1.03 + bob * 1.2, lz, 0.3, 0.32, 0.3, 0, 0, sway * 1.4);
+    thMatD = true;
   }
   /* performer: dance pose sequenced on the 16-bar loop */
   const pose = THEATER_POSES[bar % 8];
@@ -19628,17 +19654,19 @@ function theaterAnimate(s, sdt) {
   theaterBox(s, 27, 0, 1.28 + pbob, 0.2, 0.3, 0.32, 0.3, 0, psway * 1.5, 0);
   theaterArm(s, 28, -0.36, pose.armL + Math.sin(bt) * 0.22, -1);
   theaterArm(s, 29, 0.36, pose.armR + Math.sin(bt + 1.3) * 0.22, 1);
+  thMatD = true;   // performer boxes above all write
   /* spotlights: sweep per bar, brighten at dusk/night (no new lights) */
   const sweep = Math.sin(s.musicT * (Math.PI / (THEATER_BAR_LEN * 2)) + s.idx * 1.7) * 0.45;
   const glow = isNight ? 1 : (Math.abs(dayPhase - 0.5) < 0.08 ? 0.75 : 0.3);
   const pulse = 0.72 + 0.28 * Math.sin(s.musicT * 3.1);
   _thC.setHex(0x4a4436).lerp(_thC2.setHex(0xfff2c8), Math.min(1, glow * pulse));
-  venueBoxIM.setColorAt(s.base + 8, _thC);
-  venueBoxIM.setColorAt(s.base + 9, _thC);
+  venueBoxIM.setColorAt(s.base + 8, _thC); thColD = true;
+  venueBoxIM.setColorAt(s.base + 9, _thC); thColD = true;
   theaterBox(s, 8, -2.3, 2.3, 1.2, 0.55, 2.8, 0.55, -0.3, sweep, 0.45);
   theaterBox(s, 9, 2.3, 2.3, 1.2, 0.55, 2.8, 0.55, -0.3, -sweep, -0.45);
-  venueBoxIM.instanceMatrix.needsUpdate = true;
-  if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
+  thMatD = true;   // spotlight boxes above write
+  if (thMatD) venueBoxIM.instanceMatrix.needsUpdate = true;
+  if (thColD && venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 }
 function theaterUpdate(sdt, now) {
   const pcx = Math.floor(player.position.x / CHUNK), pcz = Math.floor(player.position.z / CHUNK);
@@ -19952,6 +19980,7 @@ function stadiumExit() {
         brighten. Only placed stadiums in earshot animate: zero per-frame
         cost otherwise. ---- */
 function stadiumAnimate(s, sdt) {
+  let stMatD = false, stColD = false;   // PERF-7: dirty-once (venueBoxIM matrices + colors)
   s.matchT += sdt;
   if (s.matchT >= s.nextGoal) {
     s.matchIdx++;
@@ -19973,6 +20002,7 @@ function stadiumAnimate(s, sdt) {
       const sway = Math.sin(s.matchT * 1.5 + ph * 1.3) * 0.05 * surge;
       stadiumBox(s, idx, rx * Math.cos(a), 0.58 + t * 1.25 + bob, rz * Math.sin(a),
                  (2 * Math.PI * rx / STAD_SEG) * 0.96, 1.15, 2.0, 0, -a - Math.PI / 2, sway);
+      stMatD = true;
     }
   }
   /* floodlights: brighten at dusk/night with a per-tower sweep pulse
@@ -19981,10 +20011,10 @@ function stadiumAnimate(s, sdt) {
   for (let f = 0; f < 4; f++) {
     const pulse = 0.75 + 0.25 * Math.sin(s.matchT * 2.2 + f * 1.57);
     _stC.setHex(0x9aa0a8).lerp(_stC2.setHex(0xfff3cf), Math.min(1, glow * pulse));
-    venueBoxIM.setColorAt(VENUE_STADIUM_OFF + s.base + 46 + f, _stC);
+    venueBoxIM.setColorAt(VENUE_STADIUM_OFF + s.base + 46 + f, _stC); stColD = true;
   }
-  venueBoxIM.instanceMatrix.needsUpdate = true;
-  if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
+  if (stMatD) venueBoxIM.instanceMatrix.needsUpdate = true;
+  if (stColD && venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
 }
 let stadbearingT = 0;
 function stadiumUpdate(sdt, now) {
@@ -20391,17 +20421,19 @@ function amuseExit() {
         Only placed parks in earshot animate: zero per-frame cost
         otherwise. ---- */
 function amuseAnimate(s, sdt) {
+  let amMatD = false, amColD = false;   // PERF-7: dirty-once (venueBoxIM matrices + colors)
   s.wheelRot += sdt * AMUSE_WHEEL_W;
   s.carRot += sdt * AMUSE_CAR_W;
   s.carT += sdt;
   amuseWheelPose(s);
   amuseHorsePose(s);
+  amMatD = true;   // both pose helpers above write their boxes unconditionally
   /* string-light lamp heads: brighten at dusk/night with per-instance
      color lerp (the stadium floodlight idiom, no new lights) */
   const glow = isNight ? 1 : (Math.abs(dayPhase - 0.5) < 0.08 ? 0.7 : 0.25);
   for (let p = 0; p < 6; p++) {
     _amC.setHex(0x6a6f78).lerp(_amC2.setHex(0xffe6a8), glow);
-    venueBoxIM.setColorAt(VENUE_AMUSE_OFF + s.base + 100 + p, _amC);
+    venueBoxIM.setColorAt(VENUE_AMUSE_OFF + s.base + 100 + p, _amC); amColD = true;
   }
   /* carousel chime: seeded music-box arpeggio in earshot (the sfxBlip
      one-shot idiom, no persistent nodes) */
@@ -20418,8 +20450,8 @@ function amuseAnimate(s, sdt) {
       sfxBlip(base * 1.5, 0.2, 'triangle', 0.07);
     }
   }
-  venueBoxIM.instanceMatrix.needsUpdate = true;
-  if (venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
+  if (amMatD) venueBoxIM.instanceMatrix.needsUpdate = true;
+  if (amColD && venueBoxIM.instanceColor) venueBoxIM.instanceColor.needsUpdate = true;
   /* the ride ends after 2 wheel rotations (or 60 s): never traps the rider */
   if (AMUSE.riding && AMUSE.rideIdx === s.idx) {
     s.rideT += sdt;
@@ -21224,6 +21256,7 @@ function tick() {
      per instance (atan2 gives the same yaw the old lookAt produced). --- */
   const now = performance.now() / 1000;
   const ppx = player.position.x, ppz = player.position.z;   // infinite world: sky follows
+  let cloudD = false;   // PERF-7: dirty-once
   for (let i = 0; i < clouds.length; i++) {
     const cl = clouds[i];
     cl.x += cl.speed * sdt;
@@ -21234,9 +21267,9 @@ function tick() {
       Math.atan2(camera.position.x - wx, camera.position.z - wz), 0);
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
-    cloudIM.setMatrixAt(i, dummy.matrix);
+    cloudIM.setMatrixAt(i, dummy.matrix); cloudD = true;
   }
-  cloudIM.instanceMatrix.needsUpdate = true;
+  if (cloudD) cloudIM.instanceMatrix.needsUpdate = true;
   birdFlockTick(sdt, now, ppx, ppz);   /* Phase 5 wildlife: Reynolds boids */
   poseBirds(now);
 

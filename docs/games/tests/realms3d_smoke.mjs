@@ -64,7 +64,7 @@ src += `
 globalThis.__R3D = {
   tick, startMission, currentTarget, damageEnemy, shoot, fireTracer,
   carEnter, carExit, openShop, closeShop, buyItem,
-  busEnter, busExit, busTakeWheel, busRebuildRoute, busDoorWorld, mountToggle,
+  busEnter, busExit, busTakeWheel, busRebuildRoute, busDoorWorld, mountToggle, busUpdate,
   busDwellService, BUSNPC, BUS,
   taxiEnter, taxiExit, txRebuild, txDoorWorld, crRebuild, ambRebuild,
   CR, TX, AMB, HORSE, emBodyIM, toastEl, W,
@@ -151,6 +151,8 @@ globalThis.__R3D = {
   /* Phase 5 boats/ships v1 */
   BOAT, boatEnter, boatExit, boatRebuild, boatFloat, waterSurfaceY, dockFor,
   boatBodyIM, boatHintEl, boatChipEl, BOAT_N, sfxSplash,
+  /* PERF-7 dirty-once asserts: expose tick fns + instanced fleets */
+  lootTick, LOOT, lootIcons, lootGuns, busBodyIM, ftUpdate, missionTick, startIcons,
   /* Phase 5 helicopters v1 */
   HELI, heliEnter, heliExit, heliRebuild, helipadFor, heliParkPad, heliPose,
   heliBodyIM, heliHintEl, heliChipEl, HELI_N, sfxThud, HELI_PAD_LZ,
@@ -7117,6 +7119,66 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.FIRES.length = 0; G.INCIDENTS.length = 0;
   for (const n of crew) { n.state = 'POST'; n.spraying = false; }
   G.BUSNPC.ff.incident = null; G.BUSNPC.ff.sprayOn = false;
+}
+
+/* ================= PERF-7: dirty-once instance marks =================
+   three.js BufferAttribute.needsUpdate is a write-only setter that bumps
+   .version, so a skipped GPU re-upload is observable as an unchanged
+   version. Each skip case settles twice first (absorbs one-time rebuild
+   side effects), then asserts the next tick does not bump the version. */
+{
+  const mver = (im) => im.instanceMatrix.version;
+
+  /* lootTick: all taken -> no re-upload; one live item -> re-upload */
+  const lootTakenWas = G.LOOT.map(L => L.taken);
+  for (const L of G.LOOT) L.taken = true;
+  G.lootTick(0.016); G.lootTick(0.016);   // settle
+  const li0 = mver(G.lootIcons), lg0 = mver(G.lootGuns);
+  G.lootTick(0.016);
+  check('perf7: lootTick skips the re-upload when every item is taken',
+    mver(G.lootIcons) === li0 && mver(G.lootGuns) === lg0,
+    'icons ' + li0 + '->' + mver(G.lootIcons) + ', guns ' + lg0 + '->' + mver(G.lootGuns));
+  G.LOOT[0].taken = false;   // LOOT[0] is a weapon: poses both fleets
+  G.lootTick(0.016);
+  check('perf7: lootTick still re-uploads when a live item is posed',
+    mver(G.lootIcons) === li0 + 1 && mver(G.lootGuns) === lg0 + 1,
+    'icons ' + li0 + '->' + mver(G.lootIcons) + ', guns ' + lg0 + '->' + mver(G.lootGuns));
+  lootTakenWas.forEach((t, i) => { G.LOOT[i].taken = t; });
+
+  /* busUpdate: inactive bus -> no re-upload */
+  const busActiveWas = G.BUS.active;
+  G.busUpdate(0.016, 0);   // settle the chunk anchor at the player's position first:
+                           // a rebuild would re-activate the bus before the active check
+  G.BUS.active = false;
+  G.busUpdate(0.016, 0);
+  const bb0 = mver(G.busBodyIM);
+  G.busUpdate(0.016, 0);
+  check('perf7: busUpdate skips the re-upload while the bus is inactive',
+    mver(G.busBodyIM) === bb0, 'busBody ' + bb0 + '->' + mver(G.busBodyIM));
+  G.BUS.active = busActiveWas;
+
+  /* ftUpdate: parked truck -> no re-upload */
+  check('perf7: fire truck is placed by test end', G.FT.placed === true);
+  const ftDrivingWas = G.FT.driving;
+  G.FT.driving = false;
+  G.ftUpdate(0.016, 0); G.ftUpdate(0.016, 0);   // settle
+  const fb0 = mver(G.ftBodyIM);
+  G.ftUpdate(0.016, 0);
+  check('perf7: ftUpdate skips the re-upload while the truck is parked',
+    mver(G.ftBodyIM) === fb0, 'ftBody ' + fb0 + '->' + mver(G.ftBodyIM));
+  G.FT.driving = ftDrivingWas;
+
+  /* missionTick: start markers always pose -> re-upload happens */
+  const si0 = mver(G.startIcons);
+  G.missionTick(0.016);
+  check('perf7: missionTick still re-uploads the start markers',
+    mver(G.startIcons) === si0 + 1, 'startIcons ' + si0 + '->' + mver(G.startIcons));
+
+  /* trainUpdate: the fleet always poses -> re-upload happens */
+  const tr0 = mver(G.trainBodyIM);
+  G.trainUpdate(0.016, 1.0);
+  check('perf7: trainUpdate still re-uploads the posed fleet',
+    mver(G.trainBodyIM) === tr0 + 1, 'trainBody ' + tr0 + '->' + mver(G.trainBodyIM));
 }
 
 /* ---------- zero console errors ---------- */
