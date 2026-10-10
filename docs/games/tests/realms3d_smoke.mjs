@@ -150,6 +150,12 @@ globalThis.__R3D = {
   theaterSetName, updateTheaterChip, theaterBox, theaterTint, theaterArm,
   theaterBoxIM, theaterHintEl, theaterChipEl, HELP_THEATER,
   THEATER_N, THEATER_SCAN, T_INST, THEATER_BAR_LEN, THEATER_SETS, THEATER_POSES,
+  /* Phase 5 rural civic buildings v1 */
+  CIVIC, CIVIC_ORDER, CIVIC_SCALE, CIVIC_HEAL_COST, CIVIC_ATM_AMT, CIVIC_REST_COST,
+  civicEnter, civicExit, civicAct, civicHeal, civicAtm, civicRest, civicTick,
+  updateCivicChip, CIVIC_HINT_TXT, CIVIC_ACT_TXT,
+  civichintEl, civicChipEl, civicbearingEl, civarrEl, civtxtEl,
+  civicPanelEl, civicTitleEl, civicActEl, civicFootEl, HELP_CIVIC,
   THEATER_LX, THEATER_LZ,
 };
 `;
@@ -670,7 +676,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 48 IM literals (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh + 1 piano + 1 theater)', imCount === 48, 'count=' + imCount);
+  check('perf4: 48 IM literals (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)', imCount === 48, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -2000,8 +2006,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater, 3 runtime building meshes',
-      n === 48 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal, 4 runtime building meshes',
+      n === 48 && G.bldgMeshes.length === 4, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2145,7 +2151,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater)',
+  check('food-static: InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)',
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
@@ -2375,7 +2381,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater)',
+  check('farmv1-static: InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)',
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
@@ -2747,7 +2753,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater)',
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)',
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
@@ -2967,7 +2973,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater)',
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)',
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
@@ -3764,10 +3770,10 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no em dashes in the casino block', !casinoSrc.includes('\u2014'));
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
-  check('casino-static: whole-file IM literals pin at 48 (theater adds the one fleet mesh)',
+  check('casino-static: whole-file IM literals pin at 48 (civic fleet rides the shared def-loop literal: +0 literal sites, +1 runtime draw)',
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
-  check('casino-static: 3 runtime building meshes (casino rides the store mesh)',
-    G.bldgMeshes.length === 3);
+  check('casino-static: 4 runtime building meshes (casino rides the store mesh, civic types share the civic fleet)',
+    G.bldgMeshes.length === 4);
   check('casino-static: casino def shares the store fleet mesh',
     G.BLDG_DEF.casino.mesh === G.BLDG_DEF.store.mesh);
   check('casino-static: guard coverage (positive chains)',
@@ -3859,8 +3865,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino: exit frees the player, panel + chip hide',
     G.SLOT.playing === false && G.slotPanelEl.style.display === 'none'
     && G.casinoChipEl.style.display === 'none');
-  check('casino: E exits via the keydown chain',
-    html.includes("if (e.code === 'KeyE') { if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit();"));
+  check('casino: E exits via the keydown chain (civic frees first, gambler still in order)',
+    html.includes("else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit();"));
   check('casino: vehicleExit and busted eject the gambler',
     html.includes('else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit();')
     && html.includes('else if (SLOT.playing) slotExit();   // busted off the slot machine too'));
@@ -3904,15 +3910,16 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('theater-static: guard coverage (positive chains)',
     (html.match(/\|\| THEATER\.watching/g) || []).length >= 28);
-  check('theater-static: guard coverage (negated chains)',
-    (html.match(/&& !THEATER\.watching/g) || []).length >= 18);
+  check('theater-static: guard coverage (negated chains, incl. civic-extended paren form)',
+    ((html.match(/&& !THEATER\.watching/g) || []).length
+      + (html.match(/!\(THEATER\.watching \|\| CIVIC\.state\)/g) || []).length) >= 18);
   check('theater-static: WATCH hint click wiring pins theaterEnter',
     html.includes("theaterHintEl.addEventListener('click', () => { if (THEATER.hintOn) theaterEnter(); })"));
-  check('theater-static: E frees the watcher first in the keydown chain',
-    html.includes("if (e.code === 'KeyE') { if (THEATER.watching) theaterExit();"));
+  check('theater-static: E frees the watcher before the gambler/pianist in the keydown chain',
+    html.includes("else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit();"));
   check('theater-static: vehicleExit, mountToggle, busted and death eject the watcher',
-    html.includes('function vehicleExit() { if (THEATER.watching) theaterExit();')
-    && html.includes('if (THEATER.watching) theaterExit();   // Phase 5 theater: E never traps the watcher')
+    html.includes('function vehicleExit() { if (CIVIC.state) civicExit(); else if (THEATER.watching) theaterExit();')
+    && html.includes('else if (THEATER.watching) theaterExit();   // Phase 5 theater: E never traps the watcher')
     && html.includes('else if (THEATER.watching) theaterExit();   // busted out of the audience too')
     && html.includes('else if (THEATER.watching) theaterExit();  // ...and no show while dead either'));
 
@@ -3986,6 +3993,254 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.THEATER.watching === false && G.theaterChipEl.style.display === 'none'
     && Math.hypot(G.player.position.x - tslot.x, G.player.position.z - tslot.z) > 1.0);
   check('theater: watch/exit round trip leaves zero console errors/warnings',
+    consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
+}
+
+
+/* ================= 30. RURAL CIVIC BUILDINGS v1 (Phase 5 buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.CIVIC.state) G.civicExit();
+  const settleC = (x, z) => {
+    G.player.position.set(x, groundY(x, z), z);
+    G.player.rotation.y = 0;
+    frame(3);   // absorb any chunk crossing -> redistributeBuildings runs
+  };
+  const findCivic = (type) => {
+    for (let r = 2; r < 60; r++)
+      for (let gx = -r; gx <= r; gx++)
+        for (let gz = -r; gz <= r; gz++) {
+          if (Math.max(Math.abs(gx), Math.abs(gz)) !== r) continue;
+          const b = G.bldgCenterFor(gx, gz);
+          if (b && b.type === type) return b;
+        }
+    return null;
+  };
+  settleC(0, 0);
+
+  /* static: exactly one new fleet mesh literal in the civic block, no lights,
+     no unseeded RNG, no em dashes, no external URLs, no TODO text */
+  const civicSrc = html.slice(html.indexOf('/* ================= PHASE 5: RURAL CIVIC BUILDINGS v1'),
+                              html.indexOf('/* ================= PHASE 5: THEATER v1 (entertainment)'));
+  check('civic-static: zero fleet mesh literals in the gameplay block (the fleet rides the shared def loop)',
+    (civicSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('civic-static: civic block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(civicSrc));
+  check('civic-static: no unseeded RNG in the civic block (deterministic hashes only)',
+    !/Math\.random/.test(civicSrc));
+  check('civic-static: no em dashes in the civic block', !civicSrc.includes('—'));
+  check('civic-static: no external URLs in the civic block', !/https?:\/\//.test(civicSrc));
+  check('civic-static: no TODO markers in the civic block', !/\bTODO\b/.test(civicSrc));
+  check('civic-static: whole-file IM literals pin at 48 (the civic fleet rides the shared def-loop literal: +0 literal sites)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
+    G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
+  check('civic-static: 4 runtime building meshes (house, barn, store, civic)',
+    G.bldgMeshes.length === 4);
+  check('civic-static: all four civic types share the one civic fleet mesh',
+    G.BLDG_DEF.hospital.mesh === G.BLDG_DEF.civic.mesh
+    && G.BLDG_DEF.bank.mesh === G.BLDG_DEF.civic.mesh
+    && G.BLDG_DEF.hotel.mesh === G.BLDG_DEF.civic.mesh
+    && G.BLDG_DEF.school.mesh === G.BLDG_DEF.civic.mesh
+    && G.BLDG_DEF.civic.mesh !== G.BLDG_DEF.store.mesh);
+  check('civic-static: civic fleet capacity covers 4 types x cap 2',
+    G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
+  check('civic-static: per-type tints are all distinct (white/green-gray/warm/brick)',
+    new Set([G.BLDG_DEF.hospital.tint, G.BLDG_DEF.bank.tint, G.BLDG_DEF.hotel.tint, G.BLDG_DEF.school.tint]).size === 4);
+  check('civic-static: per-type silhouettes differ (non-uniform scale)',
+    G.CIVIC_SCALE.hospital[1] > G.CIVIC_SCALE.hotel[1]
+    && G.CIVIC_SCALE.hotel[1] > G.CIVIC_SCALE.bank[1]
+    && G.CIVIC_SCALE.bank[0] < G.CIVIC_SCALE.school[0]);
+  check('civic-static: guard coverage (positive chains)',
+    (html.match(/\|\| CIVIC\.state/g) || []).length >= 25);
+  check('civic-static: guard coverage (negated chains)',
+    (html.match(/&& !CIVIC\.state/g) || []).length >= 3);
+  check('civic-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('civic-static: KeyE exits civic first, enters on a live hint',
+    html.includes("if (e.code === 'KeyE') { if (CIVIC.state) civicExit();")
+    && html.includes("else if (CIVIC.hintOn) civicEnter();"));
+  check('civic-static: mountToggle, vehicleExit, busted and death eject the visitor',
+    html.includes('if (CIVIC.state) civicExit();   // Phase 5 civic: E never traps the visitor')
+    && html.includes('function vehicleExit() { if (CIVIC.state) civicExit();')
+    && html.includes('if (CIVIC.state) civicExit();   // Phase 5 civic: busted out of the menu too')
+    && html.includes('if (CIVIC.state) civicExit();  // ...and no civic menu while dead either'));
+
+  /* seeded placement: all four types exist, own residue, deterministic */
+  const found = {};
+  for (const t of G.CIVIC_ORDER) found[t] = findCivic(t);
+  check('civic: all four civic types place in the scan window',
+    G.CIVIC_ORDER.every(t => !!found[t]), G.CIVIC_ORDER.map(t => t + ':' + !!found[t]).join(' '));
+  check('civic: own hash residue %7===5, disjoint from store %7===1 / casino %7===3',
+    G.CIVIC_ORDER.every(t => G.hash2i(found[t].gx, found[t].gz) % 7 === 5));
+  {
+    const b = found.hospital;
+    const a = G.bldgCenterFor(b.gx, b.gz), c = G.bldgCenterFor(b.gx, b.gz);
+    check('civic: placement is a pure function of chunk coords',
+      !!a && !!c && a.x === c.x && a.z === c.z && a.type === c.type && a.sx === c.sx && a.sy === c.sy,
+      a ? a.type + ' @' + a.x.toFixed(1) + ',' + a.z.toFixed(1) : 'null');
+  }
+
+  /* mechanics: synthetic hospital at the player (the ticker owns the real
+     redistribute; the seeded selection above proves the real placement) */
+  const cpx = G.player.position.x, cpz = G.player.position.z;
+  const synthCivic = (type) => {
+    for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+    G.BLDG.active[type].push({ x: cpx + 3, z: cpz, y: groundY(cpx + 3, cpz), yaw: 0, gx: 0, gz: 0, name: type.toUpperCase(), type });
+    /* stand 6.5u from the new building: inside every porch hint radius
+       (7.5/10/8.5), outside every foot collider, so each synthetic starts
+       with a live hint regardless of where the last porch left the player */
+    G.player.position.set(cpx + 3 + 6.5, groundY(cpx + 9.5, cpz), cpz);
+  };
+  const probs0 = consoleProblems.length;
+  synthCivic('hospital');
+  frame(3);
+  check('civic: HEAL hint shows near the hospital',
+    G.CIVIC.hintOn === true && G.CIVIC.nearType === 'hospital' && G.civichintEl.style.opacity == 1);
+  G.civicEnter();
+  check('civic: enter freezes the player at the porch, panel + chip show',
+    G.CIVIC.state === 'hospital' && G.civicPanelEl.style.display === 'block'
+    && G.civicChipEl.style.display === 'block');
+  check('civic: chip reads TYPE | PROMPT | E LEAVE',
+    G.civicChipEl.textContent === 'HOSPITAL | HEAL $30 | E LEAVE', G.civicChipEl.textContent);
+  check('civic: panel carries the type title, action and foot text',
+    G.civicTitleEl.textContent === 'HOSPITAL' && G.civicActEl.textContent === 'HEAL $30'
+    && G.civicFootEl.textContent === 'FULL HEAL TO 100 HP');
+  frame(3);
+  check('civic: the player stays frozen at the porch while inside',
+    Math.abs(G.player.position.x - G.CIVIC.seatX) < 0.01 && Math.abs(G.player.position.z - G.CIVIC.seatZ) < 0.01
+    && G.CIVIC.state === 'hospital');
+
+  /* guards freeze locomotion, combat, melee, emotes while inside */
+  G.doPunch();
+  check('civic: melee is refused while inside', G.P.punchCd <= 0, 'punchCd=' + G.P.punchCd);
+  G.fireEmote('dance');
+  check('civic: emotes are refused while inside', G.EMO.key === null);
+  const fireCd0 = G.fireCd;
+  G.shoot();
+  check('civic: firing is refused while inside', G.fireCd === fireCd0);
+
+  /* hospital economy: $30 full heal, diner-heal idiom */
+  G.P.hp = 40; G.cash = 100;
+  G.civicHeal();
+  check('civic: hospital heal costs $30 and restores full HP',
+    G.cash === 70 && G.P.hp === 100, 'cash=' + G.cash + ' hp=' + G.P.hp);
+  check('civic: heal toast confirms', G.toastEl.textContent === 'HEALED', G.toastEl.textContent);
+  G.civicHeal();
+  check('civic: heal at full HP is refused (cash untouched)',
+    G.cash === 70 && G.toastEl.textContent === 'ALREADY HEALTHY', G.toastEl.textContent);
+  G.P.hp = 40; G.cash = 10;
+  G.civicHeal();
+  check('civic: heal denied under $30 (cash untouched)',
+    G.cash === 10 && G.P.hp === 40 && G.toastEl.textContent === 'NOT ENOUGH CASH');
+
+  /* exit: E (civicExit) frees the player, panel + chip hide, never traps */
+  G.civicExit();
+  check('civic: exit frees the player, panel + chip hide',
+    G.CIVIC.state === null && G.civicPanelEl.style.display === 'none'
+    && G.civicChipEl.style.display === 'none');
+  check('civic: exit toast reads ON FOOT', G.toastEl.textContent === 'ON FOOT');
+
+  /* bank economy: $20 daily allowance, once per in-game day */
+  synthCivic('bank');
+  frame(3);
+  G.civicEnter();
+  check('civic: ATM hint shows near the bank and enter works',
+    G.CIVIC.state === 'bank');
+  const day0 = G.CIVIC.day;
+  G.cash = 50;
+  G.civicAtm();
+  check('civic: ATM pays the $20 daily allowance',
+    G.cash === 70 && G.CIVIC.atmDay === day0, 'cash=' + G.cash + ' atmDay=' + G.CIVIC.atmDay);
+  G.civicAtm();
+  check('civic: second ATM the same day is refused with a cooldown toast',
+    G.cash === 70 && G.toastEl.textContent === 'COME BACK TOMORROW', G.toastEl.textContent);
+  /* day wrap: the day/night clock rolling past midnight re-arms the ATM */
+  G.dayPhase = 0.99; frame(2);
+  G.dayPhase = 0.01; frame(2);   // clock wrap 1 -> 0
+  check('civic: the in-game day counter ticks on the clock wrap',
+    G.CIVIC.day === day0 + 1, 'day=' + G.CIVIC.day);
+  G.civicAtm();
+  check('civic: ATM pays again on the new in-game day', G.cash === 90, 'cash=' + G.cash);
+  G.civicExit();
+
+  /* hotel economy: $40 rest = full heal + clock skip to 06:00 */
+  synthCivic('hotel');
+  frame(3);
+  G.civicEnter();
+  check('civic: REST hint shows near the hotel and enter works',
+    G.CIVIC.state === 'hotel');
+  G.P.hp = 50; G.cash = 100; G.dayPhase = 0.6; frame(1);
+  G.civicRest();
+  check('civic: hotel rest costs $40, heals fully and skips the clock to 06:00',
+    G.cash === 60 && G.P.hp === 100 && G.dayPhase === 0,
+    'cash=' + G.cash + ' hp=' + G.P.hp + ' phase=' + G.dayPhase);
+  G.cash = 10; G.P.hp = 50;
+  G.civicRest();
+  check('civic: rest denied under $40 (cash untouched, clock unmoved)',
+    G.cash === 10 && G.P.hp === 50 && G.toastEl.textContent === 'NOT ENOUGH CASH');
+  G.civicExit();
+
+  /* school: prop only (bearing chip + collider, no interaction) */
+  synthCivic('school');
+  frame(3);
+  check('civic: school shows no hint (prop only)',
+    G.CIVIC.hintOn === false && G.CIVIC.nearType === null);
+  frame(20);   // bearing chip cadence
+  check('civic: bearing chip shows the SCHOOL type-name sign with distance',
+    G.civicbearingEl.style.display === 'block' && /SCHOOL \d+M/.test(G.civtxtEl.textContent), G.civtxtEl.textContent);
+  for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+
+  /* night window glow reaches the civic fleet material too */
+  {
+    G.dayPhase = 0.75;   // midnight
+    frame(5);
+    const civicMat = G.BLDG_DEF.civic.mesh.material;
+    check('civic: windows glow at night (emissiveMap ramp, no new lights)',
+      civicMat.emissiveIntensity > 1, 'e=' + civicMat.emissiveIntensity.toFixed(2));
+    G.dayPhase = 0.25;   // noon
+    frame(5);
+    check('civic: windows dark by day', civicMat.emissiveIntensity < 0.01,
+      'e=' + civicMat.emissiveIntensity.toFixed(2));
+  }
+
+  /* bullets collide: a real seeded civic building stops the hitscan raycast
+     (routes through redistributeBuildings with boundingSphere invalidation) */
+  {
+    let hb = null;
+    for (let r = 2; r < 60 && !hb; r++)
+      for (let gx = -r; gx <= r && !hb; gx++)
+        for (let gz = -r; gz <= r && !hb; gz++) {
+          if (Math.max(Math.abs(gx), Math.abs(gz)) !== r) continue;
+          const b = G.bldgCenterFor(gx, gz);
+          if (b && b.type === 'hospital') hb = b;
+        }
+    check('civic: a seeded hospital exists for the raycast test', !!hb);
+    if (hb) {
+      settleC(hb.x + 30, hb.z);   // chunk cross -> real redistributeBuildings
+      frame(2);
+      const placed = G.BLDG.active.hospital.some(b => b.gx === hb.gx && b.gz === hb.gz);
+      check('civic: the seeded hospital lands in the live grid', placed);
+      if (placed) {
+        const rc = new THREE.Raycaster();
+        rc.set(new THREE.Vector3(hb.x + 25, hb.y + 2, hb.z), new THREE.Vector3(-1, 0, 0));
+        rc.far = 60;
+        const hits = rc.intersectObjects(G.bldgMeshes, false);
+        check('civic: raycast hits the civic wall (bullets do not pass through)',
+          hits.length > 0 && hits[0].distance < 25,
+          hits.length ? 'd=' + hits[0].distance.toFixed(1) : 'no hit');
+        /* player foot collision: the civic footprint blocks on-foot movement */
+        G.player.position.set(hb.x, groundY(hb.x, hb.z), hb.z);
+        frame(1);
+        const dOut = Math.hypot(G.player.position.x - hb.x, G.player.position.z - hb.z);
+        check('civic: foot collision pushes the player out of the footprint',
+          dOut >= 5.5, 'd=' + dOut.toFixed(2));
+      }
+    }
+  }
+  check('civic: enter/heal/ATM/rest/exit round trips leave zero console errors/warnings',
     consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
 }
 
