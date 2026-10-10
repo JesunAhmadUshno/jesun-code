@@ -1279,8 +1279,21 @@ if (renderer.shadowMap) {
   renderer.shadowMap.needsUpdate = true;
 }
 
+/* ---- PERF-7 STATIC FREEZE: per-frame render traversal recomposes the
+   local matrix of every Object3D with matrixAutoUpdate=true. Static meshes
+   that are positioned once and never moved pay that CPU cost every frame for
+   nothing. freezeStatic bakes the final transform once (updateMatrix) and
+   skips the per-frame recompose (matrixAutoUpdate=false). Zero visual or
+   behavior change by construction. NEVER freeze anything that moves (player,
+   NPCs, enemies, vehicles, animals, water, clouds, birds, animated rides).
+   FROZEN_STATICS is the QA registry: the smoke suite asserts every entry is
+   frozen and that each baked matrix still matches the object's declared
+   position/quaternion/scale (freeze-after-final-transform proof). */
+const FROZEN_STATICS = [];
+function freezeStatic(o) { o.updateMatrix(); o.matrixAutoUpdate = false; FROZEN_STATICS.push(o); return o; }
+
 const hemi = new THREE.HemisphereLight(0x9db4dd, 0x2a3220, 1.2);  // sky/ground fill
-scene.add(hemi);
+scene.add(freezeStatic(hemi));   // PERF-7: fill light never moves (intensity ramped only)
 DNF.hemi = hemi;   // colors driven by the day/night cycle
 
 /* ================================ TERRAIN ================================= */
@@ -1573,7 +1586,7 @@ const FLORA = {};
   trees.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   trees.castShadow = trees.receiveShadow = true;
   trees.frustumCulled = false;
-  scene.add(trees);
+  scene.add(freezeStatic(trees));   // PERF-7: mesh never moves (instances redistribute, not the mesh)
   FLORA.trees = trees; FLORA.nt = NT; FLORA.nf = NF;
 
   const rockG = new THREE.DodecahedronGeometry(0.9, 0);
@@ -1583,7 +1596,7 @@ const FLORA = {};
   rocks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   rocks.castShadow = rocks.receiveShadow = true;
   rocks.frustumCulled = false;
-  scene.add(rocks);
+  scene.add(freezeStatic(rocks));   // PERF-7: mesh never moves (instances redistribute, not the mesh)
   FLORA.rocks = rocks; FLORA.nr = NR;
 }
 /* CLEAN WORLD: amenity clear zones. Rebuilt on every redistribute; the map
@@ -1775,7 +1788,7 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
   });
   posts.instanceMatrix.needsUpdate = true;
   posts.castShadow = posts.receiveShadow = true;
-  scene.add(posts);
+  scene.add(freezeStatic(posts));   // PERF-7: fence posts baked once, mesh never moves
 
   /* fence rails: 8 wooden rails merged into one mesh (one draw call instead of
      8). Per-rail transforms are baked into the geometry, so the render and the
@@ -1801,7 +1814,7 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
     }
     const rails = new THREE.Mesh(mergeGeos(railBits), NAT.wood);
     rails.castShadow = true;
-    scene.add(rails);
+    scene.add(freezeStatic(rails));   // PERF-7: rail transforms baked into geometry, mesh never moves
   }
 
   /* barn: red box + two sloped roof panels + dark door */
@@ -1832,6 +1845,7 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
   door.castShadow = false;   /* PERF-1f: door shadow unreadable against the
      barn-body shadow; saves 1 shadow draw. Door still receives shadows. */
   scene.add(barn);
+  barn.traverse(o => freezeStatic(o));   // PERF-7: barn parked once; group + children never move
 
   /* hay bales: cylinders lying on their sides, merged into one mesh (one draw
      call instead of 4). Per-bale y-rotation is baked into the geometry. */
@@ -1849,7 +1863,7 @@ const FARM   = { x0: -100, x1: -40, z0: -20,  z1: 40 };
   }
   const hay = new THREE.Mesh(mergeGeos(hayBits), NAT.hay);
   hay.castShadow = hay.receiveShadow = true;
-  scene.add(hay);
+  scene.add(freezeStatic(hay));   // PERF-7: bale transforms baked into geometry, mesh never moves
 }
 
 /* ---- OCEAN: infinite water. A 360x360 plane follows the player at y=-0.6;
@@ -3808,7 +3822,7 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
     groundPlane(8, 60, 4, 30, 70, -70, 0.06),
   ]), asphaltM);
   streetMesh.receiveShadow = true;
-  scene.add(streetMesh);
+  scene.add(freezeStatic(streetMesh));   // PERF-7: street plane never moves
 
   /* ---- sidewalks: lighter strips merged into one mesh ---- */
   const walkM = new THREE.MeshStandardMaterial({ color: 0x62676f, roughness: 0.9 });
@@ -3819,7 +3833,7 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
     groundPlane(2.6, 60, 1, 30, 75.3, -70, 0.11),
   ]), walkM);
   walksMesh.receiveShadow = true;
-  scene.add(walksMesh);
+  scene.add(freezeStatic(walksMesh));   // PERF-7: sidewalk strips never move
 
   /* ---- lane dashes merged into one mesh ---- */
   const dashes = [];
@@ -3835,8 +3849,9 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
     d.translate(70, terrainHeight(70, z) + 0.1, z);
     dashes.push(d);
   }
-  scene.add(new THREE.Mesh(mergeGeos(dashes),
-    new THREE.MeshStandardMaterial({ color: 0xb9bdc4, roughness: 0.8 })));
+  const dashMesh = new THREE.Mesh(mergeGeos(dashes),
+    new THREE.MeshStandardMaterial({ color: 0xb9bdc4, roughness: 0.8 }));
+  scene.add(freezeStatic(dashMesh));   // PERF-7: lane dashes baked once, mesh never moves
 
   /* ---- window texture: dark face with a grid of lit windows ---- */
   function windowTexture() {
@@ -3938,7 +3953,7 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.castShadow = im.receiveShadow = true;
-      scene.add(im);
+      scene.add(freezeStatic(im));   // PERF-7: tower band fleet baked once, mesh never moves
       return;
     }
     for (const b of list) {
@@ -3962,7 +3977,7 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
   });
   const mergedBandMesh = new THREE.Mesh(mergeGeosColor(mergedBandGeos), mergedBandMat);
   mergedBandMesh.castShadow = mergedBandMesh.receiveShadow = true;
-  scene.add(mergedBandMesh);
+  scene.add(freezeStatic(mergedBandMesh));   // PERF-7: merged tower bands never move
 
   /* ---- street lights: instanced poles + glowing heads ---- */
   const poleG = new THREE.CylinderGeometry(0.12, 0.17, 7, 6);
@@ -3988,7 +4003,7 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
   poles.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
   poles.castShadow = false;  /* PERF-1g: thin pole shadows do not read at play
      distance; saves 1 shadow draw. Heads never cast (emissive fakes). */
-  scene.add(poles, heads);
+  scene.add(freezeStatic(poles), freezeStatic(heads));   // PERF-7: lamp instances baked once, meshes never move
 
   /* 4 real point lights at key spots; the rest of the lamps are emissive fakes */
   const cityLamps = [];
@@ -4019,7 +4034,7 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
     new THREE.MeshStandardMaterial({ color: 0x2b2e35, roughness: 0.85 }));
   roofs.castShadow = false;  /* PERF-1g: rooftop AC/antenna shadows are invisible
      from the street; saves 1 shadow draw. The towers themselves keep casting. */
-  scene.add(roofs);
+  scene.add(freezeStatic(roofs));   // PERF-7: rooftop details baked into geometry, mesh never moves
 
   /* ---- cheap animation: lamp glow pulse + subtle window flicker ---- */
   /* worldTickers is declared later in this module, so register after it exists */
@@ -5956,7 +5971,7 @@ for (let i = 0; i < 5; i++) {
   startIcons.setMatrixAt(i, _mDummy.matrix);
   startRings.setColorAt(i, M_GRAY); startIcons.setColorAt(i, M_GRAY);
 }
-scene.add(startRings); scene.add(startIcons);
+scene.add(freezeStatic(startRings), freezeStatic(startIcons));   // PERF-7: mission markers baked once, meshes never move
 /* objective marker: single ring + icon, follows the live target (2 draw calls) */
 const objRing = new THREE.Mesh(startRingGeo, new THREE.MeshStandardMaterial({ color: 0xff7b2e,
   emissive: 0x903000, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
@@ -5975,7 +5990,7 @@ pickupBoxes.frustumCulled = false;
 const LOOTBOX_OFF = 6;
 const C_ORANGE = new THREE.Color(0xff8c2e), C_GREEN = new THREE.Color(0x4ae08a);
 for (let i = 0; i < 13; i++) { pickupBoxes.setMatrixAt(i, M_HIDE); pickupBoxes.setColorAt(i, C_GREEN); }
-scene.add(pickupBoxes);
+scene.add(freezeStatic(pickupBoxes));   // PERF-7: mesh never moves (instances show/hide, not the mesh)
 const crateSpots = [];   // live collect spots for the current phase: {x, z, taken}
 
 function missionAvailable(i) { return i === 0 || MS.done[i - 1]; }
@@ -6456,7 +6471,7 @@ for (let i = 0; i < SHOPS.length; i++) {
 }
 shopRings.instanceMatrix.needsUpdate = true;
 shopIcons.instanceMatrix.needsUpdate = true;
-scene.add(shopRings); scene.add(shopIcons);
+scene.add(freezeStatic(shopRings), freezeStatic(shopIcons));   // PERF-7: shop markers baked once, meshes never move
 
 /* armor: plate that absorbs the next 100 damage before HP, player-only */
 let shopArmor = 0;
@@ -7827,6 +7842,7 @@ const theaterHallScreen = new THREE.Mesh(new THREE.PlaneGeometry(8.5, 4.8),
 theaterHallScreen.position.set(0, 4.3, -9.35);
 theaterHallScreen.frustumCulled = false;
 theaterHallMesh.add(theaterHallScreen);   // rides the room when it parks under a theater
+freezeStatic(theaterHallScreen);   // PERF-7: screen is fixed inside the room (the room itself still moves)
 scene.add(theaterHallMesh);
 /* ---- landmark theater gameplay: ENTER the cached screening room, WATCH
         SHOW ($5, +2 game hours, +25 HP, jingle), EXIT back to the door.
@@ -9158,7 +9174,7 @@ for (const d of AMEN_DEF_LIST) {
   mesh.castShadow = false;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.count = 0;
-  scene.add(mesh);
+  scene.add(freezeStatic(mesh));   // PERF-7: mesh never moves (instances stream in per chunk, not the mesh)
   d.mesh = mesh;
 }
 
@@ -9197,7 +9213,7 @@ let ZONE_PADS;
   mesh.setColorAt(0, ZONE_PAD_COLORS.land);   // allocate the instanceColor buffer
   mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
   mesh.count = 0;
-  scene.add(mesh);
+  scene.add(freezeStatic(mesh));   // PERF-7: mesh never moves (instances stream in per chunk, not the mesh)
   ZONE_PADS = mesh;
 }
 
@@ -9467,7 +9483,7 @@ glyphBoardIM.frustumCulled = false;
 glyphBoardIM.castShadow = false;
 glyphBoardIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 glyphBoardIM.count = 0;
-scene.add(glyphBoardIM);
+scene.add(freezeStatic(glyphBoardIM));   // PERF-7: mesh never moves (instances rebuilt on redistribute, not the mesh)
 const _gE = new THREE.Euler(), _gQ = new THREE.Quaternion(),
       _gP = new THREE.Vector3(), _gS = new THREE.Vector3(1, 1, 1),
       _gM = new THREE.Matrix4();
@@ -10231,7 +10247,7 @@ for (const d of BLDG_DEF_LIST) {
   mesh.castShadow = false;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.count = 0;
-  scene.add(mesh);
+  scene.add(freezeStatic(mesh));   // PERF-7: mesh never moves (instances stream in per chunk, not the mesh)
   d.mesh = mesh;
   BLDG_WIN_MATS.push(mat);
   bldgMeshes.push(mesh);
@@ -10599,7 +10615,7 @@ CROP_IM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 CROP_IM.setColorAt(0, new THREE.Color(1, 1, 1));   // allocate the instanceColor buffer
 CROP_IM.instanceColor.setUsage(THREE.DynamicDrawUsage);
 CROP_IM.count = 0;
-scene.add(CROP_IM);
+scene.add(freezeStatic(CROP_IM));   // PERF-7: mesh never moves (instances stream in per chunk, not the mesh)
 
 /* ---- deterministic per-chunk selection ----
    Farm-biome chunks only, no amenity, no building (bldgTypeFor already yields
@@ -14563,7 +14579,7 @@ const busLightIM = new THREE.InstancedMesh(mergeGeosColor([
 ]), new THREE.MeshBasicMaterial({ vertexColors: true }), 2);
 busLightIM.castShadow = false; busLightIM.frustumCulled = false; busLightIM.count = 0;
 busLightIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-scene.add(busLightIM);
+scene.add(freezeStatic(busLightIM));   // PERF-7: mesh never moves (instances rebuild on route change, not the mesh)
 
 /* ---- bus stop shelter: one merged vertex-colored geometry, one InstancedMesh ---- */
 const busStopIM = new THREE.InstancedMesh(mergeGeosColor([
@@ -14579,7 +14595,7 @@ const busStopIM = new THREE.InstancedMesh(mergeGeosColor([
 ]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.1 }), BUS_MAXSTOPS);
 busStopIM.castShadow = false; busStopIM.frustumCulled = false; busStopIM.count = 0;
 busStopIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-scene.add(busStopIM);
+scene.add(freezeStatic(busStopIM));   // PERF-7: mesh never moves (instances rebuild on route change, not the mesh)
 
 /* ---- HUD refs: board prompt, route chip, help footers ---- */
 const busHintEl = document.getElementById('bushint');
@@ -19538,7 +19554,7 @@ const venueBoxIM = new THREE.InstancedMesh(venueUnitGeo,
   new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05 }), VENUE_CAP);
 venueBoxIM.castShadow = false; venueBoxIM.frustumCulled = false;
 venueBoxIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-scene.add(venueBoxIM);
+scene.add(freezeStatic(venueBoxIM));   // PERF-7: mesh never moves (instances stream in per chunk, not the mesh)
 const _thM = new THREE.Matrix4(), _thQ = new THREE.Quaternion(),
       _thE = new THREE.Euler(0, 0, 0, 'YXZ'), _thP = new THREE.Vector3(),
       _thS = new THREE.Vector3(1, 1, 1), _thC = new THREE.Color(), _thC2 = new THREE.Color();
