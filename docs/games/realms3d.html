@@ -295,6 +295,27 @@
     letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
     pointer-events: none; white-space: nowrap;
   }
+  /* ---- helicopter HUD (Phase 5): BOARD prompt mirrors the boat hint
+         pattern, stacked above it so live prompts never overlap. The
+         #helichip speed/altitude readout sits top-right below the boat chip.
+         DOM only, zero draw calls. ---- */
+  #helihint {
+    position: absolute; bottom: 452px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #ffd24a; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #helichip {
+    position: absolute; top: 762px; right: 18px; color: #ffd24a; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: none; white-space: nowrap;
+  }
+  /* ---- touch DOWN button: mirrors #exitbtn, shown only while flying;
+         JUMP doubles as the climb button in the air ---- */
+  #helidnbtn { right: 116px; bottom: 110px; display: none;
+    border-color: rgba(125,184,255,.7); color: #9dc6ff; }
+  #helidnbtn:active { background: rgba(80,120,200,.7); color: #fff; }
   /* ---- wildlife HUD (Phase 5): TAME prompt mirrors the taxi hint pattern;
          the PET chip reuses the #diffchip chip language, stacked below it.
          DOM only, zero draw calls. ---- */
@@ -472,6 +493,8 @@
   <div id="schint"></div>
   <div id="boathint"></div>
   <div id="boatchip"></div>
+  <div id="helihint"></div>
+  <div id="helichip"></div>
   <div id="pethint"></div>
   <div id="petchip">PET</div>
   <div id="foodchip"></div>
@@ -505,6 +528,7 @@
   <div class="tbtn" id="jumpbtn">JUMP</div>
   <div class="tbtn" id="sprintbtn">RUN</div>
   <div class="tbtn" id="exitbtn">EXIT</div>
+  <div class="tbtn" id="helidnbtn">DOWN</div>
   <div class="tbtn" id="ridebtn">RIDE</div>
   <div class="tbtn" id="emotebtn">EMOTE</div>
 </div>
@@ -2343,6 +2367,8 @@ function natureTick(dt, now) {
     vtx = SC.pos.x; vtz = SC.pos.z; vtOn = true;
   } else if (BOAT.driving) {
     vtx = BOAT.pos.x; vtz = BOAT.pos.z; vtOn = true;
+  } else if (HELI.flying) {
+    vtx = HELI.pos.x; vtz = HELI.pos.z; vtOn = true;
   } else if (HORSE.riding) { vtx = px; vtz = pz; vtOn = true; }
 
   for (const a of animals) {
@@ -2938,7 +2964,7 @@ function petLoadStr(s) {
 function petSteer(a, dt) {
   const p = a.pos, pp = player.position;
   _petMoving = false; _petSpd = 0;
-  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving;
+  const inVehicle = CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying;
   const dx = pp.x - p.x, dz = pp.z - p.z;
   /* death, any vehicle mode, or >120m: the pet stops and waits */
   if (P.dead || inVehicle || dx * dx + dz * dz > 14400) { setPetMode('wait'); return; }
@@ -3768,7 +3794,7 @@ function emoteCancel() {
 }
 function fireEmote(name) {
   if (!playing() || P.dead || P.godT > 0) return;                 // dead or busted/spawn-protection
-  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving) return;
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) return;
   if (shopOpen) return;
   const E = EMOTES[name];
   if (!E) return;
@@ -3818,7 +3844,7 @@ function doPunch() {
   if (BIKE.driving) return;   // no melee from the bike: both hands on the bars
   if (BC.driving) return;     // no melee from the bicycle: both hands on the bars
   if (SC.driving) return;     // no melee from the scooter: both hands on the bar
-  if (BOAT.driving) return;    // no melee from the boat: both hands on the tiller
+  if (BOAT.driving || HELI.flying) return;    // no melee from a vehicle
   if (!playing() || P.dead || P.punchCd > 0) return;
   P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
   P.comboWin = 0.6;
@@ -4978,6 +5004,7 @@ function busted() {
   if (BC.driving) bcExit();       // busted off the bicycle too
   if (SC.driving) scExit();       // busted off the scooter too
   if (BOAT.driving) boatExit();     // busted off the boat too
+  if (HELI.flying) heliExit();         // busted out of the helicopter too
   const seized = Math.floor(cash * 0.25);
   cash -= seized; updateCashHUD();
   setHeat(0, true);
@@ -5038,7 +5065,7 @@ function wantedTick(dt) {
   if (W.tickT < 0.25) return;
   W.tickT = 0;
   const px = player.position.x, pz = player.position.z;
-  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
+  const seeR = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) ? COP_SEE_CAR : COP_SEE, see2 = seeR * seeR;
   let seen = false, bust = false;
   for (const c of cops) {
     if (!c.active || c.state === 'dead') continue;
@@ -5046,7 +5073,7 @@ function wantedTick(dt) {
     const d2 = dx * dx + dz * dz;
     if (d2 < see2) seen = true;
     if (P.godT > 0) continue;
-    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving) { if (d2 < 6.25) { bust = true; break; } }
+    if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying) { if (d2 < 6.25) { bust = true; break; } }
     else if (CAR.driving && d2 < 9 && Math.abs(CAR.speed) < 3) { bust = true; break; }
     else if ((BUS.driving || BUS.riding) && d2 < 9 && Math.abs(BUS.speed) < 3) { bust = true; break; }
     else if (TX.riding && d2 < 9 && Math.abs(TX.speed) < 3) { bust = true; break; }
@@ -5054,6 +5081,7 @@ function wantedTick(dt) {
     else if (BC.driving && d2 < 9 && Math.abs(BC.speed) < 3) { bust = true; break; }
     else if (SC.driving && d2 < 9 && Math.abs(SC.speed) < 3) { bust = true; break; }
     else if (BOAT.driving && d2 < 9 && Math.abs(BOAT.speed) < 3) { bust = true; break; }
+    else if (HELI.flying && d2 < 9 && Math.abs(HELI.speed) < 3) { bust = true; break; }
   }
   if (bust) { busted(); return; }
   if (W.heat <= 0) return;
@@ -5308,7 +5336,7 @@ function missionTick(dt) {
 
   const px = player.position.x, pz = player.position.z;
   if (MS.state === 'IDLE') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving) ? 6 : 3;   // markers are enterable on foot and while driving
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) ? 6 : 3;   // markers are enterable on foot and while driving
     for (let i = 0; i < 5; i++) {
       if (MS.done[i] || !missionAvailable(i)) continue;
       const dx = MISSIONS[i].mx - px, dz = MISSIONS[i].mz - pz;
@@ -5319,7 +5347,7 @@ function missionTick(dt) {
   /* ACTIVE: evaluate the current phase */
   const o = MISSIONS[MS.idx].obj[MS.phase];
   if (o.type === 'collect') {
-    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving) ? 4.5 : 2.5;
+    const r = (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) ? 4.5 : 2.5;
     for (let s = 0; s < crateSpots.length; s++) {
       const c = crateSpots[s];
       if (c.taken) continue;
@@ -5600,7 +5628,7 @@ function lootTick(dt) {
       if (L.respawnT <= 0) { L.taken = false; showLoot(L); }
     }
   }
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving) return;   // pickups are on-foot only
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) return;   // pickups are on-foot only
   lootCheckT += dt;
   if (lootCheckT < 0.15) return;                      // radius checks throttled
   lootCheckT = 0;
@@ -5740,7 +5768,7 @@ function refreshShopPanel() {
   renderShopRows();
 }
 function openShop(i) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || !playing()) return;
   shopOpen = true; shopOpenIdx = i;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;   // Phase 3: panel is shared with diners
   shopBaseTitle = SHOPS[i].name;              // Phase 5 cooking: list-swap restore title
@@ -5798,7 +5826,7 @@ function shopTick(dt) {
   shopCheckT += dt;
   if (shopCheckT < 0.15) return;           // proximity check throttled
   shopCheckT = 0;
-  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving) return;
+  if (!playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) return;
   const px = player.position.x, pz = player.position.z;
   for (let i = 0; i < SHOPS.length; i++) {
     const S = SHOPS[i];
@@ -6109,6 +6137,19 @@ function buildParkGeo() {
     amenPart(parts, 0, 6.8, 0.14, 0.18, 10.5, 0.42, bz, DOCKD);
   for (const [pxx, pzz] of [[8, -1.6], [8, 1.6], [10.5, -1.6], [10.5, 1.6], [13, -1.6], [13, 1.6]])
     amenPart(parts, 1, 0.09, 0.11, 3.0, pxx, -1.0, pzz, DOCKD);   // posts into the water
+  /* ---- Phase 5 helicopters: helipad baked into the shared park geometry
+         (zero new draw calls), the sports-court idiom: the pad reads as a
+         painted helipad in every park, gameplay (parked helicopters,
+         boarding) only at seeded heli parks (sportHash%5===4, disjoint
+         from soccer/basketball/tennis/dock parks). Pad center at park-local
+         (0, 8.2), clear of the tennis court (z -5..5) and the lamp (-0.5,
+         -5.5); painted at y 0.065 above the tennis lines (0.06) so nothing
+         z-fights. ---- */
+  amenPart(parts, 4, 2.3, 2.6, 0, 0, 0.065, 8.2, 0xf2c230);       // yellow ring
+  amenPart(parts, 3, 2.3, 0, 0, 0, 0.065, 8.2, 0x2e3238);          // dark disc
+  amenPart(parts, 0, 0.3, 0.02, 1.5, -0.55, 0.075, 8.2, 0xf4f8f4); // H posts
+  amenPart(parts, 0, 0.3, 0.02, 1.5, 0.55, 0.075, 8.2, 0xf4f8f4);
+  amenPart(parts, 0, 1.4, 0.02, 0.3, 0, 0.075, 8.2, 0xf4f8f4);     // H crossbar
   return mergeAmenGeos(parts);
 }
 function buildLandGeo() {
@@ -6401,7 +6442,7 @@ const REST_ITEMS = [
 ];
 let shopRest = false, shopRestSlot = -1, SHOP_LIST = SHOP_ITEMS;
 function openRest(R, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || !playing()) return;
   shopOpen = true; shopRest = true; shopRestSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = REST_ITEMS;
   shopBaseTitle = R.name;                     // Phase 5 cooking: list-swap restore title
@@ -6422,7 +6463,7 @@ function amenTick(dt) {
   amenT += dt;
   if (amenT >= 0.15) {
     amenT = 0;
-    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying) {
       const arr = AMEN.active.rest;
       for (let i = 0; i < arr.length; i++) {
         const R = arr[i];
@@ -6773,7 +6814,7 @@ function redistributeBuildings(pcx, pcz) {
    health with cash, walk out to re-arm. No new economy code. */
 let shopBldg = false, shopBldgSlot = -1;
 function openBldgStore(S, slot) {
-  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || !playing()) return;
+  if (shopOpen || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || !playing()) return;
   shopOpen = true; shopBldg = true; shopBldgSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;
   shopNameEl.textContent = S.name;
@@ -6793,7 +6834,7 @@ function bldgTick(dt) {
   bldgT += dt;
   if (bldgT >= 0.15) {
     bldgT = 0;
-    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving) {
+    if (!shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying) {
       const arr = BLDG.active.store;
       for (let i = 0; i < arr.length; i++) {
         const S = arr[i];
@@ -7118,7 +7159,7 @@ function farmTryHarvest() {
   if (FPLOT.nearIdx < 0) return false;
   if (!playing() || P.dead || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) return false;
   if (HORSE.hintOn || BUS.hintOn || TX.hintOn || BIKE.hintOn || BC.hintOn ||
       SC.hintOn || PET.hintOn) return false;
   if (FPLOT.nearMature) farmHarvest(FPLOT.nearIdx);
@@ -7604,7 +7645,7 @@ addEventListener('keydown', e => {
     return;                                           // no weapon select, no car toggle while shopping
   }
   if (e.code === 'KeyE') { if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
-  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
+  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (HELI.flying) heliExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -7971,7 +8012,7 @@ function soccerBallNear() {
 function soccerCanKick() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) return false;
   return soccerBallNear();
 }
 function doKick() {
@@ -8267,7 +8308,7 @@ function hoopsBallNear() {
 function hoopsCanShoot() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) return false;
   return hoopsBallNear();
 }
 /* set shot: auto-aim (ball->rim unit vector), arc via forward+up vector
@@ -8691,7 +8732,7 @@ function tennisBallNear() {
 function tennisCanHit() {
   if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
   if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
-      BIKE.driving || BC.driving || SC.driving || BOAT.driving) return false;
+      BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying) return false;
   return tennisBallNear();
 }
 /* forehand return: auto-aim at the far court, seeded depth/angle error via
@@ -9773,7 +9814,7 @@ function ensureEngineAudio() {
 }
 
 function carEnter() {
-  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || !playing() || P.dead) return;
+  if (CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || !playing() || P.dead) return;
   emoteCancel();   // no emotes while driving
   const dx = player.position.x - CAR.pos.x, dz = player.position.z - CAR.pos.z;
   if (dx * dx + dz * dz > 16) return;        // 4u enter radius
@@ -10050,7 +10091,7 @@ function ensureHoofAudio() {
 }
 
 function horseEnter() {
-  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || shopOpen) return;
+  if (HORSE.riding || !playing() || P.dead || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || shopOpen) return;
   emoteCancel();   // no emotes while riding
   const a = HORSE.nearA;
   if (!a || a.mountLocked || a.fleeT > 0) return;
@@ -10115,6 +10156,7 @@ function mountToggle() {
   else if (BIKE.driving) bikeExit();
   else if (BC.driving) bcExit();
   else if (SC.driving) scExit();
+  else if (HELI.flying) heliExit();
   else if (BOAT.driving) boatExit();
   else if (HORSE.hintOn && HORSE.nearA) horseEnter();
   else if (BUS.hintOn) busEnter();
@@ -10123,17 +10165,18 @@ function mountToggle() {
   else if (BC.hintOn) bcEnter();
   else if (SC.hintOn) scEnter();
   else if (BOAT.hintOn) boatEnter();
+  else if (HELI.hintOn) heliEnter();
   else if (PET.hintOn && PET.nearA) tamePet(PET.nearA);
   else carEnter();
 }
 /* the touch EXIT button doubles as the dismount button while riding */
-function vehicleExit() { if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); }
+function vehicleExit() { if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (HELI.flying) heliExit(); }
 
 /* ---- horse ticker: prompt, controller, procedural gait, audio, HUD ---- */
 function horseUpdate(sdt, now) {
   if (!HORSE.riding) {
     // parked: nearest non-fleeing horse inside 2.2u shows the RIDE prompt
-    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !shopOpen;
+    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !shopOpen;
     let best = null, bestD2 = RIDE_R2;
     if (onFoot) {
       for (const a of animals) {
@@ -10547,7 +10590,7 @@ function busDwellService() {
 }
 
 function busEnter() {
-  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || !playing() || P.dead || shopOpen) return;
+  if (BUS.riding || BUS.driving || CAR.driving || HORSE.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a bus passenger
   if (!BUS.active || BUS.speed > 3) { toast('WAIT FOR THE BUS TO STOP'); return; }
   const door = busDoorWorld();
@@ -10690,7 +10733,7 @@ function busUpdate(sdt, now) {
 
   // ---- board prompt: on foot, near the door, bus stopped ----
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !shopOpen;
   let nearDoor = false;
   if (onFoot && BUS.speed < 3) {
     const door = busDoorWorld();
@@ -11091,7 +11134,7 @@ function txPursuit(sdt) {
   if (TX.speed > 0.05) TX.heading += (TX.speed / TX.wheelbase) * Math.tan(delta) * sdt;
 }
 function taxiEnter() {
-  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving
+  if (TX.riding || CAR.driving || BUS.driving || BUS.riding || HORSE.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying
       || !playing() || P.dead || shopOpen) return;
   emoteCancel();   // no emotes as a taxi passenger
   if (!TX.active || TX.speed > 3) { toast('WAIT FOR THE TAXI TO STOP'); return; }
@@ -11153,7 +11196,7 @@ function txUpdate(sdt) {
   if (TX.riding) { player.position.copy(TX.pos); player.rotation.y = TX.heading; }
   /* board prompt: on foot, near the door, taxi slow */
   const onFoot = playing() && !P.dead && !CAR.driving && !HORSE.riding
-              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !shopOpen;
+              && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !shopOpen;
   let nearDoor = false;
   if (onFoot && TX.speed < 3) {
     const door = txDoorWorld();
@@ -11324,7 +11367,7 @@ function bikeRebuild(pcx, pcz) {
   bikeBodyIM.instanceMatrix.needsUpdate = true;
 }
 function bikeEnter() {
-  if (BIKE.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BC.driving || SC.driving || BOAT.driving
+  if (BIKE.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BC.driving || SC.driving || BOAT.driving || HELI.flying
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = BIKE.nearIdx;
@@ -11416,7 +11459,7 @@ function bikeUpdate(sdt) {
   if (!BIKE.driving) {
     // parked: nearest slot inside 3.5u shows the RIDE prompt (horse idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BC.driving && !SC.driving && !BOAT.driving && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !shopOpen;
     let best = -1, bestD2 = BIKE.boardR2;
     if (onFoot) {
       for (let i = 0; i < 3; i++) {
@@ -11703,7 +11746,7 @@ function bcRebuild(pcx, pcz) {
   bcBodyIM.instanceMatrix.needsUpdate = true;
 }
 function bcEnter() {
-  if (BC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || SC.driving || BOAT.driving
+  if (BC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || SC.driving || BOAT.driving || HELI.flying
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = BC.nearIdx;
@@ -11797,7 +11840,7 @@ function bcUpdate(sdt) {
   if (!BC.driving) {
     // parked: nearest slot inside 3.5u shows the RIDE prompt (bike idiom)
     const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
-                && !TX.riding && !HORSE.riding && !BIKE.driving && !SC.driving && !BOAT.driving && !shopOpen;
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !SC.driving && !BOAT.driving && !HELI.flying && !shopOpen;
     let best = -1, bestD2 = BC.boardR2;
     if (onFoot) {
       for (let i = 0; i < 3; i++) {
@@ -12066,7 +12109,7 @@ function scRebuild(pcx, pcz) {
   scBodyIM.instanceMatrix.needsUpdate = true;
 }
 function scEnter() {
-  if (SC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || BOAT.driving
+  if (SC.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving || BOAT.driving || HELI.flying
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while riding
   const i = SC.nearIdx;
@@ -12431,7 +12474,7 @@ function boatRebuild(pcx, pcz, now) {
   boatBodyIM.instanceMatrix.needsUpdate = true;
 }
 function boatEnter() {
-  if (BOAT.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+  if (HELI.flying || BOAT.driving || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
       || !playing() || P.dead || shopOpen || P.godT > 0) return;
   emoteCancel();   // no emotes while sailing
   const i = BOAT.nearIdx;
@@ -12639,6 +12682,472 @@ function boatUpdate(sdt, now) {
 }
 worldTickers.push(boatUpdate);
 
+/* ================= PHASE 5: HELICOPTERS v1 =================
+   One new draw call total: heliBodyIM, a merged vertex-colored helicopter
+   (body capsule, cockpit glass, tail boom, tail fin, skids, and a blurred
+   translucent main-rotor disc so the spin reads with zero per-frame matrix
+   cost), 3 seeded spawns at helipads. The helipad visual is baked into the
+   shared park geometry (zero new draw calls, sports-court idiom); gameplay
+   only at seeded heli parks (helipadFor: sportHash%5===4, disjoint from
+   soccer/basketball/tennis/dock parks). Design (the flight feel, distinct
+   from every ground vehicle): arcade tilt-to-fly. W/S is longitudinal
+   throttle with light air drag, A/D strafes laterally with a visible bank,
+   Space climbs and C descends, and the helicopter weathervanes toward the
+   camera look direction (mouse steer). Pitch follows speed with strong
+   auto-level at hover and momentum carry at speed (never over-leveled).
+   Terrain-floor clamp, 60u ceiling, soft auto-landing on ground contact
+   with a touchdown thud. E boards near a parked helicopter; E/F while
+   flying lands the helicopter and exits. v1 simplifications: session-only
+   (save v3 untouched), no heli-vs-heli collision, no special armor (damage
+   follows the on-foot idiom). Guard twins mirror the boat pattern at every
+   vehicle touchpoint. */
+
+/* ---- HUD refs: BOARD prompt mirrors the boat hint pattern ---- */
+const heliHintEl = document.getElementById('helihint');
+const heliChipEl = document.getElementById('helichip');
+const heliDnBtnEl = document.getElementById('helidnbtn');
+const jumpBtnEl = document.getElementById('jumpbtn');
+const HELP_HELI = '<b>W/S</b> fly fwd/back &nbsp; <b>A/D</b> strafe &nbsp; <b>SPACE</b> climb &nbsp; <b>C</b> descend<br>'
+  + '<b>MOUSE</b> steer &nbsp; <b>E</b> land+exit<br>'
+  + '<b>TOUCH</b> stick flies, <b>UP</b>/<b>DOWN</b> climb/descend, <b>EXIT</b> lands';
+heliHintEl.textContent = IS_TOUCH ? 'TAP TO BOARD' : 'BOARD [E]';
+heliHintEl.addEventListener('click', () => { if (HELI.hintOn) heliEnter(); });
+heliChipEl.style.pointerEvents = 'auto'; heliChipEl.style.cursor = 'pointer';
+heliChipEl.addEventListener('click', () => { if (HELI.flying) camYaw = HELI.heading; });  // re-center chase cam
+/* touch DOWN button: the existing tbtn idiom, climb reuses the JUMP button */
+touch.descend = false;
+heliDnBtnEl.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); touch.descend = true; }, { passive: false });
+heliDnBtnEl.addEventListener('touchend', e => { e.preventDefault(); touch.descend = false; });
+heliDnBtnEl.addEventListener('touchcancel', () => { touch.descend = false; });
+
+/* ---- seeded helipads: pure-deterministic subset of park amenities.
+        helipadFor(gx, gz) is pure deterministic: same chunk, same pad,
+        every revisit. Residue %5===4 is heli's; soccer takes %5===1,
+        basketball %5===2, tennis %5===3, so the four never overlap. Dock
+        chunks keep their docks (docks own their parks). The pad needs dry,
+        gentle land at the baked pad offset (park-local z = 8.2). ---- */
+const HELI_PAD_LZ = 8.2;
+function heliParkPad(a) {
+  const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+  return { x: a.x + HELI_PAD_LZ * s, z: a.z + HELI_PAD_LZ * c, y: a.y, yaw: a.yaw };
+}
+function helipadFor(gx, gz) {
+  if (amenityTypeFor(gx, gz) !== 'park' || !amenityAccepted(gx, gz)) return null;
+  if (dockFor(gx, gz)) return null;                          // docks own their parks
+  if (sportHash(gx, gz) % 5 !== 4) return null;               // disjoint sport residue
+  const a = amenityCenterFor(gx, gz);
+  if (!a) return null;
+  const pad = heliParkPad(a);
+  const y = terrainHeight(pad.x, pad.z);
+  if (y < WATER_Y + 0.4) return null;                        // dry land only
+  if (Math.abs(terrainHeight(pad.x + 5, pad.z) - y) > 2.5) return null;
+  if (Math.abs(terrainHeight(pad.x, pad.z + 5) - y) > 2.5) return null;
+  return { x: pad.x, z: pad.z, y, gx, gz, yaw: a.yaw };
+}
+
+/* ---- helicopter body: one merged RGBA vertex-colored geometry, one
+        InstancedMesh, per-instance tint. EXACTLY +1 draw call. The main
+        rotor is a static translucent disc with baked blade streaks: the
+        spin reads with zero per-frame matrix cost. RGBA vertex colors
+        (itemSize 4) drive the translucency through the standard material;
+        opaque parts carry alpha 1. No external assets. ---- */
+const _heliC = new THREE.Color();
+function heliPart(list, geo, hex, alpha, x, y, z) {
+  _heliC.setHex(hex);
+  const n = geo.attributes.position.count, arr = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    arr[i * 4] = _heliC.r; arr[i * 4 + 1] = _heliC.g; arr[i * 4 + 2] = _heliC.b; arr[i * 4 + 3] = alpha;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(arr, 4));
+  geo.translate(x, y, z);
+  list.push(geo);
+  return geo;
+}
+/* blurred rotor disc: alpha peaks along two blade streaks, fades between,
+   so the spin reads without any per-frame work. */
+function heliRotorDisc(r, segs, x, y, z, vertical) {
+  const g = new THREE.CircleGeometry(r, segs);
+  if (vertical) g.rotateY(Math.PI / 2); else g.rotateX(-Math.PI / 2);
+  const pos = g.attributes.position, n = pos.count;
+  const col = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    const ax = pos.getX(i), az = pos.getZ(i), ay = pos.getY(i);
+    const ang = vertical ? Math.atan2(ay, az) : Math.atan2(az, ax);
+    const streak = Math.pow(Math.abs(Math.cos(ang)), 6);
+    col[i * 4] = 0.78; col[i * 4 + 1] = 0.81; col[i * 4 + 2] = 0.85;
+    col[i * 4 + 3] = 0.10 + 0.30 * streak;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 4));
+  g.translate(x, y, z);
+  return g;
+}
+function mergeHeliGeos(list) {
+  let vCount = 0, iCount = 0;
+  for (const g of list) { vCount += g.attributes.position.count; iCount += g.index.count; }
+  const pos = new Float32Array(vCount * 3), nor = new Float32Array(vCount * 3);
+  const uv = new Float32Array(vCount * 2), col = new Float32Array(vCount * 4);
+  const idx = new (vCount > 65535 ? Uint32Array : Uint16Array)(iCount);
+  let vo = 0, io = 0;
+  for (const g of list) {
+    const n = g.attributes.position.count;
+    pos.set(g.attributes.position.array, vo * 3);
+    nor.set(g.attributes.normal.array, vo * 3);
+    uv.set(g.attributes.uv.array, vo * 2);
+    col.set(g.attributes.color.array, vo * 4);
+    const gi = g.index.array;
+    for (let i = 0; i < gi.length; i++) idx[io + i] = gi[i] + vo;
+    vo += n; io += gi.length;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 4));
+  out.setIndex(new THREE.BufferAttribute(idx, 1));
+  return out;
+}
+const heliParts = [];
+{ // nose faces +Z (the heading convention: fx = sin(heading), fz = cos(heading))
+  const bodyG = new THREE.CapsuleGeometry(0.85, 2.4, 6, 14);
+  bodyG.rotateX(Math.PI / 2);
+  heliPart(heliParts, bodyG, 0xffffff, 1, 0, 1.55, 0);                    // body (tinted)
+  const glassG = new THREE.SphereGeometry(0.72, 14, 10);
+  glassG.scale(0.95, 0.7, 1.0);
+  heliPart(heliParts, glassG, 0x18242f, 1, 0, 1.8, 1.35);                 // cockpit glass
+  const boomG = new THREE.CylinderGeometry(0.30, 0.13, 4.6, 10);
+  boomG.rotateX(Math.PI / 2);                                            // top (+Y) -> +Z nose side
+  heliPart(heliParts, boomG, 0xffffff, 1, 0, 1.8, -3.9);                  // tail boom (tinted)
+  heliPart(heliParts, new THREE.BoxGeometry(0.14, 1.6, 0.8), 0xffffff, 1, 0, 2.6, -5.9);  // tail fin (tinted)
+  heliPart(heliParts, new THREE.CylinderGeometry(0.12, 0.12, 0.7, 8), 0x23252a, 1, 0, 2.45, 0.3);  // rotor mast
+  for (const sx of [-0.78, 0.78]) {                                       // skids + struts
+    const skidG = new THREE.CylinderGeometry(0.09, 0.09, 3.6, 8);
+    skidG.rotateX(Math.PI / 2);
+    heliPart(heliParts, skidG, 0x2a2d33, 1, sx, 0.42, 0.1);
+    heliPart(heliParts, new THREE.BoxGeometry(0.1, 0.4, 0.1), 0x2a2d33, 1, sx, 0.58, 1.0);
+    heliPart(heliParts, new THREE.BoxGeometry(0.1, 0.4, 0.1), 0x2a2d33, 1, sx, 0.58, -0.8);
+  }
+  heliParts.push(heliRotorDisc(4.4, 48, 0, 2.85, 0.3, false));            // main rotor blur disc
+  heliParts.push(heliRotorDisc(0.55, 16, 0.16, 2.7, -5.9, true));         // tail rotor blur disc
+}
+const heliBodyGeo = mergeHeliGeos(heliParts);
+const HELI_N = 3;
+const heliBodyIM = new THREE.InstancedMesh(heliBodyGeo,
+  new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 0.5, metalness: 0.25, side: THREE.DoubleSide }), HELI_N);
+heliBodyIM.castShadow = false; heliBodyIM.frustumCulled = false;
+heliBodyIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+const HELI_TINTS = [0xff3d2e, 0x3d7bff, 0xffd24a];   // rescue red, sky blue, taxi yellow
+for (let i = 0; i < HELI_N; i++) heliBodyIM.setColorAt(i, new THREE.Color(HELI_TINTS[i]));
+heliBodyIM.instanceColor.needsUpdate = true;
+scene.add(heliBodyIM);
+const _hlM = new THREE.Matrix4(), _hlQ = new THREE.Quaternion(),
+      _hlE = new THREE.Euler(0, 0, 0, 'YXZ'), _hlP = new THREE.Vector3(),
+      _hlS = new THREE.Vector3(1, 1, 1);
+/* park an instance far underground: invisible until its slot activates */
+function heliPark(i) {
+  _hlM.makeScale(0.0001, 0.0001, 0.0001); _hlM.setPosition(0, -60, 0);
+  heliBodyIM.setMatrixAt(i, _hlM);
+}
+for (let i = 0; i < HELI_N; i++) heliPark(i);
+heliBodyIM.instanceMatrix.needsUpdate = true;
+/* pose with pitch/roll: Euler YXZ applies roll in the heli frame, then
+   pitch, then yaw. Matches the boat lean sign convention. */
+function heliPose(i, px, py, pz, heading, pitch, roll) {
+  _hlE.set(pitch, heading, roll); _hlQ.setFromEuler(_hlE);
+  _hlP.set(px, py, pz); _hlM.compose(_hlP, _hlQ, _hlS);
+  heliBodyIM.setMatrixAt(i, _hlM);
+}
+
+const HELI = {
+  // ---- tuning: fastest vehicle, light air drag, tilt-to-fly ----
+  topSpeed: 26, reverseSpeed: 6,          // u/s
+  accel: 10, brake: 12,                  // u/s^2
+  coast: 1.8, drag: 0.008,               // light air drag
+  strafeMax: 8, strafeSm: 5,             // lateral strafe u/s + smoothing
+  climbMax: 9, climbAccel: 24,           // vertical u/s + u/s^2
+  ceil: 60, skidH: 0.34,                 // ceiling cap, skid ground clearance
+  yawSm: 2.4,                            // weathervane rate toward the camera
+  camDist: 13, camH: 4.5,                // chase cam distance / height
+  fovDrive: 70,
+  boardR2: 5 * 5,                        // board radius, squared
+  // ---- runtime state (not tuning) ----
+  flying: false, speed: 0, strafe: 0, vy: 0, heading: 0,
+  pitch: 0, pitchVel: 0, roll: 0, rollVel: 0,
+  grounded: true,
+  pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1,
+  activeIdx: -1, anchorCx: 1e9, anchorCz: 1e9, key: '', tdT: 0,
+  slots: [
+    { x: 0, z: 0, yaw: 0, placed: false, y: 0 },
+    { x: 0, z: 0, yaw: 0, placed: false, y: 0 },
+    { x: 0, z: 0, yaw: 0, placed: false, y: 0 },
+  ],
+};
+const HELI_SCAN = 4;
+function heliRebuild(pcx, pcz, now) {
+  const key = pcx + ',' + pcz;
+  if (key === HELI.key) return;
+  HELI.key = key; HELI.anchorCx = pcx; HELI.anchorCz = pcz;
+  const cx = (pcx + 0.5) * CHUNK, cz = (pcz + 0.5) * CHUNK;
+  /* nearest helipads to the anchor center: deterministic and
+     player-position independent, so the same anchor rebuilds the same
+     spawns. */
+  const found = [];
+  for (let gx = pcx - HELI_SCAN; gx <= pcx + HELI_SCAN; gx++)
+    for (let gz = pcz - HELI_SCAN; gz <= pcz + HELI_SCAN; gz++) {
+      const d = helipadFor(gx, gz);
+      if (d) found.push(d);
+    }
+  found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
+                     - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
+  for (let i = 0; i < HELI_N; i++) {
+    const s = HELI.slots[i];
+    if (i === HELI.activeIdx) continue;   // never yank the flown helicopter
+    const d = found[i];
+    if (!d) { s.placed = false; heliPark(i); continue; }
+    /* Hysteresis (boat idiom): if the player is already at the slot,
+       keep it. Without this the spawn would jump every chunk crossing
+       while the player stands on the pad. */
+    const pdx = player.position.x - s.x, pdz = player.position.z - s.z;
+    if (s.placed && pdx * pdx + pdz * pdz < 400) continue;
+    s.x = d.x; s.z = d.z; s.yaw = d.yaw; s.placed = true;
+    s.y = d.y + HELI.skidH;
+    heliPose(i, s.x, s.y, s.z, s.yaw, 0, 0);
+  }
+  heliBodyIM.instanceMatrix.needsUpdate = true;
+}
+function heliEnter() {
+  if (HELI.flying || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+      || SC.driving || BOAT.driving || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  emoteCancel();   // no emotes while flying
+  const i = HELI.nearIdx;
+  if (i < 0 || i >= HELI_N) return;
+  const s = HELI.slots[i];
+  if (!s.placed) return;
+  const dx = player.position.x - s.x, dz = player.position.z - s.z;
+  if (dx * dx + dz * dz > HELI.boardR2) return;
+  HELI.flying = true; HELI.activeIdx = i;
+  HELI.pos.set(s.x, s.y, s.z); HELI.heading = s.yaw; HELI.speed = 0;
+  HELI.strafe = 0; HELI.vy = 0; HELI.grounded = true;
+  HELI.pitch = 0; HELI.pitchVel = 0; HELI.roll = 0; HELI.rollVel = 0;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = false;
+  heliChipEl.style.display = 'block';
+  heliHintEl.style.opacity = 0; HELI.hintOn = false; HELI.nearIdx = -1;
+  carHintEl.style.opacity = 0; CAR.hintOn = false;
+  busHintEl.style.opacity = 0; BUS.hintOn = false;
+  txHintEl.style.opacity = 0; TX.hintOn = false;
+  rideHintEl.style.opacity = 0; HORSE.hintOn = false;
+  bikeHintEl.style.opacity = 0; BIKE.hintOn = false;
+  bcHintEl.style.opacity = 0; BC.hintOn = false;
+  scHintEl.style.opacity = 0; SC.hintOn = false;
+  boatHintEl.style.opacity = 0; BOAT.hintOn = false;
+  if (IS_TOUCH) {
+    exitBtnEl.style.display = 'flex';   // touch exit path
+    heliDnBtnEl.style.display = 'flex';  // touch descend path
+    jumpBtnEl.textContent = 'UP';        // JUMP doubles as climb while flying
+  }
+  helpEl.innerHTML = HELP_HELI;
+  ensureHeliAudio();
+  toast('HELICOPTER');
+  sfxBlip(520, 0.09, 'square', 0.2);
+}
+function heliExit() {
+  if (!HELI.flying) return;
+  const i = HELI.activeIdx;
+  HELI.flying = false; HELI.activeIdx = -1;
+  exitBtnEl.style.display = 'none';
+  if (IS_TOUCH) {
+    heliDnBtnEl.style.display = 'none';
+    jumpBtnEl.textContent = 'JUMP';
+    touch.descend = false;
+  }
+  if (heliGain) heliGain.gain.value = 0;
+  /* land the helicopter where it is: it never hovers abandoned, and the
+     player always steps out beside it on the ground. Never traps. */
+  const gy = Math.max(terrainHeight(HELI.pos.x, HELI.pos.z), WATER_Y);
+  if (i >= 0 && i < HELI_N) {
+    const s = HELI.slots[i];
+    s.x = HELI.pos.x; s.z = HELI.pos.z; s.yaw = HELI.heading;
+    s.y = gy + HELI.skidH; s.placed = true;
+    heliPose(i, s.x, s.y, s.z, s.yaw, 0, 0);
+    heliBodyIM.instanceMatrix.needsUpdate = true;
+  }
+  let px = HELI.pos.x + Math.sin(HELI.heading + Math.PI / 2) * 4;
+  let pz = HELI.pos.z + Math.cos(HELI.heading + Math.PI / 2) * 4;
+  if (terrainHeight(px, pz) < WATER_Y) { px = HELI.pos.x; pz = HELI.pos.z; }
+  player.position.set(px, terrainHeight(px, pz), pz);
+  player.rotation.y = HELI.heading;
+  player.visible = true;
+  P.vel.set(0, 0, 0); P.vy = 0; P.grounded = true;
+  heliChipEl.style.display = 'none';
+  helpEl.innerHTML = HELP_FOOT;
+  toast('ON FOOT');
+  sfxBlip(440, 0.09, 'square', 0.18);
+}
+/* ---- procedural rotor audio: a sawtooth through a lowpass, chopped by a
+        square LFO for the whup-whup. Pitch and chop rate ride the load
+        (the Sega lesson). Nodes are created once; the per-frame tick only
+        sets gains and frequencies. ---- */
+let heliOsc = null, heliChop = null, heliGain = null;
+function ensureHeliAudio() {
+  const a = ac(); if (!a || heliOsc) return;
+  heliOsc = a.createOscillator(); heliOsc.type = 'sawtooth';
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 1.0;
+  const chopGain = a.createGain(); chopGain.gain.value = 0.55;
+  const chopDepth = a.createGain(); chopDepth.gain.value = 0.45;
+  heliChop = a.createOscillator(); heliChop.type = 'square'; heliChop.frequency.value = 11;
+  heliGain = a.createGain(); heliGain.gain.value = 0;
+  heliOsc.connect(lp); lp.connect(chopGain);
+  heliChop.connect(chopDepth); chopDepth.connect(chopGain.gain);
+  chopGain.connect(heliGain); heliGain.connect(a.destination);
+  heliOsc.frequency.value = 58;
+  heliOsc.start(); heliChop.start();
+}
+/* touchdown thud: one-shot deterministic-noise burst through a lowpass,
+   plus a low sine thump. Nodes are per-call one-shots, never per-frame.
+   No external audio files. The LCG keeps nondeterministic calls out of
+   the file so the static pin stays green. */
+function sfxThud() {
+  const a = ac(); if (!a) return;
+  const len = Math.floor(a.sampleRate * 0.3);
+  const buf = a.createBuffer(1, len, a.sampleRate);
+  const d = buf.getChannelData(0);
+  let seed = 123456789;
+  for (let i = 0; i < len; i++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    d[i] = ((seed / 0x7fffffff) * 2 - 1) * (1 - i / len);
+  }
+  const src = a.createBufferSource(); src.buffer = buf;
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+  const g = a.createGain(); g.gain.value = 0.5;
+  src.connect(lp); lp.connect(g); g.connect(a.destination);
+  src.start();
+  sfxBlip(70, 0.25, 'sine', 0.5);
+}
+function heliUpdate(sdt, now) {
+  const pcx = Math.floor(player.position.x / CHUNK), pcz = Math.floor(player.position.z / CHUNK);
+  if (pcx !== HELI.anchorCx || pcz !== HELI.anchorCz) heliRebuild(pcx, pcz, now);
+  if (!HELI.flying) {
+    // parked: nearest helicopter inside 5u shows the BOARD prompt (boat idiom)
+    const onFoot = playing() && !P.dead && !CAR.driving && !BUS.driving && !BUS.riding
+                && !TX.riding && !HORSE.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !shopOpen;
+    let best = -1, bestD2 = HELI.boardR2;
+    if (onFoot) {
+      for (let i = 0; i < HELI_N; i++) {
+        const s = HELI.slots[i];
+        if (!s.placed) continue;
+        const dx = player.position.x - s.x, dz = player.position.z - s.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bestD2) { bestD2 = d2; best = i; }
+      }
+    }
+    if ((best >= 0) !== HELI.hintOn) {
+      HELI.hintOn = best >= 0;
+      heliHintEl.style.opacity = HELI.hintOn ? 1 : 0;
+    }
+    HELI.nearIdx = best;
+    if (heliGain) heliGain.gain.value *= 0.9;
+    return;
+  }
+  if (P.dead) { heliExit(); return; }   // death always ejects: no flying while dead
+
+  // ---- input: W/S longitudinal, A/D strafe; Space climb, C descend; joystick on touch ----
+  let thr = 0, str = 0;
+  if (keys.KeyW || keys.ArrowUp) thr += 1;
+  if (keys.KeyS || keys.ArrowDown) thr -= 1;
+  if (keys.KeyD || keys.ArrowRight) str += 1;
+  if (keys.KeyA || keys.ArrowLeft) str -= 1;
+  if (IS_TOUCH) { thr += -touch.moveY; str += touch.moveX; }
+  const climb = !!(keys.Space || (IS_TOUCH && touch.jump));
+  const descend = !!(keys.KeyC || (IS_TOUCH && touch.descend));
+  thr = Math.max(-1, Math.min(1, thr));
+  str = Math.max(-1, Math.min(1, str));
+
+  // ---- heading: the helicopter weathervanes toward the camera look
+  //      direction (mouse steer), GTA-helicopter style ----
+  HELI.heading = angleLerp(HELI.heading, camYaw, Math.min(1, HELI.yawSm * sdt));
+
+  // ---- longitudinal: throttle, brake (input opposing motion), light air drag ----
+  const sp = HELI.speed;
+  if (thr > 0) {
+    HELI.speed = Math.min(HELI.topSpeed, sp + HELI.accel * thr * sdt);
+  } else if (thr < 0) {
+    if (sp > 0.5) HELI.speed = Math.max(0, sp - HELI.brake * sdt);   // brake first
+    else HELI.speed = Math.max(-HELI.reverseSpeed, sp + HELI.accel * 0.6 * thr * sdt);  // then reverse
+  } else {
+    const dec = HELI.coast * sdt + sp * sp * HELI.drag * sdt;
+    HELI.speed = sp > 0 ? Math.max(0, sp - dec) : Math.min(0, sp + dec);
+  }
+  // ---- strafe: lateral velocity with heavy smoothing, reads as a bank ----
+  HELI.strafe += (str * HELI.strafeMax - HELI.strafe) * Math.min(1, HELI.strafeSm * sdt);
+  // ---- vertical: Space climbs, C descends, hands-off holds the hover ----
+  if (climb) HELI.vy = Math.min(HELI.climbMax, HELI.vy + HELI.climbAccel * sdt);
+  else if (descend) HELI.vy = Math.max(-HELI.climbMax, HELI.vy - HELI.climbAccel * sdt);
+  else HELI.vy += (0 - HELI.vy) * Math.min(1, 3 * sdt);
+
+  // ---- integrate: forward along the heading, strafe along the right vector ----
+  const fx = Math.sin(HELI.heading), fz = Math.cos(HELI.heading);
+  const rx = Math.cos(HELI.heading), rz = -Math.sin(HELI.heading);
+  HELI.pos.x += (fx * HELI.speed + rx * HELI.strafe) * sdt;
+  HELI.pos.z += (fz * HELI.speed + rz * HELI.strafe) * sdt;
+  HELI.pos.y += HELI.vy * sdt;
+
+  // ---- terrain-floor clamp, water floats, ceiling cap ----
+  const ground = terrainHeight(HELI.pos.x, HELI.pos.z);
+  const floorY = Math.max(ground, WATER_Y) + HELI.skidH;
+  const wasAir = !HELI.grounded;
+  HELI.tdT = Math.max(0, HELI.tdT - sdt);
+  if (HELI.pos.y <= floorY) {
+    HELI.pos.y = floorY;
+    if (wasAir && HELI.vy < -1.5 && HELI.tdT <= 0) {
+      sfxThud();
+      toast('TOUCHDOWN');
+      HELI.tdT = 2;
+    }
+    HELI.vy = 0; HELI.grounded = true;
+  } else if (HELI.pos.y > floorY + 0.5) {
+    HELI.grounded = false;
+  }
+  if (HELI.pos.y > HELI.ceil) { HELI.pos.y = HELI.ceil; HELI.vy = Math.min(0, HELI.vy); }
+
+  // ---- tilt-to-fly pose: pitch follows speed, roll follows strafe.
+  //      Strong auto-level at hover, momentum carry at speed: the spring
+  //      stiffness drops as speed rises, so forward flight is never
+  //      over-leveled back to flat. ----
+  const spdN = Math.min(1, Math.abs(HELI.speed) / HELI.topSpeed);
+  const pitchT = 0.30 * (HELI.speed / HELI.topSpeed) + (climb ? -0.05 : 0) + (descend ? 0.05 : 0);
+  const stiff = 10 - 8 * spdN;              // 10 at hover, 2 at speed: momentum carry
+  const damp = 1.4 * Math.sqrt(stiff);      // zeta ~0.7: snappy, one small overshoot
+  HELI.pitchVel += ((pitchT - HELI.pitch) * stiff - HELI.pitchVel * damp) * sdt;
+  HELI.pitch += HELI.pitchVel * sdt;
+  const rollT = -0.30 * (HELI.strafe / HELI.strafeMax);
+  HELI.rollVel += ((rollT - HELI.roll) * 8 - HELI.rollVel * (1.4 * Math.sqrt(8))) * sdt;
+  HELI.roll += HELI.rollVel * sdt;
+
+  heliPose(HELI.activeIdx, HELI.pos.x, HELI.pos.y, HELI.pos.z, HELI.heading, HELI.pitch, HELI.roll);
+  heliBodyIM.instanceMatrix.needsUpdate = true;
+  player.position.copy(HELI.pos);
+  player.position.y += 1.2;   // seated in the cockpit
+  player.rotation.y = HELI.heading;
+
+  // ---- rotor audio: gain rides the load, pitch rides the speed ----
+  if (heliGain) {
+    const load = Math.min(1, Math.abs(thr) * 0.7 + Math.abs(HELI.vy) / HELI.climbMax * 0.5 + spdN * 0.3);
+    heliGain.gain.value += ((0.05 + load * 0.16) - heliGain.gain.value) * Math.min(1, 6 * sdt);
+    const f = 58 + spdN * 45 + load * 15;
+    heliOsc.frequency.value = f;
+    heliChop.frequency.value = 11 + load * 7;
+  }
+
+  // ---- HUD: HELI - n KM/H / ALT nM, throttled like the speedo ----
+  HELI.hudT += sdt;
+  if (HELI.hudT > 0.12) {
+    HELI.hudT = 0;
+    heliChipEl.textContent = 'HELI - ' + Math.round(Math.abs(HELI.speed) * 3.6) + ' KM/H / ALT '
+      + Math.max(0, Math.round(HELI.pos.y - ground)) + 'M';
+  }
+}
+worldTickers.push(heliUpdate);
+
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
 const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
@@ -12725,7 +13234,7 @@ function tick() {
 
   /* --- accelerate / decelerate (no ice-skating, no teleport).
          Skipped while driving or riding: the vehicle ticker owns motion instead. --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying) {
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize().multiplyScalar(maxSpeed);
       tmpV.copy(wishDir).sub(P.vel);
@@ -12756,7 +13265,7 @@ function tick() {
 
   /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying) {
     if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -12767,7 +13276,7 @@ function tick() {
 
   /* --- procedural walk cycle (frozen while driving: the driver is seated;
          frozen while riding: the horse ticker poses the rider) --- */
-  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving) {
+  if (!CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -12810,7 +13319,7 @@ function tick() {
 
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
   const inBus = BUS.driving || BUS.riding;
-  const inVeh = CAR.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HORSE.riding || inBus || TX.riding;
+  const inVeh = CAR.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || HORSE.riding || inBus || TX.riding;
   if (IS_TOUCH) {   // emote button lives only on touch; hide while driving/riding/dead
     const emShow = !inVeh && !P.dead && playing();
     if (emShow !== EMO.btnOn) { EMO.btnOn = emShow; emoteBtnEl.style.display = emShow ? 'flex' : 'none'; }
@@ -12818,12 +13327,12 @@ function tick() {
   if (inVeh) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
     const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
-    const camAng = (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading)))))))
+    const camAng = (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (HELI.flying ? HELI.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading))))))))
       + (CAR.driving ? CAR.slip * driftBlend : 0);
-    const vPos = CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos))))));
-    const vDist = CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist))))));
-    const vH = CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH))))));
-    lookTarget.copy(vPos); lookTarget.y += CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : 2.1))));
+    const vPos = CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (HELI.flying ? HELI.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos)))))));
+    const vDist = CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (HELI.flying ? HELI.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist)))))));
+    const vH = CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (HELI.flying ? HELI.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH)))))));
+    lookTarget.copy(vPos); lookTarget.y += CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (HELI.flying ? 1.8 : 2.1)))));
     camTargetPos.set(
       lookTarget.x - Math.sin(camAng) * vDist,
       lookTarget.y + vH,
@@ -12849,7 +13358,7 @@ function tick() {
   camera.position.copy(camPos);
   }
   /* wider FOV while driving or galloping, eases back to normal after */
-  const fovT = CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk))))));
+  const fovT = CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (HELI.flying ? HELI.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk)))))));
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
@@ -12857,7 +13366,7 @@ function tick() {
   /* --- melee camera punch: tiny shake (2-3 frames) on connect, bigger on the
          3rd hit. Touches only the camera offset: pointer lock and touch-drag
          look (camYaw/camPitch) are never disturbed. --- */
-  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving) {
+  if (P.shakeT > 0 && !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying) {
     P.shakeT -= dt;
     const m = P.shakeMag * Math.max(0, P.shakeT / Math.max(P.shakeDur, 0.001));
     camera.position.x += (Math.random() * 2 - 1) * m;
@@ -12888,7 +13397,7 @@ function tick() {
   /* --- HUD position readout --- */
   if ((hudTick += dt) > 0.12) {
     hudTick = 0;
-    const mode = CAR.driving ? 'DRIVE' : (BIKE.driving ? 'BIKE' : (BC.driving ? 'BC' : (SC.driving ? 'SC' : (BOAT.driving ? 'BOAT' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE')))))))));
+    const mode = CAR.driving ? 'DRIVE' : (BIKE.driving ? 'BIKE' : (BC.driving ? 'BC' : (SC.driving ? 'SC' : (BOAT.driving ? 'BOAT' : (HELI.flying ? 'HELI' : (BUS.driving ? 'BUS' : (BUS.riding ? 'RIDER' : (TX.riding ? 'TAXI' : (HORSE.riding ? 'RIDE' : (sprint && speed > 1 ? 'SPRINT' : speed > 0.5 ? 'MOVE' : 'IDLE'))))))))));
     posEl.textContent = 'X ' + player.position.x.toFixed(0) + '  Z ' + player.position.z.toFixed(0)
       + '  [' + Math.floor(player.position.x / CHUNK) + ',' + Math.floor(player.position.z / CHUNK) + ']'
       + '  ' + mode;
@@ -12908,6 +13417,7 @@ function tick() {
     if (BC.driving) bcExit();       // ...and no bicycle ride while dead
     if (SC.driving) scExit();       // ...and no scooter ride while dead
     if (BOAT.driving) boatExit();     // ...and no boat ride while dead either
+    if (HELI.flying) heliExit();         // ...and no helicopter ride while dead either
     P.deadT += sdt;
     if (P.deadT > 1.2) {   // redeploy at spawn with full health
       player.position.set(0, terrainHeight(0, 0), 0);

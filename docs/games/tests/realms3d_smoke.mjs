@@ -122,6 +122,9 @@ globalThis.__R3D = {
   /* Phase 5 boats/ships v1 */
   BOAT, boatEnter, boatExit, boatRebuild, boatFloat, waterSurfaceY, dockFor,
   boatBodyIM, boatHintEl, boatChipEl, BOAT_N, sfxSplash,
+  /* Phase 5 helicopters v1 */
+  HELI, heliEnter, heliExit, heliRebuild, helipadFor, heliParkPad, heliPose,
+  heliBodyIM, heliHintEl, heliChipEl, HELI_N, sfxThud, HELI_PAD_LZ,
 };
 `;
 writeFileSync(BOOT, src);
@@ -641,7 +644,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (47 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh)', imCount === 47, 'count=' + imCount);
+  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (48 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh)', imCount === 48, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1102,8 +1105,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bike: InstancedMesh count is 47 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh literal)',
-    imCount2 === 47, 'count=' + imCount2);
+  check('bike: InstancedMesh count is 48 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh literal)',
+    imCount2 === 48, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1203,8 +1206,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bicycle: InstancedMesh count is 47 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh literal)',
-    imCount3 === 47, 'count=' + imCount3);
+  check('bicycle: InstancedMesh count is 48 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh literal)',
+    imCount3 === 48, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1305,8 +1308,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('scooter: InstancedMesh count is 47 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh literal)',
-    imCount4 === 47, 'count=' + imCount4);
+  check('scooter: InstancedMesh count is 48 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh literal)',
+    imCount4 === 48, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1622,8 +1625,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (47 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh)',
-      imCount5 === 47, 'count=' + imCount5);
+    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (48 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh)',
+      imCount5 === 48, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -1971,8 +1974,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (47 literals: 46 + 1 boat fleet mesh)',
-      n === 47 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (48 literals: 47 + 1 helicopter fleet mesh)',
+      n === 48 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2116,8 +2119,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 47 (46 + 1 boat fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('food-static: InstancedMesh literal sites pin at 48 (47 + 1 helicopter fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2126,9 +2129,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('food-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('food-static: audio nodes pin (12 osc, 22 gain: +2 motor osc, +1 motor gain, +1 splash gain)',
-    (html.match(/\.createOscillator\(/g) || []).length === 12 &&
-    (html.match(/\.createGain\(/g) || []).length === 22 &&
+  check('food-static: audio nodes pin (14 osc, 26 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains)',
+    (html.match(/\.createOscillator\(/g) || []).length === 14 &&
+    (html.match(/\.createGain\(/g) || []).length === 26 &&
     (html.match(/AudioContext/g) || []).length === 2);
   {
     const foodSrc = html.slice(
@@ -2346,8 +2349,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 47 (46 + 1 boat fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('farmv1-static: InstancedMesh literal sites pin at 48 (47 + 1 helicopter fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2356,9 +2359,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('farmv1-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('farmv1-static: audio nodes pin (12 osc, 22 gain: +2 motor osc, +1 motor gain, +1 splash gain)',
-    (html.match(/\.createOscillator\(/g) || []).length === 12 &&
-    (html.match(/\.createGain\(/g) || []).length === 22 &&
+  check('farmv1-static: audio nodes pin (14 osc, 26 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains)',
+    (html.match(/\.createOscillator\(/g) || []).length === 14 &&
+    (html.match(/\.createGain\(/g) || []).length === 26 &&
     (html.match(/AudioContext/g) || []).length === 2);
   check('farmv1-static: no TODO/FIXME markers', !/\b(TODO|FIXME)\b/.test(html));
   check('farmv1-static: no em dashes', !html.includes('—'));
@@ -2718,8 +2721,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 47 (46 + 1 boat fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 48 (47 + 1 helicopter fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2938,8 +2941,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 47 (46 + 1 boat fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 48 (47 + 1 helicopter fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3094,7 +3097,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 
   /* static pins for the boat block */
   const boatSrc = html.slice(html.indexOf('/* ================= PHASE 5: BOATS'),
-                             html.indexOf('/* ============================== GAME LOOP'));
+                             html.indexOf('/* ================= PHASE 5: HELICOPTERS'));
   check('boat-static: exactly one new InstancedMesh literal in the boat block',
     (boatSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
   check('boat-static: boat block creates no lights',
@@ -3107,6 +3110,163 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('boat-static: docks bake into the shared park geometry (zero new dock draws)',
     html.includes('wooden dock deck baked into the shared park geometry'));
   check('boat-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+}
+
+/* ================= 24. HELICOPTERS v1 (Phase 5 vehicles) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+
+  check('heli: one shared body InstancedMesh holds the fleet',
+    G.heliBodyIM.isInstancedMesh === true && G.HELI.slots.length === 3 && G.HELI_N === 3);
+  check('heli: 3 per-instance tints allocated (red/blue/yellow)',
+    G.heliBodyIM.instanceColor.count === 3);
+  check('heli: tuned faster than the car', G.HELI.topSpeed > G.CAR.topSpeed,
+    'heli=' + G.HELI.topSpeed + ' car=' + G.CAR.topSpeed);
+  check('heli: merged geometry carries RGBA vertex colors (translucent rotor disc)',
+    G.heliBodyIM.geometry.attributes.color.itemSize === 4);
+
+  /* seeded helipads: deterministic, disjoint from the other sport residues and docks */
+  let padChunk = null;
+  for (let gx = -12; gx <= 12 && !padChunk; gx++)
+    for (let gz = -12; gz <= 12 && !padChunk; gz++) {
+      const d = G.helipadFor(gx, gz);
+      if (d) padChunk = { gx, gz, d };
+    }
+  check('heli: seeded helipads exist in the world', !!padChunk,
+    padChunk ? 'chunk ' + padChunk.gx + ',' + padChunk.gz : 'none in -12..12');
+  const hd = padChunk.d, hd2 = G.helipadFor(padChunk.gx, padChunk.gz);
+  check('heli: helipadFor is deterministic on revisit',
+    !!hd2 && hd.x === hd2.x && hd.z === hd2.z && hd.yaw === hd2.yaw);
+  check('heli: pad sits on dry gentle land',
+    hd.y >= -0.15 && Math.abs(G.terrainHeight(hd.x + 5, hd.z) - hd.y) <= 2.5,
+    'padY=' + hd.y.toFixed(2));
+  check('heli: pad residue is disjoint from soccer/basketball/tennis',
+    !G.soccerPitchFor(padChunk.gx, padChunk.gz) && !G.basketballCourtFor(padChunk.gx, padChunk.gz) &&
+    !G.tennisCourtFor(padChunk.gx, padChunk.gz));
+  check('heli: pad residue is disjoint from docks', !G.dockFor(padChunk.gx, padChunk.gz));
+
+  /* spawns: teleport to the pad chunk, the rebuild parks the fleet */
+  const hcx = (padChunk.gx + 0.5) * 48, hcz = (padChunk.gz + 0.5) * 48;
+  G.player.position.set(hcx, groundY(hcx, hcz), hcz);
+  frame(3);
+  const hplaced0 = G.HELI.slots.filter(s => s.placed);
+  check('heli: rebuild parks helicopters at pads', hplaced0.length >= 1, 'placed=' + hplaced0.length);
+  check('heli: every parked helicopter sits on its skids at pad height',
+    hplaced0.every(s => Math.abs(s.y - (G.terrainHeight(s.x, s.z) + G.HELI.skidH)) < 0.6));
+
+  /* determinism on revisit: leave, come back, same spawns */
+  const hposes = G.HELI.slots.map(s => [s.x, s.z, s.yaw, s.placed]);
+  G.player.position.set(hcx + 400, groundY(hcx + 400, hcz), hcz);
+  frame(3);
+  G.player.position.set(hcx, groundY(hcx, hcz), hcz);
+  G.HELI.anchorCx = 1e9; G.HELI.anchorCz = 1e9; G.HELI.key = '';
+  frame(3);
+  const hsamePose = (s, p) => (s.placed === p[3]) &&
+    (!s.placed || (Math.abs(s.x - p[0]) < 1e-9 && Math.abs(s.z - p[1]) < 1e-9 && Math.abs(s.yaw - p[2]) < 1e-9));
+  check('heli: spawns are deterministic on revisit',
+    G.HELI.slots.every((s, i) => hsamePose(s, hposes[i])));
+
+  /* BOARD hint: stand at a parked helicopter */
+  const hs0 = G.HELI.slots.find(s => s.placed);
+  G.player.position.set(hs0.x, hs0.y + 1, hs0.z);
+  frame(2);
+  check('heli: BOARD hint appears near a parked helicopter',
+    G.HELI.hintOn === true && G.HELI.nearIdx >= 0 && G.heliHintEl.style.opacity === 1,
+    'hintOn=' + G.HELI.hintOn);
+  check('heli: hint text carries the E key',
+    G.heliHintEl.textContent === 'BOARD [E]' || G.heliHintEl.textContent === 'TAP TO BOARD',
+    G.heliHintEl.textContent);
+
+  /* board: E near the helicopter enters */
+  G.heliEnter();
+  check('heli: E near helicopter enters (HELI.flying true)',
+    G.HELI.flying === true && G.player.visible === false);
+  check('heli: board toast fires', G.toastEl.textContent === 'HELICOPTER');
+  check('heli: chip shows while flying', G.heliChipEl.style.display === 'block');
+
+  /* climb: Space lifts the helicopter */
+  const hy0 = G.HELI.pos.y;
+  G.keys.Space = true;
+  frame(30);
+  G.keys.Space = false;
+  check('heli: Space climbs', G.HELI.pos.y > hy0 + 2, 'climbed=' + (G.HELI.pos.y - hy0).toFixed(1) + 'u');
+
+  /* forward flight: W moves the helicopter, nose pitches down */
+  const hhStart = G.HELI.pos.clone();
+  let hMaxSpd = 0;
+  G.keys.KeyW = true;
+  for (let f = 0; f < 60; f++) { frame(1); hMaxSpd = Math.max(hMaxSpd, G.HELI.speed); }
+  G.keys.KeyW = false;
+  const hMoved = Math.hypot(G.HELI.pos.x - hhStart.x, G.HELI.pos.z - hhStart.z);
+  check('heli: throttle flies the helicopter forward', hMoved > 2.0 && hMaxSpd > 2.0,
+    'moved=' + hMoved.toFixed(1) + 'u maxSpd=' + hMaxSpd.toFixed(1));
+  check('heli: chip reads speed and altitude while flying',
+    /^HELI - \d+ KM\/H \/ ALT \d+M$/.test(G.heliChipEl.textContent), G.heliChipEl.textContent);
+  check('heli: forward flight pitches the nose down (tilt-to-fly)',
+    G.HELI.pitch > 0.05, 'pitch=' + G.HELI.pitch.toFixed(3));
+
+  /* strafe: A/D moves the helicopter laterally with a visible bank */
+  G.HELI.heading = 0; G.HELI.speed = 0; G.HELI.strafe = 0;
+  const hsStart = G.HELI.pos.clone();
+  G.keys.KeyD = true;
+  frame(30);
+  G.keys.KeyD = false;
+  const hsMoved = Math.hypot(G.HELI.pos.x - hsStart.x, G.HELI.pos.z - hsStart.z);
+  check('heli: strafe moves the helicopter laterally', hsMoved > 1.0, 'moved=' + hsMoved.toFixed(2) + 'u');
+  check('heli: strafe shows a visible bank', Math.abs(G.HELI.roll) > 0.05, 'roll=' + G.HELI.roll.toFixed(3));
+
+  /* descend + soft auto-landing: C brings it down, touchdown is gentle */
+  G.HELI.pos.y = Math.max(groundY(G.HELI.pos.x, G.HELI.pos.z), -0.55) + 12;
+  G.HELI.vy = 0; G.HELI.grounded = false; G.HELI.tdT = 0;
+  G.toastEl.textContent = '';
+  G.keys.KeyC = true;
+  let hlanded = false;
+  for (let f = 0; f < 150 && !hlanded; f++) { frame(1); hlanded = G.HELI.grounded; }
+  G.keys.KeyC = false;
+  check('heli: C descends into a soft auto-landing', hlanded === true);
+  check('heli: touchdown toast fires', G.toastEl.textContent === 'TOUCHDOWN', G.toastEl.textContent);
+  check('heli: landed helicopter rests on its skids',
+    Math.abs(G.HELI.pos.y - (Math.max(groundY(G.HELI.pos.x, G.HELI.pos.z), -0.55) + G.HELI.skidH)) < 0.6);
+
+  /* ceiling cap */
+  G.keys.Space = true;
+  for (let f = 0; f < 600; f++) frame(1);
+  G.keys.Space = false;
+  check('heli: ceiling caps the climb', G.HELI.pos.y <= G.HELI.ceil + 0.01, 'y=' + G.HELI.pos.y.toFixed(1));
+
+  /* guards: no emotes while flying */
+  const emKey0 = G.EMO.key;
+  G.fireEmote('wave');
+  check('heli: emotes are blocked while flying', G.EMO.key === emKey0);
+
+  /* exit: E while flying lands the helicopter and exits */
+  G.mountToggle();
+  check('heli: E while flying lands and exits (HELI.flying false)',
+    G.HELI.flying === false && G.player.visible === true);
+  check('heli: exit toast fires', G.toastEl.textContent === 'ON FOOT');
+  check('heli: player steps out on the ground beside the landed helicopter',
+    Math.abs(G.player.position.y - groundY(G.player.position.x, G.player.position.z)) < 0.5 &&
+    G.HELI.slots.some(s => s.placed &&
+      Math.hypot(G.player.position.x - s.x, G.player.position.z - s.z) < 30));
+  check('heli: chip hides after exit', G.heliChipEl.style.display === 'none');
+
+  /* static pins for the heli block */
+  const heliSrc = html.slice(html.indexOf('/* ================= PHASE 5: HELICOPTERS'),
+                             html.indexOf('/* ============================== GAME LOOP'));
+  check('heli-static: exactly one new InstancedMesh literal in the heli block',
+    (heliSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('heli-static: heli block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(heliSrc));
+  check('heli-static: heli block creates no meshes outside the fleet IM',
+    !/new THREE\.Mesh\(/.test(heliSrc));
+  check('heli-static: no external URLs in the heli block', !/https?:\/\//.test(heliSrc));
+  check('heli-static: BOARD hint click wiring pins heliEnter',
+    html.includes("heliHintEl.addEventListener('click', () => { if (HELI.hintOn) heliEnter(); })"));
+  check('heli-static: helipad bakes into the shared park geometry (zero new pad draws)',
+    html.includes('helipad baked into the shared park geometry'));
+  check('heli-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
 }
 
