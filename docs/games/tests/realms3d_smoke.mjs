@@ -129,6 +129,11 @@ globalThis.__R3D = {
   PLANE, planeEnter, planeExit, planeExitFlight, planeRebuild, airstripFor,
   planeStripWorld, planePose, planeBodyIM, planeHintEl, planeChipEl,
   PLANE_N, PLANE_STRIP_LX, PLANE_SLOT_LZ, sfxBuffet,
+  /* Phase 5 trains v1 */
+  TRAIN, trainEnter, trainExit, trainUpdate, trainSimOne, trainNextK,
+  trainStationZ, trainStationOff, trainStationName, paintTrainBed,
+  trainBodyIM, trainHintEl, trainChipEl, trainSignMesh,
+  TRAIN_N, TRAIN_CARS, TRAIN_CAR_GAP, TRAIN_TRACK_X, TRAIN_GAP, TRAIN_NAMES,
 };
 `;
 writeFileSync(BOOT, src);
@@ -648,7 +653,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (49 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh)', imCount === 49, 'count=' + imCount);
+  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (50 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh)', imCount === 50, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1109,8 +1114,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bike: InstancedMesh count is 48 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh literal)',
-    imCount2 === 49, 'count=' + imCount2);
+  check('bike: InstancedMesh count is 49 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh literal)',
+    imCount2 === 50, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1210,8 +1215,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bicycle: InstancedMesh count is 48 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh literal)',
-    imCount3 === 49, 'count=' + imCount3);
+  check('bicycle: InstancedMesh count is 49 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh literal)',
+    imCount3 === 50, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1312,8 +1317,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('scooter: InstancedMesh count is 48 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh literal)',
-    imCount4 === 49, 'count=' + imCount4);
+  check('scooter: InstancedMesh count is 49 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh literal)',
+    imCount4 === 50, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1629,8 +1634,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (49 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh)',
-      imCount5 === 49, 'count=' + imCount5);
+    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (50 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh)',
+      imCount5 === 50, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -1978,8 +1983,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (49 literals: 47 + 1 helicopter fleet mesh + 1 plane fleet mesh)',
-      n === 49 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (50 literals: 47 + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh)',
+      n === 50 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2123,8 +2128,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 49 (48 + 1 plane fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('food-static: InstancedMesh literal sites pin at 50 (49 + 1 train fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2353,8 +2358,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 49 (48 + 1 plane fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('farmv1-static: InstancedMesh literal sites pin at 50 (49 + 1 train fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2725,8 +2730,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 49 (48 + 1 plane fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 50 (49 + 1 train fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2945,8 +2950,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 49 (48 + 1 plane fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 50 (49 + 1 train fleet mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3467,7 +3472,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 
   /* static pins for the plane block */
   const planeSrc = html.slice(html.indexOf('/* ================= PHASE 5: PLANES'),
-                              html.indexOf('/* ============================== GAME LOOP'));
+                              html.indexOf('/* ================= PHASE 5: TRAINS v1 (vehicles expansion)'));
   check('plane-static: exactly one new InstancedMesh literal in the plane block',
     (planeSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
   check('plane-static: plane block creates no lights',
@@ -3484,6 +3489,152 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('plane-static: negated vehicle guards cover the plane (walk/jump/hints/wanted)',
     (html.match(/&& !HELI\.flying && !PLANE\.flying/g) || []).length >= 10);
 }
+
+/* ================= 26. TRAINS v1 (Phase 5 vehicles) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.TRAIN.riding) G.trainExit();
+
+  check('train: one shared body mesh holds the fleet (2 trains x 4 cars)',
+    G.trainBodyIM.isInstancedMesh === true && G.TRAIN_N === 2 && G.TRAIN_CARS === 4);
+  check('train: 8 per-instance livery tints allocated (red/blue locos, silver cars)',
+    G.trainBodyIM.instanceColor.count === 8);
+  check('train: merged geometry carries RGBA vertex colors',
+    G.trainBodyIM.geometry.attributes.color.itemSize === 4);
+
+  /* deterministic line: fixed world x, seeded stations, named stations */
+  check('train: rail line x is a fixed deterministic constant',
+    typeof G.TRAIN_TRACK_X === 'number' && G.TRAIN_TRACK_X >= -300 && G.TRAIN_TRACK_X < 300);
+  check('train: stations are pure functions of the index',
+    G.trainStationZ(0) === G.trainStationZ(0) && Math.abs(G.trainStationZ(0)) < 100);
+  check('train: stations stay monotonic (1200u spacing beats the 200u jitter)',
+    G.trainStationZ(5) > G.trainStationZ(4) && G.trainStationZ(-3) < G.trainStationZ(-2));
+  check('train: station names come from the procedural pool',
+    G.TRAIN_NAMES.includes(G.trainStationName(3)));
+  check('train: next-station lookup only returns stations ahead',
+    G.trainStationZ(G.trainNextK(0, 1)) > 0.5 && G.trainStationZ(G.trainNextK(0, -1)) < -0.5);
+
+  /* rail bed bakes into the chunk vertex colors: zero new draw calls for rails */
+  check('train: rail bed paint is wired into buildChunk',
+    html.includes('paintTrainBed(c, pos, col);'));
+
+  /* board: pin train 0 dwelling at station 0, walk up and board */
+  const t0 = G.TRAIN.trains[0];
+  t0.dir = 1; t0.s = G.trainStationZ(0); t0.v = 0; t0.dwellT = 10; t0.nextK = 0; t0.braking = false;
+  const bx = G.TRAIN_TRACK_X + 2, bz = t0.s;
+  G.player.position.set(bx, groundY(bx, bz), bz);
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0;
+  frame(2);
+  check('train: BOARD hint shows near a stopped train',
+    G.TRAIN.hintOn === true && G.trainHintEl.style.opacity == 1);
+  G.trainEnter();
+  check('train: enter puts the rider on the roof, chip shows',
+    G.TRAIN.riding === true && G.trainChipEl.style.display === 'block');
+  frame(3);   // let the ride chip paint
+  check('train: chip reads speed and next station while riding',
+    /^TRAIN - \d+ KM\/H \/ NEXT: [A-Z ]+$/.test(G.trainChipEl.textContent), G.trainChipEl.textContent);
+
+  /* ride: the schedule departs and carries the player along the line */
+  t0.dwellT = 0.3;
+  const rz0 = G.player.position.z;
+  frame(300);   // ~5 s: dwell expires, the train accelerates out
+  const rz1 = G.player.position.z;
+  check('train: riding carries the player along the line',
+    Math.abs(rz1 - rz0) > 20, 'dz=' + (rz1 - rz0).toFixed(1));
+  check('train: rider stands visible above the rail',
+    G.player.visible === true && G.player.position.y > groundY(G.player.position.x, G.player.position.z) + 1);
+
+  /* exit: drops beside the track on the platform side, chip hides, never traps */
+  G.trainExit();
+  check('train: exit drops the rider beside the track, chip hides',
+    G.TRAIN.riding === false
+    && Math.abs(G.player.position.x - (G.TRAIN_TRACK_X + 4.6)) < 0.01
+    && G.trainChipEl.style.display === 'none');
+
+  /* never board at speed: no hint, and the enter gate refuses */
+  const t1 = G.TRAIN.trains[1];
+  t1.dwellT = 0; t1.v = 12; t1.nextK = G.trainNextK(t1.s, t1.dir);
+  G.P.godT = 9999;   // danger skipped: this test is about the board gate, not the kill zone
+  const fx = G.TRAIN_TRACK_X + 2, fz = t1.s;
+  G.player.position.set(fx, groundY(fx, fz), fz);
+  frame(2);
+  check('train: no BOARD hint while the train runs at speed', G.TRAIN.hintOn === false);
+  G.P.godT = 0;
+  G.trainEnter();
+  check('train: boarding refused at speed', G.TRAIN.riding === false);
+
+  /* the schedule stops at stations: brake in, dwell ~15 s, depart */
+  const sk = 7, sz = G.trainStationZ(sk);
+  t0.dir = 1; t0.s = sz - 250; t0.v = 24; t0.dwellT = 0; t0.braking = false; t0.nextK = sk;
+  const px0 = G.TRAIN_TRACK_X + 10;
+  G.player.position.set(px0, groundY(px0, sz - 250), sz - 250);   // clear of the rails
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.TRAIN.exitCd = 0; G.TRAIN.hitCd = 0;
+  let dwelled = false;
+  for (let f = 0; f < 1000 && !dwelled; f++) { frame(1); dwelled = t0.dwellT > 0; }
+  check('train: the schedule brakes into the station and dwells',
+    dwelled && Math.abs(t0.s - sz) < 2, 's=' + t0.s.toFixed(1) + ' st=' + sz.toFixed(1));
+  let departed = false;
+  for (let f = 0; f < 1100 && !departed; f++) { frame(1); departed = t0.dwellT === 0 && t0.v > 5; }
+  check('train: dwell ends and the train departs', departed, 'v=' + t0.v.toFixed(1));
+
+  /* danger: head-on with a moving train is instantly fatal */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.TRAIN.exitCd = 0; G.TRAIN.hitCd = 0;
+  const dk = 9, dz9 = G.trainStationZ(dk);
+  t1.dir = -1; t1.s = dz9 + 400; t1.v = 20; t1.dwellT = 0; t1.braking = false;
+  t1.nextK = dk - 3;   // far ahead: no braking or dwell inside the test window
+  const hz = dz9 + 340;   // on the rails, 60u ahead of the loco
+  G.player.position.set(G.TRAIN_TRACK_X, groundY(G.TRAIN_TRACK_X, hz), hz);
+  let died = false;
+  for (let f = 0; f < 300 && !died; f++) { frame(1); died = G.P.dead; }
+  check('train: head-on with a moving train is instantly fatal', died === true);
+
+  /* danger: a side swipe throws the player clear with damage, no kill */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.TRAIN.exitCd = 0; G.TRAIN.hitCd = 0;
+  t1.dir = -1; t1.s = dz9 + 400; t1.v = 20; t1.dwellT = 0; t1.braking = false; t1.nextK = dk - 3;
+  const qx = G.TRAIN_TRACK_X + 3.4, qz = dz9 + 340;
+  G.player.position.set(qx, groundY(qx, qz), qz);
+  let swiped = false;
+  for (let f = 0; f < 300 && !swiped; f++) { frame(1); swiped = G.TRAIN.hitCd > 0.9; }
+  check('train: side swipe throws the player clear (hit registers, player lives)',
+    swiped && !G.P.dead, 'hp=' + G.P.hp);
+
+  /* station sign: one shared mesh follows the nearest station */
+  G.P.dead = false; G.P.hp = 100;
+  const skz = G.trainStationZ(4), gx = G.TRAIN_TRACK_X + 6;
+  G.player.position.set(gx, groundY(gx, skz), skz);
+  frame(3);
+  check('train: station sign appears at the nearest station',
+    G.trainSignMesh.visible === true && Math.abs(G.trainSignMesh.position.z - (skz + 10)) < 1);
+
+  /* static pins for the train block */
+  const trainSrc = html.slice(html.indexOf('/* ================= PHASE 5: TRAINS v1 (vehicles expansion)'),
+                              html.indexOf('/* ============================== GAME LOOP'));
+  check('train-static: exactly one new fleet mesh literal in the train block',
+    (trainSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('train-static: train block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(trainSrc));
+  check('train-static: rail bed and platforms bake into the shared chunk vertex colors (zero new rail draws)',
+    trainSrc.includes('platforms bake into the shared chunk vertex colors'));
+  check('train-static: no external URLs in the train block', !/https?:\/\//.test(trainSrc));
+  check('train-static: BOARD hint click wiring pins trainEnter',
+    html.includes("trainHintEl.addEventListener('click', () => { if (TRAIN.hintOn) trainEnter(); })"));
+  check('train-static: trainchip click re-centers the chase cam',
+    html.includes("trainChipEl.addEventListener('click', () => { if (TRAIN.riding) camYaw = TRAIN.heading; })"));
+  check('train-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('train-static: vehicle guards cover the train (positive chains)',
+    (html.match(/\|\| TRAIN\.riding/g) || []).length >= 20);
+  check('train-static: vehicle guards cover the train (negated chains)',
+    (html.match(/&& !TRAIN\.riding/g) || []).length >= 10);
+  check('train-static: no RNG in the train block (deterministic hashes only)',
+    !/Math\.random/.test(trainSrc));
+  check('train-static: no new audio node literals (chug/whistle/screech reuse the one-shot idiom)',
+    !(trainSrc.match(/\.createOscillator\(/g) || []).length && !(trainSrc.match(/\.createGain\(/g) || []).length);
+  check('train-static: no em dashes anywhere', !html.includes('—'));
+}
+
 
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
