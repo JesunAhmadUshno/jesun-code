@@ -504,6 +504,15 @@
     letter-spacing: 2px; display: none; pointer-events: none;
   }
   #lmstadarr { display: inline-block; color: #ff9a6a; font-size: 14px; }
+  /* ---- landmark amusement park HUD (Phase 5): bearing chip mirrors
+         #stadchip, stacked below it in the top-left stack so live chips
+         never overlap. DOM only, zero draw calls. ---- */
+  #lmausechip {
+    position: absolute; top: 456px; left: 18px; color: #ffe9c8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #8a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #lmausearr { display: inline-block; color: #ff9d3c; font-size: 14px; }
   /* ---- worship HUD (Phase 5): ENTER prompt mirrors the amusement hint
          pattern, stacked above it so live prompts never overlap. The
          #worshipchip state readout sits top-right below the amusement chip.
@@ -863,6 +872,7 @@
   <div id="landchip"><span id="landarr">^</span> <span id="landtxt"></span></div>
   <div id="storechip"><span id="storearr">^</span> <span id="storetxt"></span></div>
   <div id="stadchip"><span id="lmstadarr">^</span> <span id="lmstadtxt"></span></div>
+  <div id="lmausechip"><span id="lmausearr">^</span> <span id="lmauusetxt"></span></div>
 </div>
 
 <div id="dmgflash"></div>
@@ -6917,8 +6927,340 @@ function buildLandmarkStadGeo() {
   return mergeAmenGeos(parts);
 }
 
+/* ================= PHASE 5: LANDMARK AMUSEMENT PARK v1 (buildings/places) ====================
+   One seeded landmark midway per rare chunk (the 'amuse' amenity type: own
+   hash residue h%41===29 checked after every existing type including 'stad',
+   cross-type winner-take-all spacing via amenityCenterFor). Bespoke merged
+   statics ride the shared AMEN_DEF loop (+1 draw call: entrance gate,
+   perimeter fence, food stand, string-light poles, coaster track + supports,
+   wheel legs + base, carousel base) plus four animated ride fleets (+4 draw
+   calls, constant): the Ferris wheel (one merged rim+spokes+hub mesh),
+   the cabins (one InstancedMesh, counter-rotated per frame so they stay
+   level), the carousel (one merged mesh on a slow spin), the coaster train
+   (one merged mesh animated along the shared seeded curve, looping forever).
+   String-light bulbs sample the WIN_GLOW_TEX warm rect via amenGlowUV and
+   ride the existing day/night emissive ramp through the shared floodlight
+   material list; zero new runtime lights. Per-frame work is matrix composes
+   only (no geometry rebuilds, no Object3D churn). Pure seeded math, no RNG
+   anywhere in this block. */
+const LMAUSE_WHEEL_X = -6.5, LMAUSE_WHEEL_Y = 7.0, LMAUSE_WHEEL_Z = -2.5, LMAUSE_WHEEL_R = 4.6;
+const LMAUSE_WHEEL_W = 0.3;          // rad/s: slow spin, one turn in ~21 s
+const LMAUSE_CAR_X = 4.5, LMAUSE_CAR_Z = 6.0, LMAUSE_CAR_W = 0.5;
+const LMAUSE_TRAIN_T = 26;           // seconds per coaster loop
+const LMAUSE_CAP = 2, LMAUSE_CABINS = 8;
+const LMAUSE_CHIP_R2 = 500 * 500;    // chip shows within 500m
+/* shared coaster curve: one constant-seeded shape baked into the statics
+   (the track tube) and sampled per frame by the train, so the two always
+   agree. Per-park variety comes from hash phases, never from geometry. */
+function lmauseCoasterCurve() {
+  const rnd = mulberry32(0xC0A57E >>> 0);
+  const pts = [];
+  const N = 10;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const r = 5.5 + (rnd() - 0.5) * 2.0;
+    const h = 2.4 + Math.abs(Math.sin(a * 2 + rnd() * 2.5)) * 3.2;
+    pts.push(new THREE.Vector3(5.0 + Math.cos(a) * r, h, -4.0 + Math.sin(a) * r * 0.72));
+  }
+  return new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.6);
+}
+const LMAUSE_COASTER = lmauseCoasterCurve();
+/* radial colliders, park-local [x, z, r]: wheel legs, coaster supports,
+   carousel base, food stand, gate posts (walk-through middle), fence ring
+   with the gate sector open. Mirrors the LMSTAD_WALL_COL idiom. */
+const LMAUSE_COL = [];
+LMAUSE_COL.push([-8.1, -2.5, 1.0], [-4.9, -2.5, 1.0]);
+for (let _ck = 0; _ck < 6; _ck++) {
+  const _cp = LMAUSE_COASTER.getPointAt(_ck / 6);
+  LMAUSE_COL.push([_cp.x, _cp.z, 0.7]);
+}
+LMAUSE_COL.push([LMAUSE_CAR_X, LMAUSE_CAR_Z, 3.5]);
+LMAUSE_COL.push([-5.5, 6.5, 2.0]);
+LMAUSE_COL.push([-1.8, 10.5, 0.55], [1.8, 10.5, 0.55]);
+for (let _fk = 0; _fk < 18; _fk++) {
+  const _fa = (_fk / 18) * Math.PI * 2;
+  let _fda = Math.abs(_fa - Math.PI / 2);
+  if (_fda > Math.PI) _fda = 2 * Math.PI - _fda;
+  if (_fda < 0.44) continue;                          // gate opening stays walkable
+  LMAUSE_COL.push([11 * Math.cos(_fa), 11 * Math.sin(_fa), 0.6]);
+}
+function buildLandmarkAmuseGeo() {
+  const parts = [];
+  const CONC = 0x565a60, STEEL = 0x2e3238, TRIM = 0xc23b2e,
+        WOOD = 0x7a5a3a, CREAM = 0xf0e8dc, REDC = 0xb03a2a,
+        GOLD = 0xd8a83a, MIDW = 0x6a6f75;
+  amenPart(parts, 3, 13, 0, 0, 0, 0.03, 0, 0x3f4145);   // ground pad disc
+  amenPart(parts, 3, 5.5, 0, 0, 0, 0.06, 2, MIDW);      // midway plaza
+  /* entrance gate: two posts + sign board, walk-through middle */
+  for (const _sx of [-1.8, 1.8]) amenPart(parts, 0, 0.5, 3.6, 0.5, _sx, 1.8, 10.5, TRIM);
+  amenPart(parts, 0, 4.6, 1.1, 0.3, 0, 3.9, 10.5, CREAM);
+  amenPart(parts, 0, 4.0, 0.7, 0.34, 0, 3.9, 10.5, REDC);
+  /* perimeter fence: posts + rails, the gate sector stays open */
+  for (let _k = 0; _k < 18; _k++) {
+    const _a = (_k / 18) * Math.PI * 2;
+    let _da = Math.abs(_a - Math.PI / 2);
+    if (_da > Math.PI) _da = 2 * Math.PI - _da;
+    if (_da < 0.44) continue;
+    amenPart(parts, 0, 0.28, 1.1, 0.28, 11 * Math.cos(_a), 0.55, 11 * Math.sin(_a), WOOD);
+    const _a2 = ((_k + 1) / 18) * Math.PI * 2;
+    let _da2 = Math.abs(_a2 - Math.PI / 2);
+    if (_da2 > Math.PI) _da2 = 2 * Math.PI - _da2;
+    if (_da2 < 0.44) continue;
+    const _am = (_a + _a2) / 2;
+    const _rl = new THREE.BoxGeometry(3.8, 0.1, 0.12);
+    _rl.rotateY(-_am - Math.PI / 2);
+    _rl.translate(11 * Math.cos(_am), 0.72, 11 * Math.sin(_am));
+    amenUV(_rl, 0.5, 0.5); amenPaint(_rl, WOOD);
+    parts.push(_rl);
+  }
+  /* food stand: box + striped awning */
+  amenPart(parts, 0, 2.6, 2.2, 2.0, -5.5, 1.1, 6.5, CREAM);
+  amenPart(parts, 0, 2.6, 0.14, 0.5, -5.5, 1.18, 7.7, WOOD);
+  for (let _s2 = 0; _s2 < 5; _s2++) {
+    const _aw = new THREE.BoxGeometry(0.56, 0.07, 2.5);
+    _aw.rotateX(-0.32);
+    _aw.translate(-5.5 - 1.12 + _s2 * 0.56, 2.62, 7.15);
+    amenUV(_aw, 0.5, 0.5); amenPaint(_aw, _s2 % 2 === 0 ? TRIM : CREAM);
+    parts.push(_aw);
+  }
+  /* string-light poles: bulbs glow at night via the shared emissive ramp */
+  for (let _k = 0; _k < 6; _k++) {
+    const _a = (_k / 6) * Math.PI * 2;
+    const _px = 9 * Math.cos(_a), _pz = 9 * Math.sin(_a);
+    amenPart(parts, 1, 0.09, 0.12, 4.2, _px, 2.1, _pz, STEEL);
+    const _bulb = new THREE.SphereGeometry(0.22, 8, 6);
+    _bulb.translate(_px, 4.35, _pz);
+    amenGlowUV(_bulb); amenPaint(_bulb, 0xffffff);
+    parts.push(_bulb);
+  }
+  /* Ferris wheel supports: base platform + A-frame legs (the wheel itself
+     is the animated fleet below) */
+  amenPart(parts, 0, 5.0, 0.35, 3.0, LMAUSE_WHEEL_X, 0.17, LMAUSE_WHEEL_Z, CONC);
+  for (const _lz of [LMAUSE_WHEEL_Z - 0.9, LMAUSE_WHEEL_Z + 0.9]) {
+    for (const _s of [-1, 1]) {
+      const _leg = new THREE.BoxGeometry(0.32, 7.8, 0.32);
+      _leg.rotateZ(_s * 0.16);
+      _leg.translate(LMAUSE_WHEEL_X + _s * 0.62, 3.9, _lz);
+      amenUV(_leg, 0.5, 0.5); amenPaint(_leg, STEEL);
+      parts.push(_leg);
+    }
+  }
+  /* carousel static base */
+  amenPart(parts, 1, 3.4, 3.5, 0.25, LMAUSE_CAR_X, 0.12, LMAUSE_CAR_Z, CONC);
+  /* roller coaster: seeded closed-loop track + supports (the train is the
+     animated fleet below) */
+  const _tube = new THREE.TubeGeometry(LMAUSE_COASTER, 72, 0.16, 6, true);
+  amenUV(_tube, 0.5, 0.5); amenPaint(_tube, REDC);
+  parts.push(_tube);
+  for (let _k = 0; _k < 6; _k++) {
+    const _p = LMAUSE_COASTER.getPointAt(_k / 6);
+    amenPart(parts, 1, 0.14, 0.18, Math.max(0.5, _p.y - 0.1), _p.x, (_p.y - 0.1) / 2, _p.z, STEEL);
+  }
+  return mergeAmenGeos(parts);
+}
+/* Ferris wheel: rim + spokes + hub, local origin at the hub, wheel in the
+   XY plane (axle = Z). Rigid spin comes from the per-frame matrix. */
+function buildLmauseWheelGeo() {
+  const parts = [];
+  const _rim = new THREE.TorusGeometry(LMAUSE_WHEEL_R, 0.14, 8, 28);
+  amenUV(_rim, 0.5, 0.5); amenPaint(_rim, 0xc23b2e);
+  parts.push(_rim);
+  for (let _k = 0; _k < 8; _k++) {
+    const _sp = new THREE.BoxGeometry(0.12, LMAUSE_WHEEL_R - 0.1, 0.12);
+    _sp.translate(0, (LMAUSE_WHEEL_R - 0.1) / 2 + 0.1, 0);
+    _sp.rotateZ((_k / 8) * Math.PI * 2);
+    amenUV(_sp, 0.5, 0.5); amenPaint(_sp, 0xd8d8d8);
+    parts.push(_sp);
+  }
+  const _hub = new THREE.CylinderGeometry(0.4, 0.4, 1.4, 10);
+  _hub.rotateX(Math.PI / 2);
+  amenUV(_hub, 0.5, 0.5); amenPaint(_hub, 0x2e3238);
+  parts.push(_hub);
+  return mergeAmenGeos(parts);
+}
+/* cabins: hanger + roof + basket, origin at the hanger pivot. The basket is
+   white so the per-instance tint reads; per-frame matrices keep the cabins
+   level while they travel with the wheel. */
+function buildLmauseCabinGeo() {
+  const parts = [];
+  amenPart(parts, 0, 0.12, 0.9, 0.12, 0, -0.45, 0, 0x2e3238);
+  amenPart(parts, 0, 1.3, 0.14, 1.3, 0, -0.95, 0, 0xc23b2e);
+  amenPart(parts, 0, 1.1, 0.85, 1.1, 0, -1.45, 0, 0xffffff);
+  amenPart(parts, 0, 1.14, 0.18, 1.14, 0, -1.1, 0, 0xd8a83a);
+  return mergeAmenGeos(parts);
+}
+/* carousel: platform + column + canopy + poles + six stylized horses,
+   local origin at the mast base. One rigid slow spin per frame. */
+function buildLmauseCarouselGeo() {
+  const parts = [];
+  amenPart(parts, 1, 3.0, 3.2, 0.35, 0, 0.35, 0, 0xb03a2a);
+  const _trim = new THREE.TorusGeometry(3.05, 0.09, 6, 24);
+  _trim.rotateX(Math.PI / 2); _trim.translate(0, 0.53, 0);
+  amenUV(_trim, 0.5, 0.5); amenPaint(_trim, 0xd8a83a); parts.push(_trim);
+  amenPart(parts, 1, 0.45, 0.55, 3.4, 0, 2.0, 0, 0xf0e8dc);
+  amenPart(parts, 2, 3.7, 1.5, 0, 0, 4.15, 0, 0xc23b2e);
+  amenPart(parts, 0, 0.18, 0.5, 0.18, 0, 5.1, 0, 0xd8a83a);
+  const _tints = [0xd84a4a, 0x4a7ad8, 0x4ad87a, 0xd8a83a, 0x9a4ad8, 0x4ad8d8];
+  for (let _k = 0; _k < 6; _k++) {
+    const _a = (_k / 6) * Math.PI * 2;
+    const _hx = 2.2 * Math.cos(_a), _hz = 2.2 * Math.sin(_a);
+    const _hy = 1.55 + (_k % 2 === 0 ? 0.22 : -0.12);
+    const _ry = Math.atan2(-Math.cos(_a), -Math.sin(_a));
+    const _bake = (g, hex) => {
+      g.rotateY(_ry); g.translate(_hx, _hy, _hz);
+      amenUV(g, 0.5, 0.5); amenPaint(g, hex); parts.push(g);
+    };
+    const _pole = new THREE.CylinderGeometry(0.06, 0.06, 3.0, 6);
+    _pole.translate(_hx, 1.85, _hz);
+    amenUV(_pole, 0.5, 0.5); amenPaint(_pole, 0xd8a83a); parts.push(_pole);
+    const _body = new THREE.CylinderGeometry(0.2, 0.13, 1.05, 8);
+    _body.rotateZ(Math.PI / 2);
+    _bake(_body, 0xf0e8dc);
+    const _neck = new THREE.CylinderGeometry(0.09, 0.13, 0.6, 6);
+    _neck.rotateZ(Math.PI / 2 - 0.7); _neck.translate(0.5, 0.3, 0);
+    _bake(_neck, 0xf0e8dc);
+    const _head = new THREE.BoxGeometry(0.3, 0.2, 0.2);
+    _head.translate(0.72, 0.52, 0);
+    _bake(_head, 0xf0e8dc);
+    const _saddle = new THREE.BoxGeometry(0.42, 0.1, 0.44);
+    _saddle.translate(-0.05, 0.24, 0);
+    _bake(_saddle, _tints[_k]);
+    for (const _lx of [-0.32, 0.32]) for (const _lz of [-0.14, 0.14]) {
+      const _leg = new THREE.CylinderGeometry(0.05, 0.05, 0.95, 5);
+      _leg.translate(_lx, -0.55, _lz);
+      _bake(_leg, 0xe4d8c4);
+    }
+  }
+  return mergeAmenGeos(parts);
+}
+/* coaster train: loco + two cars, forward = +X. Per-frame orientation comes
+   from the curve tangent (yaw + pitch, no roll). */
+function buildLmauseTrainGeo() {
+  const parts = [];
+  amenPart(parts, 0, 1.7, 0.7, 0.95, 0, 0.62, 0, 0x2a4a7a);
+  amenPart(parts, 0, 0.7, 0.75, 0.95, -0.45, 1.3, 0, 0x1e3a5e);
+  amenPart(parts, 1, 0.12, 0.17, 0.5, 0.55, 1.2, 0, 0x2e3238);
+  amenPart(parts, 0, 1.25, 0.6, 0.9, -1.8, 0.55, 0, 0xc23b2e);
+  amenPart(parts, 0, 1.25, 0.6, 0.9, -3.15, 0.55, 0, 0xd8a83a);
+  for (const _wx of [0.55, -0.55, -1.8, -2.45, -3.15, -3.8])
+    for (const _wz of [-0.42, 0.42]) {
+      const _wh = new THREE.CylinderGeometry(0.2, 0.2, 0.12, 8);
+      _wh.rotateX(Math.PI / 2); _wh.translate(_wx, 0.2, _wz);
+      amenUV(_wh, 0.5, 0.5); amenPaint(_wh, 0x1a1c1e); parts.push(_wh);
+    }
+  return mergeAmenGeos(parts);
+}
+/* ---- animated ride fleets: one shared vertexColors material, one draw
+        call per fleet, constant. Per-frame updates compose parkMatrix *
+        localMotion; instanceMatrix is marked dirty once per batch. ---- */
+const LMAUSE_RIDE_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
+const lmauseWheelIM = new THREE.InstancedMesh(buildLmauseWheelGeo(), LMAUSE_RIDE_MAT, LMAUSE_CAP);
+const lmauseCabinIM = new THREE.InstancedMesh(buildLmauseCabinGeo(), LMAUSE_RIDE_MAT, LMAUSE_CAP * LMAUSE_CABINS);
+const lmauseCarIM = new THREE.InstancedMesh(buildLmauseCarouselGeo(), LMAUSE_RIDE_MAT, LMAUSE_CAP);
+const lmauseTrainIM = new THREE.InstancedMesh(buildLmauseTrainGeo(), LMAUSE_RIDE_MAT, LMAUSE_CAP);
+for (const _m of [lmauseWheelIM, lmauseCabinIM, lmauseCarIM, lmauseTrainIM]) {
+  _m.frustumCulled = false;
+  _m.castShadow = false;
+  _m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  _m.count = 0;
+  scene.add(_m);
+}
+{ /* per-cabin tints, set once: the white basket takes the tint */
+  const _tints = [0xff5a5a, 0xffb03a, 0xfff05a, 0x5aff7a, 0x5ab0ff, 0xb05aff, 0xff5ad8, 0x5affd8];
+  const _cc = new THREE.Color();
+  for (let _k = 0; _k < LMAUSE_CAP * LMAUSE_CABINS; _k++) {
+    _cc.setHex(_tints[_k % LMAUSE_CABINS]);
+    lmauseCabinIM.setColorAt(_k, _cc);
+  }
+  lmauseCabinIM.instanceColor.needsUpdate = true;
+}
+const _lmE = new THREE.Euler(), _lmQ = new THREE.Quaternion(),
+      _lmP = new THREE.Vector3(), _lmT = new THREE.Vector3(), _lmTan = new THREE.Vector3(),
+      _lmM = new THREE.Matrix4(), _lmM2 = new THREE.Matrix4(), _lmPark = new THREE.Matrix4(),
+      _lmOne = new THREE.Vector3(1, 1, 1);
+function lmauseUpdate(sdt, now) {
+  const _arr = AMEN.active.amuse;
+  const _n = Math.min(_arr.length, LMAUSE_CAP);
+  lmauseWheelIM.count = _n;
+  lmauseCabinIM.count = _n * LMAUSE_CABINS;
+  lmauseCarIM.count = _n;
+  lmauseTrainIM.count = _n;
+  for (let _i = 0; _i < _n; _i++) {
+    const _a = _arr[_i];
+    _lmE.set(0, _a.yaw, 0); _lmQ.setFromEuler(_lmE);
+    _lmP.set(_a.x, _a.y, _a.z);
+    _lmPark.compose(_lmP, _lmQ, _lmOne);
+    const _ph = (hash2i(_a.gx, _a.gz) % 1000) / 1000 * Math.PI * 2;
+    /* wheel: rigid spin about the hub */
+    const _wa = now * LMAUSE_WHEEL_W + _ph;
+    _lmM.makeRotationZ(_wa);
+    _lmM.setPosition(LMAUSE_WHEEL_X, LMAUSE_WHEEL_Y, LMAUSE_WHEEL_Z);
+    _lmM2.multiplyMatrices(_lmPark, _lmM);
+    lmauseWheelIM.setMatrixAt(_i, _lmM2);
+    /* cabins: travel with the wheel, counter-rotated to stay level */
+    for (let _k = 0; _k < LMAUSE_CABINS; _k++) {
+      const _ca = (_k / LMAUSE_CABINS) * Math.PI * 2 + _wa;
+      _lmM.makeTranslation(LMAUSE_WHEEL_X + LMAUSE_WHEEL_R * Math.cos(_ca),
+                           LMAUSE_WHEEL_Y + LMAUSE_WHEEL_R * Math.sin(_ca),
+                           LMAUSE_WHEEL_Z);
+      _lmM2.multiplyMatrices(_lmPark, _lmM);
+      lmauseCabinIM.setMatrixAt(_i * LMAUSE_CABINS + _k, _lmM2);
+    }
+    /* carousel: slow spin about its own mast */
+    _lmM.makeRotationY(now * LMAUSE_CAR_W + _ph * 1.7);
+    _lmM.setPosition(LMAUSE_CAR_X, 0, LMAUSE_CAR_Z);
+    _lmM2.multiplyMatrices(_lmPark, _lmM);
+    lmauseCarIM.setMatrixAt(_i, _lmM2);
+    /* coaster train: loops the shared curve forever */
+    const _tt = (now / LMAUSE_TRAIN_T + (hash2i(_a.gx, _a.gz) % 1000) / 1000) % 1;
+    LMAUSE_COASTER.getPointAt(_tt, _lmT);
+    LMAUSE_COASTER.getTangentAt(_tt, _lmTan);
+    const _tyaw = Math.atan2(-_lmTan.z, _lmTan.x);
+    const _tpitch = Math.asin(Math.max(-1, Math.min(1, _lmTan.y)));
+    _lmE.set(0, _tyaw, _tpitch, 'YXZ'); _lmQ.setFromEuler(_lmE);
+    _lmM.compose(_lmT, _lmQ, _lmOne);
+    _lmM2.multiplyMatrices(_lmPark, _lmM);
+    lmauseTrainIM.setMatrixAt(_i, _lmM2);
+  }
+  lmauseWheelIM.instanceMatrix.needsUpdate = true;
+  lmauseCabinIM.instanceMatrix.needsUpdate = true;
+  lmauseCarIM.instanceMatrix.needsUpdate = true;
+  lmauseTrainIM.instanceMatrix.needsUpdate = true;
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(lmauseUpdate));
+/* ---- landmark amusement park: bearing chip (landchip idiom). Shows within
+        500m of the nearest active park, hidden when far or none active.
+        Own left-stack slot below the stadium chip, so chips never stack. ---- */
+let lmauseT = 0;
+const lmauseChipEl = document.getElementById('lmausechip');
+const lmauseTxtEl = document.getElementById('lmauusetxt');
+const lmauseArrEl = document.getElementById('lmausearr');
+function lmauseChipTick(dt) {
+  if (!playing() || P.dead) { lmauseChipEl.style.display = 'none'; return; }
+  lmauseT += dt;
+  if (lmauseT < 0.25) return;
+  lmauseT = 0;
+  const _px = player.position.x, _pz = player.position.z;
+  let _best = null, _bd = 1e18;
+  for (const _A of AMEN.active.amuse) {
+    const _dx = _A.x - _px, _dz = _A.z - _pz, _d2 = _dx * _dx + _dz * _dz;
+    if (_d2 < _bd) { _bd = _d2; _best = _A; }
+  }
+  if (_best && _bd < LMAUSE_CHIP_R2) {
+    lmauseChipEl.style.display = 'block';
+    camera.getWorldDirection(_mB);
+    const _dx = _best.x - _px, _dz = _best.z - _pz;
+    const _deg = -(Math.atan2(_dx, _dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
+    lmauseArrEl.style.transform = 'rotate(' + _deg.toFixed(1) + 'deg)';
+    lmauseTxtEl.textContent = 'PARK ' + Math.round(Math.sqrt(_bd)) + 'M';
+  } else lmauseChipEl.style.display = 'none';
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(lmauseChipTick));
+
 /* ---- instanced meshes: one per type, one draw call each ---- */
-const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [], land: [], stad: [] } };
+const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [], land: [], stad: [], amuse: [] } };
 const AMEN_DEF_LIST = [
   { key: 'gas', cap: 6, tex: () => makeSignTex('GAS - REPAIR', '#c23b2e'), build: buildGasGeo, trigR: 6.5,
     colliders: [[-4.2, -3.2, 0.35], [4.2, -3.2, 0.35], [-4.2, 3.2, 0.35], [4.2, 3.2, 0.35],
@@ -6936,6 +7278,8 @@ const AMEN_DEF_LIST = [
     colliders: [[0, 0, 3.6]] },
   { key: 'stad', cap: 2, tex: makePlainTex, build: buildLandmarkStadGeo, trigR: 0, glow: true,
     colliders: LMSTAD_WALL_COL },
+  { key: 'amuse', cap: 2, tex: makePlainTex, build: buildLandmarkAmuseGeo, trigR: 0, glow: true,
+    colliders: LMAUSE_COL },
 ];
 /* window-glow texture: black field, one warm rect. Window quads sample the
    rect (glow at night); every other part samples black (never glows). Moved
@@ -6994,6 +7338,7 @@ const ZONE_PAD_COLORS = {
   park:   new THREE.Color(0x3f7a3a),   // park green
   land:   new THREE.Color(0xb8b4ac),   // off-white
   stad:   new THREE.Color(0x8a3a44),   // arena red (Phase 5 landmark stadium)
+  amuse:  new THREE.Color(0x7a5a9e),   // midway violet (Phase 5 landmark amusement park)
   farm:   new THREE.Color(0x5a4128),   // tilled soil brown (Phase 5 farming)
 };
 let ZONE_PADS;
@@ -7078,6 +7423,10 @@ function amenityTypeFor(gx, gz) {
   /* Phase 5 landmark stadium: rare arena chunk. Checked LAST so it never
      displaces an existing amenity type; only previously-null chunks change. */
   if (h % 37 === 13) return 'stad';
+  /* Phase 5 landmark amusement park: rare midway chunk. Checked after
+     'stad' so it never displaces an existing amenity type; only
+     previously-null chunks change. */
+  if (h % 41 === 29) return 'amuse';
   return null;
 }
 /* spacing: winner-take-all across ALL amenity types in the 3x3 chunk
@@ -8137,6 +8486,15 @@ function redistributeBuildings(pcx, pcz) {
   for (const a of AMEN.active.stad) {
     const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
     for (const col of AMEN_DEF.stad.colliders)
+      BLDG.foot.push({ x: a.x + col[0] * c + col[1] * s, z: a.z - col[0] * s + col[1] * c, r: col[2] });
+  }
+  /* Phase 5 landmark amusement park: the fence, gate posts, rides and the
+     food stand block the player on foot too (rural-building foot idiom).
+     The gate opening stays walkable. Vehicles already resolve via
+     AMEN.colliders, filled by redistributeAmenities just above. */
+  for (const a of AMEN.active.amuse) {
+    const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+    for (const col of AMEN_DEF.amuse.colliders)
       BLDG.foot.push({ x: a.x + col[0] * c + col[1] * s, z: a.z - col[0] * s + col[1] * c, r: col[2] });
   }
   for (const m of bldgMeshes) m.count = 0;   // shared meshes start empty each redistribute
@@ -11032,8 +11390,8 @@ function dayNightTick(dt, now) {
   const winI = 2.2 * (1 - dayness);
   for (let i = 0; i < BLDG_WIN_MATS.length; i++) BLDG_WIN_MATS[i].emissiveIntensity = winI;
 
-  /* Phase 5 landmark stadium: floodlight heads glow at night (emissiveMap
-     only, zero new lights) */
+  /* Phase 5 landmark stadium + amusement park: floodlight heads and
+     string-light bulbs glow at night (emissiveMap only, zero new lights) */
   const stadFloodI = 2.6 * (1 - dayness);
   for (let i = 0; i < LMSTAD_FLOOD_MATS.length; i++) LMSTAD_FLOOD_MATS[i].emissiveIntensity = stadFloodI;
 
@@ -11851,7 +12209,9 @@ function busRebuildRoute(pcx, pcz) {
       const a = amenityCenterFor(gx, gz);
       /* Phase 5 landmark stadium: not a transit stop in v1 (keeps bus/taxi
          routes identical to before the stadium; a stadium stop is a later item) */
-      if (a && a.type !== 'stad') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });
+      /* Phase 5 landmark amusement park: not a transit stop in v1 (keeps
+         bus routes identical to before the park; a park stop is a later item) */
+      if (a && a.type !== 'stad' && a.type !== 'amuse') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -12467,7 +12827,9 @@ function txRebuild(pcx, pcz) {
       const a = amenityCenterFor(gx, gz);
       /* Phase 5 landmark stadium: not a transit stop in v1 (keeps bus/taxi
          routes identical to before the stadium; a stadium stop is a later item) */
-      if (a && a.type !== 'stad') found.push({ x: a.x, z: a.z, type: a.type });
+      /* Phase 5 landmark amusement park: not a transit stop in v1 (keeps
+         taxi routes identical to before the park; a park stop is a later item) */
+      if (a && a.type !== 'stad' && a.type !== 'amuse') found.push({ x: a.x, z: a.z, type: a.type });
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
