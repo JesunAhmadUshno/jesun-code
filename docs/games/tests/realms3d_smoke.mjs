@@ -220,6 +220,14 @@ globalThis.__R3D = {
   fireChipEl, fireTxtEl, fireArrEl, ensureSiren,
   get waterHeld() { return waterHeld; }, set waterHeld(v) { waterHeld = v; },
   get sirOsc() { return sirOsc; },
+  /* Phase 5 landmark fire station v1 */
+  FIRESTHALL, FIREST, firestHallEnter, firestHallExit, firestHallKeyE, firestPoleSlide,
+  firestRefill, firestHallTick, firestHallDoorWorld, firestBayWorld,
+  buildLandmarkFireStationGeo, buildFireStationHallGeo, fireHallMesh, updateFTCondHUD,
+  firesthallhintEl, firestbayhintEl, firestpolehintEl, firestChipEl, firestTxtEl, firestArrEl,
+  HELP_FIRHALL,
+  LMFS_COL, LMFS_R, LMFS_SEGS, LMFS_GATE_K, LMFS_CHIP_R2, LMFS_DOOR, LMFS_DOOR_R2, LMFS_BAY,
+  FIRESTATION_ROOM_Y,
   FLORA,
 };
 `;
@@ -5302,12 +5310,13 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       && sgeo.attributes.position.count > 500, 'verts=' + sgeo.attributes.position.count);
     check('lmstad: one material with vertexColors on',
       G.AMEN_DEF.stad.mesh.material.vertexColors === true);
-    check('lmstad: floodlight materials ride the day/night emissive ramp (stad + amuse + hosp + theater + casino)',
-      G.LMSTAD_FLOOD_MATS.length === 5 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
+    check('lmstad: floodlight materials ride the day/night emissive ramp (stad + amuse + hosp + theater + casino + firestation)',
+      G.LMSTAD_FLOOD_MATS.length === 6 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
       && G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.mesh.material
       && G.LMSTAD_FLOOD_MATS[2] === G.AMEN_DEF.hosp.mesh.material
       && G.LMSTAD_FLOOD_MATS[3] === G.AMEN_DEF.theater.mesh.material
       && G.LMSTAD_FLOOD_MATS[4] === G.AMEN_DEF.casino.mesh.material
+      && G.LMSTAD_FLOOD_MATS[5] === G.AMEN_DEF.firestation.mesh.material
       && !!G.LMSTAD_FLOOD_MATS[0].emissiveMap);
 
     /* wall collision: the rim wall blocks a walker, the gates stay open.
@@ -5415,9 +5424,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmause-static: single keydown listener (zero new keybinds)',
     (html.split("addEventListener('keydown'").length - 1) === 1);
   check('lmause-static: bus route rebuild excludes amuse + hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino' && a.type !== 'firestation') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
   check('lmause-static: taxi route rebuild excludes amuse + hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino' && a.type !== 'firestation') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
 
   /* seeded placement: pure deterministic hash, cross-type winner-take-all */
   let mgx = 0, mgz = 0, md = null;
@@ -5645,17 +5654,17 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmhosp-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('lmhosp-static: E heals at a live hospital prompt in the keydown chain',
-    html.includes("else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (WORSHIP.hintOn) worshipEnter();"));
+    html.includes("else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE(); else if (WORSHIP.hintOn) worshipEnter();"));
   check('lmhosp-static: bus route rebuild excludes hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino' && a.type !== 'firestation') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
   check('lmhosp-static: taxi route rebuild excludes hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino' && a.type !== 'firestation') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
   check('lmhosp-static: chip pins below the amusement chip in the top-left stack (no overlap)',
     html.includes('#hospchip {\n    position: absolute; top: 489px; left: 18px;'));
   check('lmhosp-static: bike/bc/scooter pad scans exclude hosp in v1 (byte-identical pads)',
-    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater' && a\.type !== 'casino'\) found\.push\(a\);/g) || []).length === 3);
+    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater' && a\.type !== 'casino' && a\.type !== 'firestation'\) found\.push\(a\);/g) || []).length === 3);
   check('lmhosp-static: ambulance anchor scan excludes hosp in v1',
-    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino') continue;"));
+    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino' || a.type === 'firestation') continue;"));
 
   /* seeded placement: pure deterministic hash, own residue, cross-type winner-take-all */
   let hgx = 0, hgz = 0, hd = null;
@@ -5860,20 +5869,20 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmth-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('lmth-static: E chain wires theater after the hospital heal (exit prefixes intact)',
-    html.includes("else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (WORSHIP.hintOn) worshipEnter();"));
+    html.includes("else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE(); else if (WORSHIP.hintOn) worshipEnter();"));
   check('lmth-static: #thallchip does not collide with the existing #theaterchip',
     html.includes('id="thallchip"') && html.includes('id="theaterchip"')
     && (html.match(/id="thallchip"/g) || []).length === 1);
   check('lmth-static: chip pins in its own top-left slot (no overlap)',
     html.includes('#thallchip {\n    position: absolute; top: 555px; left: 18px;'));
   check('lmth-static: bus route rebuild excludes theater in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino' && a.type !== 'firestation') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
   check('lmth-static: taxi route rebuild excludes theater in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino' && a.type !== 'firestation') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
   check('lmth-static: bike/bc/scooter pad scans exclude theater in v1 (byte-identical pads)',
-    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater' && a\.type !== 'casino'\) found\.push\(a\);/g) || []).length === 3);
+    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater' && a\.type !== 'casino' && a\.type !== 'firestation'\) found\.push\(a\);/g) || []).length === 3);
   check('lmth-static: ambulance anchor scan excludes theater in v1',
-    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino') continue;"));
+    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino' || a.type === 'firestation') continue;"));
 
   /* seeded placement: pure deterministic hash, own residue, cross-type winner-take-all */
   let tgx = 0, tgz = 0, td = null;
@@ -6154,23 +6163,23 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmcs-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('lmcs-static: E chain wires casino after the theater hall (exit prefixes intact)',
-    html.includes("else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (WORSHIP.hintOn) worshipEnter();"));
+    html.includes("else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE(); else if (WORSHIP.hintOn) worshipEnter();"));
   check('lmcs-static: #casinchip does not collide with existing chips',
     html.includes('id="casinchip"') && (html.match(/id="casinchip"/g) || []).length === 1);
   check('lmcs-static: chip pins in its own top-left slot (no overlap)',
     html.includes('#casinchip {\n    position: absolute; top: 588px; left: 18px;'));
   check('lmcs-static: bus route rebuild excludes casino in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino' && a.type !== 'firestation') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
   check('lmcs-static: taxi route rebuild excludes casino in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino' && a.type !== 'firestation') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
   check('lmcs-static: bike/bc/scooter pad scans exclude casino in v1 (byte-identical pads)',
-    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater' && a\.type !== 'casino'\) found\.push\(a\);/g) || []).length === 3);
+    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater' && a\.type !== 'casino' && a\.type !== 'firestation'\) found\.push\(a\);/g) || []).length === 3);
   check('lmcs-static: ambulance anchor scan excludes casino in v1',
-    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino') continue;"));
+    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino' || a.type === 'firestation') continue;"));
   check('lmcs-static: save inside stores the casino door',
-    html.includes("CASINOHALL.inHall ? CASINOHALL.doorX : player.position.x"));
+    html.includes("CASINOHALL.inHall ? CASINOHALL.doorX : FIRESTHALL.inHall ? FIRESTHALL.doorX : player.position.x"));
   check('lmcs-static: rain hides inside the gaming hall',
-    html.includes("&& !THEATERHALL.inHall && !CASINOHALL.inHall;"));
+    html.includes("&& !THEATERHALL.inHall && !CASINOHALL.inHall && !FIRESTHALL.inHall"));
   check('lmcs-static: panel carries a real pay table (no placeholder text)',
     html.includes('3 WILD 50x') && html.includes('WILD SUBS FOR ALL'));
 
@@ -6627,6 +6636,317 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(30);
   check('fire: round trip leaves zero console errors/warnings',
     consoleProblems.length === probsF, consoleProblems.slice(probsF).join(' | '));
+}
+
+/* ================= PHASE 5: LANDMARK FIRE STATION v1 (buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.STADIUM.watching) G.stadiumExit();
+  if (G.THEATER.watching) G.theaterExit();
+  if (G.SLOT.playing) G.slotExit();
+  if (G.PIANO.playing) G.pianoExit();
+  if (G.CIVIC.state) G.civicExit();
+  if (G.WORSHIP.state) G.worshipExit();
+  if (G.APARTMENT.state) G.apartmentExit();
+  if (G.THEATERHALL.inHall) G.theaterHallExit();
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+  if (G.FIRESTHALL.inHall) G.firestHallExit();
+  G.FT.driving = false; G.waterHeld = false;
+
+  /* static: bespoke merged geometry, zero new IM literals (the shared
+     AMEN_DEF loop builds the one 'firestation' mesh: +1 runtime draw call;
+     the cached bay is plain Mesh, visible=false until entered), zero new
+     runtime lights, zero new keybinds, no unseeded RNG, no em dashes,
+     no external URLs, no TODO text in the block */
+  const lmfsSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK FIRE STATION v1 (buildings/places)'),
+                             html.indexOf('/* ---- instanced meshes: one per type, one draw call each ---- */'));
+  check('lmfirest-static: zero IM literals in the fire station block (shared AMEN_DEF loop builds the one mesh)',
+    (lmfsSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('lmfirest-static: fire station block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(lmfsSrc));
+  check('lmfirest-static: no unseeded RNG in the fire station block', !/Math\.random/.test(lmfsSrc));
+  check('lmfirest-static: no em dashes in the fire station block', !lmfsSrc.includes('\u2014'));
+  check('lmfirest-static: no external URLs in the fire station block', !/https?:\/\//.test(lmfsSrc));
+  check('lmfirest-static: no TODO markers in the fire station block', !/\bTODO\b/.test(lmfsSrc));
+  check('lmfirest-static: whole-file IM literals pin at 47',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('lmfirest-static: 92 Math.random lines pin holds',
+    html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
+  check('lmfirest-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('lmfirest-static: E key wiring (door enter, in-hall slide, bay refill before truck exit)',
+    html.includes("else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE();")
+    && html.includes("else if (FT.driving && FIREST.refillOn) firestRefill();"));
+
+  /* seeded building: a real firestation chunk, own residue, deterministic */
+  let fgx = 0, fgz = 0, ffound = false;
+  fouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) === 'firestation' && G.amenityAccepted(gx, gz)) { fgx = gx; fgz = gz; ffound = true; break fouter; }
+    }
+  check('lmfirest: a seeded firestation chunk exists in the scan window', ffound, 'at ' + fgx + ',' + fgz);
+  check('lmfirest: own hash residue h%67===41, checked after casino',
+    G.hash2i(fgx, fgz) % 67 === 41);
+  check('lmfirest: amenityTypeFor is deterministic across calls',
+    G.amenityTypeFor(fgx, fgz) === 'firestation');
+  {
+    const fd = G.amenityCenterFor(fgx, fgz);
+    check('lmfirest: amenityCenterFor is deterministic across calls',
+      !!fd && fd.type === 'firestation');
+    let wtaOk = true;
+    for (let ax = fgx - 1; ax <= fgx + 1; ax++)
+      for (let az = fgz - 1; az <= fgz + 1; az++) {
+        if (ax === fgx && az === fgz) continue;
+        if (G.amenityTypeFor(ax, az) && G.amenityAccepted(ax, az)) wtaOk = false;
+      }
+    check('lmfirest: cross-type winner-take-all holds (no other accepted amenity in the 3x3)', wtaOk);
+    /* measured non-displacement: no firestation chunk would have matched an earlier type */
+    let displaceOk = true, fsCount = 0;
+    for (let gx = -60; gx <= 60; gx++)
+      for (let gz = -60; gz <= 60; gz++) {
+        if (G.amenityTypeFor(gx, gz) !== 'firestation') continue;
+        fsCount++;
+        const h = G.hash2i(gx, gz);
+        if (h % 41 === 20 || h % 15 === 4 || h % 19 === 9 || h % 13 === 11
+            || h % 10 === 6 || h % 37 === 13 || h % 41 === 29 || h % 47 === 23
+            || h % 53 === 31 || h % 61 === 37) displaceOk = false;
+      }
+    check('lmfirest: firestation never displaces an existing amenity type (checked last)',
+      fsCount > 0 && displaceOk, 'firestation=' + fsCount);
+    check('lmfirest: def is registered (cap 2, glow flag, 33 colliders)',
+      G.AMEN_DEF.firestation && G.AMEN_DEF.firestation.cap === 2 && G.AMEN_DEF.firestation.glow === true
+      && G.AMEN_DEF.firestation.colliders.length === 33 && G.LMFS_COL.length === 33
+      && Array.isArray(G.AMEN.active.firestation));
+    check('lmfirest: the entrance gap has no collider (walk-in idiom)',
+      G.LMFS_COL.every(c => Math.hypot(c[0] - 0, c[1] - 15) > 2.5));
+    check('lmfirest: the door trigger sits outside the door collider (walkable)',
+      G.LMFS_COL.every(c => Math.hypot(c[0] - 0, c[1] - 5.5) > (c[2] || 0) + 0.01)
+      && G.LMFS_COL.some(c => Math.abs(c[0]) < 0.01 && Math.abs(c[1] - 4) < 0.01));
+    check('lmfirest: bay zone sits clear of the garage colliders (drive-up reachable)',
+      G.LMFS_COL.every(c => Math.hypot(c[0] - G.LMFS_BAY[0], c[1] - G.LMFS_BAY[1]) > c[2] + 1.2));
+
+    /* merged geometry: one mesh, one vertexColors material, per-part colors */
+    const fgeo = G.AMEN_DEF.firestation.mesh.geometry;
+    check('lmfirest: merged exterior geometry carries per-part vertex colors',
+      !!fgeo.attributes.color && fgeo.attributes.color.count === fgeo.attributes.position.count
+      && fgeo.attributes.position.count > 500, 'verts=' + fgeo.attributes.position.count);
+    check('lmfirest: sign board samples the sign-text band (v 0.78..1)',
+      (() => { const uv = fgeo.attributes.uv; let n = 0;
+               for (let i = 0; i < uv.count; i++) if (uv.getY(i) >= 0.77) n++;
+               return n >= 4; })());
+    check('lmfirest: beacon dome + bay interiors carry glow UVs (night emissive targets)',
+      (() => { const uv = fgeo.attributes.uv; let n = 0;
+               for (let i = 0; i < uv.count; i++)
+                 if (Math.abs(uv.getX(i) - 0.25) < 0.01 && Math.abs(uv.getY(i) - 0.25) < 0.01) n++;
+               return n >= 4; })());
+    const hgeo = G.fireHallMesh.geometry;
+    check('lmfirest: cached bay holds the parked engine prop (merged, vertex-colored)',
+      !!hgeo.attributes.color && hgeo.attributes.position.count > 1500,
+      'verts=' + hgeo.attributes.position.count);
+    check('lmfirest: the bay stays cached until entered (zero net draws)',
+      G.fireHallMesh.visible === false);
+
+    /* the real station activates near the player; ENTER prompt at the door */
+    const cd = G.amenityCenterFor(fgx, fgz);
+    G.player.position.set(cd.x + 60, groundY(cd.x + 60, cd.z), cd.z);
+    frame(20);   // chunk redistribute + firestHallTick cadence
+    const fa = G.AMEN.active.firestation.find(a => Math.hypot(a.x - cd.x, a.z - cd.z) < 1);
+    check('lmfirest: the real station activates near the player', !!fa);
+    const door = G.firestHallDoorWorld(fa);
+    G.player.position.set(door.x, groundY(door.x, door.z), door.z);
+    frame(20);
+    check('lmfirest: ENTER prompt shows at the door',
+      G.FIRESTHALL.hintEnter === true && G.firesthallhintEl.style.opacity == 1, 'hint=' + G.FIRESTHALL.hintEnter);
+
+    /* enter/slide round trip: E slides down the pole and exits at the door */
+    const probs0 = consoleProblems.length;
+    G.closeShop(); G.firestHallEnter();
+    check('lmfirest: ENTER teleports into the cached bay (y=-500)',
+      G.FIRESTHALL.inHall === true && G.player.position.y === G.FIRESTATION_ROOM_Y
+      && G.fireHallMesh.visible === true,
+      'y=' + G.player.position.y);
+    check('lmfirest: the bay parks under the active station',
+      Math.abs(G.fireHallMesh.position.x - fa.x) < 0.01
+      && Math.abs(G.fireHallMesh.position.z - fa.z) < 0.01);
+    frame(20);
+    check('lmfirest: SLIDE prompt shows inside',
+      G.firestpolehintEl.style.opacity == 1 && /SLIDE/.test(G.firestpolehintEl.textContent),
+      G.firestpolehintEl.textContent);
+    G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+    stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+    check('lmfirest: KeyE slides and exits (round trip complete)',
+      G.FIRESTHALL.inHall === false && G.fireHallMesh.visible === false);
+    const backD = Math.hypot(G.player.position.x - G.FIRESTHALL.doorX, G.player.position.z - G.FIRESTHALL.doorZ);
+    check('lmfirest: slide exits back at the door', backD < 0.01, 'd=' + backD.toFixed(3));
+
+    /* save inside stores the station door (collectSave idiom) */
+    G.closeShop();
+    const kdoor = G.firestHallDoorWorld(fa);
+    G.player.position.set(kdoor.x, groundY(kdoor.x, kdoor.z), kdoor.z);
+    frame(10);
+    G.firestHallEnter();
+    const sv = G.collectSave();
+    check('lmfirest: save inside stores the station door position',
+      Math.abs(sv.x - G.FIRESTHALL.doorX) < 0.01 && Math.abs(sv.z - G.FIRESTHALL.doorZ) < 0.01,
+      'x=' + sv.x + ' z=' + sv.z);
+    G.firestHallExit();
+
+    /* vehicle collision: the car is pushed out of the garage wall via AMEN.colliders */
+    const wx = (lx, lz) => { const c = Math.cos(fa.yaw), s = Math.sin(fa.yaw); return fa.x + lx * c + lz * s; };
+    const wz = (lx, lz) => { const c = Math.cos(fa.yaw), s = Math.sin(fa.yaw); return fa.z - lx * s + lz * c; };
+    const wc = G.AMEN_DEF.firestation.colliders[16];   // [11, 4, 2.6]: right front pillar
+    const am0 = G.AMEN.colliders.length;
+    for (const col of G.AMEN_DEF.firestation.colliders) G.AMEN.colliders.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+    G.CAR.pos.set(wx(wc[0], wc[1]), 0, wz(wc[0], wc[1]));
+    G.CAR.hitCd = 0; G.CAR.speed = 0; G.CAR.hp = 100; G.CAR.armor = 0;
+    G.carAmenityHit(0.016);
+    const cdst = Math.hypot(G.CAR.pos.x - wx(wc[0], wc[1]), G.CAR.pos.z - wz(wc[0], wc[1]));
+    check('lmfirest: the garage wall blocks light vehicles (pushed out via AMEN.colliders)',
+      cdst >= wc[2] + 1.15 - 0.01, 'd=' + cdst.toFixed(2));
+    G.AMEN.colliders.length = am0;
+
+    /* drive-up bay: TRUCK ONLY on foot, REFILL when driving the truck in */
+    const bay = G.firestBayWorld(fa);
+    G.player.position.set(bay.x, groundY(bay.x, bay.z), bay.z);
+    G.FT.driving = false;
+    frame(20);
+    check('lmfirest: bay prompt reads TRUCK ONLY on foot',
+      G.firestbayhintEl.style.opacity == 1 && G.firestbayhintEl.textContent === 'TRUCK ONLY',
+      G.firestbayhintEl.textContent);
+    /* drive the truck into the bay */
+    const by = groundY(bay.x, bay.z);
+    G.FT.pos.set(bay.x, by, bay.z); G.FT.heading = 0; G.FT.placed = true;
+    G.ftPose(bay.x, by, bay.z, 0);
+    G.ftBodyIM.instanceMatrix.needsUpdate = true;
+    G.FT.anchorCx = Math.floor(bay.x / 48); G.FT.anchorCz = Math.floor(bay.z / 48);
+    G.FT.routeKey = G.FT.anchorCx + ',' + G.FT.anchorCz;
+    G.player.position.set(bay.x + 2, by, bay.z);
+    frame(1);
+    G.ftEnter();
+    G.FT.water = 40; G.FT.hp = 55;   // half-spent truck
+    frame(20);   // bay cadence
+    check('lmfirest: REFILL prompt shows when driving the truck in the bay',
+      G.FIREST.refillOn === true && G.firestbayhintEl.style.opacity == 1
+      && /REFILL/.test(G.firestbayhintEl.textContent), G.firestbayhintEl.textContent);
+    const probsR = consoleProblems.length;
+    G.firestRefill();
+    check('lmfirest: refill restores water and hull to full, free',
+      G.FT.water === 100 && G.FT.hp === 100, 'water=' + G.FT.water + ' hp=' + G.FT.hp);
+    check('lmfirest: one refill per visit (prompt consumed)',
+      G.FIREST.refillOn === false && G.FIREST.refillUsed === true
+      && G.firestbayhintEl.style.opacity == 0);
+    G.firestRefill();
+    check('lmfirest: second refill in the same visit is a no-op',
+      G.FT.water === 100 && G.FT.hp === 100 && G.FIREST.refillUsed === true);
+    /* drive out: the visit re-arms */
+    G.FT.pos.set(bay.x + 30, groundY(bay.x + 30, bay.z), bay.z);
+    G.ftPose(bay.x + 30, G.FT.pos.y, bay.z, 0);
+    G.ftBodyIM.instanceMatrix.needsUpdate = true;
+    frame(20);
+    check('lmfirest: leaving the bay re-arms the refill for the next visit',
+      G.FIREST.refillUsed === false);
+    G.FT.pos.set(bay.x, by, bay.z);
+    G.ftPose(bay.x, by, bay.z, 0);
+    G.ftBodyIM.instanceMatrix.needsUpdate = true;
+    G.FT.water = 10; G.FT.hp = 90;
+    frame(20);
+    check('lmfirest: refill re-arms on the next visit',
+      G.FIREST.refillOn === true);
+    /* E at the bay refills via mountToggle (does not exit the truck) */
+    G.mountToggle();
+    check('lmfirest: E at the bay refills instead of exiting the truck',
+      G.FT.driving === true && G.FT.water === 100 && G.FT.hp === 100);
+    G.ftExit();
+
+    /* water cannon: spraying drinks from the tank */
+    G.FT.water = 100;
+    G.FT.pos.set(bay.x, by, bay.z); G.FT.heading = 0;
+    G.ftPose(bay.x, by, bay.z, 0); G.ftBodyIM.instanceMatrix.needsUpdate = true;
+    G.player.position.set(bay.x + 2, by, bay.z);
+    frame(1);
+    G.ftEnter();
+    G.waterHeld = true;
+    frame(12);   // ~0.2s of spray
+    G.waterHeld = false;
+    check('lmfirest: spraying consumes tank water',
+      G.FT.water < 100 && G.FT.water > 90, 'water=' + G.FT.water.toFixed(1));
+    G.FT.water = 0.2;
+    G.waterHeld = true;
+    frame(12);
+    G.waterHeld = false;
+    check('lmfirest: empty tank stops the spray (TANK EMPTY toast)',
+      G.FT.water === 0 && G.FT.spraying === false && G.toastEl.textContent === 'TANK EMPTY - REFILL AT THE STATION',
+      'water=' + G.FT.water);
+    G.ftExit();
+
+    /* hull: wildfire heat damages the truck, the bay repairs it */
+    G.FT.hp = 100;
+    G.FIRES.length = 0;
+    G.FIRES.push({ idx: 0, x: G.FT.pos.x + 2, z: G.FT.pos.z, t: 1, burnDur: 70, spreadDone: true, dmgT: 0, phase: 0 });
+    G.player.position.set(bay.x + 2, by, bay.z);
+    frame(1);
+    G.ftEnter();
+    frame(70);   // ~1.17s inside 4m of the fire
+    check('lmfirest: wildfire heat damages the truck hull (~2/s)',
+      G.FT.hp < 100 && G.FT.hp > 90, 'hp=' + G.FT.hp.toFixed(1));
+    G.FIRES.length = 0;
+    G.ftExit();
+
+    /* HUD chip: shows within 500m with bearing arrow + distance, hidden when far */
+    G.player.position.set(cd.x + 60, groundY(cd.x + 60, cd.z), cd.z);
+    frame(20);
+    check('lmfirest: chip shows within range',
+      G.firestChipEl.style.display === 'block', 'display=' + G.firestChipEl.style.display);
+    check('lmfirest: chip reads FIRE STN <distance>M',
+      /^FIRE STN \d+M$/.test(G.firestTxtEl.textContent), G.firestTxtEl.textContent);
+    check('lmfirest: chip arrow carries a bearing rotation',
+      /rotate\(-?\d+(\.\d+)?deg\)/.test(G.firestArrEl.style.transform || ''),
+      G.firestArrEl.style.transform);
+    let farX = cd.x + 1000, farZ = cd.z;
+    for (let fx = cd.x + 1000; fx <= cd.x + 3000; fx += 500) {
+      let ok = true;
+      for (let gx = -80; gx <= 80 && ok; gx++) for (let gz = -80; gz <= 80 && ok; gz++) {
+        if (G.amenityTypeFor(gx, gz) !== 'firestation' || !G.amenityAccepted(gx, gz)) continue;
+        const a = G.amenityCenterFor(gx, gz);
+        if (a && a.type === 'firestation' && Math.hypot(a.x - fx, a.z - farZ) < 600) ok = false;
+      }
+      if (ok) { farX = fx; break; }
+    }
+    G.player.position.set(farX, groundY(farX, farZ), farZ);
+    frame(20);
+    check('lmfirest: chip hides when far',
+      G.firestChipEl.style.display === 'none', 'display=' + G.firestChipEl.style.display);
+
+    /* transit: bus/taxi/bike/bc/scooter never anchor at the station in v1 */
+    G.busRebuildRoute(fgx, fgz);
+    check('lmfirest: bus routes never stop at the station in v1',
+      G.BUS.route.every(s => s.type !== 'firestation'), 'stops=' + G.BUS.route.length);
+    G.TX.riding = false; G.TX.routeKey = '';
+    G.txRebuild(fgx, fgz);
+    check('lmfirest: taxi routes never stop at the station in v1',
+      (G.TX.route || []).every(s => s.type !== 'firestation'), 'stops=' + (G.TX.route || []).length);
+
+    /* night: beacon dome + bay interiors glow via the shared emissive ramp, zero new lights */
+    G.player.position.set(cd.x + 60, groundY(cd.x + 60, cd.z), cd.z);
+    G.dayPhase = 0.75;   // midnight
+    frame(5);
+    check('lmfirest: beacon + bay interiors glow at night (shared emissive ramp, no new lights)',
+      G.AMEN_DEF.firestation.mesh.material.emissiveIntensity > 1,
+      G.AMEN_DEF.firestation.mesh.material.emissiveIntensity.toFixed(2));
+    G.dayPhase = 0.3;
+
+    frame(30);
+    check('lmfirest: round trip leaves zero console errors/warnings',
+      consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
+
+    /* leave the world as the next block expects: exit the hall, player at origin, FT rebuilt there */
+    if (G.FIRESTHALL.inHall) G.firestHallExit();
+    G.player.position.set(0, groundY(0, 0), 0);
+    G.FT.routeKey = ''; G.FT.driving = false; G.FT.water = 100; G.FT.hp = 100; G.ftRebuild(0, 0);
+    G.FIRES.length = 0;
+  }
 }
 
 /* ---------- zero console errors ---------- */
