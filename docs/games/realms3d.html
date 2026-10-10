@@ -328,6 +328,21 @@
     font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
+  /* ---- basketball HUD (Phase 5 sports): hoops chip reuses the pet-chip chip
+         language, stacked below #socchip; SHOOT prompt mirrors the KICK-hint
+         pattern and is tappable (touch works). DOM only, zero draw calls. ---- */
+  #hoopchip {
+    position: absolute; top: 558px; right: 18px; color: #f2a03d; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: none; white-space: nowrap;
+  }
+  #shoothint {
+    position: absolute; bottom: 408px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #f2a03d; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
 
   /* ---- lightning flash: DOM layer above the canvas only, capped under 0.18
          opacity, pointer-events none, no layout impact ---- */
@@ -409,6 +424,8 @@
   <div id="farmhint"></div>
   <div id="socchip"></div>
   <div id="kickhint"></div>
+  <div id="hoopchip"></div>
+  <div id="shoothint"></div>
   <div id="emotehint"></div>
   <div id="shop">
     <h3 id="shopname">SHOP</h3>
@@ -5945,6 +5962,40 @@ function buildParkGeo() {
     amenPart(parts, 0, 1.1, 2.4, 0.08, sx * 9.55, 1.2, -2, NETC);
     amenPart(parts, 0, 1.1, 0.08, 4.0, sx * 9.55, 2.42, 0, NETC);    // net top
   }
+  /* ---- Phase 5 basketball: court + one hoop baked into the shared park
+         geometry (zero new draw calls), same idiom as soccer above: the
+         court is visible in every park, gameplay only at seeded basketball
+         courts (hash2i%5===2, disjoint from soccer's %5===1). Court long
+         axis = local X, hoop at local x = 6.2 (rim), backboard face 6.64,
+         pole 7.0. Court surface 15x11 at y 0.04 sits 5mm above the soccer
+         pitch patch (0.035) so the two painted games never z-fight; court
+         lines at 0.055 sit above the soccer lines (0.05). Bright parts stay
+         readable at night under moonlight. ---- */
+  const COURT = 0x44506a, HOOPC = 0xe2701d, BOARDW = 0xe8edf2;
+  flatRect(15, 11, 0, 0, 0.04, COURT);                              // court surface
+  flatRect(15.2, 0.16, 0, 5.5, 0.055, LINE);                        // boundary
+  flatRect(15.2, 0.16, 0, -5.5, 0.055, LINE);
+  flatRect(0.16, 11, 7.5, 0, 0.055, LINE);
+  flatRect(0.16, 11, -7.5, 0, 0.055, LINE);
+  flatRect(0.16, 11, 0, 0, 0.055, LINE);                            // halfway
+  amenPart(parts, 4, 1.7, 1.85, 0, 0, 0.055, 0, LINE);               // center circle
+  for (const sz of [-1, 1]) {                                       // key rectangle
+    flatRect(3.5, 0.15, 5.75, sz * 1.8, 0.055, LINE);
+  }
+  flatRect(0.15, 3.75, 4.0, 0, 0.055, LINE);                        // free-throw line
+  amenPart(parts, 4, 1.72, 1.87, 0, 4.0, 0.055, 0, LINE);            // FT circle
+  const arc3 = new THREE.RingGeometry(5.8, 5.95, 40, 1, Math.PI - 1.1, 2.2);
+  arc3.rotateX(-Math.PI / 2);                                       // 3pt arc around the rim
+  arc3.translate(6.2, 0.055, 0);
+  amenUV(arc3, 0.5, 0.5); amenPaint(arc3, LINE);
+  parts.push(arc3);
+  flatRect(3.98, 0.15, 5.51, 5.26, 0.055, LINE);                     // corner 3pt lines
+  flatRect(3.98, 0.15, 5.51, -5.26, 0.055, LINE);
+  amenPart(parts, 1, 0.09, 0.09, 3.9, 7.0, 1.95, 0, 0x3a3f45);      // pole
+  amenPart(parts, 0, 0.08, 1.05, 1.8, 6.68, 3.42, 0, BOARDW);        // backboard
+  amenPart(parts, 0, 0.5, 0.06, 0.1, 6.42, 3.05, 0, HOOPC);         // rim connector
+  amenPart(parts, 4, 0.40, 0.48, 0, 6.2, 3.05, 0, HOOPC);           // rim ring
+  amenPart(parts, 2, 0.44, 0.36, 0.5, 6.2, 2.78, 0, NETC);          // net
   for (const [tx, tz, s] of [[-5, -3, 1.1], [4.5, -4, 0.9], [0.5, 5.5, 1.2]]) {
     amenPart(parts, 1, 0.14 * s, 0.2 * s, 1.9 * s, tx, 0.95 * s, tz, 0x4a3520);
     amenPart(parts, 2, 1.5 * s, 3.0 * s, 0, tx, 3.0 * s, tz, 0x24401f);
@@ -7178,7 +7229,7 @@ addEventListener('keydown', e => {
     return;                                           // no weapon select, no car toggle while shopping
   }
   if (e.code === 'KeyE') { if (!farmTryHarvest()) mountToggle(); }        // farm harvest wins over mounts near a plot
-  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (soccerCanKick()) doKick(); else doPunch(); }
+  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -7355,13 +7406,12 @@ if (IS_TOUCH) {
      goal. HUD chip shows session goals.
    - Every mechanic has HUD feedback (chip states, KICK prompt, toasts).
    - No new lights, no new audio nodes (sfxBlip idiom only), no new
-     keybinds (F doubles), no external URLs, seeded PRNG only, no TODOs. */
+     keybinds (F doubles), no external URLs, seeded PRNG only. */
 const BALL_R = 0.35;                    // oversized readable ball
 const PITCH_HX = 9, PITCH_HZ = 6;      // pitch half extents, park-local
 const GOAL_HALF_W = 2, GOAL_H = 2.4;   // goal mouth half width, crossbar
 const KICK_POW = 17, KICK_UP = 4.2;    // kick impulse: horizontal + pop-up
 const KICK_R = 2.5;                    // F becomes KICK inside this range
-const SOCCER_NEAR = 60;               // ball activates inside this radius
 const SOCCER_LEAVE = 45;              // goalie releases beyond this radius
 const GOALIE_SPD = 3.5;               // goalie lateral speed cap u/s
 const BALL_GRAV = 24, BALL_REST = 0.55, BALL_ROLL = 2.0;
@@ -7422,22 +7472,41 @@ const SOCCER = {
   _s1: new THREE.Vector3(1, 1, 1),
 };
 
+/* shared by soccer and basketball: one ball (ballIM), one active sport at a
+   a time. The nearest active court within HOOP_NEAR decides which sport owns
+   the ball; the ball gets an orange instanceColor tint on basketball courts
+   and the normal soccer look elsewhere. Zero per-frame allocation: the
+   result lands in the caller-provided out object. */
+const _courtAct = { type: null, court: null };
+function courtFindActive(out) {
+  const px = player.position.x, pz = player.position.z;
+  let best = null, bd = HOOP_NEAR * HOOP_NEAR;
+  for (const a of AMEN.active.park) {
+    let type = null;
+    if (basketballCourtFor(a.gx, a.gz)) type = 'hoops';
+    else if (soccerPitchFor(a.gx, a.gz)) type = 'soccer';
+    if (!type) continue;
+    const dx = a.x - px, dz = a.z - pz, d = dx * dx + dz * dz;
+    if (d < bd) { bd = d; best = a; out.type = type; }
+  }
+  out.court = best;
+  if (!best) out.type = null;
+  return best !== null;
+}
+/* ball look: orange tint for basketball, normal soccer look otherwise.
+   instanceColor multiplies the vertex colors; white = no change. */
+const _ballCol = new THREE.Color();
+function ballSetLook(hoops) {
+  _ballCol.setHex(hoops ? 0xd97a26 : 0xffffff);
+  ballIM.setColorAt(0, _ballCol);
+  ballIM.instanceColor.needsUpdate = true;
+}
 /* seeded subset of park amenities: pure function of chunk coords,
-   deterministic on revisit (same idiom as amenityAccepted). */
+   deterministic on revisit (same idiom as amenityAccepted). Residue %5===1
+   is soccer's; basketball takes %5===2 below, so the two never overlap. */
 function soccerPitchFor(gx, gz) {
   return amenityTypeFor(gx, gz) === 'park' && amenityAccepted(gx, gz) &&
          (hash2i(gx, gz) % 5 === 1);
-}
-/* nearest soccer park among the placed instances, inside SOCCER_NEAR. */
-function soccerFindPitch() {
-  const px = player.position.x, pz = player.position.z;
-  let best = null, bd = SOCCER_NEAR * SOCCER_NEAR;
-  for (const a of AMEN.active.park) {
-    if (!soccerPitchFor(a.gx, a.gz)) continue;
-    const dx = a.x - px, dz = a.z - pz, d = dx * dx + dz * dz;
-    if (d < bd) { bd = d; best = a; }
-  }
-  return best;
 }
 function soccerSpawnAt(a) {
   SOCCER.pitch = a;
@@ -7446,12 +7515,13 @@ function soccerSpawnAt(a) {
   SOCCER.quat.identity();
   SOCCER.active = true;
   SOCCER.goalie = -1; SOCCER.goalieTold = false;
+  ballSetLook(false);                       // soccer ball look
   updateSoccerChip(true);
 }
 function soccerParkBall() {
   SOCCER.active = false;
   SOCCER.pitch = null;
-  ballIM.count = 0;
+  if (!HOOPS.active) ballIM.count = 0;   // hoops owns the ball this frame: no flicker
   soccerReleaseGoalie();
   updateSoccerChip(true);
 }
@@ -7512,9 +7582,9 @@ function doKick() {
   setTimeout(() => sfxBlip(340, 0.1, 'triangle', 0.25), 60);
   updateSoccerChip(true);
 }
-/* dribble: sphere push-out + velocity transfer. Returns true on contact. */
-function soccerDribbleBody(bx, bz, bodyR, vx, vz) {
-  const B = SOCCER;
+/* dribble: sphere push-out + velocity transfer. Returns true on contact.
+   Generic over the ball state so soccer and basketball share it. */
+function ballDribbleBody(B, bx, bz, bodyR, vx, vz) {
   const dx = B.pos.x - bx, dz = B.pos.z - bz;
   const d = Math.hypot(dx, dz), minD = BALL_R + bodyR;
   if (d >= minD) return false;
@@ -7582,13 +7652,13 @@ function soccerKickHint(show) {
         Zero per-frame allocation: all temps live on SOCCER. ---- */
 function soccerTick(dt) {
   if (dt <= 0) return;
-  const found = soccerFindPitch();
-  if (!found) {
+  const has = courtFindActive(_courtAct);
+  if (!has || _courtAct.type !== 'soccer') {
     if (SOCCER.active) soccerParkBall();
     soccerKickHint(false);
     return;
   }
-  if (!SOCCER.active || SOCCER.pitch !== found) soccerSpawnAt(found);
+  if (!SOCCER.active || SOCCER.pitch !== _courtAct.court) soccerSpawnAt(_courtAct.court);
   const B = SOCCER, p = SOCCER.pitch;
   const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
 
@@ -7622,11 +7692,11 @@ function soccerTick(dt) {
     !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding &&
     !BIKE.driving && !BC.driving && !SC.driving;
   let dribbling = false;
-  if (onFoot && soccerDribbleBody(player.position.x, player.position.z, 0.45, P.vel.x, P.vel.z))
+  if (onFoot && ballDribbleBody(SOCCER, player.position.x, player.position.z, 0.45, P.vel.x, P.vel.z))
     dribbling = true;
   for (const e of soccerVehList()) {
     const vx = (e.v.pos.x - e.prev.x) / dt, vz = (e.v.pos.z - e.prev.z) / dt;
-    if (soccerDribbleBody(e.v.pos.x, e.v.pos.z, e.r, vx, vz)) dribbling = true;
+    if (ballDribbleBody(SOCCER, e.v.pos.x, e.v.pos.z, e.r, vx, vz)) dribbling = true;
     e.prev.copy(e.v.pos);
   }
   if (dribbling) B.dribbleT = 0.6;
@@ -7686,6 +7756,358 @@ function soccerTick(dt) {
 }
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(soccerTick));
+
+/* ================== BASKETBALL MINI-GAME (Phase 5 sports) ==================
+   Design research (arcade mobile basketball shot physics): auto-aim as the
+   unit vector ball->hoop, arc via forward+up vector addition, distance-based
+   power, and a two-trigger "laser gate" (rim gate then net gate) so only
+   clean baskets count.
+
+   - Court + hoop (pole, backboard, rim, net) are baked into buildParkGeo
+     (shared park instanced geometry): zero new draw calls.
+   - Ball: ZERO new draw calls. Reuses the soccer ballIM (1 instance): one
+     active ball at a time; the nearest active court within HOOP_NEAR
+     decides the sport. On basketball courts the ball gets an orange
+     instanceColor tint, elsewhere the normal soccer look.
+   - Basketball courts are a seeded subset of park amenities, a pure
+     function of chunk coords (basketballCourtFor = park + accepted +
+     hash2i%5===2, disjoint from soccer's %5===1), deterministic on revisit.
+     The ball lives only at the nearest active court; it parks (hidden)
+     everywhere else.
+   - Kinematic arcade ball: gravity, bounce, rolling friction (same idiom as
+     soccer). Player body on foot + all six vehicles dribble it (shared
+     ballDribbleBody). 30u out-of-bounds resets with a toast.
+   - SHOOT: F within 4u of the ball, on foot only (same guards as KICK;
+     the active court type decides KICK vs SHOOT). Auto-aimed set shot:
+     aim = ball->rim unit vector, real kinematic arc (gravity, solved
+     time-of-flight), distance-seeded error (green under 6u, contested
+     beyond). Rim (restitution 0.5 + seeded deflection), backboard (plane
+     reflect) and pole (cylinder deflect) all collide. Ball spins on flight.
+   - Scoring: two-trigger laser gate. Trigger 1 = crossing the rim plane
+     downward inside the rim radius; trigger 2 = crossing the net gate
+     below. Both in order = basket. GOAL! toast; cash $20 (2pt) / $35 (3pt)
+     + $5 per consecutive make (streak, resets on a miss). Session pts chip
+     (HOOPS - PTS n, SHOOT!/DRIBBLE!/STREAK xN states). newGame resets.
+   - Every mechanic has HUD feedback (chip, SHOOT prompt, toasts).
+   - No new lights, no new audio nodes (sfxBlip idiom only), no new
+     keybinds (F doubles), no external URLs, seeded PRNG only. */
+const HOOP_NEAR = 60;                 // ball activates inside this radius
+const SHOOT_R = 4.0;                  // F becomes SHOOT inside this range
+const HOOP_LOCAL_X = 6.2;             // rim center, park-local x
+const HOOP_H = 3.05;                  // rim height above the court
+const HOOP_RIM_R = 0.44;              // rim ring radius (mid), ball BALL_R 0.35
+const HOOP_BOARD_X = 6.64;            // backboard face, park-local x
+const HOOP_3PT = 6.0;                 // beyond this distance from the rim = 3pt
+const CASH_2PT = 20, CASH_3PT = 35, STREAK_BONUS = 5;
+const SHOT_TIMEOUT = 15;              // miss if no score in 15s
+
+function basketballCourtFor(gx, gz) {
+  return amenityTypeFor(gx, gz) === 'park' && amenityAccepted(gx, gz) &&
+         (hash2i(gx, gz) % 5 === 2);
+}
+
+const HOOPS = {
+  pos: new THREE.Vector3(0, -100, 0),
+  vel: new THREE.Vector3(),
+  quat: new THREE.Quaternion(),
+  prevY: 0,
+  active: false,
+  court: null,                 // active park {x, z, yaw, gx, gz}
+  pts: 0,                      // session tally
+  streak: 0,                   // consecutive makes
+  shots: 0,                    // session attempts (seeds the shot error)
+  dribbleT: 0, shootT: 0,      // HUD state timers
+  chipState: '',
+  shot: null,                  // {t, val, gate1, gate2} while a shot is live
+  shotRng: null,               // seeded deflection stream for the live shot
+  _t1: new THREE.Vector3(), _t2: new THREE.Vector3(),
+  _tq: new THREE.Quaternion(), _m: new THREE.Matrix4(),
+  _s1: new THREE.Vector3(1, 1, 1),
+};
+
+/* rim center, world space, from the court transform (park-local x = 6.2). */
+function hoopsRimWorld(out) {
+  const p = HOOPS.court;
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  out.x = p.x + HOOP_LOCAL_X * c;
+  out.z = p.z - HOOP_LOCAL_X * s;
+  out.y = terrainHeight(p.x, p.z) + HOOP_H;
+  return out;
+}
+function hoopsSpawnAt(a) {
+  HOOPS.court = a;
+  HOOPS.pos.set(a.x, terrainHeight(a.x, a.z) + BALL_R + 0.05, a.z);
+  HOOPS.vel.set(0, 0, 0);
+  HOOPS.quat.identity();
+  HOOPS.active = true;
+  HOOPS.shot = null; HOOPS.shotRng = null;
+  ballSetLook(true);                        // basketball orange tint
+  toast('BASKETBALL COURT');
+  updateHoopsChip(true);
+}
+function hoopsParkBall() {
+  HOOPS.active = false;
+  HOOPS.court = null;
+  HOOPS.shot = null; HOOPS.shotRng = null;
+  if (!SOCCER.active) ballIM.count = 0;   // soccer owns the ball this frame: no flicker
+  hoopsShootHint(false);
+  updateHoopsChip(true);
+}
+/* ball near the player's feet and low: the F key becomes SHOOT. */
+function hoopsBallNear() {
+  if (!HOOPS.active) return false;
+  const dx = HOOPS.pos.x - player.position.x, dz = HOOPS.pos.z - player.position.z;
+  if (dx * dx + dz * dz > SHOOT_R * SHOOT_R) return false;
+  return HOOPS.pos.y - terrainHeight(HOOPS.pos.x, HOOPS.pos.z) < 2.0;
+}
+/* F doubles as SHOOT near the ball. Same guard idiom as soccerCanKick:
+   dead, shop open, driving, riding all block it. */
+function hoopsCanShoot() {
+  if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
+      BIKE.driving || BC.driving || SC.driving) return false;
+  return hoopsBallNear();
+}
+/* set shot: auto-aim (ball->rim unit vector), arc via forward+up vector
+   addition with a solved time-of-flight on a real kinematic arc, plus
+   distance-seeded error: green under 6u, contested beyond. 3pt past 6u. */
+function doHoopShot() {
+  if (!hoopsCanShoot()) return;
+  const H = HOOPS, p = H.court;
+  hoopsRimWorld(H._t1);
+  const rx = H._t1.x, ry = H._t1.y, rz = H._t1.z;
+  const dx = rx - H.pos.x, dz = rz - H.pos.z;
+  const d = Math.hypot(dx, dz) || 0.001;
+  const val = d > HOOP_3PT ? 3 : 2;
+  const rng = mulberry32((hash2i(H.shots | 0, p.gx) ^ hash2i(p.gz, 0x9e37)) >>> 0);
+  const err = d < 6 ? 0.06 : 0.06 + (d - 6) * 0.11;
+  const tx = rx + (rng() * 2 - 1) * err;
+  const tz = rz + (rng() * 2 - 1) * err;
+  const ty = ry + (rng() * 2 - 1) * err * 0.5;
+  const T = 0.45 + d * 0.045;               // time of flight, grows with distance
+  H.vel.set((tx - H.pos.x) / T,
+            (ty - H.pos.y + 0.5 * BALL_GRAV * T * T) / T,
+            (tz - H.pos.z) / T);
+  H.shot = { t: 0, val, gate1: false, gate2: false };
+  H.shotRng = mulberry32((hash2i(H.shots | 0, 0x51ab) ^ 0x3d5a) >>> 0);
+  H.shots++;
+  H.shootT = 0.7;
+  P.punchCd = 0.45; P.punchDur = 0.32; P.punchT = P.punchDur; P.punchHit = false;
+  sfxBlip(196, 0.1, 'sine', 0.4);            // set-shot pop
+  setTimeout(() => sfxBlip(392, 0.12, 'triangle', 0.25), 70);
+  toast(val === 3 ? '3-PT SHOT' : '2-PT SHOT');
+  updateHoopsChip(true);
+}
+function hoopsResetBall() {
+  const H = HOOPS, p = H.court;
+  H.pos.set(p.x, terrainHeight(p.x, p.z) + BALL_R + 0.05, p.z);
+  H.vel.set(0, 0, 0);
+  H.shot = null; H.shotRng = null;
+}
+/* a miss = a live shot that never scores: streak resets, ball repossessed. */
+function hoopsMiss() {
+  HOOPS.streak = 0;
+  hoopsResetBall();
+  toast('BALL RETURNED');
+  updateHoopsChip(true);
+}
+function hoopsScore() {
+  const H = HOOPS, val = H.shot ? H.shot.val : 2;
+  H.streak++;
+  H.pts += val;
+  const total = (val === 3 ? CASH_3PT : CASH_2PT) + (H.streak - 1) * STREAK_BONUS;
+  cash += total; updateCashHUD();            // the cash idiom
+  toast('GOAL! +$' + total);
+  sfxBlip(523, 0.12, 'square', 0.3);
+  setTimeout(() => sfxBlip(659, 0.12, 'square', 0.3), 110);
+  setTimeout(() => sfxBlip(784, 0.2, 'square', 0.3), 220);
+  if (H.streak >= 2) setTimeout(() => toast('STREAK x' + H.streak), 900);
+  hoopsResetBall();
+  updateHoopsChip(true);
+}
+
+/* ---- HUD: pts chip (pet-chip chip language) + SHOOT prompt (KICK-hint
+        pattern, tappable). DOM only, zero draw calls. ---- */
+const hoopChipEl = document.getElementById('hoopchip');
+function updateHoopsChip(force) {
+  let s;
+  if (!HOOPS.active) s = '';
+  else if (HOOPS.shootT > 0) s = 'SHOOT! - PTS ' + HOOPS.pts;
+  else if (HOOPS.dribbleT > 0) s = 'DRIBBLE! - PTS ' + HOOPS.pts;
+  else if (HOOPS.streak >= 2) s = 'STREAK x' + HOOPS.streak + ' - PTS ' + HOOPS.pts;
+  else s = 'HOOPS - PTS ' + HOOPS.pts;
+  if (!force && s === HOOPS.chipState) return;
+  HOOPS.chipState = s;
+  hoopChipEl.style.display = s ? 'block' : 'none';
+  if (s) hoopChipEl.textContent = s;
+}
+const shootHintEl = document.getElementById('shoothint');
+shootHintEl.addEventListener('click', () => { doHoopShot(); });
+let shootHintOn = false;
+function hoopsShootHint(show) {
+  if (show === shootHintOn) return;
+  shootHintOn = show;
+  shootHintEl.style.opacity = show ? 1 : 0;
+  if (show) shootHintEl.textContent = 'SHOOT [F]';
+}
+
+/* ---- rim / backboard / pole collision, park-local. Zero per-frame
+        allocation: deflection jitter is seeded, never unseeded. ---- */
+function hoopsHoopCollide() {
+  const H = HOOPS, p = H.court;
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  const rdx = H.pos.x - p.x, rdz = H.pos.z - p.z;
+  const lx = rdx * c - rdz * s, lz = rdx * s + rdz * c;
+  const ly = H.pos.y - terrainHeight(p.x, p.z);
+  const vlx = H.vel.x * c - H.vel.z * s, vlz = H.vel.x * s + H.vel.z * c;
+
+  /* backboard: face at HOOP_BOARD_X, |lz| < 0.95, ly in [2.85, 4.0],
+     approached from the court side only */
+  if (lx < HOOP_BOARD_X && Math.abs(lx - HOOP_BOARD_X) < BALL_R + 0.04 &&
+      Math.abs(lz) < 0.95 && ly > 2.85 && ly < 4.0 && vlx > 0) {
+    const rvx = -vlx * 0.55, rvlz = vlz * 0.8;
+    H.vel.set(rvx * c + rvlz * s, H.vel.y, -rvx * s + rvlz * c);
+    const nlx = HOOP_BOARD_X - BALL_R - 0.045;
+    H.pos.x = p.x + nlx * c + lz * s;
+    H.pos.z = p.z - nlx * s + lz * c;
+  }
+
+  /* rim ring: sphere-vs-ring, restitution 0.5, seeded tangential jitter */
+  const hdx = lx - HOOP_LOCAL_X;
+  const hd = Math.hypot(hdx, lz), dy = ly - HOOP_H;
+  if (Math.abs(hd - HOOP_RIM_R) < BALL_R && Math.abs(dy) < BALL_R && hd > 0.001) {
+    const nx = hdx / hd, nz = lz / hd;
+    const push = (HOOP_RIM_R + (hd > HOOP_RIM_R ? BALL_R : -BALL_R)) - hd;
+    H.pos.x += (nx * c + nz * s) * push;
+    H.pos.z += (-nx * s + nz * c) * push;
+    const vr = vlx * nx + vlz * nz;
+    const inOut = hd > HOOP_RIM_R ? -1 : 1;
+    if (vr * inOut > 0) {                       // moving into the wire
+      const jrng = H.shotRng || mulberry32(hash2i((lx * 10) | 0, (lz * 10) | 0));
+      const jit = (jrng() * 2 - 1) * 0.9;       // seeded deflection
+      const nvr = -vr * 0.5;
+      const dvx = (nvr - vr) * nx - nz * jit, dvz = (nvr - vr) * nz + nx * jit;
+      H.vel.x += dvx * c + dvz * s;
+      H.vel.z += -dvx * s + dvz * c;
+      sfxBlip(880, 0.05, 'square', 0.12);       // rim clang
+    }
+  }
+
+  /* pole: cylinder at local (7.0, 0), radius 0.09 */
+  const pdx = lx - 7.0;
+  const pd = Math.hypot(pdx, lz);
+  if (pd < BALL_R + 0.09 && ly < 3.9 && pd > 0.001) {
+    const nx = pdx / pd, nz = lz / pd;
+    const vr = vlx * nx + vlz * nz;
+    if (vr < 0) {
+      const nvr = -vr * 0.4;
+      const dvx = (nvr - vr) * nx, dvz = (nvr - vr) * nz;
+      H.vel.x += dvx * c + dvz * s;
+      H.vel.z += -dvx * s + dvz * c;
+      const nl = BALL_R + 0.095;
+      H.pos.x = p.x + (7.0 + nx * nl) * c + (lz + nz * (nl - pd)) * s;
+      H.pos.z = p.z - (7.0 + nx * nl) * s + (lz + nz * (nl - pd)) * c;
+    }
+  }
+}
+
+/* ---- basketball tick: activation, ball physics, dribble, hoop physics,
+        two-trigger scoring. Zero per-frame allocation. ---- */
+function hoopsTick(dt) {
+  if (dt <= 0) return;
+  const has = courtFindActive(_courtAct);
+  if (!has || _courtAct.type !== 'hoops') {
+    if (HOOPS.active) hoopsParkBall();
+    hoopsShootHint(false);
+    return;
+  }
+  if (!HOOPS.active || HOOPS.court !== _courtAct.court) hoopsSpawnAt(_courtAct.court);
+  const B = HOOPS, p = HOOPS.court;
+
+  /* ball physics: gravity, bounce, rolling friction, speed cap (soccer idiom) */
+  B.prevY = B.pos.y;
+  B.vel.y -= BALL_GRAV * dt;
+  const sp2 = B.vel.x * B.vel.x + B.vel.z * B.vel.z;
+  if (sp2 > BALL_MAXV * BALL_MAXV) {
+    const k = BALL_MAXV / Math.sqrt(sp2);
+    B.vel.x *= k; B.vel.z *= k;
+  }
+  B.pos.x += B.vel.x * dt; B.pos.y += B.vel.y * dt; B.pos.z += B.vel.z * dt;
+  const gy = terrainHeight(B.pos.x, B.pos.z) + BALL_R;
+  if (B.pos.y <= gy) {
+    B.pos.y = gy;
+    if (B.vel.y < 0) B.vel.y *= -BALL_REST;
+    if (Math.abs(B.vel.y) < 0.9) B.vel.y = 0;
+    const f = Math.max(0, 1 - BALL_ROLL * dt);
+    B.vel.x *= f; B.vel.z *= f;
+    if (B.vel.x * B.vel.x + B.vel.z * B.vel.z < 0.0025) { B.vel.x = 0; B.vel.z = 0; }
+  }
+  /* spin: rolling rotation on the ground, free spin on flight */
+  const hs = Math.hypot(B.vel.x, B.vel.z);
+  if (hs > 0.01) {
+    B._t1.set(B.vel.z / hs, 0, -B.vel.x / hs);
+    B._tq.setFromAxisAngle(B._t1, hs * dt / BALL_R * (B.pos.y <= gy + 0.01 ? 1 : 1.6));
+    B.quat.premultiply(B._tq);
+  }
+
+  /* hoop collision: backboard, rim, pole (park-local) */
+  hoopsHoopCollide();
+
+  /* dribble: player body on foot, plus all six vehicles (parked or driven).
+     Shares soccerVehList with soccer; only the active sport dribbles per
+     frame, so the cached prev positions stay correct. */
+  const onFoot = playing() && !P.dead && !shopOpen &&
+    !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding &&
+    !BIKE.driving && !BC.driving && !SC.driving;
+  let dribbling = false;
+  if (onFoot && ballDribbleBody(HOOPS, player.position.x, player.position.z, 0.45, P.vel.x, P.vel.z))
+    dribbling = true;
+  for (const e of soccerVehList()) {
+    const vx = (e.v.pos.x - e.prev.x) / dt, vz = (e.v.pos.z - e.prev.z) / dt;
+    if (ballDribbleBody(HOOPS, e.v.pos.x, e.v.pos.z, e.r, vx, vz)) dribbling = true;
+    e.prev.copy(e.v.pos);
+  }
+  if (dribbling) B.dribbleT = 0.6;
+  B.dribbleT = Math.max(0, B.dribbleT - dt);
+  B.shootT = Math.max(0, B.shootT - dt);
+
+  /* two-trigger laser gate. Trigger 1: crossing the rim plane downward
+     inside the rim radius. Trigger 2: crossing the net gate below. */
+  const rdx = B.pos.x - p.x, rdz = B.pos.z - p.z;
+  hoopsRimWorld(B._t2);
+  const rx = B._t2.x, rimY = B._t2.y, rz = B._t2.z;
+  const hdx2 = B.pos.x - rx, hdz2 = B.pos.z - rz;
+  const hdRim = Math.hypot(hdx2, hdz2);
+  if (B.shot) {
+    const sh = B.shot;
+    if (!sh.gate1 && B.prevY > rimY && B.pos.y <= rimY && B.vel.y < 0 &&
+        hdRim < HOOP_RIM_R - BALL_R * 0.4) sh.gate1 = true;
+    if (sh.gate1 && !sh.gate2 && B.prevY > rimY - 0.55 && B.pos.y <= rimY - 0.55 &&
+        B.vel.y < 0 && hdRim < 0.5) { sh.gate2 = true; hoopsScore(); }
+    if (B.shot) { sh.t += dt; if (sh.t > SHOT_TIMEOUT) hoopsMiss(); }
+  }
+
+  /* out of bounds: 30u from the court center, ball returned (a miss if live) */
+  if (rdx * rdx + rdz * rdz > 30 * 30) {
+    if (B.shot) { B.streak = 0; B.shot = null; B.shotRng = null; }
+    B.pos.set(p.x, terrainHeight(p.x, p.z) + BALL_R + 0.05, p.z);
+    B.vel.set(0, 0, 0);
+    toast('BALL RETURNED');
+    updateHoopsChip(true);
+  }
+
+  /* HUD: chip states + SHOOT prompt */
+  updateHoopsChip(false);
+  hoopsShootHint(onFoot && hoopsBallNear());
+
+  /* pose the one ball instance */
+  B._m.compose(B.pos, B.quat, B._s1);
+  ballIM.setMatrixAt(0, B._m);
+  ballIM.instanceMatrix.needsUpdate = true;
+  ballIM.count = 1;
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(hoopsTick));
 
 /* === WORLD-PEOPLE-ANCHOR === */
 /* Phase 3 buses: passenger hook. The PEOPLE block below stores its npc list
@@ -11610,6 +12032,7 @@ function newGame() {
   for (let i = 0; i < MS.done.length; i++) MS.done[i] = false;
   cash = 0; kills = 0;
   SOCCER.goals = 0; updateSoccerChip(true);   // Phase 5 soccer: new session, new tally
+  HOOPS.pts = 0; HOOPS.streak = 0; HOOPS.shots = 0; updateHoopsChip(true);  // Phase 5 hoops
   releasePet(true);   // Phase 5 wildlife: new game releases the pet (silent)
   for (const k of FOOD_ORDER) FOOD[k] = 0;   // Phase 5 cooking: empty the pantry
   updateFoodHUD();
