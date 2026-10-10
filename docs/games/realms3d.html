@@ -1115,6 +1115,11 @@ const GOV_CAP = Math.min(devicePixelRatio, 2);
 const GOV_LADDER = [];
 for (const s of [1, 1.25, 1.5]) if (s <= GOV_CAP) GOV_LADDER.push(s);
 if (GOV_LADDER.indexOf(GOV_CAP) < 0) GOV_LADDER.push(GOV_CAP);
+/* PERF-7 DPR pixel budget: the DPR cap alone does not bound total pixels on
+   large surfaces (2000x1200 at DPR 2 = 9.6M pixels, thermal death on an
+   iPhone). The budget clamps the ladder's top rung so dpr^2 * w * h never
+   exceeds it. */
+const GOV_PIXEL_BUDGET = 2073600;   // 1920x1080 render pixels
 let GOV_START = GOV_LADDER[GOV_LADDER.length - 1];
 try {
   const savedCeil = parseFloat(localStorage.getItem(GOV_KEY));
@@ -21587,9 +21592,27 @@ let govPrevT = -1;                        // last tick timestamp
 let govBest = 16.7;                       // best-held p75 (ms)
 let govFlash = 0;                         // chip flash seconds remaining
 let govFlashMsg = '';                     // built once per step
+/* PERF-7 budget helper: highest ladder index whose dpr^2*w*h fits the
+   pixel budget. Pure; may return 0 (DPR 1) on huge displays. */
+function govBudgetCeilFor(w, h) {
+  let idx = 0;
+  for (let i = 0; i < GOV_LADDER.length; i++)
+    if (GOV_LADDER[i] * GOV_LADDER[i] * w * h <= GOV_PIXEL_BUDGET) idx = i;
+  return idx;
+}
+function govBudgetCeil() { return govBudgetCeilFor(innerWidth, innerHeight); }
+
 let govCur = GOV_LADDER.length - 1;       // current ladder index
 while (govCur > 0 && GOV_LADDER[govCur] > GOV_START) govCur--;
 let govCeil = govCur;                     // in-session ceiling: step-ups stop here
+/* PERF-7 boot clamp: the budget binds from the first frame, silently (no
+   chip flash). A persisted GOV_START is already <= govCur, never written
+   back. */
+const govBootBc = govBudgetCeil();
+if (govCur > govBootBc) {
+  govCur = govCeil = govBootBc;
+  renderer.setPixelRatio(GOV_LADDER[govCur]);
+}
 
 /* force-show the chip with the step message; tick() restores visibility */
 function govFlashChip(msg) {
@@ -21848,6 +21871,17 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  /* PERF-7: tighten only; step-ups stay the governor's job via p75 windows
+     under the in-session ceiling (it re-climbs when the surface shrinks). */
+  const bc = govBudgetCeil();
+  govCeil = Math.min(govCeil, bc);
+  if (govCur > bc) {
+    govCur = bc;
+    govSettle = GOV_SETTLE_F;
+    renderer.setPixelRatio(GOV_LADDER[govCur]);
+    try { localStorage.setItem(GOV_KEY, String(GOV_LADDER[govCur])); } catch (e) {}
+    govFlashChip('QUAL DOWN: DPR ' + GOV_LADDER[govCur].toFixed(2) + ' (PX BUDGET)');
+  }
 });
 
 player.position.set(0, terrainHeight(0, 0), 0);
