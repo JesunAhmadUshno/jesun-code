@@ -3142,7 +3142,8 @@ function acquirePrey(e, gp) {
 const BIRD_N = 6;
 const birds = [];
 let birdsRoost = false;   /* set by dayNightTick: birds fly by day, roost at night */
-const _bM1 = new THREE.Matrix4(), _bM2 = new THREE.Matrix4(), _bM3 = new THREE.Matrix4();
+const _bM1 = new THREE.Matrix4(), _bM2 = new THREE.Matrix4(), _bM3 = new THREE.Matrix4(),
+      _bM4 = new THREE.Matrix4();
 const birdMat = new THREE.MeshBasicMaterial({ color: 0x1a1d26, side: THREE.DoubleSide, fog: false });
 const _wingG = new THREE.BufferGeometry();
 {
@@ -3150,15 +3151,16 @@ const _wingG = new THREE.BufferGeometry();
   _wingG.setAttribute('position', new THREE.BufferAttribute(v, 3));
   _wingG.computeVertexNormals();
 }
-const _wingGR = _wingG.clone();
-_wingGR.rotateY(Math.PI);   /* right wing mirrors the left */
-const wingL = new THREE.InstancedMesh(_wingG, birdMat, BIRD_N);
-const wingR = new THREE.InstancedMesh(_wingGR, birdMat, BIRD_N);
-for (const im of [wingL, wingR]) {
-  im.frustumCulled = false;
-  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  scene.add(im);
-}
+/* PERF-4: wingL + wingR merged into one InstancedMesh (2 draw calls become 1).
+   Slots 0..BIRD_N-1 are left wings; slots BIRD_N..2*BIRD_N-1 are right wings.
+   The old right-wing geometry had rotateY(PI) baked in; the same rotation is
+   now folded into each right-wing instance matrix (M * R), which renders
+   identically. birdMat is DoubleSide and unlit, so the mirror is invisible. */
+const _wingMirror = new THREE.Matrix4().makeRotationY(Math.PI);
+const wings = new THREE.InstancedMesh(_wingG, birdMat, BIRD_N * 2);
+wings.frustumCulled = false;
+wings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(wings);
 for (let i = 0; i < BIRD_N; i++) {
   birds.push({
     cx: (Math.random() - 0.5) * 120, cz: (Math.random() - 0.5) * 120,
@@ -3247,8 +3249,8 @@ function poseBirds(now) {
     const u = birds[i];
     if (birdsRoost) {
       _bM3.makeScale(0, 0, 0);
-      wingL.setMatrixAt(i, _bM3);
-      wingR.setMatrixAt(i, _bM3);
+      wings.setMatrixAt(i, _bM3);
+      wings.setMatrixAt(BIRD_N + i, _bM3);
       continue;
     }
     _bM1.makeRotationY(-u.a);
@@ -3256,13 +3258,13 @@ function poseBirds(now) {
     const flap = Math.sin(now * 9 + u.ph) * 0.55;
     _bM2.makeRotationZ(flap);
     _bM3.multiplyMatrices(_bM1, _bM2);
-    wingL.setMatrixAt(i, _bM3);
+    wings.setMatrixAt(i, _bM3);
     _bM2.makeRotationZ(-flap);
     _bM3.multiplyMatrices(_bM1, _bM2);
-    wingR.setMatrixAt(i, _bM3);
+    _bM4.multiplyMatrices(_bM3, _wingMirror);   // old baked rotateY(PI), now in the matrix
+    wings.setMatrixAt(BIRD_N + i, _bM4);
   }
-  wingL.instanceMatrix.needsUpdate = true;
-  wingR.instanceMatrix.needsUpdate = true;
+  wings.instanceMatrix.needsUpdate = true;
 }
 poseBirds(0);   /* pose once before the first tick so no instance sits at the origin */
 
@@ -4098,7 +4100,6 @@ const ETYPES = {
 const enemies = [];
 const E_SKIN = 0x7a5f4c, E_DARKC = 0x141416;
 const eBodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
-const eDarkMat = new THREE.MeshStandardMaterial({ color: E_DARKC, roughness: 0.9 });
 const eEyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 /* merged static parts per type: same offsets as the old per-mesh build */
 const eBodyRus = new THREE.InstancedMesh(mergeAnimalParts([
@@ -4119,11 +4120,37 @@ const eBodyBru = new THREE.InstancedMesh(mergeAnimalParts([
   animalBox(0.38, 0.38, 0.36, E_SKIN, 0, 1.78, 0),     // head
   animalBox(0.36, 0.2, 0.36, E_DARKC, 0, 1.98, 0),      // helm
 ]), eBodyMat, 1);
-/* limb slots: one shared geometry each, per-type scale baked into the matrix */
-const eLegs = new THREE.InstancedMesh(EGEO.limb, eDarkMat, 10);
-const eArms = new THREE.InstancedMesh(EGEO.arm, eDarkMat, 10);
+/* PERF-4: one merged limb InstancedMesh replaces eLegs + eArms + copLegs
+   (3 draw calls become 1). All three shared EGEO.limb-compatible geometry:
+   - slots E_LEG_BASE+0..9: enemy legs, matrices unchanged
+   - slots E_ARM_BASE+10..19: enemy arms. The old EGEO.arm box (0.16 x 0.62 x 0.2)
+     is rendered with the limb box (0.2 x 0.9 x 0.24) plus per-axis compensation
+     (ARM_FX/FY/FZ). Joint offsets, pivots and swing are world-space, so the
+     rendered arm is identical (normals and UVs of axis boxes are unaffected).
+   - slots COP_LEG_BASE+20..29: cop legs, matrices unchanged
+   Material keeps the old eDarkMat/copLegM params (standard, roughness 0.9) on a
+   white base; per-slot instanceColor carries the exact old final color
+   (enemy: E_DARKC x tint, cop: 0x1a2030). COP_LEG_N is COP_MAX * 2; COP_MAX is
+   declared later in the cop section, both are 5. */
+const E_LEG_BASE = 0, E_ARM_BASE = 10, COP_LEG_BASE = 20, COP_LEG_N = 10;
+const LIMB_CAP = 30;
+const ARM_FX = 0.16 / 0.2, ARM_FY = 0.62 / 0.9, ARM_FZ = 0.2 / 0.24;
+const limbIM = new THREE.InstancedMesh(EGEO.limb,
+  new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), LIMB_CAP);
+const _DARKC = new THREE.Color(E_DARKC);
+const _COP_LEGC = new THREE.Color(0x1a2030);
+const _eTint = new THREE.Color();
+/* enemy limb slot: old final color was eDarkMat (E_DARKC) x tint, so the white
+   base material needs the product baked into instanceColor */
+function eLimbColorAt(slot, tint) {
+  _eTint.copy(_DARKC).multiply(tint);
+  limbIM.setColorAt(slot, _eTint);
+}
+/* cop leg slots carry the old copLegM color exactly (no tint path ever existed) */
+for (let ci = 0; ci < COP_LEG_N; ci++) limbIM.setColorAt(COP_LEG_BASE + ci, _COP_LEGC);
+limbIM.instanceColor.needsUpdate = true;
 const eEyes = new THREE.InstancedMesh(EGEO.eye, eEyeMat, 10);
-const enemyMeshes = [eBodyRus, eBodySho, eBodyBru, eLegs, eArms, eEyes];
+const enemyMeshes = [eBodyRus, eBodySho, eBodyBru, limbIM, eEyes];
 for (const m of enemyMeshes) {
   m.frustumCulled = false; m.castShadow = true;
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -4197,31 +4224,33 @@ function setEyeColor(e, hex) {
 function setEnemyFlash(e, hex) {
   _eCol.setHex(hex);
   e.bodyMesh.setColorAt(e.bodyInst, _eCol);
-  eLegs.setColorAt(e.idx * 2, _eCol); eLegs.setColorAt(e.idx * 2 + 1, _eCol);
-  eArms.setColorAt(e.idx * 2, _eCol); eArms.setColorAt(e.idx * 2 + 1, _eCol);
+  eLimbColorAt(e.idx * 2, _eCol); eLimbColorAt(e.idx * 2 + 1, _eCol);
+  eLimbColorAt(E_ARM_BASE + e.idx * 2, _eCol); eLimbColorAt(E_ARM_BASE + e.idx * 2 + 1, _eCol);
   e.bodyMesh.instanceColor.needsUpdate = true;
-  eLegs.instanceColor.needsUpdate = true;
-  eArms.instanceColor.needsUpdate = true;
+  limbIM.instanceColor.needsUpdate = true;
 }
 function poseEnemy(e, fall, swing, armTgt) {
   const gp = e.group.position, yaw = e.group.rotation.y, gy = gp.y, s = e.slot;
   eBodyM(e.bodyMesh, e.bodyInst, gp.x, gy, gp.z, yaw, fall, 0, 0, 0);
-  eLimbM(eLegs, e.idx * 2, gp.x, gy, gp.z, yaw, fall,
+  eLimbM(limbIM, e.idx * 2, gp.x, gy, gp.z, yaw, fall,
     -s.legJ, s.legY, 0, swing, s.legHalf, s.legS[0], s.legS[1], s.legS[2]);
-  eLimbM(eLegs, e.idx * 2 + 1, gp.x, gy, gp.z, yaw, fall,
+  eLimbM(limbIM, e.idx * 2 + 1, gp.x, gy, gp.z, yaw, fall,
     s.legJ, s.legY, 0, -swing, s.legHalf, s.legS[0], s.legS[1], s.legS[2]);
-  eLimbM(eArms, e.idx * 2, gp.x, gy, gp.z, yaw, fall,
-    -s.armJ, s.armY, 0, armTgt, s.armHalf, s.armS[0], s.armS[1], s.armS[2]);
-  eLimbM(eArms, e.idx * 2 + 1, gp.x, gy, gp.z, yaw, fall,
-    s.armJ, s.armY, 0, armTgt, s.armHalf, s.armS[0], s.armS[1], s.armS[2]);
+  eLimbM(limbIM, E_ARM_BASE + e.idx * 2, gp.x, gy, gp.z, yaw, fall,
+    -s.armJ, s.armY, 0, armTgt, s.armHalf,
+    s.armS[0] * ARM_FX, s.armS[1] * ARM_FY, s.armS[2] * ARM_FZ);
+  eLimbM(limbIM, E_ARM_BASE + e.idx * 2 + 1, gp.x, gy, gp.z, yaw, fall,
+    s.armJ, s.armY, 0, armTgt, s.armHalf,
+    s.armS[0] * ARM_FX, s.armS[1] * ARM_FY, s.armS[2] * ARM_FZ);
   eBodyM(eEyes, e.idx * 2, gp.x, gy, gp.z, yaw, fall, -s.eyeX, s.eyeY, s.eyeZ);
   eBodyM(eEyes, e.idx * 2 + 1, gp.x, gy, gp.z, yaw, fall, s.eyeX, s.eyeY, s.eyeZ);
 }
 function parkEnemy(e) {
   _eParkM.makeTranslation(0, -60, 0);
   e.bodyMesh.setMatrixAt(e.bodyInst, _eParkM);
-  eLegs.setMatrixAt(e.idx * 2, _eParkM); eLegs.setMatrixAt(e.idx * 2 + 1, _eParkM);
-  eArms.setMatrixAt(e.idx * 2, _eParkM); eArms.setMatrixAt(e.idx * 2 + 1, _eParkM);
+  limbIM.setMatrixAt(e.idx * 2, _eParkM); limbIM.setMatrixAt(e.idx * 2 + 1, _eParkM);
+  limbIM.setMatrixAt(E_ARM_BASE + e.idx * 2, _eParkM);
+  limbIM.setMatrixAt(E_ARM_BASE + e.idx * 2 + 1, _eParkM);
   eEyes.setMatrixAt(e.idx * 2, _eParkM); eEyes.setMatrixAt(e.idx * 2 + 1, _eParkM);
   eDirty = true;
 }
@@ -4298,10 +4327,15 @@ for (let i = 0; i < ENEMY_MIX.length; i++) {
 eBodyRus.userData.enemyOf = [enemies[0], enemies[1]];
 eBodySho.userData.enemyOf = [enemies[2], enemies[3]];
 eBodyBru.userData.enemyOf = [enemies[4]];
-for (const m of [eLegs, eArms, eEyes]) {
+for (const m of [eEyes]) {
   m.userData.enemyOf = [];
   for (const e of enemies) m.userData.enemyOf.push(e, e);
 }
+/* limbIM: leg slots 0-9 then arm slots 10-19 map to the same enemies;
+   cop leg slots 20-29 stay undefined so the enemy hitscan skips them */
+limbIM.userData.enemyOf = [];
+for (const e of enemies) limbIM.userData.enemyOf.push(e, e);   // leg slots 0-9
+for (const e of enemies) limbIM.userData.enemyOf.push(e, e);   // arm slots 10-19
 updateCombatHUD();
 
 function damageEnemy(e, d) {
@@ -4363,7 +4397,9 @@ function shoot() {
       const ch = raycaster.intersectObjects(copMeshes, false);
       for (let ci = 0; ci < ch.length; ci++) {
         const h = ch[ci];
-        const idx = Math.floor(h.instanceId / h.object.userData.perCop);
+        /* PERF-4: limbIM shares slots with enemy limbs; cop legs start at copBase */
+        const idx = Math.floor((h.instanceId - (h.object.userData.copBase || 0)) / h.object.userData.perCop);
+        if (idx < 0) continue;
         const cc = cops[idx];
         if (cc && cc.active && cc.state !== 'dead') { cHit = h; cIdx = idx; break; }
       }
@@ -4853,19 +4889,19 @@ const heatEl = document.getElementById('heat');
        blue uniform material set. No new textures, no new geometry. --- */
 const copUniM = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.85 });
 const copHeadM = new THREE.MeshStandardMaterial({ color: 0x8a6a52, roughness: 0.85 });
-const copLegM = new THREE.MeshStandardMaterial({ color: 0x1a2030, roughness: 0.9 });
 const copGunM = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 });
 const copEyeMat = new THREE.MeshBasicMaterial({ color: COP_CFG.eye });
 const copTorso = new THREE.InstancedMesh(EGEO.torso, copUniM, COP_MAX);
 const copHead = new THREE.InstancedMesh(EGEO.head, copHeadM, COP_MAX);
-const copLegs = new THREE.InstancedMesh(EGEO.limb, copLegM, COP_MAX * 2);
+/* PERF-4: cop legs live in the shared limbIM (slots COP_LEG_BASE+), zero new draws */
 const copArms = new THREE.InstancedMesh(EGEO.arm, copUniM, COP_MAX * 2);
 const copGuns = new THREE.InstancedMesh(EGEO.gunA, copGunM, COP_MAX);
-const copMeshes = [copTorso, copHead, copLegs, copArms, copGuns];
+const copMeshes = [copTorso, copHead, limbIM, copArms, copGuns];
 for (const m of copMeshes) {
   m.frustumCulled = false; m.castShadow = true;
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  m.userData.perCop = (m === copLegs || m === copArms) ? 2 : 1;   // instances per cop
+  m.userData.perCop = (m === limbIM || m === copArms) ? 2 : 1;   // instances per cop
+  if (m === limbIM) m.userData.copBase = COP_LEG_BASE;   // cop leg slots start here
   scene.add(m);
 }
 /* one aim line shared by all aiming cops (last writer wins, 1 draw call) */
@@ -4905,8 +4941,8 @@ function poseCop(c, fall, swing, armTgt) {
   copBody(copTorso, i, gp.x, gy, gp.z, yaw, fall, 0, 1.21, 0);
   copBody(copHead, i, gp.x, gy, gp.z, yaw, fall, 0, 1.68, 0);
   copBody(copGuns, i, gp.x, gy, gp.z, yaw, fall, 0.30, 1.15, 0.30);
-  copLimb(copLegs, i * 2, gp.x, gy, gp.z, yaw, fall, -0.16, 0.9, 0, swing, 0.45);
-  copLimb(copLegs, i * 2 + 1, gp.x, gy, gp.z, yaw, fall, 0.16, 0.9, 0, -swing, 0.45);
+  copLimb(limbIM, COP_LEG_BASE + i * 2, gp.x, gy, gp.z, yaw, fall, -0.16, 0.9, 0, swing, 0.45);
+  copLimb(limbIM, COP_LEG_BASE + i * 2 + 1, gp.x, gy, gp.z, yaw, fall, 0.16, 0.9, 0, -swing, 0.45);
   copLimb(copArms, i * 2, gp.x, gy, gp.z, yaw, fall, -0.36, 1.45, 0, armTgt, 0.31);
   copLimb(copArms, i * 2 + 1, gp.x, gy, gp.z, yaw, fall, 0.36, 1.45, 0, armTgt, 0.31);
 }
@@ -4918,8 +4954,8 @@ function parkCop(c) {
   copTorso.setMatrixAt(i, _copD.matrix);
   copHead.setMatrixAt(i, _copD.matrix);
   copGuns.setMatrixAt(i, _copD.matrix);
-  copLegs.setMatrixAt(i * 2, _copD.matrix);
-  copLegs.setMatrixAt(i * 2 + 1, _copD.matrix);
+  limbIM.setMatrixAt(COP_LEG_BASE + i * 2, _copD.matrix);
+  limbIM.setMatrixAt(COP_LEG_BASE + i * 2 + 1, _copD.matrix);
   copArms.setMatrixAt(i * 2, _copD.matrix);
   copArms.setMatrixAt(i * 2 + 1, _copD.matrix);
   copDirty = true;
@@ -4976,7 +5012,7 @@ function spawnCop(c) {
 for (let i = 0; i < COP_MAX; i++) { const c = makeCop(i); parkCop(c); cops.push(c); }
 copTorso.instanceMatrix.needsUpdate = true;
 copHead.instanceMatrix.needsUpdate = true;
-copLegs.instanceMatrix.needsUpdate = true;
+limbIM.instanceMatrix.needsUpdate = true;
 copArms.instanceMatrix.needsUpdate = true;
 copGuns.instanceMatrix.needsUpdate = true;
 
@@ -5158,7 +5194,7 @@ function wantedTick(dt) {
     copDirty = false;
     copTorso.instanceMatrix.needsUpdate = true;
     copHead.instanceMatrix.needsUpdate = true;
-    copLegs.instanceMatrix.needsUpdate = true;
+    limbIM.instanceMatrix.needsUpdate = true;
     copArms.instanceMatrix.needsUpdate = true;
     copGuns.instanceMatrix.needsUpdate = true;
   }
@@ -7954,10 +7990,12 @@ const BALL_GRAV = 24, BALL_REST = 0.55, BALL_ROLL = 2.0;
 const BALL_MAXV = 24;
 const GOAL_CASH = 30;
 
-/* ---- the one new InstancedMesh literal site (46th). Classic ball look:
-        12 dark patches at icosahedron vertices on a white sphere.
-        Deterministic vertex paint, no randomness. ---- */
-const ballIM = (() => {
+/* ---- PERF-4: the one ball is a regular Mesh now, not an InstancedMesh
+        (was the 46th IM literal site). One instance never needed instancing;
+        a Mesh is one draw call either way, and hidden = zero draw calls.
+        Classic ball look: 12 dark patches at icosahedron vertices on a white
+        sphere. Deterministic vertex paint, no randomness. ---- */
+const ballMesh = (() => {
   const g = new THREE.SphereGeometry(BALL_R, 18, 14);
   const nor = g.attributes.normal;
   const col = new Float32Array(nor.count * 3);
@@ -7981,13 +8019,13 @@ const ballIM = (() => {
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05 });
-  const im = new THREE.InstancedMesh(g, m, 1);
-  im.frustumCulled = false;
-  im.castShadow = false;
-  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  im.count = 0;
-  scene.add(im);
-  return im;
+  const mesh = new THREE.Mesh(g, m);
+  mesh.frustumCulled = false;
+  mesh.castShadow = false;
+  mesh.matrixAutoUpdate = false;   // posed via matrix.copy, like the old setMatrixAt
+  mesh.visible = false;            // was: im.count = 0
+  scene.add(mesh);
+  return mesh;
 })();
 
 const SOCCER = {
@@ -8008,9 +8046,9 @@ const SOCCER = {
   _s1: new THREE.Vector3(1, 1, 1),
 };
 
-/* shared by soccer, basketball, and tennis: one ball (ballIM), one active sport
+/* shared by soccer, basketball, and tennis: one ball (ballMesh), one active sport
    at a time. The nearest active court within HOOP_NEAR decides which sport
-   owns the ball; the ball gets an orange instanceColor tint on basketball
+   owns the ball; the ball gets an orange material-color tint on basketball
    courts, tennis-yellow on tennis courts, and the normal soccer look
    elsewhere. Zero per-frame allocation: the result lands in the
    caller-provided out object. */
@@ -8032,13 +8070,12 @@ function courtFindActive(out) {
   return best !== null;
 }
 /* ball look: orange tint for basketball, tennis-yellow for tennis, normal
-   soccer look otherwise. instanceColor multiplies the vertex colors;
+   soccer look otherwise. material.color multiplies the vertex colors;
    white = no change. */
 const _ballCol = new THREE.Color();
 function ballSetLook(kind) {
   _ballCol.setHex(kind === 'tennis' ? 0xd4e157 : kind === 'hoops' ? 0xd97a26 : 0xffffff);
-  ballIM.setColorAt(0, _ballCol);
-  ballIM.instanceColor.needsUpdate = true;
+  ballMesh.material.color.copy(_ballCol);
 }
 /* soccerFindPitch: nearest soccer court within activation radius, or null.
    Restored 2026-10-09 (Lead Dev retry fix): byte-identical semantics to the
@@ -8084,7 +8121,7 @@ function soccerSpawnAt(a) {
 function soccerParkBall() {
   SOCCER.active = false;
   SOCCER.pitch = null;
-  if (!HOOPS.active && !TENNIS.active) ballIM.count = 0;   // another sport owns the ball: no flicker
+  if (!HOOPS.active && !TENNIS.active) ballMesh.visible = false;   // another sport owns the ball: no flicker
   soccerReleaseGoalie();
   updateSoccerChip(true);
 }
@@ -8313,9 +8350,9 @@ function soccerTick(dt) {
 
   /* pose the one ball instance */
   B._m.compose(B.pos, B.quat, B._s1);
-  ballIM.setMatrixAt(0, B._m);
-  ballIM.instanceMatrix.needsUpdate = true;
-  ballIM.count = 1;
+  ballMesh.matrix.copy(B._m);
+  ballMesh.matrixWorldNeedsUpdate = true;
+  ballMesh.visible = true;
 }
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(soccerTick));
@@ -8328,10 +8365,10 @@ queueMicrotask(() => worldTickers.push(soccerTick));
 
    - Court + hoop (pole, backboard, rim, net) are baked into buildParkGeo
      (shared park instanced geometry): zero new draw calls.
-   - Ball: ZERO new draw calls. Reuses the soccer ballIM (1 instance): one
+   - Ball: ZERO new draw calls. Reuses the soccer ballMesh (1 instance): one
      active ball at a time; the nearest active court within HOOP_NEAR
      decides the sport. On basketball courts the ball gets an orange
-     instanceColor tint, elsewhere the normal soccer look.
+     material-color tint, elsewhere the normal soccer look.
    - Basketball courts are a seeded subset of park amenities, a pure
      function of chunk coords (basketballCourtFor = park + accepted +
      hash2i%5===2, disjoint from soccer's %5===1), deterministic on revisit.
@@ -8412,7 +8449,7 @@ function hoopsParkBall() {
   HOOPS.active = false;
   HOOPS.court = null;
   HOOPS.shot = null; HOOPS.shotRng = null;
-  if (!SOCCER.active && !TENNIS.active) ballIM.count = 0;   // another sport owns the ball: no flicker
+  if (!SOCCER.active && !TENNIS.active) ballMesh.visible = false;   // another sport owns the ball: no flicker
   hoopsShootHint(false);
   updateHoopsChip(true);
 }
@@ -8665,9 +8702,9 @@ function hoopsTick(dt) {
 
   /* pose the one ball instance */
   B._m.compose(B.pos, B.quat, B._s1);
-  ballIM.setMatrixAt(0, B._m);
-  ballIM.instanceMatrix.needsUpdate = true;
-  ballIM.count = 1;
+  ballMesh.matrix.copy(B._m);
+  ballMesh.matrixWorldNeedsUpdate = true;
+  ballMesh.visible = true;
 }
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(hoopsTick));
@@ -8678,7 +8715,7 @@ queueMicrotask(() => worldTickers.push(hoopsTick));
      gameplay only at seeded tennis courts (tennisCourtFor = park +
      accepted + sportHash%5===3, disjoint from soccer's %5===1 and
      basketball's %5===2), deterministic on revisit.
-   - Ball: ZERO new draw calls. Reuses the soccer/basketball ballIM
+   - Ball: ZERO new draw calls. Reuses the soccer/basketball ballMesh
      (1 instance): one active ball at a time; the nearest active court
      within HOOP_NEAR decides the sport (soccer/hoops/tennis). Tennis
      courts tint it tennis-yellow via instanceColor; soccer restores the
@@ -8783,7 +8820,7 @@ function tennisSpawnAt(a) {
 function tennisParkBall() {
   TENNIS.active = false;
   TENNIS.court = null;
-  if (!SOCCER.active && !HOOPS.active) ballIM.count = 0;   // another sport owns it: no flicker
+  if (!SOCCER.active && !HOOPS.active) ballMesh.visible = false;   // another sport owns it: no flicker
   tennisReleaseOpp();
   tennisHitHint(false);
   updateTennisChip(true);
@@ -8988,9 +9025,9 @@ function tennisHitHint(show) {
 function tennisPoseBall() {
   const T = TENNIS;
   T._m.compose(T.pos, T.quat, T._s1);
-  ballIM.setMatrixAt(0, T._m);
-  ballIM.instanceMatrix.needsUpdate = true;
-  ballIM.count = 1;
+  ballMesh.matrix.copy(T._m);
+  ballMesh.matrixWorldNeedsUpdate = true;
+  ballMesh.visible = true;
 }
 
 /* ---- tennis tick: activation, serve, ball physics, net/bounce faults,
@@ -14385,8 +14422,7 @@ function tick() {
     eBodyRus.instanceMatrix.needsUpdate = true;
     eBodySho.instanceMatrix.needsUpdate = true;
     eBodyBru.instanceMatrix.needsUpdate = true;
-    eLegs.instanceMatrix.needsUpdate = true;
-    eArms.instanceMatrix.needsUpdate = true;
+    limbIM.instanceMatrix.needsUpdate = true;
     eEyes.instanceMatrix.needsUpdate = true;
   }
   missionTick(sdt);

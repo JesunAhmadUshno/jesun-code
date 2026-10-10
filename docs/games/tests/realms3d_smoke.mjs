@@ -76,7 +76,7 @@ globalThis.__R3D = {
   enemies, tracers, enemyMeshes, objRing, objIcon,
   SAVE_KEY,
   DIFF, diffEval, animals,
-  birds, wingL, wingR, PET, tamePet, releasePet, acquirePrey, petRejoin,
+  birds, wings, PET, tamePet, releasePet, acquirePrey, petRejoin,
   petHintEl, petChipEl, birdFlockTick,
   AMESH, chunkBiome, redistributeWildlife,   /* Phase 5 wildlife v2 */
   amenityCenterFor,                          /* Phase 5 wildlife v3: dog placement */
@@ -107,7 +107,7 @@ globalThis.__R3D = {
   updateFoodHUD, updateHpHUD, foodSaveStr, foodLoadStr, refreshShopPanel,
   get SHOP_LIST() { return SHOP_LIST; },
   /* Phase 5 soccer mini-game */
-  SOCCER, ballIM, soccerPitchFor, soccerFindPitch, soccerSpawnAt, soccerParkBall,
+  SOCCER, ballMesh, soccerPitchFor, soccerFindPitch, soccerSpawnAt, soccerParkBall,
   soccerCanKick, soccerBallNear, doKick, soccerAssignGoalie, soccerReleaseGoalie,
   soccerGoal, soccerTick, socChipEl, kickHintEl,
   /* Phase 5 tennis mini-game */
@@ -653,7 +653,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('wildlife: v4 adds 4 more AMESH sites via the makeAnimalMesh factory (50 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh)', imCount === 50, 'count=' + imCount);
+  check('perf4: 46 IM literals (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh)', imCount === 46, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1114,8 +1114,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bike: InstancedMesh count is 49 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh literal)',
-    imCount2 === 50, 'count=' + imCount2);
+  check('perf4: 46 IM literals after consolidation (bike section)',
+    imCount2 === 46, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1215,8 +1215,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('bicycle: InstancedMesh count is 49 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh literal)',
-    imCount3 === 50, 'count=' + imCount3);
+  check('perf4: 46 IM literals after consolidation (bicycle section)',
+    imCount3 === 46, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1317,8 +1317,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('scooter: InstancedMesh count is 49 (44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh literal)',
-    imCount4 === 50, 'count=' + imCount4);
+  check('perf4: 46 IM literals after consolidation (scooter section)',
+    imCount4 === 46, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1634,8 +1634,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('wildlife5: v5 adds 4 AMESH sites via the makeAnimalMesh factory (50 literals: 44 + 1 farming crops + 1 soccer ball + 1 boat fleet mesh + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh)',
-      imCount5 === 50, 'count=' + imCount5);
+    check('perf4: 46 IM literals after consolidation (wildlife5 section)',
+      imCount5 === 46, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -1983,8 +1983,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('bldg: one new InstancedMesh literal site, 3 runtime building meshes (50 literals: 47 + 1 helicopter fleet mesh + 1 plane fleet mesh + 1 train fleet mesh)',
-      n === 50 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf4: 46 IM literals after consolidation, 3 runtime building meshes',
+      n === 46 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2128,8 +2128,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 50 (49 + 1 train fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
+  check('food-static: InstancedMesh literal sites pin at 46 (50 - PERF-4 consolidation)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2358,8 +2358,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 50 (49 + 1 train fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
+  check('farmv1-static: InstancedMesh literal sites pin at 46 (50 - PERF-4 consolidation)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2418,8 +2418,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   frame(2);
   const p = G.SOCCER.pitch;
   check('soccer: ball spawns at the active soccer park',
-    G.SOCCER.active === true && G.ballIM.count === 1 && !!p,
-    'active=' + G.SOCCER.active + ' count=' + G.ballIM.count);
+    G.SOCCER.active === true && G.ballMesh.visible === true && !!p,
+    'active=' + G.SOCCER.active + ' visible=' + G.ballMesh.visible);
   check('soccer: ball seeded at pitch center',
     Math.hypot(G.SOCCER.pos.x - p.x, G.SOCCER.pos.z - p.z) < 0.01,
     'dist=' + Math.hypot(G.SOCCER.pos.x - p.x, G.SOCCER.pos.z - p.z).toFixed(3));
@@ -2524,7 +2524,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   frame(3);
   const parked = G.soccerFindPitch() === null;
   if (parked) {
-    check('soccer: ball parks when the player leaves', G.SOCCER.active === false && G.ballIM.count === 0,
+    check('soccer: ball parks when the player leaves', G.SOCCER.active === false && G.ballMesh.visible === false,
       'active=' + G.SOCCER.active);
     check('soccer: goalie resumes wander on release',
       G.SOCCER.goalie === -1 && G.SOCCER.npcs[gi].state !== 'GOALIE',
@@ -2537,10 +2537,10 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the soccer block */
-  check('soccer-static: soccer block adds exactly one InstancedMesh site (the ball)',
+  check('soccer-static: soccer block adds zero InstancedMesh sites (PERF-4: the ball is a Mesh)',
     (html.slice(html.indexOf('/* ================== SOCCER MINI-GAME'),
                 html.indexOf('/* === WORLD-PEOPLE-ANCHOR === */'))
-       .match(/new THREE\.InstancedMesh/g) || []).length === 1);
+       .match(/new THREE\.InstancedMesh/g) || []).length === 0);
   check('soccer-static: soccer block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== SOCCER MINI-GAME'),
@@ -2581,16 +2581,16 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   frame(3);   // chunk change -> redistributeAmenities -> tennisTick spawns
   const tp = G.TENNIS.court;
   check('tennis: ball spawns at the active tennis court',
-    G.TENNIS.active === true && G.ballIM.count === 1 && !!tp,
-    'active=' + G.TENNIS.active + ' count=' + G.ballIM.count);
+    G.TENNIS.active === true && G.ballMesh.visible === true && !!tp,
+    'active=' + G.TENNIS.active + ' visible=' + G.ballMesh.visible);
   check('tennis: chip shows READY before the serve',
     G.tennChipEl.style.display === 'block' &&
     G.tennChipEl.textContent === 'READY! - RALLIES 0', G.tennChipEl.textContent);
   {
-    const c = G.ballIM.instanceColor, e = new THREE.Color(0xd4e157);
-    check('tennis: ball tinted tennis-yellow via instanceColor',
-      !!c && Math.abs(c.getX(0) - e.r) < 0.002 && Math.abs(c.getY(0) - e.g) < 0.002 &&
-      Math.abs(c.getZ(0) - e.b) < 0.002);
+    const c = G.ballMesh.material.color, e = new THREE.Color(0xd4e157);
+    check('tennis: ball tinted tennis-yellow via material color',
+      Math.abs(c.r - e.r) < 0.002 && Math.abs(c.g - e.g) < 0.002 &&
+      Math.abs(c.b - e.b) < 0.002);
   }
 
   /* opponent: assigned near the court, announce toast. Release first so the
@@ -2716,7 +2716,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const tParked = !G.AMEN.active.park.some(a => G.tennisCourtFor(a.gx, a.gz));
   if (tParked && oi >= 0) {
     check('tennis: ball parks when the player leaves',
-      G.TENNIS.active === false && G.ballIM.count === 0,
+      G.TENNIS.active === false && G.ballMesh.visible === false,
       'active=' + G.TENNIS.active);
     check('tennis: opponent resumes wander on release',
       G.TENNIS.opp === -1 && G.TENNIS.npcs[oi].state !== 'TENNIS',
@@ -2730,8 +2730,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 50 (49 + 1 train fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 46 (50 - PERF-4 consolidation)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2774,8 +2774,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   frame(2);
   const hc = G.HOOPS.court;
   check('hoops: ball spawns at the active basketball court',
-    G.HOOPS.active === true && G.ballIM.count === 1 && !!hc,
-    'active=' + G.HOOPS.active + ' count=' + G.ballIM.count);
+    G.HOOPS.active === true && G.ballMesh.visible === true && !!hc,
+    'active=' + G.HOOPS.active + ' visible=' + G.ballMesh.visible);
   check('hoops: ball seeded at court center',
     Math.hypot(G.HOOPS.pos.x - hc.x, G.HOOPS.pos.z - hc.z) < 0.01,
     'dist=' + Math.hypot(G.HOOPS.pos.x - hc.x, G.HOOPS.pos.z - hc.z).toFixed(3));
@@ -2784,10 +2784,10 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.hoopChipEl.textContent === 'HOOPS - PTS ' + G.HOOPS.pts,
     G.hoopChipEl.textContent);
   {
-    const c = G.ballIM.instanceColor, e = new THREE.Color(0xd97a26);
-    check('hoops: ball tinted basketball-orange via instanceColor',
-      !!c && Math.abs(c.getX(0) - e.r) < 0.002 && Math.abs(c.getY(0) - e.g) < 0.002 &&
-      Math.abs(c.getZ(0) - e.b) < 0.002);
+    const c = G.ballMesh.material.color, e = new THREE.Color(0xd97a26);
+    check('hoops: ball tinted basketball-orange via material color',
+      Math.abs(c.r - e.r) < 0.002 && Math.abs(c.g - e.g) < 0.002 &&
+      Math.abs(c.b - e.b) < 0.002);
   }
 
   /* determinism invariant (research: chronica-style seed->world invariant).
@@ -2919,8 +2919,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const hParked = !G.AMEN.active.park.some(a => G.basketballCourtFor(a.gx, a.gz));
   if (hParked) {
     check('hoops: ball parks when the player leaves',
-      G.HOOPS.active === false && G.ballIM.count === 0,
-      'active=' + G.HOOPS.active + ' count=' + G.ballIM.count);
+      G.HOOPS.active === false && G.ballMesh.visible === false,
+      'active=' + G.HOOPS.active + ' visible=' + G.ballMesh.visible);
     check('hoops: chip hides with no active court',
       G.hoopChipEl.style.display === 'none');
   } else {
@@ -2941,17 +2941,17 @@ const groundY = (x, z) => G.terrainHeight(x, z);
       }
     G.player.position.set(spa2.x, groundY(spa2.x, spa2.z), spa2.z);
     frame(3);
-    const cc = G.ballIM.instanceColor, ew = new THREE.Color(0xffffff);
+    const cc = G.ballMesh.material.color, ew = new THREE.Color(0xffffff);
     check('hoops: soccer look restored when the soccer court activates',
       G.SOCCER.active === true && !!cc &&
-      Math.abs(cc.getX(0) - ew.r) < 0.002 && Math.abs(cc.getY(0) - ew.g) < 0.002 &&
-      Math.abs(cc.getZ(0) - ew.b) < 0.002,
+      Math.abs(cc.r - ew.r) < 0.002 && Math.abs(cc.g - ew.g) < 0.002 &&
+      Math.abs(cc.b - ew.b) < 0.002,
       'soccerActive=' + G.SOCCER.active);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 50 (49 + 1 train fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 46 (50 - PERF-4 consolidation)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
