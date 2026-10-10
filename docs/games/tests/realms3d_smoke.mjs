@@ -121,6 +121,12 @@ globalThis.__R3D = {
   hoopsMiss, hoopsHoopCollide, hoopsTick, hoopChipEl, shootHintEl,
   AMEN, AMEN_DEF, hash2i, sportHash, amenityTypeFor, amenityAccepted,
   stadChipEl, stadTxtEl, stadArrEl, LMSTAD_FLOOD_MATS, LMSTAD_WALL_COL, LMSTAD_CHIP_R2,  /* Phase 5 landmark stadium v1 */
+  /* Phase 5 landmark amusement park v1 */
+  LMAUSE_CAP, LMAUSE_CABINS, LMAUSE_COL, LMAUSE_CHIP_R2, LMAUSE_WHEEL_R, LMAUSE_TRAIN_T,
+  buildLandmarkAmuseGeo, buildLmauseWheelGeo, buildLmauseCabinGeo, buildLmauseCarouselGeo,
+  buildLmauseTrainGeo, lmauseCoasterCurve, LMAUSE_COASTER,
+  lmauseWheelIM, lmauseCabinIM, lmauseCarIM, lmauseTrainIM, LMAUSE_RIDE_MAT,
+  lmauseUpdate, lmauseChipTick, lmauseChipEl, lmauseTxtEl, lmauseArrEl,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
   /* Phase 5 boats/ships v1 */
   BOAT, boatEnter, boatExit, boatRebuild, boatFloat, waterSurfaceY, dockFor,
@@ -718,7 +724,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 42 IM literals (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 42, 'count=' + imCount);
+  check('perf6: 46 IM literals (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 46, 'count=' + imCount);
 
   /* PERF-6 merge regression: slot maps, Y-band lifts, identity colors */
   {
@@ -1220,8 +1226,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 42 IM literals (bike section)',
-    imCount2 === 42, 'count=' + imCount2);
+  check('perf6: 46 IM literals (bike section)',
+    imCount2 === 46, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1321,8 +1327,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 42 IM literals (bicycle section)',
-    imCount3 === 42, 'count=' + imCount3);
+  check('perf6: 46 IM literals (bicycle section)',
+    imCount3 === 46, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1423,8 +1429,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 42 IM literals (scooter section)',
-    imCount4 === 42, 'count=' + imCount4);
+  check('perf6: 46 IM literals (scooter section)',
+    imCount4 === 46, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1740,8 +1746,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 42 IM literals (wildlife5 section)',
-      imCount5 === 42, 'count=' + imCount5);
+    check('perf6: 46 IM literals (wildlife5 section)',
+      imCount5 === 46, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2089,8 +2095,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 42 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
-      n === 42 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf6: 46 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
+      n === 46 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2234,8 +2240,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('food-static: InstancedMesh literal sites pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2464,8 +2470,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('farmv1-static: InstancedMesh literal sites pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2836,8 +2842,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -3056,8 +3062,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3853,8 +3859,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('casino-static: no em dashes in the casino block', !casinoSrc.includes('\u2014'));
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
-  check('casino-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('casino-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('casino-static: 6 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet, apartment owns its fleet)',
     G.bldgMeshes.length === 6);
   check('casino-static: casino def shares the store fleet mesh',
@@ -3982,8 +3988,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('theater-static: no em dashes in the theater block', !theaterSrc.includes('\u2014'));
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
-  check('theater-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('theater-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',
@@ -4116,8 +4122,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('civic-static: no em dashes in the civic block', !civicSrc.includes('—'));
   check('civic-static: no external URLs in the civic block', !/https?:\/\//.test(civicSrc));
   check('civic-static: no TODO markers in the civic block', !/\bTODO\b/.test(civicSrc));
-  check('civic-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('civic-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
   check('civic-static: 6 runtime building meshes (house, barn, store, civic, worship, apartment)',
@@ -4393,8 +4399,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('stadium-static: no em dashes in the stadium block', !stadiumSrc.includes('—'));
   check('stadium-static: no external URLs in the stadium block', !/https?:\/\//.test(stadiumSrc));
   check('stadium-static: no TODO markers in the stadium block', !/\bTODO\b/.test(stadiumSrc));
-  check('stadium-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('stadium-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('stadium-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('stadium-static: audio nodes pin unchanged (17 osc, 30 gain: cheer reuses sfxBlip)',
@@ -4538,8 +4544,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('amuse-static: no em dashes in the amusement block', !amuseSrc.includes('—'));
   check('amuse-static: no external URLs in the amusement block', !/https?:\/\//.test(amuseSrc));
   check('amuse-static: no TODO markers in the amusement block', !/\bTODO\b/.test(amuseSrc));
-  check('amuse-static: whole-file IM literals pin at 42 (42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: amuse rides the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('amuse-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: amuse rides the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('amuse-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('amuse-static: audio nodes pin unchanged (17 osc, 30 gain: chimes reuse sfxBlip)',
@@ -5218,7 +5224,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
      new runtime lights, zero new keybinds, no unseeded RNG, no em dashes,
      no external URLs, no TODO text in the block */
   const lmstadSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK STADIUM v1 (buildings/places)'),
-                               html.indexOf('const AMEN_DEF_LIST = ['));
+                               html.indexOf('/* ================= PHASE 5: LANDMARK AMUSEMENT PARK v1 (buildings/places)'));
   check('lmstad-static: zero IM literals in the stadium block (shared AMEN_DEF loop builds the one mesh)',
     (lmstadSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
   check('lmstad-static: stadium block creates no lights',
@@ -5229,8 +5235,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmstad-static: no TODO markers in the stadium block', !/\bTODO\b/.test(lmstadSrc));
   check('lmstad-static: stad residue is checked after all existing amenity types (never displaces them)',
     html.indexOf("if (h % 10 === 6) return 'park';") < html.indexOf("if (h % 37 === 13) return 'stad';"));
-  check('lmstad-static: whole-file IM literals pin at 42 (stad rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('lmstad-static: whole-file IM literals pin at 46 (46 = 42 + 4 lmause ride fleets; stad rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('lmstad-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmstad-static: single keydown listener (zero new keybinds)',
@@ -5269,7 +5275,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     check('lmstad: one material with vertexColors on',
       G.AMEN_DEF.stad.mesh.material.vertexColors === true);
     check('lmstad: floodlight material rides the day/night emissive ramp',
-      G.LMSTAD_FLOOD_MATS.length === 1 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
+      G.LMSTAD_FLOOD_MATS.length === 2 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
+      && G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.mesh.material
       && !!G.LMSTAD_FLOOD_MATS[0].emissiveMap);
 
     /* wall collision: the rim wall blocks a walker, the gates stay open.
@@ -5340,6 +5347,236 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     frame(30);
     check('lmstad: round trip leaves zero console errors/warnings',
       consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
+  }
+}
+
+/* ================= PHASE 5: LANDMARK AMUSEMENT PARK v1 (buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.STADIUM.watching) G.stadiumExit();
+  if (G.THEATER.watching) G.theaterExit();
+  if (G.SLOT.playing) G.slotExit();
+  if (G.PIANO.playing) G.pianoExit();
+  if (G.CIVIC.state) G.civicExit();
+
+  /* static: exactly 4 new IM literals (wheel, cabins, carousel, train fleets),
+     no lights, no unseeded RNG, no em dashes, no external URLs, no TODO text */
+  const lmauseSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK AMUSEMENT PARK v1 (buildings/places)'),
+                               html.indexOf('/* ---- instanced meshes: one per type'));
+  check('lmause-static: exactly 4 IM literals in the park block (wheel, cabins, carousel, train fleets)',
+    (lmauseSrc.split('new THREE.InstancedMesh').length - 1) === 4);
+  check('lmause-static: park block creates no lights',
+    lmauseSrc.indexOf('PointLight') === -1 && lmauseSrc.indexOf('SpotLight') === -1
+    && lmauseSrc.indexOf('DirectionalLight') === -1 && lmauseSrc.indexOf('HemisphereLight') === -1
+    && lmauseSrc.indexOf('AmbientLight') === -1 && lmauseSrc.indexOf('RectAreaLight') === -1);
+  check('lmause-static: no unseeded RNG in the park block', lmauseSrc.indexOf('Math.random') === -1);
+  check('lmause-static: no em dashes in the park block', !lmauseSrc.includes('—'));
+  check('lmause-static: no external URLs in the park block', lmauseSrc.indexOf('http') === -1);
+  check('lmause-static: no TODO markers in the park block', lmauseSrc.indexOf('TODO') === -1);
+  check('lmause-static: amuse residue is checked after stad (never displaces existing types)',
+    html.indexOf("if (h % 37 === 13) return 'stad';") < html.indexOf("if (h % 41 === 29) return 'amuse';"));
+  check('lmause-static: whole-file IM literals pin at 46 (42 + 4 ride fleets)',
+    (html.split('new THREE.InstancedMesh').length - 1) === 46);
+  check('lmause-static: Math.random lines pin at 92',
+    html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
+  check('lmause-static: single keydown listener (zero new keybinds)',
+    (html.split("addEventListener('keydown'").length - 1) === 1);
+  check('lmause-static: bus route rebuild excludes amuse in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+  check('lmause-static: taxi route rebuild excludes amuse in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+
+  /* seeded placement: pure deterministic hash, cross-type winner-take-all */
+  let mgx = 0, mgz = 0, md = null;
+  mouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'amuse' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'amuse') { mgx = gx; mgz = gz; md = a; break mouter; }
+    }
+  check('lmause: a seeded park chunk exists in the scan window', !!md, md ? 'at ' + mgx + ',' + mgz : 'none');
+  if (md) {
+    const md2 = G.amenityCenterFor(mgx, mgz);
+    check('lmause: amenityCenterFor is deterministic across calls',
+      !!md2 && md2.x === md.x && md2.z === md.z && md2.yaw === md.yaw && md2.type === 'amuse');
+    let wtaOk = true;
+    for (let ax = mgx - 1; ax <= mgx + 1; ax++)
+      for (let az = mgz - 1; az <= mgz + 1; az++) {
+        if (ax === mgx && az === mgz) continue;
+        if (G.amenityTypeFor(ax, az) && G.amenityAccepted(ax, az)) wtaOk = false;
+      }
+    check('lmause: cross-type winner-take-all holds (no other accepted amenity in the 3x3)', wtaOk);
+    check('lmause: def is registered (cap 2, glow flag, colliders, active array)',
+      G.AMEN_DEF.amuse && G.AMEN_DEF.amuse.cap === 2 && G.AMEN_DEF.amuse.glow === true
+      && G.AMEN_DEF.amuse.colliders.length === G.LMAUSE_COL.length
+      && Array.isArray(G.AMEN.active.amuse));
+    check('lmause: residue is the new %41===29 (disjoint from land %41===20)',
+      (G.hash2i(mgx, mgz) % 41) === 29);
+
+    /* merged statics: one mesh, one vertexColors material, per-part colors */
+    const ageo = G.AMEN_DEF.amuse.mesh.geometry;
+    check('lmause: merged statics carry per-part vertex colors',
+      !!ageo.attributes.color && ageo.attributes.color.count === ageo.attributes.position.count
+      && ageo.attributes.position.count > 800, 'verts=' + ageo.attributes.position.count);
+    check('lmause: one material with vertexColors on',
+      G.AMEN_DEF.amuse.mesh.material.vertexColors === true);
+    check('lmause: string-light bulbs carry glow UVs (night emissive targets)',
+      (() => { const uv = ageo.attributes.uv; let n = 0;
+               for (let i = 0; i < uv.count; i++) if (Math.abs(uv.getX(i) - 0.25) < 1e-6) n++;
+               return n > 0; })());
+    check('lmause: park material rides the shared day/night emissive ramp',
+      G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.mesh.material
+      && !!G.LMSTAD_FLOOD_MATS[1].emissiveMap);
+
+    /* the real park activates near the player; ride fleets size to it */
+    G.player.position.set(md.x + 30, groundY(md.x + 30, md.z), md.z);
+    frame(20);
+    const lact = G.AMEN.active.amuse;
+    const A = lact[0];
+    check('lmause: the real park activates near the player', lact.length > 0 && !!A);
+    if (A) {
+      check('lmause: ride fleets size to the active parks',
+        G.lmauseWheelIM.count === lact.length && G.lmauseCarIM.count === lact.length
+        && G.lmauseTrainIM.count === lact.length
+        && G.lmauseCabinIM.count === lact.length * G.LMAUSE_CABINS,
+        'wheel=' + G.lmauseWheelIM.count + ' cabins=' + G.lmauseCabinIM.count);
+      check('lmause: all four fleets share one vertexColors material (one program)',
+        G.lmauseWheelIM.material === G.lmauseCabinIM.material
+        && G.lmauseCarIM.material === G.lmauseTrainIM.material
+        && G.lmauseWheelIM.material.vertexColors === true);
+
+      /* the wheel spins; cabins travel with it but stay level */
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), eu = new THREE.Euler(),
+            v3 = new THREE.Vector3(), sc3 = new THREE.Vector3();
+      G.lmauseWheelIM.getMatrixAt(0, m4);
+      const w00 = m4.elements[0], w01 = m4.elements[1];
+      frame(60);
+      G.lmauseWheelIM.getMatrixAt(0, m4);
+      check('lmause: the wheel spins (instance matrix changes)',
+        Math.abs(m4.elements[0] - w00) > 1e-4 || Math.abs(m4.elements[1] - w01) > 1e-4,
+        'd=' + Math.abs(m4.elements[0] - w00).toFixed(5));
+      const yB = [];
+      for (let k = 0; k < G.LMAUSE_CABINS; k++) { G.lmauseCabinIM.getMatrixAt(k, m4); yB.push(m4.elements[13]); }
+      frame(120);
+      let moved = false, maxTilt = 0;
+      for (let k = 0; k < G.LMAUSE_CABINS; k++) {
+        G.lmauseCabinIM.getMatrixAt(k, m4);
+        if (Math.abs(m4.elements[13] - yB[k]) > 0.05) moved = true;
+        m4.decompose(v3, q, sc3);
+        eu.setFromQuaternion(q, 'YXZ');
+        maxTilt = Math.max(maxTilt, Math.abs(eu.x), Math.abs(eu.z));
+      }
+      check('lmause: cabins travel with the wheel', moved);
+      check('lmause: cabin-upright invariant holds (counter-rotated level)', maxTilt < 0.02,
+        'maxTilt=' + maxTilt.toFixed(4));
+
+      /* carousel spins; the coaster train loops the track */
+      G.lmauseCarIM.getMatrixAt(0, m4);
+      const c00 = m4.elements[0];
+      G.lmauseTrainIM.getMatrixAt(0, m4);
+      const tx0 = m4.elements[12], tz0 = m4.elements[14];
+      frame(90);
+      G.lmauseCarIM.getMatrixAt(0, m4);
+      check('lmause: the carousel spins (instance matrix changes)',
+        Math.abs(m4.elements[0] - c00) > 1e-4);
+      G.lmauseTrainIM.getMatrixAt(0, m4);
+      check('lmause: the coaster train loops the track',
+        Math.hypot(m4.elements[12] - tx0, m4.elements[14] - tz0) > 0.2,
+        'moved=' + Math.hypot(m4.elements[12] - tx0, m4.elements[14] - tz0).toFixed(2));
+
+      /* fence collision: the fence blocks a walker, the gate stays open.
+         Colliders are pushed exactly the way redistributeBuildings does for
+         the live park (rural-building foot idiom), then removed. */
+      const def = G.AMEN_DEF.amuse;
+      const c0 = Math.cos(A.yaw), s0 = Math.sin(A.yaw);
+      const wx = (ox, oz) => A.x + ox * c0 + oz * s0;
+      const wz = (ox, oz) => A.z - ox * s0 + oz * c0;
+      const foot0 = G.BLDG.foot.length;
+      for (const col of def.colliders) G.BLDG.foot.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+      const fc = def.colliders[12];   // first fence post: angle 0 -> (11, 0)
+      G.player.position.set(wx(fc[0], fc[1]), groundY(wx(fc[0], fc[1]), wz(fc[0], fc[1])), wz(fc[0], fc[1]));
+      G.resolveBldgFoot();
+      const fd = Math.hypot(G.player.position.x - wx(fc[0], fc[1]), G.player.position.z - wz(fc[0], fc[1]));
+      check('lmause: the fence blocks a walker (pushed out)', fd >= fc[2] + 0.45 - 0.01,
+        'd=' + fd.toFixed(2) + ' min=' + (fc[2] + 0.45).toFixed(2));
+      const gx0 = wx(0, 10.5), gz0 = wz(0, 10.5);
+      G.player.position.set(gx0, groundY(gx0, gz0), gz0);
+      G.resolveBldgFoot();
+      const gd = Math.hypot(G.player.position.x - gx0, G.player.position.z - gz0);
+      check('lmause: the entrance gate stays open (walker not pushed)', gd < 0.01, 'd=' + gd.toFixed(3));
+      G.BLDG.foot.length = foot0;
+
+      /* vehicle collision: the car is pushed out of the fence via AMEN.colliders */
+      const am0 = G.AMEN.colliders.length;
+      for (const col of def.colliders) G.AMEN.colliders.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+      G.CAR.pos.set(wx(fc[0], fc[1]), 0, wz(fc[0], fc[1]));
+      G.CAR.hitCd = 0; G.CAR.speed = 0; G.CAR.hp = 100; G.CAR.armor = 0;
+      G.carAmenityHit(0.016);
+      const cd = Math.hypot(G.CAR.pos.x - wx(fc[0], fc[1]), G.CAR.pos.z - wz(fc[0], fc[1]));
+      check('lmause: the fence blocks light vehicles (pushed out via AMEN.colliders)',
+        cd >= fc[2] + 1.15 - 0.01, 'd=' + cd.toFixed(2));
+      G.AMEN.colliders.length = am0;
+
+      /* HUD chip: shows within 500m with bearing arrow + distance, hidden when far */
+      G.player.position.set(A.x + 100, groundY(A.x + 100, A.z), A.z);
+      frame(20);
+      check('lmause: chip shows within 500m', G.lmauseChipEl.style.display === 'block',
+        'display=' + G.lmauseChipEl.style.display);
+      check('lmause: chip reads PARK <distance>M',
+        /^PARK \d+M$/.test(G.lmauseTxtEl.textContent), G.lmauseTxtEl.textContent);
+      check('lmause: chip arrow carries a bearing rotation',
+        /rotate\(-?\d+(\.\d+)?deg\)/.test(G.lmauseArrEl.style.transform || ''),
+        G.lmauseArrEl.style.transform);
+      check('lmause: chip pins its own left-stack slot below the stadium chip (no overlap)',
+        html.indexOf('#lmausechip {\n    position: absolute; top: 456px; left: 18px;') !== -1);
+      /* hide check: move to a chunk whose 7x7 amenity window holds no park
+         at all, so AMEN.active.amuse is empty and the chip must hide */
+      let hcx = 0, hcz = 0, hfound = false;
+      houter: for (let hgx = -100; hgx <= 100; hgx += 7)
+        for (let hgz = -100; hgz <= 100; hgz += 7) {
+          let hany = false;
+          for (let hax = hgx - 3; hax <= hgx + 3 && !hany; hax++)
+            for (let haz = hgz - 3; haz <= hgz + 3 && !hany; haz++)
+              if (G.amenityTypeFor(hax, haz) === 'amuse' && G.amenityAccepted(hax, haz)) hany = true;
+          if (!hany) { hcx = hgx; hcz = hgz; hfound = true; break houter; }
+        }
+      check('lmause: an empty 7x7 amenity window exists for the hide check', hfound);
+      const hwx = (hcx + 0.5) * 48, hwz = (hcz + 0.5) * 48;
+      G.player.position.set(hwx, groundY(hwx, hwz), hwz);
+      frame(20);
+      check('lmause: chip hides when far', G.lmauseChipEl.style.display === 'none'
+        && G.AMEN.active.amuse.length === 0,
+        'display=' + G.lmauseChipEl.style.display + ' active=' + G.AMEN.active.amuse.length);
+
+      /* v1: no transit stop at the park (routes stay as before) */
+      G.BUS.driving = false; G.BUS.riding = false; G.BUS.routeKey = '';
+      G.busRebuildRoute(mgx, mgz);
+      check('lmause: bus routes never stop at the park in v1',
+        G.BUS.route.every(s => s.type !== 'amuse'), 'stops=' + G.BUS.route.length);
+      G.TX.riding = false; G.TX.routeKey = '';
+      G.txRebuild(mgx, mgz);
+      check('lmause: taxi routes never stop at the park in v1',
+        (G.TX.route || []).every(s => s.type !== 'amuse'), 'stops=' + (G.TX.route || []).length);
+
+      /* night: string-light bulbs glow via the shared emissive ramp, zero new lights */
+      G.dayPhase = 0.75;
+      frame(5);
+      check('lmause: string-light bulbs glow at night (shared emissive ramp, no new lights)',
+        G.LMSTAD_FLOOD_MATS[1].emissiveIntensity > 1,
+        G.LMSTAD_FLOOD_MATS.map(m => m.emissiveIntensity.toFixed(2)).join(','));
+      G.dayPhase = 0.25;
+      frame(5);
+      check('lmause: bulbs dark by day',
+        G.LMSTAD_FLOOD_MATS[1].emissiveIntensity < 0.01,
+        G.LMSTAD_FLOOD_MATS.map(m => m.emissiveIntensity.toFixed(2)).join(','));
+
+      const probsM = consoleProblems.length;
+      frame(30);
+      check('lmause: round trip leaves zero console errors/warnings',
+        consoleProblems.length === probsM, consoleProblems.slice(probsM).join(' | '));
+    }
   }
 }
 
