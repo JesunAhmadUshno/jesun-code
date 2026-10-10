@@ -87,6 +87,7 @@ globalThis.__R3D = {
   get dayPhase() { return dayPhase; }, set dayPhase(v) { dayPhase = v; },  /* v4: owl day/night test */
   get cash() { return cash; }, set cash(v) { cash = v; },
   get bankBal() { return bankBal; }, set bankBal(v) { bankBal = v; },   /* Phase 5 bank: deposit protection */
+  get jobEnrolled() { return jobEnrolled; }, set jobEnrolled(v) { jobEnrolled = v; },   /* BANK PAYROLL v1 */
   get kills() { return kills; }, set kills(v) { kills = v; },
   get curWeapon() { return curWeapon; }, set curWeapon(v) { curWeapon = v; },
   get fireCd() { return fireCd; }, set fireCd(v) { fireCd = v; },
@@ -204,6 +205,7 @@ globalThis.__R3D = {
   updateCivicChip, CIVIC_HINT_TXT, CIVIC_ACT_TXT, CIVIC_FOOT_TXT,
   civicDeposit, civicWithdraw, civicActEl2, civicActEl3,   /* Phase 5 bank: deposit protection */
   bankDawnInterest, BANK_INTEREST_RATE,              /* Phase 5 bank interest v2 */
+  bankDawnPayroll, BANK_PAYROLL_WAGE, civicJob, civicActEl5, completeMission, applySave,   /* BANK PAYROLL v1 */
   civicHeist, civicActEl4, heistChipEl, updateHeistChip, seedHeistSacks, endHeist, heistTick, HEIST,
   HEIST_N, HEIST_R2, HEIST_GRAB_R2, HEIST_ESCALATE_S,   /* Phase 5 bank heist v1 */
   busted, migrateSave,                                      /* Phase 5 bank: bust hook + save migration */
@@ -7389,7 +7391,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.civicChipEl.textContent);
   G.cash = 50; G.bankBal = 0; G.updateCivicChip();
   check('bank: foot renders wallet + bank balances live',
-    G.civicFootEl.textContent === 'WALLET $50 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY',
+    G.civicFootEl.textContent === 'WALLET $50 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY | NO JOB',
     G.civicFootEl.textContent);
 
   /* deposit: all carried cash moves to the bank */
@@ -7399,7 +7401,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.cash === 0 && G.bankBal === 150 && G.toastEl.textContent === 'DEPOSITED $100',
     'cash=' + G.cash + ' bank=' + G.bankBal);
   check('bank: foot updates after the deposit',
-    G.civicFootEl.textContent === 'WALLET $0 | BANK $150 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY',
+    G.civicFootEl.textContent === 'WALLET $0 | BANK $150 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY | NO JOB',
     G.civicFootEl.textContent);
   /* deposit denied at cash 0 */
   G.civicDeposit();
@@ -7769,7 +7771,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(3);
   G.civicEnter();
   check('interest: the foot line shows balances plus INTEREST 2%/DAY',
-    G.civicFootEl.textContent === 'WALLET $0 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY',
+    G.civicFootEl.textContent === 'WALLET $0 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY | NO JOB',
     G.civicFootEl.textContent);
   G.bankBal = 1020;
   G.civicWithdraw();
@@ -7798,6 +7800,172 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('interest: the bank balance survives the heist start untouched',
     G.bankBal === 300, 'bank=' + G.bankBal);
   G.civicExit();
+  for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+  G.setHeat(0, true); G.P.godT = 9999;
+}
+
+/* ================= 37. BANK PAYROLL v1 ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
+  G.closeShop();
+  if (G.CIVIC.state) G.civicExit();
+  if (G.HEIST.active) G.endHeist('test');
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.player.rotation.y = 0;
+  frame(3);
+  const ipx = G.player.position.x, ipz = G.player.position.z;
+  const synthBank = (type) => {
+    for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+    G.BLDG.active[type].push({ x: ipx + 3, z: ipz, y: groundY(ipx + 3, ipz), yaw: 0, gx: 0, gz: 0, name: type.toUpperCase(), type });
+    G.player.position.set(ipx + 3 + 6.5, groundY(ipx + 9.5, ipz), ipz);
+  };
+  /* the real dawn path: the day/night clock wrap 1 -> 0, like section 36 */
+  const dawnWrap = () => {
+    const day0 = G.CIVIC.day;
+    G.dayPhase = 0.99; frame(2);
+    G.dayPhase = 0.01; frame(2);
+    return day0;
+  };
+  G.jobEnrolled = false; G.MS.doneToday = 0;
+
+  /* static: wage pin, zero new THREE objects, zero new RNG, footer ships */
+  check('payroll-static: the wage pins at exactly $30',
+    G.BANK_PAYROLL_WAGE === 30, G.BANK_PAYROLL_WAGE);
+  check('payroll-static: zero new THREE objects in the payroll block',
+    !/new THREE\./.test(html.slice(html.indexOf('function civicJob()'), html.indexOf('function bankDawnInterest()'))));
+  check('payroll-static: zero new Math.random in the payroll block',
+    !/Math\.random/.test(html.slice(html.indexOf('function civicJob()'), html.indexOf('function bankDawnInterest()'))));
+  check('payroll-static: the bank panel placeholder carries the JOB line',
+    G.CIVIC_FOOT_TXT.bank.includes('JOB'), G.CIVIC_FOOT_TXT.bank);
+
+  /* enlist: only at the bank, toast + button label + footer flip */
+  G.P.godT = 0;   // civicEnter refuses while spawn-protected (the section-36 idiom)
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  check('payroll: the JOB button shows bank-only with ENLIST JOB label',
+    G.civicActEl5.style.display === 'flex' && G.civicActEl5.textContent === 'ENLIST JOB',
+    G.civicActEl5.textContent);
+  G.cash = 0; G.bankBal = 0; G.updateCivicChip();
+  G.civicJob();
+  check('payroll: ENLIST JOB enrolls with the buy toast',
+    G.jobEnrolled === true && G.toastEl.textContent === 'JOB ENLISTED: +$30/DAY', G.toastEl.textContent);
+  check('payroll: the button label flips to QUIT JOB on enlist',
+    G.civicActEl5.textContent === 'QUIT JOB', G.civicActEl5.textContent);
+  check('payroll: the foot line shows JOB: +$30/DAY on enlist',
+    G.civicFootEl.textContent === 'WALLET $0 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY | JOB: +$30/DAY',
+    G.civicFootEl.textContent);
+  G.civicJob();
+  check('payroll: QUIT JOB unenrolls and the footer returns to NO JOB',
+    G.jobEnrolled === false && G.toastEl.textContent === 'JOB QUIT'
+    && G.civicFootEl.textContent.endsWith('NO JOB'),
+    'enrolled=' + G.jobEnrolled + ' foot=' + G.civicFootEl.textContent);
+  G.civicExit();
+
+  /* job toggle is bank-only: silent outside the bank */
+  G.civicJob();
+  check('payroll: the job toggle is a no-op outside the bank',
+    G.jobEnrolled === false, 'enrolled=' + G.jobEnrolled);
+
+  /* re-enlist for the dawn tests */
+  G.P.godT = 0;   // civicEnter refuses while spawn-protected
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  G.civicJob();
+
+  /* activity gate: no mission since dawn -> payroll skipped, toast fires */
+  G.cash = 0; G.bankBal = 0; G.MS.doneToday = 0; G.toastEl.textContent = '';
+  dawnWrap();
+  check('payroll: skipped with no mission done (cash untouched, toast explains)',
+    G.cash === 0 && G.toastEl.textContent === 'PAYDAY SKIPPED: DO A MISSION',
+    'cash=' + G.cash + ' toast=' + G.toastEl.textContent);
+
+  /* mission completion counts toward the gate */
+  G.MS.doneToday = 0;
+  G.MS.state = 'IDLE'; G.MS.idx = 0;
+  G.completeMission();
+  check('payroll: completeMission increments the daily work counter',
+    G.MS.doneToday === 1, 'doneToday=' + G.MS.doneToday);
+  G.MS.done[0] = false;   // keep the suite's mission state pristine
+
+  /* paid dawn: credit lands in cash, not the bank balance, exactly once */
+  G.cash = 0; G.bankBal = 0; G.toastEl.textContent = '';
+  dawnWrap();
+  check('payroll: the wage credits $30 to carried cash, bank untouched',
+    G.cash === 30 && G.bankBal === 0 && G.toastEl.textContent === '+$30 PAYDAY',
+    'cash=' + G.cash + ' bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+
+  /* once-per-dawn: the gate already reset, so the next dawn skips */
+  G.cash = 30; G.toastEl.textContent = '';
+  dawnWrap();
+  check('payroll: the gate is once per dawn (second wrap skips)',
+    G.cash === 30 && G.toastEl.textContent === 'PAYDAY SKIPPED: DO A MISSION',
+    'cash=' + G.cash + ' toast=' + G.toastEl.textContent);
+
+  /* zero bank balance edge: the wage still pays (it rides in the wallet) */
+  G.cash = 0; G.bankBal = 0; G.MS.doneToday = 1; G.toastEl.textContent = '';
+  G.bankDawnPayroll();
+  check('payroll: zero bank balance does not block the cash wage',
+    G.cash === 30 && G.bankBal === 0, 'cash=' + G.cash + ' bank=' + G.bankBal);
+
+  /* not enrolled: the dawn tick is silent */
+  G.jobEnrolled = false; G.MS.doneToday = 5; G.cash = 0; G.toastEl.textContent = 'SENTINEL';
+  G.bankDawnPayroll();
+  check('payroll: no job means no pay and no toast',
+    G.cash === 0 && G.toastEl.textContent === 'SENTINEL', 'cash=' + G.cash);
+
+  /* save round-trip persists enrollment; no credit at load */
+  G.jobEnrolled = true; G.cash = 100; G.bankBal = 500; G.MS.doneToday = 1;
+  G.saveGame();
+  G.jobEnrolled = false; G.cash = 0; G.bankBal = 0; G.MS.doneToday = 0;
+  G.loadSave();
+  check('payroll: load restores enrollment with no credit applied',
+    G.jobEnrolled === true && G.cash === 100 && G.bankBal === 500,
+    'job=' + G.jobEnrolled + ' cash=' + G.cash + ' bank=' + G.bankBal);
+  check('payroll: the activity gate starts at zero on load',
+    G.MS.doneToday === 0, 'doneToday=' + G.MS.doneToday);
+
+  /* pre-payroll v4 save (no job field): loads fine, not enrolled */
+  const legacy = G.collectSave();
+  delete legacy.job;
+  G.jobEnrolled = true;
+  G.applySave(legacy);
+  check('payroll: a v4 save without the job field loads as not enrolled',
+    G.jobEnrolled === false, 'job=' + G.jobEnrolled);
+
+  /* newGame resets: job quit, counter zeroed, no wage owed */
+  G.jobEnrolled = true; G.MS.doneToday = 3; G.cash = 0;
+  G.newGame();
+  G.toastEl.textContent = 'SENTINEL';
+  G.bankDawnPayroll();
+  check('payroll: newGame quits the job and zeroes the counter',
+    G.jobEnrolled === false && G.MS.doneToday === 0 && G.cash === 0 && G.toastEl.textContent === 'SENTINEL',
+    'job=' + G.jobEnrolled + ' doneToday=' + G.MS.doneToday);
+
+  /* economy flows unchanged: interest, deposit, withdraw, ATM */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  G.bankBal = 1000; G.toastEl.textContent = '';
+  G.bankDawnInterest();
+  check('payroll: interest still credits 2% after the payroll change',
+    G.bankBal === 1020 && G.toastEl.textContent === '+$20 BANK INTEREST', 'bank=' + G.bankBal);
+  G.cash = 100; G.bankBal = 50;
+  G.civicDeposit();
+  check('payroll: deposit still moves the whole wallet after payroll',
+    G.cash === 0 && G.bankBal === 150, 'cash=' + G.cash + ' bank=' + G.bankBal);
+  G.civicWithdraw();
+  check('payroll: withdraw still pulls the whole bank back after payroll',
+    G.cash === 150 && G.bankBal === 0, 'cash=' + G.cash + ' bank=' + G.bankBal);
+  G.CIVIC.atmDay = G.CIVIC.day - 1;
+  const allow0 = G.cash;
+  G.civicAtm();
+  check('payroll: $20 daily allowance still pays on the day gate',
+    G.cash === allow0 + 20 && G.CIVIC.atmDay === G.CIVIC.day, 'cash=' + G.cash);
+  G.civicExit();
+  G.jobEnrolled = false;
   for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
   G.setHeat(0, true); G.P.godT = 9999;
 }
