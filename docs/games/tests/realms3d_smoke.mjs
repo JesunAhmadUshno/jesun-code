@@ -85,6 +85,7 @@ globalThis.__R3D = {
   wildLions, wildPandas, wildTigers, wildPenguins, pondShore,  /* Phase 5 wildlife v5 */
   get dayPhase() { return dayPhase; }, set dayPhase(v) { dayPhase = v; },  /* v4: owl day/night test */
   get cash() { return cash; }, set cash(v) { cash = v; },
+  get bankBal() { return bankBal; }, set bankBal(v) { bankBal = v; },   /* Phase 5 bank: deposit protection */
   get kills() { return kills; }, set kills(v) { kills = v; },
   get curWeapon() { return curWeapon; }, set curWeapon(v) { curWeapon = v; },
   get fireCd() { return fireCd; }, set fireCd(v) { fireCd = v; },
@@ -199,7 +200,9 @@ globalThis.__R3D = {
   /* Phase 5 rural civic buildings v1 */
   CIVIC, CIVIC_ORDER, CIVIC_SCALE, CIVIC_HEAL_COST, CIVIC_ATM_AMT, CIVIC_REST_COST,
   civicEnter, civicExit, civicAct, civicHeal, civicAtm, civicRest, civicTick,
-  updateCivicChip, CIVIC_HINT_TXT, CIVIC_ACT_TXT,
+  updateCivicChip, CIVIC_HINT_TXT, CIVIC_ACT_TXT, CIVIC_FOOT_TXT,
+  civicDeposit, civicWithdraw, civicActEl2, civicActEl3,   /* Phase 5 bank: deposit protection */
+  busted, migrateSave,                                      /* Phase 5 bank: bust hook + save migration */
   civichintEl, civicChipEl, civicbearingEl, civarrEl, civtxtEl,
   civicPanelEl, civicTitleEl, civicActEl, civicFootEl, HELP_CIVIC,
   /* Phase 5 worship buildings v1 */
@@ -7179,6 +7182,146 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.trainUpdate(0.016, 1.0);
   check('perf7: trainUpdate still re-uploads the posed fleet',
     mver(G.trainBodyIM) === tr0 + 1, 'trainBody ' + tr0 + '->' + mver(G.trainBodyIM));
+}
+
+/* ================= 34. BANK DEPTH v1 (Phase 5 buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);   // godT 0: civicEnter refuses while spawn-protected
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.CIVIC.state) G.civicExit();
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.player.rotation.y = 0;
+  frame(3);   // absorb any chunk crossing -> redistributeBuildings runs (seeded civics settle first)
+  const bpx = G.player.position.x, bpz = G.player.position.z;
+  const synthBank = (type) => {
+    for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+    G.BLDG.active[type].push({ x: bpx + 3, z: bpz, y: groundY(bpx + 3, bpz), yaw: 0, gx: 0, gz: 0, name: type.toUpperCase(), type });
+    G.player.position.set(bpx + 3 + 6.5, groundY(bpx + 9.5, bpz), bpz);
+  };
+
+  /* static: the two new buttons carry touch parity with the primary action */
+  check('bank-static: DEPOSIT/WITHDRAW buttons have touchstart (passive:false) + click handlers',
+    html.includes("civicActEl2.addEventListener('touchstart', civicDepositBtn, { passive: false })")
+    && html.includes("civicActEl2.addEventListener('click', civicDepositBtn)")
+    && html.includes("civicActEl3.addEventListener('touchstart', civicWithdrawBtn, { passive: false })")
+    && html.includes("civicActEl3.addEventListener('click', civicWithdrawBtn)"));
+  check('bank-static: zero new THREE objects in the bank code',
+    !/new THREE\./.test(html.slice(html.indexOf('function civicDeposit()'), html.indexOf('function civicWithdraw()') + 400)));
+
+  /* panel: DEPOSIT/WITHDRAW visible only inside the bank */
+  synthBank('hospital');
+  frame(3);
+  G.civicEnter();
+  check('bank: DEPOSIT/WITHDRAW hidden for non-bank civics',
+    G.civicActEl2.style.display === 'none' && G.civicActEl3.style.display === 'none'
+    && G.civicChipEl.textContent === 'HOSPITAL | HEAL $30 | E LEAVE', G.civicChipEl.textContent);
+  G.civicExit();
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  check('bank: enter the bank (panel + chip show)',
+    G.CIVIC.state === 'bank' && G.civicPanelEl.style.display === 'block');
+  check('bank: DEPOSIT/WITHDRAW shown inside the bank',
+    G.civicActEl2.style.display === 'flex' && G.civicActEl3.style.display === 'flex');
+  check('bank: chip reads BANK | DEPOSIT / WITHDRAW / $20 DAILY | E LEAVE',
+    G.civicChipEl.textContent === 'BANK | DEPOSIT / WITHDRAW / $20 DAILY | E LEAVE',
+    G.civicChipEl.textContent);
+  G.cash = 50; G.bankBal = 0; G.updateCivicChip();
+  check('bank: foot renders wallet + bank balances live',
+    G.civicFootEl.textContent === 'WALLET $50 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY',
+    G.civicFootEl.textContent);
+
+  /* deposit: all carried cash moves to the bank */
+  G.cash = 100; G.bankBal = 50;
+  G.civicDeposit();
+  check('bank: deposit-all moves the whole wallet into the bank',
+    G.cash === 0 && G.bankBal === 150 && G.toastEl.textContent === 'DEPOSITED $100',
+    'cash=' + G.cash + ' bank=' + G.bankBal);
+  check('bank: foot updates after the deposit',
+    G.civicFootEl.textContent === 'WALLET $0 | BANK $150 | DAILY ALLOWANCE ONCE PER IN-GAME DAY',
+    G.civicFootEl.textContent);
+  /* deposit denied at cash 0 */
+  G.civicDeposit();
+  check('bank: deposit denied at cash=0 (bank untouched, denied toast)',
+    G.cash === 0 && G.bankBal === 150 && G.toastEl.textContent === 'NOTHING TO DEPOSIT',
+    G.toastEl.textContent);
+
+  /* withdraw: the whole bank balance comes back to the wallet */
+  G.civicWithdraw();
+  check('bank: withdraw-all moves the whole bank balance back to the wallet',
+    G.cash === 150 && G.bankBal === 0 && G.toastEl.textContent === 'WITHDREW $150',
+    'cash=' + G.cash + ' bank=' + G.bankBal);
+  /* withdraw denied at bank 0 */
+  G.civicWithdraw();
+  check('bank: withdraw denied at bank=0 (wallet untouched, denied toast)',
+    G.cash === 150 && G.bankBal === 0 && G.toastEl.textContent === 'NO SAVINGS',
+    G.toastEl.textContent);
+  /* bank-only guards: the actions no-op outside the bank */
+  G.civicExit();
+  check('bank: buttons hidden after exit',
+    G.civicActEl2.style.display === 'none' && G.civicActEl3.style.display === 'none');
+  G.cash = 100; G.bankBal = 50;
+  G.civicDeposit(); G.civicWithdraw();
+  check('bank: deposit/withdraw no-op outside the bank',
+    G.cash === 100 && G.bankBal === 50, 'cash=' + G.cash + ' bank=' + G.bankBal);
+
+  /* the $20 daily allowance is still day-gated (ATM idiom untouched) */
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  G.CIVIC.atmDay = G.CIVIC.day - 1;
+  const allow0 = G.cash;
+  G.civicAtm();
+  check('bank: $20 allowance pays when the day gate is open',
+    G.cash === allow0 + 20 && G.CIVIC.atmDay === G.CIVIC.day, 'cash=' + G.cash);
+  G.civicAtm();
+  check('bank: $20 allowance denied twice in one in-game day',
+    G.cash === allow0 + 20 && G.toastEl.textContent === 'COME BACK TOMORROW', G.toastEl.textContent);
+  G.civicExit();
+
+  /* death: 15% of carried cash seized, the bank untouched */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.cash = 100; G.bankBal = 500;
+  G.hurtPlayer(999);
+  check('bank: death seizes 15% of carried cash and leaves the bank intact',
+    G.P.dead === true && G.cash === 85 && G.bankBal === 500
+    && G.toastEl.textContent === 'ELIMINATED - $15 LOST',
+    'cash=' + G.cash + ' bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999;
+
+  /* busted: 25% of carried cash seized, the bank untouched */
+  G.cash = 100; G.bankBal = 300; G.setHeat(1, true);
+  G.busted();
+  check('bank: BUSTED seizes 25% of carried cash and leaves the bank intact',
+    G.cash === 75 && G.bankBal === 300 && G.W.heat === 0
+    && G.toastEl.textContent === 'BUSTED - $25 SEIZED | BANK SAFE',
+    'cash=' + G.cash + ' bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+  G.P.godT = 9999;
+
+  /* save schema v4: the bank persists across a round-trip */
+  G.player.position.set(12.34, groundY(12.34, 56.78), 56.78);
+  G.cash = 200; G.bankBal = 777; G.P.hp = 100;
+  G.saveGame();
+  const braw = stubs.localStorage.getItem(G.SAVE_KEY);
+  check('bank: save v4 envelope persists the bank balance',
+    !!braw && braw.includes('"version":4') && braw.includes('"bank":777'), braw && braw.slice(0, 60));
+  G.cash = 0; G.bankBal = 0;
+  G.loadSave();
+  check('bank: load restores the bank balance exactly',
+    G.cash === 200 && G.bankBal === 777, 'cash=' + G.cash + ' bank=' + G.bankBal);
+
+  /* migration: a synthetic v3 envelope migrates forward with bank=0 */
+  const v3env = JSON.parse(JSON.stringify({
+    version: 3,
+    data: { x: 1, z: 2, cash: 50, kills: 1, sg: -1, sm: -1, cw: 'rifle', hp: 100,
+            am: -1, done: '0'.repeat(G.MISSIONS.length), heat: 0, pet: '', food: '0:0:0:0:0:0' }
+  }));
+  const vmig = G.migrateSave(v3env);
+  check('bank: synthetic v3 envelope migrates to v4 with bank=0',
+    !!vmig && vmig.bank === 0 && vmig.cash === 50,
+    vmig ? 'bank=' + vmig.bank + ' cash=' + vmig.cash : 'null');
+  for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
 }
 
 /* ---------- zero console errors ---------- */
