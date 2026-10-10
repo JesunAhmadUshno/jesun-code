@@ -130,6 +130,13 @@ globalThis.__R3D = {
   /* Phase 5 landmark hospital v1 */
   HOSP, hospHeal, hospPadWorld, hospTick, hosphealEl, hospChipEl, hospTxtEl, hospArrEl,
   LMHOSP_COL, LMHOSP_CHIP_R2, LMHOSP_HEAL_R2, LMHOSP_HEAL_CD, LMHOSP_PAD, buildLandmarkHospGeo,
+  /* Phase 5 landmark theater v1 */
+  THEATERHALL, theaterHallEnter, theaterHallExit, theaterWatchShow, theaterHallTick,
+  theaterHallDoorWorld, theaterJingle, buildLandmarkTheaterGeo, buildTheaterHallGeo,
+  makeTheaterScreenTex, theaterHallMesh, theaterHallScreen,
+  thallhintEl, tshowhintEl, thallChipEl, thallTxtEl, thallArrEl,
+  LMTHEATER_COL, LMTH_R, LMTH_SEGS, LMTH_GATE_K, LMTH_CHIP_R2, LMTH_DOOR, LMTH_DOOR_R2,
+  THEATER_ROOM_Y, THEATER_SHOW_COST, THEATER_SHOW_HEAL, THEATER_SHOW_HOURS,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
   /* Phase 5 boats/ships v1 */
   BOAT, boatEnter, boatExit, boatRebuild, boatFloat, waterSurfaceY, dockFor,
@@ -5285,10 +5292,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       && sgeo.attributes.position.count > 500, 'verts=' + sgeo.attributes.position.count);
     check('lmstad: one material with vertexColors on',
       G.AMEN_DEF.stad.mesh.material.vertexColors === true);
-    check('lmstad: floodlight materials ride the day/night emissive ramp (stad + amuse + hosp)',
-      G.LMSTAD_FLOOD_MATS.length === 3 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
+    check('lmstad: floodlight materials ride the day/night emissive ramp (stad + amuse + hosp + theater)',
+      G.LMSTAD_FLOOD_MATS.length === 4 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
       && G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.mesh.material
       && G.LMSTAD_FLOOD_MATS[2] === G.AMEN_DEF.hosp.mesh.material
+      && G.LMSTAD_FLOOD_MATS[3] === G.AMEN_DEF.theater.mesh.material
       && !!G.LMSTAD_FLOOD_MATS[0].emissiveMap);
 
     /* wall collision: the rim wall blocks a walker, the gates stay open.
@@ -5396,9 +5404,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmause-static: single keydown listener (zero new keybinds)',
     (html.split("addEventListener('keydown'").length - 1) === 1);
   check('lmause-static: bus route rebuild excludes amuse + hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
   check('lmause-static: taxi route rebuild excludes amuse + hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
 
   /* seeded placement: pure deterministic hash, cross-type winner-take-all */
   let mgx = 0, mgz = 0, md = null;
@@ -5626,17 +5634,17 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmhosp-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('lmhosp-static: E heals at a live hospital prompt in the keydown chain',
-    html.includes("else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (WORSHIP.hintOn) worshipEnter();"));
+    html.includes("else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (WORSHIP.hintOn) worshipEnter();"));
   check('lmhosp-static: bus route rebuild excludes hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
   check('lmhosp-static: taxi route rebuild excludes hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
   check('lmhosp-static: chip pins below the amusement chip in the top-left stack (no overlap)',
     html.includes('#hospchip {\n    position: absolute; top: 489px; left: 18px;'));
   check('lmhosp-static: bike/bc/scooter pad scans exclude hosp in v1 (byte-identical pads)',
-    (html.match(/if \(a && a\.type !== 'hosp'\) found\.push\(a\);/g) || []).length === 3);
+    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater'\) found\.push\(a\);/g) || []).length === 3);
   check('lmhosp-static: ambulance anchor scan excludes hosp in v1',
-    html.includes("if (!a || a.type === 'hosp') continue;"));
+    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater') continue;"));
 
   /* seeded placement: pure deterministic hash, own residue, cross-type winner-take-all */
   let hgx = 0, hgz = 0, hd = null;
@@ -5803,6 +5811,299 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 }
 
+/* ================= PHASE 5: LANDMARK THEATER v1 (buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.STADIUM.watching) G.stadiumExit();
+  if (G.THEATER.watching) G.theaterExit();
+  if (G.SLOT.playing) G.slotExit();
+  if (G.PIANO.playing) G.pianoExit();
+  if (G.CIVIC.state) G.civicExit();
+  if (G.WORSHIP.state) G.worshipExit();
+  if (G.APARTMENT.state) G.apartmentExit();
+  if (G.THEATERHALL.inHall) G.theaterHallExit();
+
+  /* static: bespoke merged geometry, zero new IM literals (the shared
+     AMEN_DEF loop builds the one 'theater' mesh: +1 runtime draw call; the
+     cached room is plain Mesh, visible=false until entered), zero new
+     runtime lights, zero new keybinds, no unseeded RNG, no em dashes,
+     no external URLs, no TODO text in the block */
+  const lmthSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK THEATER v1 (buildings/places)'),
+                             html.indexOf('/* ---- instanced meshes: one per type, one draw call each ---- */'));
+  check('lmth-static: zero IM literals in the theater block (shared AMEN_DEF loop builds the one mesh)',
+    (lmthSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('lmth-static: theater block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(lmthSrc));
+  check('lmth-static: no unseeded RNG in the theater block', !/Math\.random/.test(lmthSrc));
+  check('lmth-static: no em dashes in the theater block', !lmthSrc.includes('—'));
+  check('lmth-static: no external URLs in the theater block', !/https?:\/\//.test(lmthSrc));
+  check('lmth-static: no TODO markers in the theater block', !/\bTODO\b/.test(lmthSrc));
+  check('lmth-static: theater residue is checked after hosp (never displaces existing types)',
+    html.indexOf("if (h % 47 === 23) return 'hosp';") < html.indexOf("if (h % 53 === 31) return 'theater';"));
+  check('lmth-static: whole-file IM literals pin at 47 (theater rides the shared def-loop literal; room is plain Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('lmth-static: Math.random lines pin at 92',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
+  check('lmth-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('lmth-static: E chain wires theater after the hospital heal (exit prefixes intact)',
+    html.includes("else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (WORSHIP.hintOn) worshipEnter();"));
+  check('lmth-static: #thallchip does not collide with the existing #theaterchip',
+    html.includes('id="thallchip"') && html.includes('id="theaterchip"')
+    && (html.match(/id="thallchip"/g) || []).length === 1);
+  check('lmth-static: chip pins in its own top-left slot (no overlap)',
+    html.includes('#thallchip {\n    position: absolute; top: 555px; left: 18px;'));
+  check('lmth-static: bus route rebuild excludes theater in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+  check('lmth-static: taxi route rebuild excludes theater in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+  check('lmth-static: bike/bc/scooter pad scans exclude theater in v1 (byte-identical pads)',
+    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater'\) found\.push\(a\);/g) || []).length === 3);
+  check('lmth-static: ambulance anchor scan excludes theater in v1',
+    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater') continue;"));
+
+  /* seeded placement: pure deterministic hash, own residue, cross-type winner-take-all */
+  let tgx = 0, tgz = 0, td = null;
+  touter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'theater' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'theater') { tgx = gx; tgz = gz; td = a; break touter; }
+    }
+  check('lmth: a seeded theater chunk exists in the scan window', !!td, td ? 'at ' + tgx + ',' + tgz : 'none');
+  if (td) {
+    const td2 = G.amenityCenterFor(tgx, tgz);
+    check('lmth: amenityCenterFor is deterministic across calls',
+      !!td2 && td2.x === td.x && td2.z === td.z && td2.yaw === td.yaw && td2.type === 'theater');
+    let wtaOk = true;
+    for (let ax = tgx - 1; ax <= tgx + 1; ax++)
+      for (let az = tgz - 1; az <= tgz + 1; az++) {
+        if (ax === tgx && az === tgz) continue;
+        if (G.amenityTypeFor(ax, az) && G.amenityAccepted(ax, az)) wtaOk = false;
+      }
+    check('lmth: cross-type winner-take-all holds (no other accepted amenity in the 3x3)', wtaOk);
+    /* measured non-displacement: no theater chunk would have matched an
+       earlier type (the residue is checked last) */
+    let displaceOk = true, theaterCount = 0;
+    for (let gx = -60; gx <= 60; gx++)
+      for (let gz = -60; gz <= 60; gz++) {
+        if (G.amenityTypeFor(gx, gz) !== 'theater') continue;
+        theaterCount++;
+        const h = G.hash2i(gx, gz);
+        if (h % 41 === 20 || h % 15 === 4 || h % 19 === 9 || h % 13 === 11
+            || h % 10 === 6 || h % 37 === 13 || h % 41 === 29 || h % 47 === 23) displaceOk = false;
+      }
+    check('lmth: theater never displaces an existing amenity type (checked last)',
+      theaterCount > 0 && displaceOk, 'theater=' + theaterCount);
+    check('lmth: def is registered (cap 2, glow flag, 36 colliders)',
+      G.AMEN_DEF.theater && G.AMEN_DEF.theater.cap === 2 && G.AMEN_DEF.theater.glow === true
+      && G.AMEN_DEF.theater.colliders.length === 36 && G.LMTHEATER_COL.length === 36
+      && Array.isArray(G.AMEN.active.theater));
+    check('lmth: the entrance gap has no collider (walk-in idiom)',
+      G.LMTHEATER_COL.every(c => Math.hypot(c[0] - 0, c[1] - 13) > 2.5));
+    check('lmth: the door column stays walkable (no collider within 1.6m of the door)',
+      G.LMTHEATER_COL.every(c => Math.hypot(c[0] - 0, c[1] - 6.8) > 1.6));
+
+    /* merged geometry: one mesh, one vertexColors material, per-part colors */
+    const tgeo = G.AMEN_DEF.theater.mesh.geometry;
+    check('lmth: merged geometry carries per-part vertex colors',
+      !!tgeo.attributes.color && tgeo.attributes.color.count === tgeo.attributes.position.count
+      && tgeo.attributes.position.count > 500, 'verts=' + tgeo.attributes.position.count);
+    check('lmth: one material with vertexColors on',
+      G.AMEN_DEF.theater.mesh.material.vertexColors === true);
+    check('lmth: marquee board samples the sign-text band (v 0.78..1)',
+      (() => { const uv = tgeo.attributes.uv; let n = 0;
+               for (let i = 0; i < uv.count; i++) if (uv.getY(i) >= 0.77) n++;
+               return n >= 4; })());
+    check('lmth: marquee bulbs carry glow UVs (night emissive targets)',
+      (() => { const uv = tgeo.attributes.uv; let n = 0;
+               for (let i = 0; i < uv.count; i++)
+                 if (Math.abs(uv.getX(i) - 0.25) < 1e-6 && Math.abs(uv.getY(i) - 0.25) < 1e-6) n++;
+               return n > 50; })());
+    check('lmth: marquee material rides the day/night emissive ramp',
+      G.LMSTAD_FLOOD_MATS.includes(G.AMEN_DEF.theater.mesh.material)
+      && !!G.AMEN_DEF.theater.mesh.material.emissiveMap);
+
+    /* the cached room: built once, invisible until entered, lit by emissive */
+    check('lmth: the screening room is cached (invisible, zero net draws)',
+      G.theaterHallMesh.visible === false);
+    check('lmth: the room is one merged mesh with vertex colors',
+      !!G.theaterHallMesh.geometry.attributes.color
+      && G.theaterHallMesh.geometry.attributes.position.count > 800);
+    check('lmth: the room is emissive-lit (never a black doorway), zero new lights',
+      G.theaterHallMesh.material.emissiveIntensity > 0.5
+      && G.theaterHallScreen.material.isMeshBasicMaterial === true);
+    check('lmth: the NOW SHOWING screen rides the room',
+      G.theaterHallScreen.parent === G.theaterHallMesh);
+
+    /* wall collision: the hedge wall + boxes block a walker, the entrance
+       gap and the door column stay open (rural-building foot idiom) */
+    const def = G.AMEN_DEF.theater;
+    const c0 = Math.cos(td.yaw), s0 = Math.sin(td.yaw);
+    const wx = (ox, oz) => td.x + ox * c0 + oz * s0;
+    const wz = (ox, oz) => td.z - ox * s0 + oz * c0;
+    const foot0 = G.BLDG.foot.length;
+    for (const col of def.colliders) G.BLDG.foot.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+    const wc = def.colliders[0];   // hedge-ring wall collider, far from the gate
+    G.player.position.set(wx(wc[0], wc[1]), groundY(wx(wc[0], wc[1]), wz(wc[0], wc[1])), wz(wc[0], wc[1]));
+    G.resolveBldgFoot();
+    const wd = Math.hypot(G.player.position.x - wx(wc[0], wc[1]), G.player.position.z - wz(wc[0], wc[1]));
+    check('lmth: the hedge wall blocks a walker (pushed out of the wall)',
+      wd >= wc[2] + 0.45 - 0.01, 'd=' + wd.toFixed(2) + ' min=' + (wc[2] + 0.45).toFixed(2));
+    const gx0 = wx(0, 13), gz0 = wz(0, 13);   // entrance gate center: no collider there
+    G.player.position.set(gx0, groundY(gx0, gz0), gz0);
+    G.resolveBldgFoot();
+    const gd = Math.hypot(G.player.position.x - gx0, G.player.position.z - gz0);
+    check('lmth: the entrance gap stays open (walker not pushed)', gd < 0.01, 'd=' + gd.toFixed(3));
+    const dx0 = wx(0, 6.8), dz0 = wz(0, 6.8);   // door column: walkable to the trigger
+    G.player.position.set(dx0, groundY(dx0, dz0), dz0);
+    G.resolveBldgFoot();
+    const dd = Math.hypot(G.player.position.x - dx0, G.player.position.z - dz0);
+    check('lmth: the door column stays walkable (walker not pushed)', dd < 0.01, 'd=' + dd.toFixed(3));
+    G.BLDG.foot.length = foot0;
+
+    /* vehicle collision: the car is pushed out of the wall via AMEN.colliders */
+    const am0 = G.AMEN.colliders.length;
+    for (const col of def.colliders) G.AMEN.colliders.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+    G.CAR.pos.set(wx(wc[0], wc[1]), 0, wz(wc[0], wc[1]));
+    G.CAR.hitCd = 0; G.CAR.speed = 0; G.CAR.hp = 100; G.CAR.armor = 0;
+    G.carAmenityHit(0.016);
+    const cd = Math.hypot(G.CAR.pos.x - wx(wc[0], wc[1]), G.CAR.pos.z - wz(wc[0], wc[1]));
+    check('lmth: the wall blocks light vehicles (pushed out via AMEN.colliders)',
+      cd >= wc[2] + 1.15 - 0.01, 'd=' + cd.toFixed(2));
+    G.AMEN.colliders.length = am0;
+
+    /* the real theater activates near the player; ENTER prompt at the door */
+    G.player.position.set(td.x + 60, groundY(td.x + 60, td.z), td.z);
+    frame(20);   // chunk redistribute + theaterHallTick cadence
+    const ta = G.AMEN.active.theater.find(a => Math.hypot(a.x - td.x, a.z - td.z) < 1);
+    check('lmth: the real theater activates near the player', !!ta);
+    const door = G.theaterHallDoorWorld(ta);
+    G.player.position.set(door.x, groundY(door.x, door.z), door.z);
+    frame(20);
+    check('lmth: ENTER prompt shows at the door',
+      G.THEATERHALL.hintEnter === true && G.thallhintEl.style.opacity == 1, 'hint=' + G.THEATERHALL.hintEnter);
+    check('lmth: the room stays cached until entered (zero net draws)',
+      G.theaterHallMesh.visible === false);
+
+    /* enter/exit round trip */
+    G.closeShop(); G.theaterHallEnter();
+    check('lmth: ENTER teleports into the cached room',
+      G.THEATERHALL.inHall === true && G.player.position.y === G.THEATER_ROOM_Y
+      && G.theaterHallMesh.visible === true,
+      'y=' + G.player.position.y);
+    check('lmth: the room parks under the active theater',
+      Math.abs(G.theaterHallMesh.position.x - ta.x) < 0.01
+      && Math.abs(G.theaterHallMesh.position.z - ta.z) < 0.01
+      && Math.abs(G.player.position.x - ta.x) < 0.01);
+    frame(10);
+    check('lmth: WATCH SHOW prompt shows inside',
+      G.tshowhintEl.style.opacity == 1 && /WATCH SHOW/.test(G.tshowhintEl.textContent),
+      G.tshowhintEl.textContent);
+
+    /* WATCH SHOW: $5 ticket, +2 game hours, +25 HP, one show per visit */
+    const probsT = consoleProblems.length;
+    G.P.hp = 50; G.updateHpHUD(); G.cash = 100;
+    const dp0 = G.dayPhase;
+    G.theaterWatchShow();
+    check('lmth: the ticket costs $5', G.cash === 95, 'cash=' + G.cash);
+    check('lmth: the show advances game time 2 hours',
+      Math.abs(((G.dayPhase - dp0 + 1) % 1) - G.THEATER_SHOW_HOURS / 24) < 1e-9,
+      'dphase=' + (((G.dayPhase - dp0 + 1) % 1)).toFixed(4));
+    check('lmth: the show restores +25 HP', G.P.hp === 75, 'hp=' + G.P.hp);
+    check('lmth: one show per visit (E now exits, never traps)',
+      G.THEATERHALL.showOn === false);
+    frame(10);
+    check('lmth: EXIT prompt shows after the show',
+      G.tshowhintEl.style.opacity == 1 && /EXIT/.test(G.tshowhintEl.textContent),
+      G.tshowhintEl.textContent);
+
+    /* broke visitor: denied the show, offered the exit (no trap) */
+    G.theaterHallExit();
+    frame(5);   // let the tick re-arm nearIdx at the door
+    G.closeShop(); G.theaterHallEnter();
+    G.P.hp = 50; G.updateHpHUD(); G.cash = 3;
+    frame(5);
+    G.theaterWatchShow();
+    check('lmth: a broke visitor is denied (cash and HP untouched)',
+      G.cash === 3 && G.P.hp === 50, 'cash=' + G.cash + ' hp=' + G.P.hp);
+    check('lmth: the denied visitor can still exit',
+      G.THEATERHALL.showOn === false && G.THEATERHALL.inHall === true);
+
+    /* E key wiring: E watches, E exits (after the hospital heal) */
+    G.theaterHallExit();
+    const kdoor = G.theaterHallDoorWorld(ta);
+    G.player.position.set(kdoor.x, groundY(kdoor.x, kdoor.z), kdoor.z);
+    frame(10);   // let the tick re-arm nearIdx at the door
+    G.closeShop(); G.theaterHallEnter();
+    G.P.hp = 50; G.updateHpHUD(); G.cash = 100;
+    frame(5);
+    G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+    stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+    check('lmth: KeyE watches the show at a live prompt',
+      G.cash === 95 && G.P.hp === 75 && G.THEATERHALL.inHall === true,
+      'cash=' + G.cash + ' hp=' + G.P.hp);
+    stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+    check('lmth: KeyE exits after the show (round trip complete)',
+      G.THEATERHALL.inHall === false && G.theaterHallMesh.visible === false);
+    const backD = Math.hypot(G.player.position.x - G.THEATERHALL.doorX, G.player.position.z - G.THEATERHALL.doorZ);
+    check('lmth: exit teleports back to the door', backD < 0.01, 'd=' + backD.toFixed(3));
+
+    /* HUD chip: shows within 500m with bearing arrow + distance, hidden when far */
+    frame(20);
+    check('lmth: chip shows within range',
+      G.thallChipEl.style.display === 'block', 'display=' + G.thallChipEl.style.display);
+    check('lmth: chip reads THEATER <distance>M',
+      /^THEATER \d+M$/.test(G.thallTxtEl.textContent), G.thallTxtEl.textContent);
+    check('lmth: chip arrow carries a bearing rotation',
+      /rotate\(-?\d+(\.\d+)?deg\)/.test(G.thallArrEl.style.transform || ''),
+      G.thallArrEl.style.transform);
+    /* chip hides when far from every theater (scan for a truly far point) */
+    let farX = td.x + 1000, farZ = td.z;
+    for (let fx = td.x + 1000; fx <= td.x + 3000; fx += 500) {
+      let ok = true;
+      for (let gx = -80; gx <= 80 && ok; gx++) for (let gz = -80; gz <= 80 && ok; gz++) {
+        if (G.amenityTypeFor(gx, gz) !== 'theater' || !G.amenityAccepted(gx, gz)) continue;
+        const a = G.amenityCenterFor(gx, gz);
+        if (a && a.type === 'theater' && Math.hypot(a.x - fx, a.z - farZ) < 600) ok = false;
+      }
+      if (ok) { farX = fx; break; }
+    }
+    G.player.position.set(farX, groundY(farX, farZ), farZ);
+    frame(20);
+    check('lmth: chip hides when far',
+      G.thallChipEl.style.display === 'none', 'display=' + G.thallChipEl.style.display);
+
+    /* transit: bus/taxi routes never stop at the theater in v1 */
+    G.busRebuildRoute(tgx, tgz);
+    check('lmth: bus routes never stop at the theater in v1',
+      G.BUS.route.every(s => s.type !== 'theater'), 'stops=' + G.BUS.route.length);
+    G.TX.riding = false; G.TX.routeKey = '';
+    G.txRebuild(tgx, tgz);
+    check('lmth: taxi routes never stop at the theater in v1',
+      (G.TX.route || []).every(s => s.type !== 'theater'), 'stops=' + (G.TX.route || []).length);
+
+    /* night: marquee bulbs glow via the shared emissive ramp, zero new lights */
+    G.player.position.set(td.x + 60, groundY(td.x + 60, td.z), td.z);
+    G.dayPhase = 0.75;   // midnight
+    frame(5);
+    check('lmth: marquee bulbs glow at night (shared emissive ramp, no new lights)',
+      G.AMEN_DEF.theater.mesh.material.emissiveIntensity > 1,
+      G.AMEN_DEF.theater.mesh.material.emissiveIntensity.toFixed(2));
+
+    frame(30);
+    check('lmth: round trip leaves zero console errors/warnings',
+      consoleProblems.length === probsT, consoleProblems.slice(probsT).join(' | '));
+
+    /* leave the world as the next block expects: exit the hall, player at origin, FT rebuilt there */
+    if (G.THEATERHALL.inHall) G.theaterHallExit();
+    G.player.position.set(0, groundY(0, 0), 0);
+    G.FT.routeKey = ''; G.FT.driving = false; G.ftRebuild(0, 0);
+  }
+}
+
 /* ================= PHASE 5: FIRE TRUCK v1 + WILDFIRE EVENTS ================= */
 {
   G.CAR.driving = false; G.HORSE.riding = false;
@@ -5912,7 +6213,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.FIRES[0].t = 16;
   frame(2);
   check('fire: spread pass runs after 15s', G.FIRES[0].spreadDone === true);
-  for (const f of G.FIRES) f.t = f.burnDur + 1;
+  for (const f of G.FIRES) { f.t = f.burnDur + 1; f.spreadDone = true; }   // no second-generation spread during burnout
   frame(2);
   check('fire: all fires burn out after their seeded 60-90s', G.FIRES.length === 0);
 
