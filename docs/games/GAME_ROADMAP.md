@@ -113,7 +113,7 @@ and control DEEPDELVE REALMS (start_run, press_key, read_state, read_screen),
 running against the CPython harness. Player tools (lantern, bedroll) are
 already covered under item 3. Correct this item if he meant something else.
 
-### 6. Enemy separation steering
+### 6. Enemy separation steering [NEXT UP]
 Chasers conga-line behind each other in corridors. Add a cheap sidestep: when
 the target tile is occupied by another enemy, try the perpendicular tile before
 giving up. Keeps per-tick cost O(enemies).
@@ -144,7 +144,7 @@ mood; bounded by the existing 48-ray budget.
 Phone boot (Pyodide + atlas fetch) feels long and silent. Show a % counter on
 the loading overlay while fetching atlas files. Driver-only change.
 
-### 13. E-to-talk reliability against wandering NPCs (flagged 2026-10-09 playtest)
+### 13. E-to-talk reliability against wandering NPCs (flagged 2026-10-09 playtest) [DONE 2026-10-10, see Done section]
 Pressing E after bumping an NPC kept reporting "Nobody to talk to here."
 even right after the bump. The `block_npc` memory covers the bump-then-E
 path, but any successful step clears it, and `adjacent_npc` can miss a
@@ -155,6 +155,20 @@ Pure Jesun.Code; verify with the CPython pump + a scripted adjacent-talk
 unit check.
 
 ## Done
+
+### 2026-10-10: E-to-talk reliability against wandering NPCs (roadmap item 13)
+Shipped. Decision: sticky bump memory by unique NPC id plus a 120-tick
+wander freeze on the bumped NPC. `G["bump_npc"]` (numeric `nid`, assigned at
+NPC creation in `mk_ov_npc` and dungeon gen) survives one successful step;
+`interact` falls back to the last bumped NPC within 4 tiles (Chebyshev)
+after `block_npc` and `adjacent_npc`; the memory clears on talk or map
+regen. Numeric ids because the interpreter's `is` is deep table equality.
+Pure Jesun.Code, no driver logic change (APP_VERSION 20261010a for cache
+bust). Verified: scripted repro failed pre-fix and talks post-fix; freeze
+scope, memory clearing, elder blessing via bump memory, unique nids;
+10,800-tick CPython pump zero exceptions; determinism byte-identical;
+Node+Pyodide bridge ALL GREEN, scene build avg 37.9ms/tick (budget 120ms).
+Next up: Enemy separation steering (item 6).
 
 ### 2026-10-08: Pause with P key and touch button (roadmap item 1)
 Shipped. `G["paused"]` freezes the tick pump: world clock, enemy AI,
