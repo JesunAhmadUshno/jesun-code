@@ -630,6 +630,51 @@
     animation: lmcs-bigwin .4s ease-in-out infinite alternate;
   }
   @keyframes lmcs-bigwin { from { transform: scale(1); } to { transform: scale(1.12); } }
+  /* ---- landmark casino blackjack v1 (second table game): the seat-toggle
+         chip picks SLOTS or CARDS while standing in the hall; the blackjack
+         panel is DOM only (zero draw calls): dealer row, player row, a status
+         readout, DEAL/HIT/STAND/DOUBLE/BET buttons, and a pay table. The
+         #bjchip mirrors #casinchip in the top-left stack (687px sits between
+         #heistchip 654px and the next chip, no overlap). ---- */
+  #casinobjsel {
+    position: absolute; bottom: 850px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #d8c890; font-size: 11px; letter-spacing: 2px;
+    font-weight: bold; padding: 8px 16px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #lmcobjpanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
+    padding: 14px 16px; display: none; text-align: center; z-index: 40;
+    user-select: none; -webkit-user-select: none;
+  }
+  #lmbj-title { color: #ffd24a; font-size: 15px; letter-spacing: 4px; font-weight: bold; margin-bottom: 8px; }
+  #lmbj-status { color: #cfe8d8; font-size: 14px; letter-spacing: 2px; min-height: 20px; margin-bottom: 8px; }
+  .lmbj-row { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; min-height: 64px; }
+  .lmbj-row::before { color: #8b937a; font-size: 10px; letter-spacing: 2px; align-self: center; }
+  #lmbj-dealer::before { content: 'DLR'; margin-right: 4px; }
+  #lmbj-player::before { content: 'YOU'; margin-right: 4px; }
+  .lmbj-card {
+    width: 44px; height: 62px; line-height: 62px; font-size: 20px; text-align: center;
+    background: #f2ede0; color: #1a1a1a; border-radius: 6px; border: 1px solid #c9a227;
+    font-weight: bold;
+  }
+  .lmbj-card.lmbj-red { color: #b02020; }
+  .lmbj-card.lmbj-down { background: #5a1f28; color: #c9a227; }
+  #lmbj-controls { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  #lmbj-controls button {
+    font-size: 13px; letter-spacing: 1px; font-weight: bold; padding: 10px 14px;
+    border-radius: 6px; border: 1px solid #c9a227; cursor: pointer;
+  }
+  #lmbj-bet { color: #ffd24a; background: #2a2416; }
+  #lmbj-deal, #lmbj-hit, #lmbj-stand { color: #0c0e0a; background: #ffd24a; }
+  #lmbj-double { color: #ffd24a; background: #5a1f28; }
+  #lmbj-pay { color: #8b937a; font-size: 10px; letter-spacing: 1px; line-height: 1.7; }
+  #bjchip {
+    position: absolute; top: 687px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
   /* ---- landmark fire station HUD (Phase 5): bearing chip mirrors
          #casinchip, stacked below it in the top-left stack (#casinchip owns
          588px; #firechip at 522px is the wildfire chip, a different system)
@@ -1053,6 +1098,8 @@
   <div id="casinchip"><span id="casinarr">^</span> <span id="casintxt"></span></div>
   <div id="casinohallhint"></div>
   <div id="casinoslothint"></div>
+  <div id="casinobjsel"></div>
+  <div id="bjchip"></div>
   <div id="lmcasinopanel">
     <div id="lmcs-title">ROYAL REELS</div>
     <div id="lmcs-reels">
@@ -1064,6 +1111,14 @@
     <div id="lmcs-controls"><button id="lmcs-bet">BET $10</button><button id="lmcs-spin">SPIN</button></div>
     <div id="lmcs-pay">3 WILD 50x &nbsp; 3 SEVENS 25x &nbsp; 3 OF A KIND 10x &nbsp; PAIR 2x<br>WILD SUBS FOR ALL &nbsp; 5 LINES</div>
     <div id="lmcs-bigwin"></div>
+  </div>
+  <div id="lmcobjpanel">
+    <div id="lmbj-title">BLACKJACK</div>
+    <div id="lmbj-status">BET $10</div>
+    <div class="lmbj-row" id="lmbj-dealer"></div>
+    <div class="lmbj-row" id="lmbj-player"></div>
+    <div id="lmbj-controls"><button id="lmbj-bet">BET $10</button><button id="lmbj-deal">DEAL</button><button id="lmbj-hit">HIT</button><button id="lmbj-stand">STAND</button><button id="lmbj-double">DOUBLE</button></div>
+    <div id="lmbj-pay">BLACKJACK PAYS 3:2 &nbsp; DEALER STANDS ON ALL 17s<br>DOUBLE: ONE CARD, BET DOUBLES &nbsp; PUSH REFUNDS BET</div>
   </div>
   <div id="firestchip"><span id="firestarr">^</span> <span id="firesttxt"></span></div>
   <div id="heistchip"></div>
@@ -8250,6 +8305,8 @@ const CASINOHALL = {
   inHall: false, hintEnter: false, sitOn: false, nearIdx: -1,
   doorX: 0, doorZ: 0,
   standX: 0, standZ: 0, seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the machines (-Z)
+  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0,          // the two table seats
+  seatKind: 'slots',                                          // 'slots' | 'bj': which seat E plays at
   seated: false,
   hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
   hallPos: new THREE.Vector3(),
@@ -8441,6 +8498,7 @@ function casinoSlotSit() {
   if (CASINOHALL.seated || !CASINOHALL.inHall) return;
   emoteCancel();   // no emotes while gambling
   CASINOHALL.seated = true; CASINOHALL.sitOn = false;
+  CASINOHALL.seatX = CASINOHALL.slotSeatX; CASINOHALL.seatZ = CASINOHALL.slotSeatZ; CASINOHALL.seatYaw = Math.PI;
   CASINOSLOT.playing = true; CASINOSLOT.betIdx = 1; CASINOSLOT.spins = 0;
   CASINOSLOT.spinning = false; CASINOSLOT.lastWin = 0;
   player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
@@ -8469,12 +8527,13 @@ function casinoSlotStand() {
   helpEl.innerHTML = HELP_CASINOHALL;
   sfxBlip(330, 0.09, 'square', 0.18);
 }
-/* E inside the hall: sit, then stand and exit. One press per step, always
-   outward: E never traps. Mirrors the theater showOn flip. */
+/* E inside the hall: sit at the selected seat, then stand and exit. One press
+   per step, always outward: E never traps. Mirrors the theater showOn flip. */
 function casinoHallKeyE() {
   if (!CASINOHALL.inHall) return;
   if (CASINOSLOT.playing) { casinoSlotStand(); casinoHallExit(); }
-  else if (CASINOHALL.sitOn) casinoSlotSit();
+  else if (CASINOBJ.playing) { casinoBjStand(); casinoHallExit(); }
+  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else casinoSlotSit(); }
   else casinoHallExit();
 }
 function casinoHallEnter() {
@@ -8494,7 +8553,9 @@ function casinoHallEnter() {
   CASINOHALL.hintEnter = false; casinohallhintEl.style.opacity = 0;   // door prompt off: E now plays
   CASINOHALL.doorX = player.position.x; CASINOHALL.doorZ = player.position.z;
   CASINOHALL.standX = a.x; CASINOHALL.standZ = a.z + 2;
-  CASINOHALL.seatX = a.x - 6.75; CASINOHALL.seatZ = a.z - 6.0; CASINOHALL.seatYaw = Math.PI;
+  CASINOHALL.slotSeatX = a.x - 6.75; CASINOHALL.slotSeatZ = a.z - 6.0;   // slots face the machines (-Z)
+  CASINOHALL.bjSeatX = a.x - 6; CASINOHALL.bjSeatZ = a.z + 1.7;          // cards: the west card table chair
+  CASINOHALL.seatX = CASINOHALL.slotSeatX; CASINOHALL.seatZ = CASINOHALL.slotSeatZ; CASINOHALL.seatYaw = Math.PI;
   CASINOHALL.hallPos.set(a.x, CASINO_ROOM_Y, a.z - 6.0);
   player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
   player.rotation.y = CASINOHALL.seatYaw;
@@ -8538,11 +8599,13 @@ function casinoHallEnter() {
 }
 function casinoHallExit() {
   if (!CASINOHALL.inHall) return;
-  if (CASINOHALL.seated) casinoSlotStand();
+  if (CASINOHALL.seated) { if (CASINOBJ.playing) casinoBjStand(); else casinoSlotStand(); }
   CASINOHALL.inHall = false; CASINOHALL.sitOn = false; CASINOHALL.nearIdx = -1;
   casinoHallMesh.visible = false;
   casinoslothintEl.style.opacity = 0;
+  casinobjselEl.style.opacity = 0;
   lmcsPanelEl.style.display = 'none';
+  bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
@@ -8556,14 +8619,16 @@ function casinoHallExit() {
   toast('ON FOOT');
   sfxBlip(330, 0.09, 'square', 0.18);
 }
-const HELP_CASINOHALL = '<b>E</b> play/exit &nbsp; <b>TOUCH</b> tap play/exit';
+const HELP_CASINOHALL = '<b>E</b> play/exit &nbsp; <b>Q</b> switch table &nbsp; <b>TOUCH</b> tap play/exit';
 const HELP_LMCS = '<b>SPIN</b> play &nbsp; <b>E</b> exit &nbsp; <b>TOUCH</b> tap SPIN';
 function casinoHallTick(dt) {
   if (!playing() || P.dead) {
-    if (CASINOHALL.inHall) casinoHallExit();   // death always ejects: no slots while dead
+    if (CASINOHALL.inHall) casinoHallExit();   // death always ejects: no gambling while dead
     CASINOHALL.hintEnter = false; casinohallhintEl.style.opacity = 0;
     CASINOSLOT.playing = false; casinoslothintEl.style.opacity = 0;
+    CASINOBJ.playing = false; casinobjselEl.style.opacity = 0;
     lmcsPanelEl.style.display = 'none';
+    bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
     casinChipEl.style.display = 'none';
     return;
   }
@@ -8599,11 +8664,17 @@ function casinoHallTick(dt) {
     firesthallhintEl.style.opacity = 0; firestbayhintEl.style.opacity = 0; firestpolehintEl.style.opacity = 0;
     if (CASINOHALL.tickT >= 0.25) {
       CASINOHALL.tickT = 0;
-      const playTxt = IS_TOUCH ? 'TAP TO PLAY' : 'PLAY SLOTS [E]';
+      const playSlots = IS_TOUCH ? 'TAP TO PLAY SLOTS' : 'PLAY SLOTS [E]';
+      const playCards = IS_TOUCH ? 'TAP TO PLAY CARDS' : 'PLAY CARDS [E]';
+      const playTxt = CASINOHALL.seatKind === 'bj' ? playCards : playSlots;
       const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
       const txt = CASINOHALL.seated ? exitTxt : (CASINOHALL.sitOn ? playTxt : exitTxt);
       if (casinoslothintEl.textContent !== txt) casinoslothintEl.textContent = txt;
       casinoslothintEl.style.opacity = 1;
+      /* seat toggle chip (touch-friendly): which table E plays at next */
+      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS');
+      if (casinobjselEl.textContent !== selTxt) casinobjselEl.textContent = selTxt;
+      casinobjselEl.style.opacity = CASINOHALL.seated ? 0 : 1;
     }
     lmcsUpdate(dt);   // reel animation + big-win overlay timer
     casinChipEl.style.display = 'none';
@@ -8653,6 +8724,235 @@ function casinoHallTick(dt) {
     } else casinChipEl.style.display = 'none';
   }
 }
+/* ---- landmark casino: BLACKJACK v1, the second table game in the gaming
+        hall. An honest 52-card shoe on the seeded-RNG idiom only (no unseeded
+        randomness, no rigging, no weighted outcomes): one Fisher-Yates stream per shoe,
+        seeded from the casino hash space (6502) and the hand count, exactly
+        like the slot's per-spin stream. Reshuffle when fewer than 15 cards
+        remain. Dealer hits to 16 and stands on all 17s. Blackjack pays 3:2,
+        a win pays 1:1, a push refunds the bet. DOUBLE: one extra card, the
+        bet doubles, then the hand stands. E sits at the card table, E stands
+        and exits (never traps). Q (or the TABLE chip) picks the seat: slots
+        or cards. DOM panel only: zero draw calls, zero new lights. Session
+        only: standing up resets the table; the save schema is untouched. ---- */
+const BJ_BETS = [5, 10, 25];
+const BJ_SUIT_CH = ['\u2660', '\u2665', '\u2666', '\u2663'];   // spades hearts diamonds clubs
+const BJ_RANK_CH = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const CASINOBJ = {
+  playing: false, betIdx: 1, hands: 0,
+  shoe: [], phase: 'idle',          // idle | player | dealer | done
+  player: [], dealer: [],           // card ids 0..51
+  bet: 0, doubled: false, lastDelta: 0,
+};
+function bjRank(c) { return (c % 13) + 1; }           // 1..13, 1 = ace
+function bjSuit(c) { return Math.floor(c / 13); }     // 0..3: S H D C
+function bjIsRed(c) { const s = bjSuit(c); return s === 1 || s === 2; }
+function bjCardStr(c) { return BJ_RANK_CH[bjRank(c) - 1] + BJ_SUIT_CH[bjSuit(c)]; }
+function bjHandValue(hand) {
+  let total = 0, aces = 0;
+  for (const c of hand) { if (bjRank(c) === 1) { aces++; total += 1; } else total += Math.min(bjRank(c), 10); }
+  while (aces > 0 && total + 10 <= 21) { total += 10; aces--; }   // a soft ace counts 11 when it fits
+  return total;
+}
+/* Fisher-Yates on the seeded idiom: deterministic for a given seed, a full
+   honest 52 every shuffle. */
+function bjBuildShoe(seed) {
+  const shoe = [];
+  for (let i = 0; i < 52; i++) shoe.push(i);
+  const r = mulberry32(seed >>> 0);
+  for (let i = 51; i > 0; i--) { const j = Math.floor(r() * (i + 1)); const t = shoe[i]; shoe[i] = shoe[j]; shoe[j] = t; }
+  return shoe;
+}
+function bjShoeSeed() { return (hash2i(6502, 77) ^ (CASINOBJ.hands * 0x9e3779b9)) >>> 0; }
+function bjDraw() {
+  if (CASINOBJ.shoe.length === 0) CASINOBJ.shoe = bjBuildShoe(bjShoeSeed());   // safety net, never hit in play
+  return CASINOBJ.shoe.pop();
+}
+function bjOutcome() {
+  const pv = bjHandValue(CASINOBJ.player), dv = bjHandValue(CASINOBJ.dealer);
+  const pBJ = CASINOBJ.player.length === 2 && pv === 21;
+  const dBJ = CASINOBJ.dealer.length === 2 && dv === 21;
+  if (pBJ && dBJ) return 'push';
+  if (pBJ) return 'blackjack';
+  if (dBJ) return 'dealer-blackjack';
+  if (pv > 21) return 'bust';
+  if (dv > 21) return 'dealer-bust';
+  if (pv > dv) return 'win';
+  if (pv < dv) return 'loss';
+  return 'push';
+}
+/* net delta on top of the returned stake: blackjack 3:2, win 1:1, push 0. */
+function bjNetFor(out, bet) {
+  if (out === 'blackjack') return Math.floor(bet * 1.5);
+  if (out === 'win' || out === 'dealer-bust') return bet;
+  if (out === 'loss' || out === 'bust' || out === 'dealer-blackjack') return -bet;
+  return 0;
+}
+function bjCoin() {   // small-win chime: the lmcsCoin setTimeout idiom
+  sfxBlip(1318, 0.09, 'square', 0.18);
+  setTimeout(() => sfxBlip(1760, 0.12, 'square', 0.18), 110);
+}
+function bjFanfare() {   // big-win riff: the lmcsFanfare idiom
+  const notes = [523, 659, 784, 1047, 1318];
+  notes.forEach((f, i) => setTimeout(() => sfxBlip(f, 0.16, 'triangle', 0.22), i * 130));
+}
+function bjThud() { sfxBlip(196, 0.15, 'sawtooth', 0.2); }   // bust / loss knock
+function bjResolve() {
+  CASINOBJ.phase = 'done';
+  const bet = CASINOBJ.bet, out = bjOutcome(), net = bjNetFor(out, bet);
+  CASINOBJ.lastDelta = net;
+  cash += bet + net; updateCashHUD();            // the cash idiom: stake back plus net
+  if (net > 0) floatCash('+$' + net); else if (net < 0) floatCash('-$' + (-net));
+  if (out === 'blackjack') { bjFanfare(); toast('BLACKJACK +$' + net); }
+  else if (out === 'dealer-bust') { bjCoin(); toast('DEALER BUST +$' + net); }
+  else if (out === 'win') { bjCoin(); toast('WIN +$' + net); }
+  else if (out === 'push') { sfxBlip(520, 0.1, 'triangle', 0.16); toast('PUSH - BET BACK'); }
+  else if (out === 'dealer-blackjack') { bjThud(); toast('DEALER BLACKJACK -$' + (-net)); }
+  else { bjThud(); toast('BUST -$' + (-net)); }
+  bjRender();
+}
+function bjDeal() {
+  if (!CASINOBJ.playing || CASINOBJ.phase !== 'idle') return;
+  const bet = BJ_BETS[CASINOBJ.betIdx];
+  if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
+  cash -= bet; updateCashHUD(); floatCash('-$' + bet);            // the cash idiom
+  CASINOBJ.hands++;
+  CASINOBJ.bet = bet; CASINOBJ.doubled = false; CASINOBJ.lastDelta = 0;
+  if (CASINOBJ.shoe.length < 15) {   // reshuffle point: a fresh honest shoe
+    CASINOBJ.shoe = bjBuildShoe(bjShoeSeed());
+    toast('SHUFFLING');
+  }
+  CASINOBJ.player = [bjDraw(), bjDraw()];
+  CASINOBJ.dealer = [bjDraw(), bjDraw()];
+  if (bjHandValue(CASINOBJ.player) === 21 || bjHandValue(CASINOBJ.dealer) === 21) bjResolve();   // naturals settle at once
+  else { CASINOBJ.phase = 'player'; toast('BET PLACED $' + bet); sfxBlip(880, 0.07, 'square', 0.16); }
+  bjRender();
+}
+function bjHit() {
+  if (!CASINOBJ.playing || CASINOBJ.phase !== 'player') return;
+  CASINOBJ.player.push(bjDraw());
+  sfxBlip(700, 0.06, 'square', 0.14);
+  const v = bjHandValue(CASINOBJ.player);
+  if (v > 21) bjResolve();        // bust
+  else if (v === 21) bjStand();   // auto-stand on 21
+  else bjRender();
+}
+function bjStand() {
+  if (!CASINOBJ.playing || CASINOBJ.phase !== 'player') return;
+  CASINOBJ.phase = 'dealer';
+  while (bjHandValue(CASINOBJ.dealer) < 17) CASINOBJ.dealer.push(bjDraw());   // dealer hits to 16, stands on all 17s
+  sfxBlip(500, 0.08, 'square', 0.14);
+  bjResolve();
+}
+function bjDouble() {
+  if (!CASINOBJ.playing || CASINOBJ.phase !== 'player' || CASINOBJ.player.length !== 2) return;
+  if (cash < CASINOBJ.bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
+  cash -= CASINOBJ.bet; updateCashHUD(); floatCash('-$' + CASINOBJ.bet);   // the stake doubles
+  CASINOBJ.bet *= 2; CASINOBJ.doubled = true;
+  CASINOBJ.player.push(bjDraw());
+  sfxBlip(990, 0.08, 'square', 0.16);
+  toast('DOUBLED TO $' + CASINOBJ.bet);
+  if (bjHandValue(CASINOBJ.player) > 21) bjResolve();   // bust on the double card
+  else bjStand();                                       // one card, then stands
+}
+function bjCycleBet() {
+  if (!CASINOBJ.playing || CASINOBJ.phase !== 'idle') return;
+  CASINOBJ.betIdx = (CASINOBJ.betIdx + 1) % BJ_BETS.length;
+  const b = BJ_BETS[CASINOBJ.betIdx];
+  bjBetEl.textContent = 'BET $' + b;
+  bjStatusEl.textContent = 'BET $' + b;
+  sfxBlip(990, 0.07, 'square', 0.16);
+}
+function bjCardEl(c, down) {
+  const d = document.createElement('div');
+  d.className = 'lmbj-card' + (down ? ' lmbj-down' : '') + (!down && bjIsRed(c) ? ' lmbj-red' : '');
+  d.textContent = down ? '?' : bjCardStr(c);
+  return d;
+}
+function bjRender() {
+  bjDealerEl.innerHTML = '';
+  bjPlayerEl.innerHTML = '';
+  const done = CASINOBJ.phase === 'done';
+  for (let i = 0; i < CASINOBJ.dealer.length; i++)
+    bjDealerEl.appendChild(bjCardEl(CASINOBJ.dealer[i], i === 1 && !done));   // the hole card stays down until the hand ends
+  for (const c of CASINOBJ.player) bjPlayerEl.appendChild(bjCardEl(c, false));
+  const pv = bjHandValue(CASINOBJ.player), dv = bjHandValue(CASINOBJ.dealer);
+  let st;
+  if (CASINOBJ.phase === 'idle') st = 'BET $' + BJ_BETS[CASINOBJ.betIdx];
+  else if (CASINOBJ.phase === 'player') st = 'YOU ' + pv + ' - DEALER ' + bjHandValue([CASINOBJ.dealer[0]]) + ' UP';
+  else if (CASINOBJ.phase === 'done') st = 'YOU ' + pv + ' - DEALER ' + dv;
+  else st = 'DEALER ' + dv;
+  bjStatusEl.textContent = st;
+  /* the HUD status chip (the chip idiom): hand state plus the last balance delta */
+  const delta = CASINOBJ.lastDelta;
+  bjChipEl.textContent = 'BJ ' + st + (delta !== 0 ? ' | ' + (delta > 0 ? '+$' : '-$') + Math.abs(delta) : '');
+  bjChipEl.style.display = CASINOBJ.playing ? 'block' : 'none';
+}
+function casinoSeatToggle() {
+  if (!CASINOHALL.inHall || CASINOHALL.seated) return;
+  CASINOHALL.seatKind = CASINOHALL.seatKind === 'bj' ? 'slots' : 'bj';
+  sfxBlip(760, 0.06, 'square', 0.14);
+}
+function casinoBjSit() {
+  if (CASINOHALL.seated || !CASINOHALL.inHall) return;
+  emoteCancel();   // no emotes while gambling
+  CASINOHALL.seated = true; CASINOHALL.sitOn = false;
+  CASINOHALL.seatX = CASINOHALL.bjSeatX; CASINOHALL.seatZ = CASINOHALL.bjSeatZ; CASINOHALL.seatYaw = 0;   // face the table (+Z)
+  CASINOBJ.playing = true; CASINOBJ.betIdx = 1; CASINOBJ.hands = 0;
+  CASINOBJ.shoe = bjBuildShoe(bjShoeSeed());
+  CASINOBJ.phase = 'idle'; CASINOBJ.player = []; CASINOBJ.dealer = [];
+  CASINOBJ.bet = 0; CASINOBJ.doubled = false; CASINOBJ.lastDelta = 0;
+  player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
+  player.rotation.y = CASINOHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  bjBetEl.textContent = 'BET $' + BJ_BETS[CASINOBJ.betIdx];
+  bjRender();
+  bjPanelEl.style.display = 'block';
+  casinoslothintEl.style.opacity = 0; casinobjselEl.style.opacity = 0;
+  helpEl.innerHTML = HELP_LMBJ;
+  toast('BLACKJACK');
+  sfxBlip(660, 0.09, 'triangle', 0.2);
+}
+function casinoBjStand() {
+  if (!CASINOHALL.seated) return;
+  CASINOHALL.seated = false; CASINOHALL.sitOn = false;
+  CASINOBJ.playing = false; CASINOBJ.phase = 'idle';
+  CASINOBJ.player = []; CASINOBJ.dealer = []; CASINOBJ.bet = 0; CASINOBJ.shoe = [];
+  bjPanelEl.style.display = 'none';
+  bjChipEl.style.display = 'none';
+  player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  helpEl.innerHTML = HELP_CASINOHALL;
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+const casinobjselEl = document.getElementById('casinobjsel');
+const bjPanelEl = document.getElementById('lmcobjpanel');
+const bjStatusEl = document.getElementById('lmbj-status');
+const bjDealerEl = document.getElementById('lmbj-dealer');
+const bjPlayerEl = document.getElementById('lmbj-player');
+const bjBetEl = document.getElementById('lmbj-bet');
+const bjDealEl = document.getElementById('lmbj-deal');
+const bjHitEl = document.getElementById('lmbj-hit');
+const bjStandEl = document.getElementById('lmbj-stand');
+const bjDoubleEl = document.getElementById('lmbj-double');
+const bjChipEl = document.getElementById('bjchip');
+casinobjselEl.addEventListener('click', () => { casinoSeatToggle(); });
+function bjBetBtn(e) { e.preventDefault(); e.stopPropagation(); bjCycleBet(); }   // the touch-guard idiom
+bjBetEl.addEventListener('touchstart', bjBetBtn, { passive: false });
+bjBetEl.addEventListener('click', bjBetBtn);
+function bjDealBtn(e) { e.preventDefault(); e.stopPropagation(); bjDeal(); }
+bjDealEl.addEventListener('touchstart', bjDealBtn, { passive: false });
+bjDealEl.addEventListener('click', bjDealBtn);
+function bjHitBtn(e) { e.preventDefault(); e.stopPropagation(); bjHit(); }
+bjHitEl.addEventListener('touchstart', bjHitBtn, { passive: false });
+bjHitEl.addEventListener('click', bjHitBtn);
+function bjStandBtn(e) { e.preventDefault(); e.stopPropagation(); bjStand(); }
+bjStandEl.addEventListener('touchstart', bjStandBtn, { passive: false });
+bjStandEl.addEventListener('click', bjStandBtn);
+function bjDoubleBtn(e) { e.preventDefault(); e.stopPropagation(); bjDouble(); }
+bjDoubleEl.addEventListener('touchstart', bjDoubleBtn, { passive: false });
+bjDoubleEl.addEventListener('click', bjDoubleBtn);
+const HELP_LMBJ = '<b>DEAL</b> play &nbsp; <b>HIT</b>/<b>STAND</b>/<b>DOUBLE</b> &nbsp; <b>E</b> exit &nbsp; <b>TOUCH</b> tap the buttons';
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(casinoHallTick));
 
@@ -11333,6 +11633,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
+  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots or cards
   if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (FIRESTHALL.hintEnter) firestHallEnter(); else if (FIRESTHALL.inHall) firestHallKeyE(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');

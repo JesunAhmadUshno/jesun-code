@@ -148,6 +148,14 @@ globalThis.__R3D = {
   casinohallhintEl, casinoslothintEl, casinChipEl, casinTxtEl, casinArrEl,
   lmcsPanelEl, lmcsWinEl, lmcsSpinEl, lmcsBetEl, lmcsBigWinEl,
   HELP_CASINOHALL, HELP_LMCS,
+  /* Phase 5 landmark casino blackjack v1 (second table game) */
+  CASINOBJ, casinoBjSit, casinoBjStand, casinoSeatToggle,
+  bjRank, bjSuit, bjIsRed, bjCardStr, bjHandValue, bjBuildShoe, bjShoeSeed, bjDraw,
+  bjOutcome, bjNetFor, bjDeal, bjHit, bjStand, bjDouble, bjCycleBet, bjResolve, bjRender,
+  bjCoin, bjFanfare, bjThud, bjCardEl,
+  casinobjselEl, bjPanelEl, bjStatusEl, bjDealerEl, bjPlayerEl,
+  bjBetEl, bjDealEl, bjHitEl, bjStandEl, bjDoubleEl, bjChipEl,
+  BJ_BETS, BJ_SUIT_CH, BJ_RANK_CH, HELP_LMBJ,
   LMCASINO_COL, LMCAS_R, LMCAS_SEGS, LMCAS_GATE_K, LMCAS_CHIP_R2, LMCAS_DOOR, LMCAS_DOOR_R2,
   CASINO_ROOM_Y, LMCS_BETS, LMCS_SYMS, LMCS_WILD, LMCS_SEVEN, LMCS_LINES, LMCS_TAPE, LMCS_OUT_AT,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
@@ -6525,6 +6533,208 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.player.position.set(0, groundY(0, 0), 0);
     G.FT.routeKey = ''; G.FT.driving = false; G.ftRebuild(0, 0);
   }
+}
+
+/* ================= PHASE 5: LANDMARK CASINO BLACKJACK v1 =================
+   The second table game in the gaming hall: an honest 52-card shoe on the
+   seeded-RNG idiom, E to sit at the card table, E to stand and exit,
+   DEAL/HIT/STAND/DOUBLE/BET buttons, 3:2 blackjack, dealer stands on all 17s. */
+{
+  /* --- static pins: zero new draw calls, zero new RNG, zero new keybinds --- */
+  const bjSrc = html.slice(
+    html.indexOf('/* ---- landmark casino: BLACKJACK v1'),
+    html.indexOf('/* ================= PHASE 5: LANDMARK FIRE STATION v1'));
+  check('bj-static: blackjack block creates no THREE objects (DOM panel only, zero draw calls)',
+    bjSrc.length > 5000 && !/new THREE\./.test(bjSrc), bjSrc.length + ' chars');
+  check('bj-static: no unseeded RNG in the blackjack block', !/Math\.random/.test(bjSrc));
+  check('bj-static: no em dashes in the blackjack block', !bjSrc.includes('—'));
+  check('bj-static: no external URLs in the blackjack block', !/https?:\/\//.test(bjSrc));
+  check('bj-static: no TODO markers in the blackjack block', !/\bTODO\b/.test(bjSrc));
+  check('bj-static: whole-file InstancedMesh literals still pin at 48',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('bj-static: Math.random lines still pin at 92',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
+  check('bj-static: single keydown listener (Q rides the existing one)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1
+    && html.includes("if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated)"));
+  check('bj-static: single renderer.render call site',
+    (html.match(/renderer\.render\(/g) || []).length === 1);
+  check('bj-static: #bjchip pins its own top-left slot (no chip overlap)',
+    html.includes('#bjchip {') && html.includes('top: 687px'));
+
+  /* --- pure math: shoe, hand values, payout table --- */
+  const s1 = G.bjBuildShoe(12345), s2 = G.bjBuildShoe(12345), s3 = G.bjBuildShoe(999);
+  check('bj: the shoe holds 52 cards', s1.length === 52);
+  check('bj: the shoe holds 52 unique cards', new Set(s1).size === 52);
+  check('bj: the shoe covers the full deck', s1.every(c => c >= 0 && c < 52));
+  check('bj: the shoe is deterministic per seed', s1.every((c, i) => c === s2[i]));
+  check('bj: the shoe differs across seeds', !s1.every((c, i) => c === s3[i]));
+  check('bj: ace + ten = 21', G.bjHandValue([0, 9]) === 21);                    // A + 10
+  check('bj: a soft ace drops to 1 under pressure', G.bjHandValue([0, 9, 4]) === 16);   // A + 10 + 5
+  check('bj: two aces = 12', G.bjHandValue([0, 13]) === 12);                    // A + A
+  check('bj: face cards count 10', G.bjHandValue([10, 11]) === 20);             // J + Q
+  check('bj: hard 17', G.bjHandValue([9, 6]) === 17);                           // 10 + 7
+  check('bj: bust detected past 21', G.bjHandValue([9, 9, 9]) === 30);
+  check('bj: blackjack nets 3:2 ($10 bet -> +$15)', G.bjNetFor('blackjack', 10) === 15);
+  check('bj: win nets 1:1 ($10 bet -> +$10)', G.bjNetFor('win', 10) === 10);
+  check('bj: dealer bust nets 1:1 ($25 bet -> +$25)', G.bjNetFor('dealer-bust', 25) === 25);
+  check('bj: loss nets the stake', G.bjNetFor('loss', 10) === -10);
+  check('bj: player bust nets the stake', G.bjNetFor('bust', 25) === -25);
+  check('bj: dealer blackjack nets the stake', G.bjNetFor('dealer-blackjack', 10) === -10);
+  check('bj: push nets $0', G.bjNetFor('push', 10) === 0);
+
+  /* --- enter the hall and pick the card table --- */
+  let bjcd = null;
+  bjouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'casino') { bjcd = a; break bjouter; }
+    }
+  check('bj: a seeded casino chunk exists in the scan window', !!bjcd);
+  const probsB = consoleProblems.length;
+  G.P.dead = false; G.P.godT = 0;
+  const bjdoor = G.casinoHallDoorWorld(bjcd);
+  G.player.position.set(bjdoor.x, groundY(bjdoor.x, bjdoor.z), bjdoor.z);
+  frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
+  G.closeShop(); G.casinoHallEnter();
+  check('bj: ENTER teleports into the cached hall',
+    G.CASINOHALL.inHall === true && G.player.position.y === G.CASINO_ROOM_Y,
+    'inHall=' + G.CASINOHALL.inHall);
+  stubs.fireGlobal('keydown', { code: 'KeyQ', preventDefault() {} });
+  check('bj: KeyQ toggles the seat to the card table', G.CASINOHALL.seatKind === 'bj');
+  frame(20);
+  check('bj: PLAY CARDS prompt shows inside',
+    G.casinoslothintEl.style.opacity == 1 && /PLAY CARDS/.test(G.casinoslothintEl.textContent),
+    G.casinoslothintEl.textContent);
+  check('bj: the toggle chip names the seat',
+    /TABLE: CARDS/.test(G.casinobjselEl.textContent), G.casinobjselEl.textContent);
+
+  /* --- E key wiring: E sits at the card table, E stands and exits --- */
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('bj: KeyE sits at the card table (panel opens)',
+    G.CASINOHALL.seated === true && G.CASINOBJ.playing === true
+    && G.bjPanelEl.style.display === 'block',
+    'seated=' + G.CASINOHALL.seated);
+  check('bj: sit parks the player at the card-table seat',
+    Math.abs(G.player.position.x - G.CASINOHALL.bjSeatX) < 0.01
+    && Math.abs(G.player.position.z - G.CASINOHALL.bjSeatZ) < 0.01,
+    'x=' + G.player.position.x.toFixed(2) + ' z=' + G.player.position.z.toFixed(2));
+  check('bj: sit builds a fresh honest shoe',
+    G.CASINOBJ.shoe.length === 52 && new Set(G.CASINOBJ.shoe).size === 52,
+    'shoe=' + G.CASINOBJ.shoe.length);
+  check('bj: the status chip shows while playing',
+    G.bjChipEl.style.display === 'block' && /^BJ /.test(G.bjChipEl.textContent),
+    G.bjChipEl.textContent);
+
+  /* --- BET cycles 10 -> 25 -> 5 --- */
+  G.bjCycleBet();
+  check('bj: BET cycles 10 -> 25', G.BJ_BETS[G.CASINOBJ.betIdx] === 25);
+  G.bjCycleBet();
+  check('bj: BET cycles 25 -> 5', G.BJ_BETS[G.CASINOBJ.betIdx] === 5);
+  G.CASINOBJ.betIdx = 1;
+
+  /* --- insufficient funds: denied the deal, never trapped --- */
+  G.cash = 3;
+  G.bjDeal();
+  check('bj: a broke player is denied the deal (cash untouched, still idle)',
+    G.cash === 3 && G.CASINOBJ.phase === 'idle' && G.CASINOBJ.playing === true,
+    'cash=' + G.cash);
+
+  /* --- reshuffle trigger: a shoe under 15 rebuilds to a full deck at deal --- */
+  G.cash = 100; G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = [1, 2, 3];
+  G.bjDeal();
+  check('bj: the shoe reshuffles under 15 cards',
+    G.CASINOBJ.shoe.length === 48 && G.CASINOBJ.player.length === 2 && G.CASINOBJ.dealer.length === 2,
+    'shoe=' + G.CASINOBJ.shoe.length);
+
+  /* --- DEAL debits the $10 bet (rigged non-natural shoe) --- */
+  G.cash = 100; G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = new Array(11).fill(0).concat([5, 7, 8, 9]);   // pops: 9,8 (player 19), 7,5 (dealer 12)
+  G.bjDeal();
+  check('bj: DEAL debits the $10 bet',
+    G.cash === 90 && G.CASINOBJ.bet === 10 && G.CASINOBJ.phase === 'player', 'cash=' + G.cash);
+
+  /* --- natural blackjack: 3:2 pays +$15 on the $10 bet --- */
+  G.CASINOBJ.player = [0, 12];   // A + K
+  G.CASINOBJ.dealer = [9, 8];    // 10 + 9
+  G.bjResolve();
+  check('bj: natural blackjack pays 3:2 (+$15 on $10)',
+    G.cash === 115 && G.CASINOBJ.lastDelta === 15 && G.CASINOBJ.phase === 'done',
+    'cash=' + G.cash);
+
+  /* --- push refunds the bet --- */
+  G.cash = 100; G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = new Array(15).fill(0);   // aces only: no naturals at deal
+  G.bjDeal();
+  G.CASINOBJ.player = [9, 8]; G.CASINOBJ.dealer = [22, 21];   // 19 vs 19
+  G.bjResolve();
+  check('bj: push refunds the bet',
+    G.cash === 100 && G.CASINOBJ.lastDelta === 0, 'cash=' + G.cash);
+
+  /* --- DOUBLE: the bet doubles, exactly one card, then stands; dealer bust pays 1:1 on $20 --- */
+  G.cash = 100; G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = new Array(9).fill(0).concat([6, 9, 5, 9, 5, 4]);   // pops: 4,5 (p 11), 9,5 (d 16), 9 (dbl), 6 (dlr)
+  G.bjDeal();
+  check('bj: DOUBLE setup deals player 11 vs dealer 16',
+    G.bjHandValue(G.CASINOBJ.player) === 11 && G.bjHandValue(G.CASINOBJ.dealer) === 16
+    && G.CASINOBJ.phase === 'player',
+    'p=' + G.CASINOBJ.player + ' d=' + G.CASINOBJ.dealer);
+  G.bjDouble();
+  check('bj: DOUBLE doubles the bet', G.CASINOBJ.bet === 20 && G.CASINOBJ.doubled === true);
+  check('bj: DOUBLE deals exactly one card then stands',
+    G.CASINOBJ.player.length === 3 && G.CASINOBJ.phase === 'done',
+    'cards=' + G.CASINOBJ.player.length);
+  check('bj: the doubled win pays 1:1 on $20 (dealer busts)',
+    G.cash === 120 && G.CASINOBJ.lastDelta === 20, 'cash=' + G.cash);
+
+  /* --- the dealer stands on soft 17 --- */
+  G.cash = 100; G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = new Array(11).fill(0).concat([5, 0, 8, 9]);   // pops: 9,8 (player 19), 0,5 (dealer soft 17)
+  G.bjDeal();
+  G.bjStand();
+  check('bj: the dealer stands on soft 17 (no draw)',
+    G.CASINOBJ.dealer.length === 2 && G.bjHandValue(G.CASINOBJ.dealer) === 17,
+    'd=' + G.CASINOBJ.dealer);
+  check('bj: player 19 beats dealer 17 (+$10)',
+    G.cash === 110 && G.CASINOBJ.lastDelta === 10, 'cash=' + G.cash);
+
+  /* --- the dealer hits hard 16 --- */
+  G.cash = 100; G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = new Array(10).fill(0).concat([9, 5, 5, 8, 9]);   // pops: 9,8 (player 19), 5,5 (dealer 16), 9 (hit)
+  G.bjDeal();
+  G.bjStand();
+  check('bj: the dealer hits hard 16 (draws)',
+    G.CASINOBJ.dealer.length === 3, 'd=' + G.CASINOBJ.dealer);
+  check('bj: the dealer busts on the hit (player wins +$10)',
+    G.cash === 110 && G.CASINOBJ.lastDelta === 10, 'cash=' + G.cash);
+
+  /* --- player bust loses the stake --- */
+  G.cash = 100; G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = new Array(10).fill(0).concat([9, 9, 9, 8, 9]);   // pops: 9,8 (player 19), 9,9 (dealer 18), 9 (hit)
+  G.bjDeal();
+  G.bjHit();
+  check('bj: a player bust ends the hand', G.CASINOBJ.phase === 'done');
+  check('bj: the bust loses the stake',
+    G.cash === 90 && G.CASINOBJ.lastDelta === -10, 'cash=' + G.cash);
+
+  /* --- E exits: stand up and leave the hall in one press --- */
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('bj: KeyE stands and exits (round trip complete)',
+    G.CASINOHALL.inHall === false && G.CASINOBJ.playing === false
+    && G.CASINOHALL.seated === false && G.bjPanelEl.style.display === 'none'
+    && G.bjChipEl.style.display === 'none');
+  const bjBackD = Math.hypot(G.player.position.x - G.CASINOHALL.doorX, G.player.position.z - G.CASINOHALL.doorZ);
+  check('bj: exit teleports back to the door', bjBackD < 0.01, 'd=' + bjBackD.toFixed(3));
+  check('bj: the round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsB, consoleProblems.slice(probsB).join(' | '));
+
+  /* leave the world as the next block expects: player at origin, FT rebuilt there */
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.FT.routeKey = ''; G.FT.driving = false; G.ftRebuild(0, 0);
 }
 
 /* ================= PHASE 5: FIRE TRUCK v1 + WILDFIRE EVENTS ================= */
