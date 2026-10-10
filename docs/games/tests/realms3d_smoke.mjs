@@ -196,6 +196,14 @@ globalThis.__R3D = {
   apartmentLease, apartmentTick, updateApartmentChip,
   apthintEl, aptChipEl, aptbearingEl, aptarrEl, apttxtEl, HELP_APARTMENT,
   THEATER_LX, THEATER_LZ,
+  /* Phase 5 fire truck v1 + wildfire events */
+  FT, ftEnter, ftExit, ftRebuild, ftPose, ftBodyIM, ftBodyMat, ftHintEl, HELP_FT,
+  ftSprayTick, writeSpraySegments, SPRAY_N, RAIN_N,
+  FIRES, WF, wildfireStrike, wildfireIgnite, wildfireSpread, wildfireTick, wildfireChunkReset,
+  fireChipEl, fireTxtEl, fireArrEl, ensureSiren,
+  get waterHeld() { return waterHeld; }, set waterHeld(v) { waterHeld = v; },
+  get sirOsc() { return sirOsc; },
+  FLORA,
 };
 `;
 writeFileSync(BOOT, src);
@@ -727,7 +735,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 46 IM literals (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 46, 'count=' + imCount);
+  check('perf6: 47 IM literals (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 47, 'count=' + imCount);
 
   /* PERF-6 merge regression: slot maps, Y-band lifts, identity colors */
   {
@@ -1229,8 +1237,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 46 IM literals (bike section)',
-    imCount2 === 46, 'count=' + imCount2);
+  check('perf6: 47 IM literals (bike section)',
+    imCount2 === 47, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1330,8 +1338,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 46 IM literals (bicycle section)',
-    imCount3 === 46, 'count=' + imCount3);
+  check('perf6: 47 IM literals (bicycle section)',
+    imCount3 === 47, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1432,8 +1440,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 46 IM literals (scooter section)',
-    imCount4 === 46, 'count=' + imCount4);
+  check('perf6: 47 IM literals (scooter section)',
+    imCount4 === 47, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1749,8 +1757,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 46 IM literals (wildlife5 section)',
-      imCount5 === 46, 'count=' + imCount5);
+    check('perf6: 47 IM literals (wildlife5 section)',
+      imCount5 === 47, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2098,8 +2106,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 46 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
-      n === 46 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf6: 47 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
+      n === 47 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2243,8 +2251,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('food-static: InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2473,8 +2481,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('farmv1-static: InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2845,8 +2853,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -3065,8 +3073,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3862,8 +3870,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('casino-static: no em dashes in the casino block', !casinoSrc.includes('\u2014'));
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
-  check('casino-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('casino-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('casino-static: 6 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet, apartment owns its fleet)',
     G.bldgMeshes.length === 6);
   check('casino-static: casino def shares the store fleet mesh',
@@ -3991,8 +3999,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('theater-static: no em dashes in the theater block', !theaterSrc.includes('\u2014'));
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
-  check('theater-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('theater-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',
@@ -4125,8 +4133,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('civic-static: no em dashes in the civic block', !civicSrc.includes('—'));
   check('civic-static: no external URLs in the civic block', !/https?:\/\//.test(civicSrc));
   check('civic-static: no TODO markers in the civic block', !/\bTODO\b/.test(civicSrc));
-  check('civic-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('civic-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
   check('civic-static: 6 runtime building meshes (house, barn, store, civic, worship, apartment)',
@@ -4402,8 +4410,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('stadium-static: no em dashes in the stadium block', !stadiumSrc.includes('—'));
   check('stadium-static: no external URLs in the stadium block', !/https?:\/\//.test(stadiumSrc));
   check('stadium-static: no TODO markers in the stadium block', !/\bTODO\b/.test(stadiumSrc));
-  check('stadium-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('stadium-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('stadium-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('stadium-static: audio nodes pin unchanged (17 osc, 30 gain: cheer reuses sfxBlip)',
@@ -4547,8 +4555,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('amuse-static: no em dashes in the amusement block', !amuseSrc.includes('—'));
   check('amuse-static: no external URLs in the amusement block', !/https?:\/\//.test(amuseSrc));
   check('amuse-static: no TODO markers in the amusement block', !/\bTODO\b/.test(amuseSrc));
-  check('amuse-static: whole-file IM literals pin at 46 (46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: amuse rides the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('amuse-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: amuse rides the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('amuse-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('amuse-static: audio nodes pin unchanged (17 osc, 30 gain: chimes reuse sfxBlip)',
@@ -5238,8 +5246,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmstad-static: no TODO markers in the stadium block', !/\bTODO\b/.test(lmstadSrc));
   check('lmstad-static: stad residue is checked after all existing amenity types (never displaces them)',
     html.indexOf("if (h % 10 === 6) return 'park';") < html.indexOf("if (h % 37 === 13) return 'stad';"));
-  check('lmstad-static: whole-file IM literals pin at 46 (46 = 42 + 4 lmause ride fleets; stad rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('lmstad-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; stad rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('lmstad-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmstad-static: single keydown listener (zero new keybinds)',
@@ -5381,8 +5389,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmause-static: no TODO markers in the park block', lmauseSrc.indexOf('TODO') === -1);
   check('lmause-static: amuse residue is checked after stad (never displaces existing types)',
     html.indexOf("if (h % 37 === 13) return 'stad';") < html.indexOf("if (h % 41 === 29) return 'amuse';"));
-  check('lmause-static: whole-file IM literals pin at 46 (42 + 4 ride fleets)',
-    (html.split('new THREE.InstancedMesh').length - 1) === 46);
+  check('lmause-static: whole-file IM literals pin at 47 (46 + 1 fire truck v1; 46 = 42 + 4 ride fleets)',
+    (html.split('new THREE.InstancedMesh').length - 1) === 47);
   check('lmause-static: Math.random lines pin at 92',
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
   check('lmause-static: single keydown listener (zero new keybinds)',
@@ -5611,8 +5619,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmhosp-static: no TODO markers in the hospital block', !/\bTODO\b/.test(lmhospSrc));
   check('lmhosp-static: hosp residue is checked after all existing amenity types (never displaces them)',
     html.indexOf("if (h % 41 === 29) return 'amuse';") < html.indexOf("if (h % 47 === 23) return 'hosp';"));
-  check('lmhosp-static: whole-file IM literals pin at 46 (46 = 42 + 4 lmause ride fleets; hosp rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('lmhosp-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; hosp rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('lmhosp-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmhosp-static: single keydown listener (zero new keybinds)',
@@ -5793,6 +5801,177 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     check('lmhosp: round trip leaves zero console errors/warnings',
       consoleProblems.length === probsH, consoleProblems.slice(probsH).join(' | '));
   }
+}
+
+/* ================= PHASE 5: FIRE TRUCK v1 + WILDFIRE EVENTS ================= */
+{
+  G.CAR.driving = false; G.HORSE.riding = false;
+  G.BUS.driving = false; G.BUS.riding = false; G.TX.riding = false;
+  G.FT.driving = false; G.waterHeld = false;
+  G.player.visible = true;
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0;   // godT blocks ftEnter + fire damage
+  G.player.position.set(0, groundY(0, 0), 0);
+  frame(3);   // ftRebuild seeds the truck at the anchor chunk
+
+  /* --- static pins: +1 InstancedMesh net, zero new lights, zero new RNG --- */
+  check('fire: one new InstancedMesh literal (46 -> 47): the truck fleet',
+    G.ftBodyIM.isInstancedMesh === true && G.ftBodyIM.count === 1);
+  check('fire: truck body is a single merged geometry (one draw call)',
+    G.ftBodyIM.geometry.isBufferGeometry === true);
+  check('fire: truck placed by seeded spawn near the anchor chunk',
+    G.FT.placed === true && Math.abs(G.FT.pos.x) < 500 && Math.abs(G.FT.pos.z) < 500,
+    'x=' + G.FT.pos.x.toFixed(1) + ' z=' + G.FT.pos.z.toFixed(1));
+  check('fire: beacon material is truck-private (emissive wash cannot leak to other fleets)',
+    G.ftBodyMat.emissiveIntensity === 0);
+  /* determinism on revisit: forced rebuild, identical pose */
+  const fpx = G.FT.pos.x, fpz = G.FT.pos.z, fph = G.FT.heading;
+  G.FT.anchorCx = 1e9; G.FT.anchorCz = 1e9; G.FT.routeKey = '';
+  frame(1);
+  check('fire: truck spawn is deterministic on rebuild',
+    Math.abs(G.FT.pos.x - fpx) < 1e-9 && Math.abs(G.FT.pos.z - fpz) < 1e-9
+    && Math.abs(G.FT.heading - fph) < 1e-9);
+  /* never yanked while driving; pin the truck by the player for the board test
+     (anchor pinned so the chunk rebuild cannot relocate it mid-test) */
+  const bpy = groundY(3, 0);
+  G.FT.pos.set(3, bpy, 0);
+  G.FT.heading = 0; G.FT.placed = true;
+  G.ftPose(3, bpy, 0, 0);
+  G.ftBodyIM.instanceMatrix.needsUpdate = true;
+  G.FT.anchorCx = 0; G.FT.anchorCz = 0; G.FT.routeKey = '0,0';
+  frame(1);
+  check('fire: board prompt shows on foot near the truck', G.FT.hintOn === true);
+
+  /* --- board / drive / spray / exit round trip --- */
+  G.ftEnter();
+  check('fire: E boards the truck (heli/plane idiom)', G.FT.driving === true && G.player.visible === false);
+  check('fire: siren nodes created once at board (two-tone idiom, zero new nodes)', G.sirOsc !== null);
+  G.keys.KeyW = true;
+  frame(30);
+  G.keys.KeyW = false;
+  check('fire: truck moves under throttle (CAR arcade idiom, truck tuning)',
+    Math.abs(G.FT.speed) > 0.5, 'speed=' + G.FT.speed.toFixed(2));
+  check('fire: beacon flashes while driving (alternating red/blue emissive, zero new lights)',
+    G.ftBodyMat.emissiveIntensity > 0);
+  check('fire: spray off without FIRE held', G.FT.spraying === false);
+  G.waterHeld = true;
+  frame(2);
+  check('fire: hold FIRE sprays while driving', G.FT.spraying === true);
+  G.waterHeld = false;
+  frame(1);
+  check('fire: spray stops when FIRE released', G.FT.spraying === false);
+  const ex = G.FT.pos.x, ez = G.FT.pos.z;
+  G.ftExit();
+  check('fire: E exits, driver restored beside the truck on safe ground',
+    G.FT.driving === false && G.player.visible === true
+    && Math.hypot(G.player.position.x - ex, G.player.position.z - ez) < 4
+    && groundY(G.player.position.x, G.player.position.z) >= -0.55);
+  check('fire: beacon off when parked', G.ftBodyMat.emissiveIntensity === 0);
+
+  /* --- wildfire: seeded ignition from a strike --- */
+  const trees = G.FLORA.trees;
+  const _m4 = new THREE.Matrix4(), _v3 = new THREE.Vector3(), _c = new THREE.Color();
+  // pick a deterministic tree >8m from the player that passes the seeded gate;
+  // the tree sits >=21m inside its chunk so the toast (20m) and damage (2m)
+  // player spots never cross a chunk edge (chunk recycle clears fires)
+  let ti = -1, tx = 0, tz = 0;
+  for (let i = 0; i < trees.count && ti < 0; i++) {
+    trees.getMatrixAt(i, _m4); _v3.setFromMatrixPosition(_m4);
+    const lx = _v3.x - Math.floor(_v3.x / 48) * 48;
+    if (lx < 21 || lx > 27) continue;
+    const pdx = _v3.x - G.player.position.x, pdz = _v3.z - G.player.position.z;
+    if (pdx * pdx + pdz * pdz < 64) continue;   // the never-on-the-player guard
+    const h = G.hash2i(Math.floor(_v3.x), Math.floor(_v3.z)) ^ G.hash2i(i, 7);
+    if ((h & 3) !== 0) { ti = i; tx = _v3.x; tz = _v3.z; }
+  }
+  check('fire: a seeded-ignitable tree exists in the fleet', ti >= 0, 'idx=' + ti);
+  // player 20m away: inside toast range (150m), outside the never-spawn radius
+  G.player.position.set(tx + 20, groundY(tx + 20, tz), tz);
+  frame(1);
+  const probsF = consoleProblems.length;
+  G.wildfireStrike(tx, tz);
+  check('fire: strike ignites the nearest tree within 15m (seeded)',
+    G.FIRES.length === 1 && G.FIRES[0].idx === ti, 'fires=' + G.FIRES.length);
+  check('fire: WILDFIRE toast on ignition within 150m', G.toastEl.textContent === 'WILDFIRE!');
+  check('fire: burn uses per-instance color on the tree fleet (zero new draw calls)',
+    trees.instanceColor !== null && trees.instanceColor !== undefined);
+  frame(60);   // 1s of burn
+  check('fire: fire ages and tints (orange pulse before char)',
+    G.FIRES.length === 1 && G.FIRES[0].t > 0.5);
+  trees.getColorAt(ti, _c);
+  check('fire: burning tree is tinted, not white', _c.r < 1.05 && (_c.g < 0.99 || _c.r > 0.5),
+    'rgb=' + _c.r.toFixed(2) + ',' + _c.g.toFixed(2) + ',' + _c.b.toFixed(2));
+
+  /* --- wildfire: damage at ~1/s inside 4m --- */
+  G.P.hp = 100;
+  G.player.position.set(tx + 2, groundY(tx + 2, tz), tz);   // inside 4m
+  frame(70);   // ~1.17s
+  check('fire: player takes ~1 dmg/s inside 4m', G.P.hp < 100 && G.P.hp > 90, 'hp=' + G.P.hp.toFixed(1));
+  G.player.position.set(tx + 20, groundY(tx + 20, tz), tz); // step out (same chunk)
+
+  /* --- wildfire: spread after ~15s (seeded), burnout after 60-90s --- */
+  G.FIRES[0].t = 16;
+  frame(2);
+  check('fire: spread pass runs after 15s', G.FIRES[0].spreadDone === true);
+  for (const f of G.FIRES) f.t = f.burnDur + 1;
+  frame(2);
+  check('fire: all fires burn out after their seeded 60-90s', G.FIRES.length === 0);
+
+  /* --- wildfire: water cannon extinguishes in the cone --- */
+  trees.getMatrixAt(ti, _m4); _v3.setFromMatrixPosition(_m4);
+  G.wildfireIgnite(ti, _v3.x, _v3.z);
+  // if the seeded gate rejected it, force a record for the cone test
+  if (G.FIRES.length === 0) G.FIRES.push({ idx: ti, x: _v3.x, z: _v3.z, t: 1, burnDur: 70, spreadDone: true, dmgT: 0, phase: 0 });
+  const fx2 = _v3.x, fz2 = _v3.z;
+  // park the truck 10m south of the fire, facing it; player first, then the
+  // anchor is pinned to the player's chunk so the rebuild cannot yank it
+  G.player.position.set(fx2 + 2, groundY(fx2 + 2, fz2 - 10), fz2 - 10);
+  const fpcx = Math.floor(G.player.position.x / 48), fpcz = Math.floor(G.player.position.z / 48);
+  G.FT.anchorCx = fpcx; G.FT.anchorCz = fpcz; G.FT.routeKey = fpcx + ',' + fpcz;
+  G.WF.anchorCx = fpcx; G.WF.anchorCz = fpcz;   // pin: no chunk recycle mid-test
+  const fty = groundY(fx2, fz2 - 10);
+  G.FT.pos.set(fx2, fty, fz2 - 10);
+  G.FT.heading = 0;   // +Z faces the fire 10m ahead
+  G.ftPose(fx2, fty, fz2 - 10, 0);
+  G.ftBodyIM.instanceMatrix.needsUpdate = true;
+  frame(1);
+  G.ftEnter();
+  G.waterHeld = true;
+  frame(12);   // spray tick fires at ~7Hz
+  G.waterHeld = false;
+  check('fire: water cone extinguishes the fire', G.FIRES.length === 0, 'fires=' + G.FIRES.length);
+  G.ftExit();
+
+  /* --- wildfire: bearing chip show/hide/range (player stationary: no chunk
+         recycle, so the 300m range logic is tested purely) --- */
+  G.FIRES.length = 0;
+  const cpx = G.player.position.x, cpz = G.player.position.z;
+  G.FIRES.push({ idx: ti, x: cpx + 100, z: cpz, t: 1, burnDur: 70, spreadDone: true, dmgT: 0, phase: 0 });
+  frame(20);   // chip throttle is 0.25s
+  check('fire: chip shows when a wildfire is active within 300m',
+    G.fireChipEl.style.display === 'block' && G.fireTxtEl.textContent.indexOf('WILDFIRE') === 0,
+    G.fireTxtEl.textContent);
+  G.FIRES.length = 0;
+  G.FIRES.push({ idx: ti, x: cpx + 500, z: cpz, t: 1, burnDur: 70, spreadDone: true, dmgT: 0, phase: 0 });
+  frame(20);
+  check('fire: chip hides beyond 300m', G.fireChipEl.style.display === 'none');
+  G.FIRES.length = 0;
+
+  /* --- wildfire: chunk recycle clears fires and char --- */
+  G.FIRES.length = 0;
+  G.wildfireIgnite(ti, fx2, fz2);
+  if (G.FIRES.length === 0) G.FIRES.push({ idx: ti, x: fx2, z: fz2, t: 1, burnDur: 70, spreadDone: true, dmgT: 0, phase: 0 });
+  const pcx = Math.floor(G.player.position.x / 48), pcz = Math.floor(G.player.position.z / 48);
+  G.player.position.set((pcx + 3) * 48, 0, (pcz + 3) * 48);   // cross into a new chunk
+  G.player.position.y = groundY(G.player.position.x, G.player.position.z);
+  frame(2);
+  check('fire: chunk recycle burns the record (fires cleared)', G.FIRES.length === 0);
+  trees.getColorAt(ti, _c);
+  check('fire: char resets on chunk recycle', _c.r > 0.99 && _c.g > 0.99 && _c.b > 0.99,
+    'rgb=' + _c.r.toFixed(2) + ',' + _c.g.toFixed(2) + ',' + _c.b.toFixed(2));
+
+  frame(30);
+  check('fire: round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsF, consoleProblems.slice(probsF).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
