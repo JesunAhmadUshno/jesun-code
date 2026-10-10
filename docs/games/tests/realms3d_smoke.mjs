@@ -134,6 +134,11 @@ globalThis.__R3D = {
   trainStationZ, trainStationOff, trainStationName, paintTrainBed,
   trainBodyIM, trainHintEl, trainChipEl, trainSignMesh,
   TRAIN_N, TRAIN_CARS, TRAIN_CAR_GAP, TRAIN_TRACK_X, TRAIN_GAP, TRAIN_NAMES,
+  /* Phase 5 pianos v1 */
+  PIANO, pianoFor, pianoHash, pianoParkPad, pianoEnter, pianoExit, pianoNote,
+  pianoRebuild, pianoPose, pianoUpdate, sfxPianoNote, updateMusicChip,
+  pianoBodyIM, pianoHintEl, musicChipEl, pianoKeysEl, PIANO_N, PIANO_NOTES,
+  PIANO_KEYCODES, PIANO_SCAN, PIANO_PAD_LZ,
 };
 `;
 writeFileSync(BOOT, src);
@@ -653,7 +658,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 46 IM literals (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh)', imCount === 46, 'count=' + imCount);
+  check('perf4: 47 IM literals (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh + 1 piano)', imCount === 47, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1114,8 +1119,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 46 IM literals after consolidation (bike section)',
-    imCount2 === 46, 'count=' + imCount2);
+  check('perf4: 47 IM literals after consolidation + 1 piano (bike section)',
+    imCount2 === 47, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1215,8 +1220,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 46 IM literals after consolidation (bicycle section)',
-    imCount3 === 46, 'count=' + imCount3);
+  check('perf4: 47 IM literals after consolidation + 1 piano (bicycle section)',
+    imCount3 === 47, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1317,8 +1322,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 46 IM literals after consolidation (scooter section)',
-    imCount4 === 46, 'count=' + imCount4);
+  check('perf4: 47 IM literals after consolidation + 1 piano (scooter section)',
+    imCount4 === 47, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1634,8 +1639,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf4: 46 IM literals after consolidation (wildlife5 section)',
-      imCount5 === 46, 'count=' + imCount5);
+    check('perf4: 47 IM literals after consolidation + 1 piano (wildlife5 section)',
+      imCount5 === 47, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -1983,8 +1988,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf4: 46 IM literals after consolidation, 3 runtime building meshes',
-      n === 46 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf4: 47 IM literals after consolidation + 1 piano, 3 runtime building meshes',
+      n === 47 && G.bldgMeshes.length === 3, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2128,8 +2133,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 46 (50 - PERF-4 consolidation)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('food-static: InstancedMesh literal sites pin at 47 (50 - PERF-4 consolidation + 1 piano)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2138,9 +2143,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('food-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('food-static: audio nodes pin (16 osc, 28 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +2 prop osc, +1 prop gain, +1 buffet gain)',
-    (html.match(/\.createOscillator\(/g) || []).length === 16 &&
-    (html.match(/\.createGain\(/g) || []).length === 28 &&
+  check('food-static: audio nodes pin (17 osc, 30 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
+    (html.match(/\.createGain\(/g) || []).length === 30 &&
     (html.match(/AudioContext/g) || []).length === 2);
   {
     const foodSrc = html.slice(
@@ -2358,8 +2363,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 46 (50 - PERF-4 consolidation)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('farmv1-static: InstancedMesh literal sites pin at 47 (50 - PERF-4 consolidation + 1 piano)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2368,9 +2373,9 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('farmv1-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('farmv1-static: audio nodes pin (16 osc, 28 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +2 prop osc, +1 prop gain, +1 buffet gain)',
-    (html.match(/\.createOscillator\(/g) || []).length === 16 &&
-    (html.match(/\.createGain\(/g) || []).length === 28 &&
+  check('farmv1-static: audio nodes pin (17 osc, 30 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 17 &&
+    (html.match(/\.createGain\(/g) || []).length === 30 &&
     (html.match(/AudioContext/g) || []).length === 2);
   check('farmv1-static: no TODO/FIXME markers', !/\b(TODO|FIXME)\b/.test(html));
   check('farmv1-static: no em dashes', !html.includes('—'));
@@ -2730,8 +2735,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 46 (50 - PERF-4 consolidation)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 47 (50 - PERF-4 consolidation + 1 piano)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2950,8 +2955,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 46 (50 - PERF-4 consolidation)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 47 (50 - PERF-4 consolidation + 1 piano)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3610,7 +3615,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 
   /* static pins for the train block */
   const trainSrc = html.slice(html.indexOf('/* ================= PHASE 5: TRAINS v1 (vehicles expansion)'),
-                              html.indexOf('/* ============================== GAME LOOP'));
+                              html.indexOf('/* ================= PHASE 5: PIANOS v1 (entertainment)'));
   check('train-static: exactly one new fleet mesh literal in the train block',
     (trainSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
   check('train-static: train block creates no lights',
@@ -3633,6 +3638,97 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('train-static: no new audio node literals (chug/whistle/screech reuse the one-shot idiom)',
     !(trainSrc.match(/\.createOscillator\(/g) || []).length && !(trainSrc.match(/\.createGain\(/g) || []).length);
   check('train-static: no em dashes anywhere', !html.includes('—'));
+}
+
+
+/* ================= 27. PIANOS v1 (Phase 5 entertainment) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.PIANO.playing) G.pianoExit();
+
+  /* static: one fleet mesh, no lights, no RNG, no em dashes in the piano block */
+  const pianoSrc = html.slice(html.indexOf('/* ================= PHASE 5: PIANOS v1 (entertainment)'),
+                              html.indexOf('/* ============================== GAME LOOP'));
+  check('piano-static: exactly one new fleet mesh literal in the piano block',
+    (pianoSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('piano-static: piano block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(pianoSrc));
+  check('piano-static: no RNG in the piano block (deterministic hashes only)',
+    !/Math\.random/.test(pianoSrc));
+  check('piano-static: no em dashes in the piano block', !pianoSrc.includes('\u2014'));
+  check('piano-static: no external URLs in the piano block', !/https?:\/\//.test(pianoSrc));
+  check('piano-static: key map is A S D F G H J K = C major octave',
+    G.PIANO_KEYCODES.join(',') === 'KeyA,KeyS,KeyD,KeyF,KeyG,KeyH,KeyJ,KeyK'
+    && G.PIANO_NOTES.map(n => n[0]).join(',') === 'C,D,E,F,G,A,B,C5');
+  check('piano-static: SIT hint click wiring pins pianoEnter',
+    html.includes("pianoHintEl.addEventListener('click', () => { if (PIANO.hintOn) pianoEnter(); })"));
+  check('piano-static: musicchip click re-centers the side-angle cam',
+    html.includes("musicChipEl.addEventListener('click', () => { if (PIANO.playing) camYaw = PIANO.camAng; })"));
+  check('piano-static: vehicle guards cover the piano (positive chains)',
+    (html.match(/\|\| PIANO\.playing/g) || []).length >= 20);
+  check('piano-static: vehicle guards cover the piano (negated chains)',
+    (html.match(/&& !PIANO\.playing/g) || []).length >= 10);
+  check('piano-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+
+  /* deterministic spot: same chunk, same piano, every call */
+  let pgx = 0, pgz = 0, pd = null;
+  outer: for (let gx = -40; gx <= 40; gx++)
+    for (let gz = -40; gz <= 40; gz++) {
+      const d = G.pianoFor(gx, gz);
+      if (d) { pgx = gx; pgz = gz; pd = d; break outer; }
+    }
+  check('piano: a seeded piano park exists in the scan window', !!pd, 'at ' + pgx + ',' + pgz);
+  const pd2 = G.pianoFor(pgx, pgz);
+  check('piano: pianoFor is deterministic across calls',
+    !!pd2 && pd2.x === pd.x && pd2.z === pd.z && pd2.yaw === pd.yaw);
+  check('piano: spot uses its own hash residue (disjoint from the sport %5 space)',
+    G.pianoHash(pgx, pgz) % 7 === 5);
+
+  /* sit: walk up, the SIT prompt shows, E (pianoEnter) seats the player */
+  const pcx = Math.floor(pd.x / 48), pcz = Math.floor(pd.z / 48);
+  G.player.position.set(pd.x, groundY(pd.x, pd.z), pd.z);
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0;
+  G.pianoRebuild(pcx, pcz);
+  frame(3);
+  const slot = G.PIANO.slots.find(sl => sl.placed);
+  check('piano: rebuild places a piano at the seeded spot', !!slot,
+    slot ? 'd2=' + ((slot.x - pd.x) ** 2 + (slot.z - pd.z) ** 2).toFixed(2) : 'none placed');
+  G.player.position.set(slot.x, groundY(slot.x, slot.z), slot.z);
+  frame(3);
+  check('piano: SIT hint shows near the piano',
+    G.PIANO.hintOn === true && G.pianoHintEl.style.opacity == 1);
+  const probs0 = consoleProblems.length;
+  G.pianoEnter();
+  check('piano: enter seats the player at the bench, chip shows',
+    G.PIANO.playing === true && G.musicChipEl.style.display === 'block');
+  frame(3);
+  check('piano: chip reads PIANO with the stop hint',
+    /^PIANO( - [A-G]5?)?  \|  E STOP$/.test(G.musicChipEl.textContent), G.musicChipEl.textContent);
+
+  /* one note: sound fires, the piano bounces, the chip flashes the note name */
+  G.pianoNote(0);
+  check('piano: one note plays (C), bounce armed, chip flashes the note',
+    G.PIANO.flashNote === 'C' && G.PIANO.flashT > 0
+    && G.PIANO.slots[G.PIANO.slotIdx].bounceT > 0
+    && / - C /.test(G.musicChipEl.textContent));
+  check('piano: note plays with zero console errors/warnings',
+    consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
+  const seatX = G.player.position.x, seatZ = G.player.position.z;
+  frame(30);   // ~0.5 s: bounce + flash decay
+  check('piano: the player stays frozen at the bench while playing',
+    Math.abs(G.player.position.x - seatX) < 0.01 && Math.abs(G.player.position.z - seatZ) < 0.01
+    && G.PIANO.playing === true);
+
+  /* exit: E (pianoExit) frees the player, chip hides, never traps */
+  G.pianoExit();
+  check('piano: exit frees the player, chip hides, steps off the bench',
+    G.PIANO.playing === false && G.musicChipEl.style.display === 'none'
+    && Math.hypot(G.player.position.x - slot.x, G.player.position.z - slot.z) > 1.0);
+  check('piano: board/exit round trip leaves zero console errors/warnings',
+    consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
 }
 
 
