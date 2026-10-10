@@ -202,6 +202,8 @@ globalThis.__R3D = {
   civicEnter, civicExit, civicAct, civicHeal, civicAtm, civicRest, civicTick,
   updateCivicChip, CIVIC_HINT_TXT, CIVIC_ACT_TXT, CIVIC_FOOT_TXT,
   civicDeposit, civicWithdraw, civicActEl2, civicActEl3,   /* Phase 5 bank: deposit protection */
+  civicHeist, civicActEl4, heistChipEl, updateHeistChip, seedHeistSacks, endHeist, heistTick, HEIST,
+  HEIST_N, HEIST_R2, HEIST_GRAB_R2, HEIST_ESCALATE_S,   /* Phase 5 bank heist v1 */
   busted, migrateSave,                                      /* Phase 5 bank: bust hook + save migration */
   civichintEl, civicChipEl, civicbearingEl, civarrEl, civtxtEl,
   civicPanelEl, civicTitleEl, civicActEl, civicFootEl, HELP_CIVIC,
@@ -7322,6 +7324,190 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     !!vmig && vmig.bank === 0 && vmig.cash === 50,
     vmig ? 'bank=' + vmig.bank + ' cash=' + vmig.cash : 'null');
   for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+}
+
+/* ================= 35. BANK HEIST v1 (Phase 5 buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);   // godT 0: civicEnter refuses while spawn-protected
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.CIVIC.state) G.civicExit();
+  if (G.HEIST.active) G.endHeist('test');
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.player.rotation.y = 0;
+  frame(3);
+  const hpx = G.player.position.x, hpz = G.player.position.z;
+  const synthBank = (type) => {
+    for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+    G.BLDG.active[type].push({ x: hpx + 3, z: hpz, y: groundY(hpx + 3, hpz), yaw: 0, gx: 0, gz: 0, name: type.toUpperCase(), type });
+    G.player.position.set(hpx + 3 + 6.5, groundY(hpx + 9.5, hpz), hpz);
+  };
+  const bankCenter = () => ({ x: hpx + 3, z: hpz });
+
+  /* static: ROB BANK carries touch parity; zero new THREE objects; seeded RNG only */
+  check('heist-static: ROB BANK button has touchstart (passive:false) + click handlers',
+    html.includes("civicActEl4.addEventListener('touchstart', civicHeistBtn, { passive: false })")
+    && html.includes("civicActEl4.addEventListener('click', civicHeistBtn)"));
+  check('heist-static: zero new THREE objects in the heist code',
+    !/new THREE\./.test(html.slice(html.indexOf('Phase 5 bank heist: rob the bank'), html.indexOf('queueMicrotask(() => worldTickers.push(heistTick))'))));
+  check('heist-static: zero new Math.random lines in the heist code',
+    !/Math\.random/.test(html.slice(html.indexOf('Phase 5 bank heist: rob the bank'), html.indexOf('queueMicrotask(() => worldTickers.push(heistTick))'))));
+  check('heist-static: InstancedMesh literal sites stay at 48',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('heist-static: #heistchip element exists in the HUD',
+    html.includes('<div id="heistchip"></div>'));
+
+  /* ROB BANK shows bank-only */
+  synthBank('hospital');
+  frame(3);
+  G.civicEnter();
+  check('heist: ROB BANK hidden for non-bank civics', G.civicActEl4.style.display === 'none');
+  G.civicHeist();
+  check('heist: start denied outside the bank (no state, no heat)',
+    G.HEIST.active === false && G.W.heat === 0, 'active=' + G.HEIST.active + ' heat=' + G.W.heat);
+  G.civicExit();
+
+  /* start at the bank: alarm heat +2, toast, chip, stormed out of the panel */
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  check('heist: ROB BANK shown inside the bank', G.civicActEl4.style.display === 'flex');
+  G.cash = 100; G.bankBal = 300;
+  G.civicHeist();
+  check('heist: start adds +2 heat immediately',
+    G.HEIST.active === true && G.W.heat === 2, 'heat=' + G.W.heat);
+  check('heist: start toast reads HEIST STARTED - GRAB THE CASH',
+    G.toastEl.textContent === 'HEIST STARTED - GRAB THE CASH', G.toastEl.textContent);
+  check('heist: chip shows live take and heat while active',
+    G.heistChipEl.style.display === 'block' && G.heistChipEl.textContent === 'HEIST $0 | HEAT 2',
+    G.heistChipEl.textContent);
+  check('heist: player storms out of the panel on start',
+    G.CIVIC.state === null && G.civicPanelEl.style.display === 'none');
+  check('heist: 5 vault sacks seeded at $200-$1000, none taken',
+    G.HEIST.sacks.length === 5 && G.HEIST.sacks.every(s => !s.taken && s.amt >= 200 && s.amt <= 1000),
+    G.HEIST.sacks.map(s => s.amt).join(','));
+  check('heist: sacks seed inside the getaway radius, none at the porch',
+    G.HEIST.sacks.every(s => {
+      const dx = s.x - G.HEIST.bx, dz = s.z - G.HEIST.bz;
+      const px = G.player.position.x, pz = G.player.position.z;
+      const pdx = s.x - px, pdz = s.z - pz;
+      return dx * dx + dz * dz <= G.HEIST_R2 && pdx * pdx + pdz * pdz >= 9;
+    }));
+
+  /* re-enter the bank mid-heist and rob again: denied. The near-state is set
+     directly (no frame tick) so the walk-over grab cannot fire mid-test. */
+  G.player.position.set(hpx + 3 + 6.5, groundY(hpx + 9.5, hpz), hpz);
+  G.CIVIC.nearIdx = 0; G.CIVIC.nearType = 'bank'; G.CIVIC.hintR2 = 14 * 14;
+  G.civicEnter();
+  G.civicHeist();
+  check('heist: second start denied while a heist is in progress',
+    G.HEIST.active === true && G.W.heat === 2 && G.toastEl.textContent === 'HEIST IN PROGRESS',
+    G.toastEl.textContent);
+  G.civicExit();
+  /* civicExit steps the player back onto the porch seat (the seed-time spot,
+     >=3u from every sack), so the escalation tick below cannot grab. */
+
+  /* escalation: +1 star per 45s while active, capped at 5 */
+  G.HEIST.escT = 44.9;
+  G.heistTick(0.2);
+  check('heist: heat escalates +1 star after ~45s inside',
+    G.W.heat === 3 && G.heistChipEl.textContent === 'HEIST $0 | HEAT 3', G.heistChipEl.textContent);
+  G.setHeat(5, true); G.HEIST.escT = 45;
+  G.heistTick(0.5);
+  check('heist: escalation caps at 5 stars', G.W.heat === 5, 'heat=' + G.W.heat);
+  G.setHeat(2, true);
+
+  /* vault loot: walk-over grab adds to the wallet exactly */
+  const s0 = G.HEIST.sacks[0];
+  G.player.position.set(s0.x, groundY(s0.x, s0.z), s0.z);
+  const cash0 = G.cash;
+  G.heistTick(0.016);
+  check('heist: walk-over grab adds the sack to wallet cash exactly',
+    s0.taken === true && G.HEIST.loot === s0.amt && G.cash === cash0 + s0.amt
+    && G.toastEl.textContent === 'GRABBED $' + s0.amt,
+    'loot=' + G.HEIST.loot + ' cash=' + G.cash + ' toast=' + G.toastEl.textContent);
+  check('heist: chip reflects the take',
+    G.heistChipEl.textContent === 'HEIST $' + s0.amt + ' | HEAT 2', G.heistChipEl.textContent);
+  const lootKept = G.HEIST.loot;
+
+  /* leave the bank radius with heat up: heist ends, no clean toast */
+  G.setHeat(2, true);
+  G.player.position.set(G.HEIST.bx + 100, groundY(G.HEIST.bx + 100, G.HEIST.bz), G.HEIST.bz);
+  G.heistTick(0.016);
+  check('heist: leaving the bank radius ends the heist (heat up, no clean toast)',
+    G.HEIST.active === false && G.heistChipEl.style.display === 'none'
+    && G.toastEl.textContent === 'HEIST ENDED' && G.HEIST.sacks.length === 0,
+    G.toastEl.textContent);
+
+  /* clean escape: heat back at 0 when leaving -> clean toast */
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  G.civicHeist();
+  const s1 = G.HEIST.sacks[0];
+  G.player.position.set(s1.x, groundY(s1.x, s1.z), s1.z);
+  G.heistTick(0.016);
+  const loot2 = G.HEIST.loot;
+  G.setHeat(0, true);
+  G.player.position.set(G.HEIST.bx + 100, groundY(G.HEIST.bx + 100, G.HEIST.bz), G.HEIST.bz);
+  G.heistTick(0.016);
+  check('heist: clean escape (heat 0) toasts HEIST CLEAN - KEPT $N',
+    G.HEIST.active === false && G.toastEl.textContent === 'HEIST CLEAN - KEPT $' + loot2,
+    G.toastEl.textContent);
+
+  /* BUSTED during the heist: ends it, normal 25% wallet seizure, bank untouched, no clean toast */
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  G.civicHeist();
+  const s2 = G.HEIST.sacks[0];
+  G.player.position.set(s2.x, groundY(s2.x, s2.z), s2.z);
+  G.heistTick(0.016);
+  G.cash = 100; G.bankBal = 300; G.setHeat(2, true);
+  G.busted();
+  check('heist: BUSTED ends the heist with the normal 25% wallet seizure only (no double-punish)',
+    G.HEIST.active === false && G.cash === 75 && G.bankBal === 300 && G.W.heat === 0
+    && G.toastEl.textContent === 'BUSTED - $25 SEIZED | BANK SAFE'
+    && G.heistChipEl.style.display === 'none',
+    'cash=' + G.cash + ' bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+  G.P.godT = 9999;
+
+  /* death during the heist: ends it, normal 15% wallet seizure, bank untouched */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0;
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  G.civicHeist();
+  const s3 = G.HEIST.sacks[0];
+  G.player.position.set(s3.x, groundY(s3.x, s3.z), s3.z);
+  G.heistTick(0.016);
+  G.cash = 100; G.bankBal = 300;
+  G.hurtPlayer(999);
+  check('heist: death ends the heist with the normal 15% wallet seizure only (no double-punish)',
+    G.HEIST.active === false && G.P.dead === true && G.cash === 85 && G.bankBal === 300
+    && G.toastEl.textContent === 'ELIMINATED - $15 LOST',
+    'cash=' + G.cash + ' bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0;
+
+  /* the deposit/withdraw/ATM flows are unchanged by the heist */
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  G.cash = 60; G.bankBal = 40;
+  G.civicDeposit();
+  check('heist: DEPOSIT still moves all carried cash to the bank',
+    G.cash === 0 && G.bankBal === 100, 'cash=' + G.cash + ' bank=' + G.bankBal);
+  G.civicWithdraw();
+  check('heist: WITHDRAW still pulls the whole bank balance back',
+    G.cash === 100 && G.bankBal === 0, 'cash=' + G.cash + ' bank=' + G.bankBal);
+  G.CIVIC.atmDay = G.CIVIC.day - 1;
+  const allow1 = G.cash;
+  G.civicAtm();
+  check('heist: $20 daily allowance still pays on the day gate',
+    G.cash === allow1 + 20 && G.CIVIC.atmDay === G.CIVIC.day, 'cash=' + G.cash);
+  G.civicExit();
+  for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+  G.setHeat(0, true); G.P.godT = 9999;
 }
 
 /* ---------- zero console errors ---------- */
