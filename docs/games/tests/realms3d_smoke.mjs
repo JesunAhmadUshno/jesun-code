@@ -201,6 +201,15 @@ globalThis.__R3D = {
   baccBetEl, baccDealEl, baccClearEl, baccBigWinEl, baccTabEls,
   BACC_BETS, BACC_SIDES, BACC_PAY, BACC_HASH_A, BACC_HASH_B, HELP_LMBACC,
   baccClearBoard,
+  /* Phase 5 landmark casino keno v1 (seventh table game: keno) */
+  CASINOKENO, casinoKenoSit, casinoKenoStand,
+  kenoPay, kenoDrawSeed, kenoBuildDraw, kenoNextRicher, kenoOneShort,
+  kenoNewRound, kenoToggle, kenoQuickPick, kenoClear, kenoCycleBet,
+  kenoDraw, kenoBallOne, kenoWinSting, kenoFinishDraw, kenoSettle, kenoUpdate,
+  kenoPayRows, kenoRender,
+  kenoChipEl, kenoPanelEl, kenoPayEl, kenoGridEl, kenoBallsEl, kenoHitsEl,
+  kenoStatusEl, kenoBetEl, kenoQuickEl, kenoClearEl, kenoDrawEl, kenoBigWinEl,
+  KENO_BETS, KENO_PAY, KENO_BIG_MULT, KENO_HASH_A, KENO_HASH_B, HELP_LMKENO,
   LMCASINO_COL, LMCAS_R, LMCAS_SEGS, LMCAS_GATE_K, LMCAS_CHIP_R2, LMCAS_DOOR, LMCAS_DOOR_R2,
   CASINO_ROOM_Y, LMCS_BETS, LMCS_SYMS, LMCS_WILD, LMCS_SEVEN, LMCS_LINES, LMCS_TAPE, LMCS_OUT_AT,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
@@ -6872,7 +6881,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('roul-static: single keydown listener (Q rides the existing one)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1
-    && html.includes("switch the table seat: slots, cards, roulette, dice, poker or baccarat"));
+    && html.includes("switch the table seat: slots, cards, roulette, dice, poker, baccarat or keno"));
   check('roul-static: #roulchip pins its own top-left slot (no chip overlap)',
     html.includes('#roulchip {') && html.includes('top: 720px'));
 
@@ -7136,7 +7145,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
   G.closeShop(); G.casinoHallEnter();
   check('dice: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
-  /* the 6-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> slots */
+  /* the 7-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> slots */
   G.CASINOHALL.seatKind = 'slots';
   G.casinoSeatToggle();
   check('dice: seat cycle slots -> cards', G.CASINOHALL.seatKind === 'bj');
@@ -7147,9 +7156,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.casinoSeatToggle();
   check('dice: seat cycle dice -> poker', G.CASINOHALL.seatKind === 'poker');
   G.casinoSeatToggle();
-  check('dice: seat cycle poker -> baccarat (the 6-cycle)', G.CASINOHALL.seatKind === 'bacc');
+  check('dice: seat cycle poker -> baccarat', G.CASINOHALL.seatKind === 'bacc');
   G.casinoSeatToggle();
-  check('dice: seat cycle baccarat -> slots (the 6-cycle closes)', G.CASINOHALL.seatKind === 'slots');
+  check('dice: seat cycle baccarat -> keno (the 7-cycle)', G.CASINOHALL.seatKind === 'keno');
+  G.casinoSeatToggle();
+  check('dice: seat cycle keno -> slots (the 7-cycle closes)', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 4 && G.CASINOHALL.seatKind !== 'dice'; q++) G.casinoSeatToggle();
   frame(20);
   check('dice: PLAY DICE prompt shows inside',
@@ -7364,11 +7375,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
   G.closeShop(); G.casinoHallEnter();
   check('poker: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
-  /* the 6-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> slots */
+  /* the 7-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> slots */
   G.CASINOHALL.seatKind = 'slots';
-  const pCyc = ['bj', 'roul', 'dice', 'poker', 'bacc', 'slots'];
-  const pCycNames = ['cards', 'roulette', 'dice', 'poker', 'baccarat', 'slots'];
-  for (let q = 0; q < 6; q++) {
+  const pCyc = ['bj', 'roul', 'dice', 'poker', 'bacc', 'keno', 'slots'];
+  const pCycNames = ['cards', 'roulette', 'dice', 'poker', 'baccarat', 'keno', 'slots'];
+  for (let q = 0; q < 7; q++) {
     G.casinoSeatToggle();
     check('poker: seat cycle lands ' + pCycNames[q], G.CASINOHALL.seatKind === pCyc[q]);
   }
@@ -7523,7 +7534,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
 /* ================= PHASE 5: LANDMARK CASINO BACCARAT v1 ("BACCARAT") ================= */
 {
   /* --- static pins: the baccarat block is seeded-only, DOM-only, chip-clean --- */
-  const baccSrc = html.slice(html.indexOf('CASINO BACCARAT v1'), html.indexOf('PHASE 5: LANDMARK FIRE STATION v1'));
+  const baccSrc = html.slice(html.indexOf('CASINO BACCARAT v1'), html.indexOf('CASINO KENO v1'));
   check('bacc: the baccarat block holds zero Math.random lines (seeded idiom only)',
     baccSrc.length > 8000 && !/Math\.random/.test(baccSrc), baccSrc.length + ' chars');
   check('bacc: the baccarat block adds zero InstancedMesh literals (pin holds at 48)',
@@ -7592,7 +7603,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bacc: the shoe reshuffles when under 15 cards',
     G.CASINOBACC.shoe.length === 51, 'shoe=' + G.CASINOBACC.shoe.length);
 
-  /* --- enter the hall and ride the 6-cycle to the baccarat seat --- */
+  /* --- enter the hall and ride the 7-cycle to the baccarat seat --- */
   let baccd = null;
   baccouter: for (let gx = -60; gx <= 60; gx++)
     for (let gz = -60; gz <= 60; gz++) {
@@ -7610,9 +7621,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bacc: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
   G.CASINOHALL.seatKind = 'slots';
   for (let q = 0; q < 5; q++) G.casinoSeatToggle();
-  check('bacc: five toggles land the baccarat seat (the 6-cycle)', G.CASINOHALL.seatKind === 'bacc');
+  check('bacc: five toggles land the baccarat seat (the 7-cycle)', G.CASINOHALL.seatKind === 'bacc');
   G.casinoSeatToggle();
-  check('bacc: the 6-cycle closes baccarat -> slots', G.CASINOHALL.seatKind === 'slots');
+  check('bacc: the 7-cycle moves baccarat -> keno', G.CASINOHALL.seatKind === 'keno');
+  G.casinoSeatToggle();
+  check('bacc: the 7-cycle closes keno -> slots', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 5; q++) G.casinoSeatToggle();
   frame(20);
   check('bacc: PLAY BACCARAT prompt shows inside',
@@ -7795,6 +7808,231 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     !/bacc/i.test(bSvStr) && !/CASINOBACC/.test(bSvStr), bSvStr.slice(0, 120));
   check('bacc: the round trip leaves zero console errors/warnings',
     consoleProblems.length === probsB, consoleProblems.slice(probsB).join(' | '));
+
+  /* leave the world as the next block expects: player at origin */
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+  G.player.position.set(0, groundY(0, 0), 0);
+}
+
+/* ================= PHASE 5: LANDMARK CASINO KENO v1 ("KENO") ================= */
+{
+  /* --- static pins: the keno block is seeded-only, DOM-only, chip-clean --- */
+  const kenoSrc = html.slice(html.indexOf('CASINO KENO v1'), html.indexOf('PHASE 5: LANDMARK FIRE STATION v1'));
+  check('keno: the keno block holds zero Math.random lines (seeded idiom only)',
+    kenoSrc.length > 8000 && !/Math\.random/.test(kenoSrc), kenoSrc.length + ' chars');
+  check('keno: the keno block adds zero InstancedMesh literals (pin holds at 48)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('keno: #kenochip owns the next free top-left slot (885px, no overlap)',
+    (html.match(/top: 885px; left: 18px/g) || []).length === 1);
+  check('keno: no placeholder or em dash text in the keno block',
+    !/\b(TODO|FIXME|placeholder)\b/i.test(kenoSrc) && !kenoSrc.includes('—'));
+  check('keno: one keydown listener only (Enter extends it, no new listener)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('keno: zero new lights, zero new audio nodes (pins hold)',
+    (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6
+    && (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 31);
+  check('keno: the draw seed lives in the fresh hash space (6537, 13)',
+    G.KENO_HASH_A === 6537 && G.KENO_HASH_B === 13 && G.kenoDrawSeed() !== 0
+    && G.KENO_HASH_A !== 6503 && G.KENO_HASH_A !== 6521 && G.KENO_HASH_A !== 6529 && G.KENO_HASH_A !== 6533);
+  check('keno: the bet tiers mirror the BACC_BETS idiom',
+    G.KENO_BETS.join(',') === '5,10,25');
+
+  /* --- the honest draw: 20 unique balls of 1..80, deterministic --- */
+  const kD1 = G.kenoBuildDraw(4321), kD2 = G.kenoBuildDraw(4321);
+  check('keno: the draw is 20 unique balls of 1..80',
+    kD1.length === 20 && new Set(kD1).size === 20 && kD1.every(n => n >= 1 && n <= 80));
+  check('keno: the same seed replays the same draw (deterministic)',
+    kD1.every((n, i) => n === kD2[i]));
+  check('keno: a different seed draws differently',
+    !G.kenoBuildDraw(4322).every((n, i) => n === kD1[i]));
+
+  /* --- the classic-style paytable --- */
+  check('keno: 10/10 pays 10000x', G.kenoPay(10, 10) === 10000);
+  check('keno: 9/10 pays 800x', G.kenoPay(10, 9) === 800);
+  check('keno: 5/10 pays 10x', G.kenoPay(10, 5) === 10);
+  check('keno: 1/10 pays 0', G.kenoPay(10, 1) === 0);
+  check('keno: 2/2 pays 12x', G.kenoPay(2, 2) === 12);
+  check('keno: the next richer tier from 9/10 is the 10-catch', G.kenoNextRicher(10, 9) === 10);
+  check('keno: the next richer tier from 10/10 is none', G.kenoNextRicher(10, 10) === -1);
+  G.CASINOKENO.picks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; G.CASINOKENO.hits = 9;
+  check('keno: one short of 10/10 counts as one-short', G.kenoOneShort() === true);
+  G.CASINOKENO.picks = [4, 17]; G.CASINOKENO.hits = 0;
+  check('keno: two away from the tier does not (2-spot, 0 hits)', G.kenoOneShort() === false);
+  G.CASINOKENO.hits = 1;
+  check('keno: one short of 2/2 counts as one-short', G.kenoOneShort() === true);
+  G.CASINOKENO.hits = 0; G.CASINOKENO.picks = [];
+
+  /* --- enter the hall and ride the 7-cycle to the keno seat --- */
+  let kenod = null;
+  kenoouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'casino') { kenod = a; break kenoouter; }
+    }
+  check('keno: a seeded casino chunk exists in the scan window', !!kenod);
+  const probsK = consoleProblems.length;
+  G.P.dead = false; G.P.godT = 0;
+  const kenodoor = G.casinoHallDoorWorld(kenod);
+  G.player.position.set(kenodoor.x, groundY(kenodoor.x, kenodoor.z), kenodoor.z);
+  frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
+  G.closeShop(); G.casinoHallEnter();
+  check('keno: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
+  G.CASINOHALL.seatKind = 'slots';
+  for (let q = 0; q < 6; q++) G.casinoSeatToggle();
+  check('keno: six toggles land the keno seat (the 7-cycle)', G.CASINOHALL.seatKind === 'keno');
+  G.casinoSeatToggle();
+  check('keno: the 7-cycle closes keno -> slots', G.CASINOHALL.seatKind === 'slots');
+  for (let q = 0; q < 6; q++) G.casinoSeatToggle();
+  frame(20);
+  check('keno: PLAY KENO prompt shows inside',
+    G.casinoslothintEl.style.opacity == 1 && /PLAY KENO/.test(G.casinoslothintEl.textContent),
+    G.casinoslothintEl.textContent);
+  check('keno: the toggle chip names the seat',
+    /TABLE: KENO/.test(G.casinobjselEl.textContent), G.casinobjselEl.textContent);
+
+  /* --- E sits at the keno lounge spot --- */
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('keno: KeyE sits at the keno lounge spot (panel opens)',
+    G.CASINOHALL.seated === true && G.CASINOKENO.playing === true
+    && G.kenoPanelEl.style.display === 'block',
+    'seated=' + G.CASINOHALL.seated);
+  check('keno: sit parks the player at the lounge spot, facing north',
+    Math.abs(G.player.position.x - G.CASINOHALL.kenoSeatX) < 0.01
+    && Math.abs(G.player.position.z - G.CASINOHALL.kenoSeatZ) < 0.01
+    && Math.abs(G.player.rotation.y - Math.PI) < 0.01,
+    'x=' + G.player.position.x.toFixed(2) + ' z=' + G.player.position.z.toFixed(2));
+  check('keno: the status chip shows while playing',
+    G.kenoChipEl.style.display === 'block' && /^KENO /.test(G.kenoChipEl.textContent),
+    G.kenoChipEl.textContent);
+  check('keno: the help line names the draw keys', /Enter/.test(G.HELP_LMKENO), G.HELP_LMKENO);
+
+  /* --- BET cycles 10 -> 25 -> 5 -> 10 --- */
+  G.kenoCycleBet();
+  check('keno: BET cycles 10 -> 25', G.KENO_BETS[G.CASINOKENO.betIdx] === 25);
+  G.kenoCycleBet();
+  check('keno: BET cycles 25 -> 5', G.KENO_BETS[G.CASINOKENO.betIdx] === 5);
+  G.kenoCycleBet();
+  check('keno: BET cycles 5 -> 10', G.KENO_BETS[G.CASINOKENO.betIdx] === 10);
+
+  /* --- a draw with fewer than 2 spots is denied, never trapped --- */
+  G.cash = 100;
+  G.kenoDraw();
+  check('keno: a draw with no spots is denied (cash untouched, still idle)',
+    G.cash === 100 && G.CASINOKENO.phase === 'idle', 'cash=' + G.cash);
+  G.kenoToggle(7);
+  check('keno: spot 7 toggles on', G.CASINOKENO.picks.join(',') === '7');
+  G.kenoToggle(7);
+  check('keno: spot 7 toggles off', G.CASINOKENO.picks.length === 0);
+
+  /* --- QUICK PICK fills to 10 unique seeded spots, deterministically --- */
+  G.kenoQuickPick();
+  const kQP = G.CASINOKENO.picks.join(',');
+  check('keno: QUICK PICK fills 10 unique spots of 1..80',
+    G.CASINOKENO.picks.length === 10 && new Set(G.CASINOKENO.picks).size === 10
+    && G.CASINOKENO.picks.every(n => n >= 1 && n <= 80), kQP);
+  const kFree = []; for (let n = 1; n <= 80; n++) if (G.CASINOKENO.picks.indexOf(n) < 0) kFree.push(n);
+  G.kenoToggle(kFree[0]);
+  check('keno: the 11th spot is denied (card holds 10)', G.CASINOKENO.picks.length === 10, 'n=' + G.CASINOKENO.picks.length);
+  G.kenoClear();
+  G.kenoQuickPick();
+  check('keno: QUICK PICK replays the same card on the same seed (deterministic)',
+    G.CASINOKENO.picks.join(',') === kQP);
+
+  /* --- DRAW: rigged balls, catch 10/10 at 10000x --- */
+  G.kenoClear();
+  for (let n = 1; n <= 10; n++) G.kenoToggle(n);
+  check('keno: ten spots picked', G.CASINOKENO.picks.length === 10);
+  G.cash = 100;
+  G.kenoDraw();
+  check('keno: DRAW debits the $10 bet and opens the draw',
+    G.cash === 90 && G.CASINOKENO.phase === 'draw' && G.CASINOKENO.balls.length === 20,
+    'cash=' + G.cash + ' phase=' + G.CASINOKENO.phase);
+  G.CASINOKENO.balls = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];   // rigged: ten hits, ten misses
+  for (let f = 0; f < 100; f++) G.kenoUpdate(1 / 60);   // 1.67s: three 0.45s beats
+  check('keno: the meters ride the draw (BALLS 3/20, HITS 3)',
+    G.kenoBallsEl.textContent === 'BALLS 3/20' && G.kenoHitsEl.textContent === 'HITS 3',
+    G.kenoBallsEl.textContent + ' ' + G.kenoHitsEl.textContent);
+  for (let f = 0; f < 700 && G.CASINOKENO.phase !== 'resolve'; f++) G.kenoUpdate(1 / 60);   // up to 11.6s: the 0.45s beats land the 20th ball
+  check('keno: the draw runs all 20 balls on the tick loop, then the headline lands',
+    G.CASINOKENO.phase === 'resolve' && G.CASINOKENO.hits === 10 && G.CASINOKENO.settleMult === 10000,
+    'phase=' + G.CASINOKENO.phase + ' hits=' + G.CASINOKENO.hits);
+  check('keno: the big-win headline shows at 10000x',
+    G.kenoBigWinEl.style.display === 'block' && /10000x KENO/.test(G.kenoBigWinEl.textContent),
+    G.kenoBigWinEl.textContent);
+  check('keno: the winning paytable row glows',
+    !!G.kenoPayRows().find(r => r.name === 'CATCH 10' && r.win === true));
+  check('keno: the bankroll waits for the headline (cash untouched mid-resolve)',
+    G.cash === 90, 'cash=' + G.cash);
+  for (let f = 0; f < 80; f++) G.kenoUpdate(1 / 60);   // 1.33s: the 0.6s headline fires the settle
+  check('keno: the settle pays the 10000x return honestly ($90 -> $100090)',
+    G.CASINOKENO.phase === 'done' && G.cash === 100090 && G.CASINOKENO.lastDelta === 99990,
+    'cash=' + G.cash + ' phase=' + G.CASINOKENO.phase);
+
+  /* --- near-miss tension: 9/10 after 15 balls slows the 16-20 beats --- */
+  G.kenoNewRound();
+  for (let n = 1; n <= 10; n++) G.kenoToggle(n);
+  G.kenoDraw();   // cash 100090 -> 100080
+  G.CASINOKENO.balls = [1, 2, 3, 4, 5, 6, 7, 8, 9, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31];   // rigged: 9 hits in the first 15
+  for (let f = 0; f < 900 && G.CASINOKENO.ballIdx < 15; f++) G.kenoUpdate(1 / 60);
+  check('keno: 15 balls in, one short of the 10-catch, the tension beat arms',
+    G.CASINOKENO.ballIdx === 15 && G.CASINOKENO.tension === true
+    && G.kenoHitsEl.className === 'tense' && /ONE SHORT/.test(G.kenoStatusEl.textContent),
+    'idx=' + G.CASINOKENO.ballIdx + ' tension=' + G.CASINOKENO.tension);
+  for (let f = 0; f < 1200 && G.CASINOKENO.phase !== 'resolve'; f++) G.kenoUpdate(1 / 60);   // the 0.9s beats land the rest
+  check('keno: the tense draw resolves at 9/10 (800x)',
+    G.CASINOKENO.phase === 'resolve' && G.CASINOKENO.hits === 9 && G.CASINOKENO.settleMult === 800,
+    'hits=' + G.CASINOKENO.hits + ' mult=' + G.CASINOKENO.settleMult);
+  for (let f = 0; f < 80; f++) G.kenoUpdate(1 / 60);
+  check('keno: the tense draw settles honestly ($100080 -> $108080)',
+    G.CASINOKENO.phase === 'done' && G.cash === 108080, 'cash=' + G.cash);
+
+  /* --- Enter draws when spots are picked (the keydown capture) --- */
+  G.kenoNewRound(); G.kenoToggle(5); G.kenoToggle(42);
+  stubs.fireGlobal('keydown', { code: 'Enter', preventDefault() {} });
+  check('keno: Enter draws when spots are picked', G.CASINOKENO.phase === 'draw');
+
+  /* --- E stands mid-draw: the bet refunds, the pending draw/settle no-ops --- */
+  for (let f = 0; f < 30; f++) G.kenoUpdate(1 / 60);   // a few balls in (cash 108080 -> 108070 at the draw)
+  check('keno: mid-draw the draw is live', G.CASINOKENO.phase === 'draw');
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });   // E stands mid-draw and exits the hall
+  check('keno: E stands mid-draw and exits (never trapped)',
+    G.CASINOHALL.inHall === false && G.CASINOKENO.playing === false
+    && G.CASINOKENO.phase === 'idle' && G.kenoPanelEl.style.display === 'none'
+    && G.kenoChipEl.style.display === 'none');
+  check('keno: the mid-draw refund is exact ($108070 -> $108080)', G.cash === 108080, 'cash=' + G.cash);
+  G.kenoUpdate(10);
+  check('keno: the pending draw/settle no-ops after the stand (cash frozen)',
+    G.cash === 108080 && G.CASINOKENO.phase === 'idle', 'cash=' + G.cash);
+
+  /* --- E draws at the seat when spots are picked, then death ejects --- */
+  G.player.position.set(kenodoor.x, groundY(kenodoor.x, kenodoor.z), kenodoor.z);
+  frame(20);
+  G.closeShop(); G.casinoHallEnter();
+  for (let q = 0; q < 6 && G.CASINOHALL.seatKind !== 'keno'; q++) G.casinoSeatToggle();
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });   // sit
+  check('keno: re-seated at the keno lounge', G.CASINOKENO.playing === true);
+  G.kenoToggle(11); G.kenoToggle(22);
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });   // E draws when spots are picked
+  check('keno: KeyE draws when spots are picked (never traps)', G.CASINOKENO.phase === 'draw');
+  G.P.dead = true;
+  for (let f = 0; f < 3; f++) G.casinoHallTick(1 / 60);   // the death-eject path, hermetic
+  check('keno: death ejects from the hall (never trapped)',
+    G.CASINOHALL.inHall === false && G.CASINOKENO.playing === false
+    && G.kenoPanelEl.style.display === 'none' && G.kenoChipEl.style.display === 'none');
+  check('keno: the death stand refunds the pending bet ($108070 -> $108080)', G.cash === 108080, 'cash=' + G.cash);
+  G.P.dead = false;
+
+  /* --- session only: save/load round trip carries zero keno keys --- */
+  G.saveGame();
+  G.loadSave();
+  const kSvStr = JSON.stringify(G.collectSave());
+  check('keno: save schema carries zero keno keys',
+    !/keno/i.test(kSvStr) && !/CASINOKENO/.test(kSvStr), kSvStr.slice(0, 120));
+  check('keno: the round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsK, consoleProblems.slice(probsK).join(' | '));
 
   /* leave the world as the next block expects: player at origin */
   if (G.CASINOHALL.inHall) G.casinoHallExit();
