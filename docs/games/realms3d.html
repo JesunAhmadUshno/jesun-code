@@ -313,6 +313,22 @@
   }
   #shop .srow .sicon { width: 30px; height: 30px; image-rendering: pixelated; }
 
+  /* ---- soccer HUD (Phase 5 sports): goals chip reuses the pet-chip chip
+         language, stacked below #foodchip; KICK prompt mirrors the farm-hint
+         pattern and is tappable (touch works). DOM only, zero draw calls. ---- */
+  #socchip {
+    position: absolute; top: 502px; right: 18px; color: #7dff9a; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: none; white-space: nowrap;
+  }
+  #kickhint {
+    position: absolute; bottom: 340px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #7dff9a; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+
   /* ---- lightning flash: DOM layer above the canvas only, capped under 0.18
          opacity, pointer-events none, no layout impact ---- */
   #boltflash { position: fixed; inset: 0; pointer-events: none; z-index: 9;
@@ -391,6 +407,8 @@
   <div id="petchip">PET</div>
   <div id="foodchip"></div>
   <div id="farmhint"></div>
+  <div id="socchip"></div>
+  <div id="kickhint"></div>
   <div id="emotehint"></div>
   <div id="shop">
     <h3 id="shopname">SHOP</h3>
@@ -5893,6 +5911,40 @@ function buildParkGeo() {
   const WOOD = 0x6b4a2e;
   amenPart(parts, 3, 11, 0, 0, 0, 0.02, 0, 0x35582a);             // lawn
   amenPart(parts, 4, 4.6, 5.4, 0, 0, 0.04, 0, 0x6b5a3e);          // path ring
+  /* ---- Phase 5 soccer: pitch + 2 goal frames baked into the shared park
+         geometry (zero new draw calls). Pitch long axis = local X, goals at
+         x = +/-9, mouth half width 2, crossbar 2.4. White 0xf4f8f4 parts
+         stay readable at night under moonlight. ---- */
+  const flatRect = (w, d, x, z, y, hex) => {
+    const g = new THREE.PlaneGeometry(w, d);
+    g.rotateX(-Math.PI / 2);
+    g.translate(x, y, z);
+    amenUV(g, 0.5, 0.5); amenPaint(g, hex);
+    parts.push(g);
+  };
+  const PITCH = 0x4d8a44, LINE = 0xf2f5ee, POSTW = 0xf4f8f4, NETC = 0xd7dee2;
+  flatRect(18, 12, 0, 0, 0.035, PITCH);                            // pitch surface
+  flatRect(18.3, 0.18, 0, 6, 0.05, LINE);                          // boundary
+  flatRect(18.3, 0.18, 0, -6, 0.05, LINE);
+  flatRect(0.18, 12, 9, 0, 0.05, LINE);
+  flatRect(0.18, 12, -9, 0, 0.05, LINE);
+  flatRect(0.18, 12, 0, 0, 0.05, LINE);                            // halfway
+  amenPart(parts, 4, 1.7, 1.88, 0, 0, 0.05, 0, LINE);               // center circle
+  amenPart(parts, 3, 0.14, 0, 0, 0, 0.05, 0, LINE);                 // center spot
+  for (const sx of [-1, 1]) {                                       // penalty boxes
+    flatRect(2.1, 0.15, sx * 7.95, 2, 0.05, LINE);
+    flatRect(2.1, 0.15, sx * 7.95, -2, 0.05, LINE);
+    flatRect(0.15, 4.15, sx * 6.9, 0, 0.05, LINE);
+  }
+  for (const sx of [-1, 1]) {                                       // goal frames
+    amenPart(parts, 1, 0.09, 0.09, 2.4, sx * 9, 1.2, 2, POSTW);     // posts
+    amenPart(parts, 1, 0.09, 0.09, 2.4, sx * 9, 1.2, -2, POSTW);
+    amenPart(parts, 0, 0.18, 0.18, 4.18, sx * 9, 2.49, 0, POSTW);    // crossbar
+    amenPart(parts, 0, 0.08, 2.4, 4.0, sx * 10.1, 1.2, 0, NETC);    // net back
+    amenPart(parts, 0, 1.1, 2.4, 0.08, sx * 9.55, 1.2, 2, NETC);     // net sides
+    amenPart(parts, 0, 1.1, 2.4, 0.08, sx * 9.55, 1.2, -2, NETC);
+    amenPart(parts, 0, 1.1, 0.08, 4.0, sx * 9.55, 2.42, 0, NETC);    // net top
+  }
   for (const [tx, tz, s] of [[-5, -3, 1.1], [4.5, -4, 0.9], [0.5, 5.5, 1.2]]) {
     amenPart(parts, 1, 0.14 * s, 0.2 * s, 1.9 * s, tx, 0.95 * s, tz, 0x4a3520);
     amenPart(parts, 2, 1.5 * s, 3.0 * s, 0, tx, 3.0 * s, tz, 0x24401f);
@@ -7126,7 +7178,7 @@ addEventListener('keydown', e => {
     return;                                           // no weapon select, no car toggle while shopping
   }
   if (e.code === 'KeyE') { if (!farmTryHarvest()) mountToggle(); }        // farm harvest wins over mounts near a plot
-  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else doPunch(); }
+  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (soccerCanKick()) doKick(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -7277,6 +7329,364 @@ if (IS_TOUCH) {
   }, { passive: false });
 }
 
+/* ================== SOCCER MINI-GAME (Phase 5 sports) ==================
+   Design research (Rocket League making-of, rockpapershotgun.com): pure,
+   predictable ball physics the player instantly understands, and an
+   oversized readable ball. No fudged interaction curves.
+
+   - Pitch + 2 goal frames are baked into buildParkGeo (shared park
+     instanced geometry): zero new draw calls for pitch or goals.
+   - Ball: exactly ONE new InstancedMesh literal site (1 instance): +1
+     draw call (45 -> 46). Vertex-colored classic ball look, castShadow off.
+   - Soccer parks are a seeded subset of park amenities, a pure function of
+     chunk coords (soccerPitchFor), deterministic on revisit. The ball lives
+     only at the nearest soccer park; it parks (hidden) everywhere else.
+   - Kinematic arcade ball: gravity when airborne, bounce (restitution
+     0.55), rolling friction. Player body and all six vehicles dribble it
+     (sphere push-out + velocity transfer). F on foot within 2.5u of the
+     ball becomes a power KICK along the camera aim direction; F is a
+     punch everywhere else (same guards as doPunch).
+   - One pedestrian NPC takes the GOALIE state near the pitch (mirrors the
+     ball's lateral position across the attack goal mouth, capped speed)
+     and resumes wander on release. Zero new draw calls (NPC instances).
+   - Scoring: ball over the attack (+X local) goal line between the posts
+     and under the bar = GOAL! +$30 via the cash idiom. Over the own (-X)
+     line = OWN GOAL toast, no cash. Ball resets to pitch center after a
+     goal. HUD chip shows session goals.
+   - Every mechanic has HUD feedback (chip states, KICK prompt, toasts).
+   - No new lights, no new audio nodes (sfxBlip idiom only), no new
+     keybinds (F doubles), no external URLs, seeded PRNG only, no TODOs. */
+const BALL_R = 0.35;                    // oversized readable ball
+const PITCH_HX = 9, PITCH_HZ = 6;      // pitch half extents, park-local
+const GOAL_HALF_W = 2, GOAL_H = 2.4;   // goal mouth half width, crossbar
+const KICK_POW = 17, KICK_UP = 4.2;    // kick impulse: horizontal + pop-up
+const KICK_R = 2.5;                    // F becomes KICK inside this range
+const SOCCER_NEAR = 60;               // ball activates inside this radius
+const SOCCER_LEAVE = 45;              // goalie releases beyond this radius
+const GOALIE_SPD = 3.5;               // goalie lateral speed cap u/s
+const BALL_GRAV = 24, BALL_REST = 0.55, BALL_ROLL = 2.0;
+const BALL_MAXV = 24;
+const GOAL_CASH = 30;
+
+/* ---- the one new InstancedMesh literal site (46th). Classic ball look:
+        12 dark patches at icosahedron vertices on a white sphere.
+        Deterministic vertex paint, no randomness. ---- */
+const ballIM = (() => {
+  const g = new THREE.SphereGeometry(BALL_R, 18, 14);
+  const nor = g.attributes.normal;
+  const col = new Float32Array(nor.count * 3);
+  const PHI = (1 + Math.sqrt(5)) / 2;
+  const dirs = [];
+  for (const v of [[1, PHI, 0], [-1, PHI, 0], [1, -PHI, 0], [-1, -PHI, 0],
+                   [0, 1, PHI], [0, 1, -PHI], [0, -1, PHI], [0, -1, -PHI],
+                   [PHI, 0, 1], [-PHI, 0, 1], [PHI, 0, -1], [-PHI, 0, -1]]) {
+    const l = Math.hypot(v[0], v[1], v[2]);
+    dirs.push([v[0] / l, v[1] / l, v[2] / l]);
+  }
+  const c = new THREE.Color();
+  for (let i = 0; i < nor.count; i++) {
+    const nx = nor.getX(i), ny = nor.getY(i), nz = nor.getZ(i);
+    let dark = false;
+    for (let d = 0; d < 12; d++) {
+      if (nx * dirs[d][0] + ny * dirs[d][1] + nz * dirs[d][2] > 0.86) { dark = true; break; }
+    }
+    c.setHex(dark ? 0x1c1e22 : 0xf4f6f4);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05 });
+  const im = new THREE.InstancedMesh(g, m, 1);
+  im.frustumCulled = false;
+  im.castShadow = false;
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  im.count = 0;
+  scene.add(im);
+  return im;
+})();
+
+const SOCCER = {
+  pos: new THREE.Vector3(0, -100, 0),
+  vel: new THREE.Vector3(),
+  quat: new THREE.Quaternion(),
+  active: false,
+  pitch: null,                 // active park {x, z, yaw, gx, gz}
+  goals: 0,                    // session tally
+  goalie: -1,                  // NPC index, -1 = none assigned
+  goalieTold: false,
+  dribbleT: 0, kickT: 0,       // HUD state timers
+  chipState: '',
+  npcs: null,                  // wired by the PEOPLE block (BUSNPC pattern)
+  veh: null,                   // lazy: [{v, r, prev}]
+  _t1: new THREE.Vector3(), _t2: new THREE.Vector3(),
+  _tq: new THREE.Quaternion(), _m: new THREE.Matrix4(),
+  _s1: new THREE.Vector3(1, 1, 1),
+};
+
+/* seeded subset of park amenities: pure function of chunk coords,
+   deterministic on revisit (same idiom as amenityAccepted). */
+function soccerPitchFor(gx, gz) {
+  return amenityTypeFor(gx, gz) === 'park' && amenityAccepted(gx, gz) &&
+         (hash2i(gx, gz) % 5 === 1);
+}
+/* nearest soccer park among the placed instances, inside SOCCER_NEAR. */
+function soccerFindPitch() {
+  const px = player.position.x, pz = player.position.z;
+  let best = null, bd = SOCCER_NEAR * SOCCER_NEAR;
+  for (const a of AMEN.active.park) {
+    if (!soccerPitchFor(a.gx, a.gz)) continue;
+    const dx = a.x - px, dz = a.z - pz, d = dx * dx + dz * dz;
+    if (d < bd) { bd = d; best = a; }
+  }
+  return best;
+}
+function soccerSpawnAt(a) {
+  SOCCER.pitch = a;
+  SOCCER.pos.set(a.x, terrainHeight(a.x, a.z) + BALL_R + 0.05, a.z);
+  SOCCER.vel.set(0, 0, 0);
+  SOCCER.quat.identity();
+  SOCCER.active = true;
+  SOCCER.goalie = -1; SOCCER.goalieTold = false;
+  updateSoccerChip(true);
+}
+function soccerParkBall() {
+  SOCCER.active = false;
+  SOCCER.pitch = null;
+  ballIM.count = 0;
+  soccerReleaseGoalie();
+  updateSoccerChip(true);
+}
+/* goalie: nearest free pedestrian takes GOALIE, resumes wander on release. */
+function soccerAssignGoalie() {
+  if (!SOCCER.npcs || SOCCER.goalie >= 0) return;
+  const p = SOCCER.pitch;
+  let bi = -1, bd = Infinity;
+  for (let i = 0; i < SOCCER.npcs.length; i++) {
+    const n = SOCCER.npcs[i];
+    if (n.state === 'FLEE' || n.state === 'GOALIE') continue;
+    if (BUS.boarded.indexOf(i) >= 0) continue;   // never steal a bus passenger
+    const dx = n.pos.x - p.x, dz = n.pos.z - p.z, d = dx * dx + dz * dz;
+    if (d < bd) { bd = d; bi = i; }
+  }
+  if (bi < 0) return;
+  SOCCER.goalie = bi;
+  const n = SOCCER.npcs[bi];
+  n.state = 'GOALIE'; n.chatWith = -1; n.idleT = 0;
+  n.swingL = 0; n.swingR = 0;
+  /* the keeper takes the goal mouth at once: arcade, no cross-map sprint.
+     It then mirrors the ball laterally from there at GOALIE_SPD. */
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  n.pos.set(p.x + (PITCH_HX - 0.8) * c,
+            terrainHeight(p.x + (PITCH_HX - 0.8) * c, p.z - (PITCH_HX - 0.8) * s),
+            p.z - (PITCH_HX - 0.8) * s);
+  n.yaw = Math.atan2(p.x - n.pos.x, p.z - n.pos.z);   // face the pitch
+}
+function soccerReleaseGoalie() {
+  if (SOCCER.goalie >= 0 && SOCCER.npcs) {
+    const n = SOCCER.npcs[SOCCER.goalie];
+    if (n && n.state === 'GOALIE') n.state = 'WALK';   // back on the route
+  }
+  SOCCER.goalie = -1; SOCCER.goalieTold = false;
+}
+/* ball near the player's feet and low: the F key becomes KICK. */
+function soccerBallNear() {
+  if (!SOCCER.active) return false;
+  const dx = SOCCER.pos.x - player.position.x, dz = SOCCER.pos.z - player.position.z;
+  if (dx * dx + dz * dz > KICK_R * KICK_R) return false;
+  return SOCCER.pos.y - terrainHeight(SOCCER.pos.x, SOCCER.pos.z) < 2.0;
+}
+/* F doubles as KICK near the ball. Same guard idiom as doPunch:
+   dead, shop open, driving, riding all block it. */
+function soccerCanKick() {
+  if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
+      BIKE.driving || BC.driving || SC.driving) return false;
+  return soccerBallNear();
+}
+function doKick() {
+  if (!soccerCanKick()) return;
+  const fx = Math.sin(camYaw), fz = Math.cos(camYaw);   // camera aim, horizontal
+  SOCCER.vel.set(fx * KICK_POW, KICK_UP, fz * KICK_POW);
+  P.punchCd = 0.45; P.punchDur = 0.32; P.punchT = P.punchDur; P.punchHit = false;
+  SOCCER.kickT = 0.7;
+  sfxBlip(170, 0.12, 'sine', 0.4);                       // boot thud
+  setTimeout(() => sfxBlip(340, 0.1, 'triangle', 0.25), 60);
+  updateSoccerChip(true);
+}
+/* dribble: sphere push-out + velocity transfer. Returns true on contact. */
+function soccerDribbleBody(bx, bz, bodyR, vx, vz) {
+  const B = SOCCER;
+  const dx = B.pos.x - bx, dz = B.pos.z - bz;
+  const d = Math.hypot(dx, dz), minD = BALL_R + bodyR;
+  if (d >= minD) return false;
+  let nx = 1, nz = 0;
+  if (d >= 0.0001) { nx = dx / d; nz = dz / d; }
+  B.pos.x = bx + nx * minD;
+  B.pos.z = bz + nz * minD;
+  B.vel.x = vx * 1.1 + nx * 1.5;
+  B.vel.z = vz * 1.1 + nz * 1.5;
+  const gy = terrainHeight(B.pos.x, B.pos.z) + BALL_R;
+  if (B.pos.y < gy + 0.6) { B.pos.y = Math.max(B.pos.y, gy); B.vel.y = Math.max(B.vel.y, 0); }
+  return true;
+}
+function soccerVehList() {
+  if (!SOCCER.veh) {
+    const mk = (v, r) => ({ v, r, prev: v.pos.clone() });
+    SOCCER.veh = [mk(CAR, 1.3), mk(BUS, 2.4), mk(TX, 1.3),
+                  mk(BIKE, 0.9), mk(BC, 0.8), mk(SC, 0.7)];
+  }
+  return SOCCER.veh;
+}
+function soccerGoal(own) {
+  const p = SOCCER.pitch;
+  if (!own) {
+    SOCCER.goals++;
+    cash += GOAL_CASH; updateCashHUD();                 // the cash idiom
+    toast('GOAL! +$30');
+    sfxBlip(523, 0.12, 'square', 0.3);
+    setTimeout(() => sfxBlip(659, 0.12, 'square', 0.3), 110);
+    setTimeout(() => sfxBlip(784, 0.2, 'square', 0.3), 220);
+  } else {
+    toast('OWN GOAL');
+    sfxBlip(220, 0.2, 'sawtooth', 0.25);
+  }
+  SOCCER.pos.set(p.x, terrainHeight(p.x, p.z) + BALL_R + 0.05, p.z);
+  SOCCER.vel.set(0, 0, 0);
+  updateSoccerChip(true);
+}
+
+/* ---- HUD: goals chip (pet-chip chip language) + KICK prompt (farm-hint
+        pattern, tappable). DOM only, zero draw calls. ---- */
+const socChipEl = document.getElementById('socchip');
+function updateSoccerChip(force) {
+  let s;
+  if (!SOCCER.active) s = '';
+  else if (SOCCER.kickT > 0) s = 'KICK! - GOALS ' + SOCCER.goals;
+  else if (SOCCER.dribbleT > 0) s = 'DRIBBLE! - GOALS ' + SOCCER.goals;
+  else s = 'SOCCER - GOALS ' + SOCCER.goals;
+  if (!force && s === SOCCER.chipState) return;
+  SOCCER.chipState = s;
+  socChipEl.style.display = s ? 'block' : 'none';
+  if (s) socChipEl.textContent = s;
+}
+const kickHintEl = document.getElementById('kickhint');
+kickHintEl.addEventListener('click', () => { doKick(); });
+let kickHintOn = false;
+function soccerKickHint(show) {
+  if (show === kickHintOn) return;
+  kickHintOn = show;
+  kickHintEl.style.opacity = show ? 1 : 0;
+  if (show) kickHintEl.textContent = 'KICK [F]';
+}
+
+/* ---- soccer tick: activation, ball physics, dribble, goalie, scoring.
+        Zero per-frame allocation: all temps live on SOCCER. ---- */
+function soccerTick(dt) {
+  if (dt <= 0) return;
+  const found = soccerFindPitch();
+  if (!found) {
+    if (SOCCER.active) soccerParkBall();
+    soccerKickHint(false);
+    return;
+  }
+  if (!SOCCER.active || SOCCER.pitch !== found) soccerSpawnAt(found);
+  const B = SOCCER, p = SOCCER.pitch;
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+
+  /* ball physics: gravity, bounce, rolling friction, speed cap */
+  B.vel.y -= BALL_GRAV * dt;
+  const sp2 = B.vel.x * B.vel.x + B.vel.z * B.vel.z;
+  if (sp2 > BALL_MAXV * BALL_MAXV) {
+    const k = BALL_MAXV / Math.sqrt(sp2);
+    B.vel.x *= k; B.vel.z *= k;
+  }
+  B.pos.x += B.vel.x * dt; B.pos.y += B.vel.y * dt; B.pos.z += B.vel.z * dt;
+  const gy = terrainHeight(B.pos.x, B.pos.z) + BALL_R;
+  if (B.pos.y <= gy) {
+    B.pos.y = gy;
+    if (B.vel.y < 0) B.vel.y *= -BALL_REST;
+    if (Math.abs(B.vel.y) < 0.9) B.vel.y = 0;
+    const f = Math.max(0, 1 - BALL_ROLL * dt);
+    B.vel.x *= f; B.vel.z *= f;
+    if (B.vel.x * B.vel.x + B.vel.z * B.vel.z < 0.0025) { B.vel.x = 0; B.vel.z = 0; }
+  }
+  /* rolling rotation: axis = up cross vel, angle = dist / radius */
+  const hs = Math.hypot(B.vel.x, B.vel.z);
+  if (hs > 0.01 && B.pos.y <= gy + 0.01) {
+    B._t1.set(B.vel.z / hs, 0, -B.vel.x / hs);
+    B._tq.setFromAxisAngle(B._t1, hs * dt / BALL_R);
+    B.quat.premultiply(B._tq);
+  }
+
+  /* dribble: player body on foot, plus all six vehicles (parked or driven) */
+  const onFoot = playing() && !P.dead && !shopOpen &&
+    !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding &&
+    !BIKE.driving && !BC.driving && !SC.driving;
+  let dribbling = false;
+  if (onFoot && soccerDribbleBody(player.position.x, player.position.z, 0.45, P.vel.x, P.vel.z))
+    dribbling = true;
+  for (const e of soccerVehList()) {
+    const vx = (e.v.pos.x - e.prev.x) / dt, vz = (e.v.pos.z - e.prev.z) / dt;
+    if (soccerDribbleBody(e.v.pos.x, e.v.pos.z, e.r, vx, vz)) dribbling = true;
+    e.prev.copy(e.v.pos);
+  }
+  if (dribbling) B.dribbleT = 0.6;
+  B.dribbleT = Math.max(0, B.dribbleT - dt);
+  B.kickT = Math.max(0, B.kickT - dt);
+
+  /* pitch-local coords (inverse of the amenity collider transform) */
+  const rdx = B.pos.x - p.x, rdz = B.pos.z - p.z;
+  const lx = rdx * c - rdz * s, lz = rdx * s + rdz * c;
+
+  /* goalie: holds the attack goal mouth, mirrors the ball laterally */
+  const pdx = player.position.x - p.x, pdz = player.position.z - p.z;
+  if (pdx * pdx + pdz * pdz < SOCCER_LEAVE * SOCCER_LEAVE) {
+    soccerAssignGoalie();
+    if (SOCCER.goalie >= 0 && SOCCER.npcs) {
+      const n = SOCCER.npcs[SOCCER.goalie];
+      if (n.state === 'GOALIE') {
+        if (!SOCCER.goalieTold) { SOCCER.goalieTold = true; toast('GOALIE ON THE PITCH'); }
+        const clz = Math.max(-2.5, Math.min(2.5, lz));
+        const tx = p.x + (PITCH_HX - 0.8) * c + clz * s;
+        const tz = p.z - (PITCH_HX - 0.8) * s + clz * c;
+        const gx = tx - n.pos.x, gz = tz - n.pos.z;
+        const gd = Math.hypot(gx, gz);
+        if (gd > 0.05) {
+          const step = Math.min(gd, GOALIE_SPD * dt);
+          n.pos.x += gx / gd * step; n.pos.z += gz / gd * step;
+        }
+        n.pos.y = terrainHeight(n.pos.x, n.pos.z);
+        n.goalieYaw = Math.atan2(B.pos.x - n.pos.x, B.pos.z - n.pos.z);
+      }
+    }
+  } else {
+    soccerReleaseGoalie();
+  }
+
+  /* scoring: between the posts, under the bar. +X local = attack goal. */
+  const underBar = B.pos.y - terrainHeight(B.pos.x, B.pos.z) < GOAL_H + BALL_R;
+  if (Math.abs(lz) < GOAL_HALF_W - 0.1 && underBar) {
+    if (lx > PITCH_HX) soccerGoal(false);
+    else if (lx < -PITCH_HX) soccerGoal(true);
+  } else if (rdx * rdx + rdz * rdz > 30 * 30) {
+    /* ball lost out of bounds: back to the center spot */
+    B.pos.set(p.x, terrainHeight(p.x, p.z) + BALL_R + 0.05, p.z);
+    B.vel.set(0, 0, 0);
+    toast('BALL RETURNED');
+  }
+
+  /* HUD: chip states + KICK prompt */
+  updateSoccerChip(false);
+  soccerKickHint(onFoot && soccerBallNear());
+
+  /* pose the one ball instance */
+  B._m.compose(B.pos, B.quat, B._s1);
+  ballIM.setMatrixAt(0, B._m);
+  ballIM.instanceMatrix.needsUpdate = true;
+  ballIM.count = 1;
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(soccerTick));
+
 /* === WORLD-PEOPLE-ANCHOR === */
 /* Phase 3 buses: passenger hook. The PEOPLE block below stores its npc list
    and an instance hide/show helper here; the bus block reads them. Declared
@@ -7391,6 +7801,7 @@ const BUSNPC = { npcs: null, hideNPC: null };
      so re-hiding a boarded NPC each frame wins over poseNPCs; the behavior
      sim keeps running underneath and resumes on alight. */
   BUSNPC.npcs = npcs;
+  SOCCER.npcs = npcs;   /* Phase 5 soccer: the goalie is one of these walkers */
   BUSNPC.hideNPC = (i, hide) => {
     const s = hide ? 0 : 1;
     _nM1.makeScale(s, s, s);
@@ -7480,6 +7891,17 @@ const BUSNPC = { npcs: null, hideNPC: null };
     const violLive = violAgeMs < 4000 && window.__lastViolencePos;
     for (let ni = 0; ni < npcs.length; ni++) {
       const n = npcs[ni], p = n.pos;
+
+      /* Phase 5 soccer: the goalie holds the goal mouth; soccerTick owns
+         its position (it runs just before this ticker each frame). Legs
+         paddle in place, face the ball; flee and night-shelter logic
+         are skipped. */
+      if (n.state === 'GOALIE') {
+        const swg = Math.sin(now * 11 + n.phase);
+        n.swingL = swg * 0.55; n.swingR = -swg * 0.55;
+        n.yaw = n.goalieYaw || 0;
+        continue;
+      }
 
       /* --- FLEE trigger: gunfire or mission violence within 25u, or wanted heat --- */
       if (n.state !== 'FLEE') {
@@ -11187,6 +11609,7 @@ function newGame() {
   MS.state = 'IDLE'; MS.idx = -1; MS.phase = 0; MS.prog = 0; MS.giverT = 0;
   for (let i = 0; i < MS.done.length; i++) MS.done[i] = false;
   cash = 0; kills = 0;
+  SOCCER.goals = 0; updateSoccerChip(true);   // Phase 5 soccer: new session, new tally
   releasePet(true);   // Phase 5 wildlife: new game releases the pet (silent)
   for (const k of FOOD_ORDER) FOOD[k] = 0;   // Phase 5 cooking: empty the pantry
   updateFoodHUD();
