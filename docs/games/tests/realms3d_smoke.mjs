@@ -139,7 +139,8 @@ globalThis.__R3D = {
   makeTheaterScreenTex, theaterHallMesh, theaterHallScreen,
   thallhintEl, tshowhintEl, thallChipEl, thallTxtEl, thallArrEl,
   LMTHEATER_COL, LMTH_R, LMTH_SEGS, LMTH_GATE_K, LMTH_CHIP_R2, LMTH_DOOR, LMTH_DOOR_R2,
-  THEATER_ROOM_Y, THEATER_SHOW_COST, THEATER_SHOW_HEAL, THEATER_SHOW_HOURS,
+  THEATER_ROOM_Y, THEATER_SHOWS, theaterShowFor, theaterBoardShow, theaterDrawScreen,
+  theaterComedySting, theaterConcertSting,
   /* Phase 5 landmark casino v1 */
   CASINOHALL, CASINOSLOT, casinoHallEnter, casinoHallExit, casinoHallKeyE, casinoHallTick,
   casinoSlotSit, casinoSlotStand, casinoHallDoorWorld, buildLandmarkCasinoGeo, buildCasinoHallGeo,
@@ -6096,22 +6097,29 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       && Math.abs(G.theaterHallMesh.position.z - ta.z) < 0.01
       && Math.abs(G.player.position.x - ta.x) < 0.01);
     frame(10);
-    check('lmth: WATCH SHOW prompt shows inside',
-      G.tshowhintEl.style.opacity == 1 && /WATCH SHOW/.test(G.tshowhintEl.textContent),
+    check('lmth: WATCH hint shows the picked show name', 
+      G.tshowhintEl.style.opacity == 1 && G.tshowhintEl.textContent.includes(G.THEATERHALL.show.name),
       G.tshowhintEl.textContent);
 
-    /* WATCH SHOW: $5 ticket, +2 game hours, +25 HP, one show per visit */
+    /* WATCH SHOW: the picked show's cost, hours, and heal; one show per visit */
     const probsT = consoleProblems.length;
+    const show0 = G.THEATERHALL.show;
     G.P.hp = 50; G.updateHpHUD(); G.cash = 100;
     const dp0 = G.dayPhase;
     G.theaterWatchShow();
-    check('lmth: the ticket costs $5', G.cash === 95, 'cash=' + G.cash);
-    check('lmth: the show advances game time 2 hours',
-      Math.abs(((G.dayPhase - dp0 + 1) % 1) - G.THEATER_SHOW_HOURS / 24) < 1e-9,
+    check('lmth: the ticket costs the picked show price (' + show0.name + ' $' + show0.cost + ')',
+      G.cash === 100 - show0.cost, 'cash=' + G.cash);
+    check('lmth: the show advances game time ' + show0.hours + 'h (' + show0.name + ')',
+      Math.abs(((G.dayPhase - dp0 + 1) % 1) - show0.hours / 24) < 1e-9,
       'dphase=' + (((G.dayPhase - dp0 + 1) % 1)).toFixed(4));
-    check('lmth: the show restores +25 HP', G.P.hp === 75, 'hp=' + G.P.hp);
+    check('lmth: the show restores +' + show0.heal + ' HP (' + show0.name + ')',
+      G.P.hp === 50 + show0.heal, 'hp=' + G.P.hp);
     check('lmth: one show per visit (E now exits, never traps)',
       G.THEATERHALL.showOn === false);
+    const cashAfter = G.cash;
+    G.theaterWatchShow();   // second watch is a no-op: no double charge
+    check('lmth: no second charge after the show (one show per visit)',
+      G.cash === cashAfter, 'cash=' + G.cash);
     frame(10);
     check('lmth: EXIT prompt shows after the show',
       G.tshowhintEl.style.opacity == 1 && /EXIT/.test(G.tshowhintEl.textContent),
@@ -6121,11 +6129,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.theaterHallExit();
     frame(5);   // let the tick re-arm nearIdx at the door
     G.closeShop(); G.theaterHallEnter();
-    G.P.hp = 50; G.updateHpHUD(); G.cash = 3;
+    G.P.hp = 50; G.updateHpHUD(); G.cash = 2;   // below the cheapest show ($3): always denied
     frame(5);
     G.theaterWatchShow();
     check('lmth: a broke visitor is denied (cash and HP untouched)',
-      G.cash === 3 && G.P.hp === 50, 'cash=' + G.cash + ' hp=' + G.P.hp);
+      G.cash === 2 && G.P.hp === 50, 'cash=' + G.cash + ' hp=' + G.P.hp);
     check('lmth: the denied visitor can still exit',
       G.THEATERHALL.showOn === false && G.THEATERHALL.inHall === true);
 
@@ -6136,17 +6144,69 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     frame(10);   // let the tick re-arm nearIdx at the door
     G.closeShop(); G.theaterHallEnter();
     G.P.hp = 50; G.updateHpHUD(); G.cash = 100;
+    const showK = G.THEATERHALL.show;   // the deterministic pick for this visit
     frame(5);
     G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
     stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
-    check('lmth: KeyE watches the show at a live prompt',
-      G.cash === 95 && G.P.hp === 75 && G.THEATERHALL.inHall === true,
+    check('lmth: KeyE watches the show at a live prompt (' + showK.name + ')',
+      G.cash === 100 - showK.cost && G.P.hp === 50 + showK.heal && G.THEATERHALL.inHall === true,
       'cash=' + G.cash + ' hp=' + G.P.hp);
     stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
     check('lmth: KeyE exits after the show (round trip complete)',
       G.THEATERHALL.inHall === false && G.theaterHallMesh.visible === false);
     const backD = Math.hypot(G.player.position.x - G.THEATERHALL.doorX, G.player.position.z - G.THEATERHALL.doorZ);
     check('lmth: exit teleports back to the door', backD < 0.01, 'd=' + backD.toFixed(3));
+
+    /* ---- THEATER SHOW VARIETY v1: show table, deterministic pick, two-show watch flow ---- */
+    check('lmth-var: show table pins 3 shows with name/cost/hours/heal',
+      G.THEATER_SHOWS.length === 3
+      && G.THEATER_SHOWS[0].name === 'COMEDY NIGHT' && G.THEATER_SHOWS[0].cost === 3
+      && G.THEATER_SHOWS[0].hours === 1 && G.THEATER_SHOWS[0].heal === 15
+      && G.THEATER_SHOWS[1].name === 'ACTION MOVIE' && G.THEATER_SHOWS[1].cost === 5
+      && G.THEATER_SHOWS[1].hours === 2 && G.THEATER_SHOWS[1].heal === 25
+      && G.THEATER_SHOWS[2].name === 'LIVE CONCERT' && G.THEATER_SHOWS[2].cost === 8
+      && G.THEATER_SHOWS[2].hours === 3 && G.THEATER_SHOWS[2].heal === 40,
+      JSON.stringify(G.THEATER_SHOWS));
+    check('lmth-var: the pick is deterministic (same inputs = same show)',
+      G.theaterShowFor(120, -340, 7) === G.theaterShowFor(120, -340, 7)
+      && G.theaterShowFor(-55, 901, 2) === G.theaterShowFor(-55, 901, 2));
+    {
+      /* consecutive visits rotate through all three shows for the same theater */
+      const seen = new Set();
+      for (let v = 1; v <= 6; v++) seen.add(G.theaterShowFor(ta.x, ta.z, v));
+      check('lmth-var: consecutive visits rotate through all 3 shows',
+        seen.size === 3, 'seen=' + [...seen].join(','));
+    }
+    /* watch flow for two distinct shows: enter, watch, exit, enter again */
+    G.player.position.set(kdoor.x, groundY(kdoor.x, kdoor.z), kdoor.z);
+    frame(10);
+    G.closeShop(); G.theaterHallEnter();
+    const showA = G.THEATERHALL.show;
+    G.P.hp = 40; G.updateHpHUD(); G.cash = 200;
+    const dpA = G.dayPhase;
+    G.theaterWatchShow();
+    check('lmth-var: visit 1 (' + showA.name + ') charges, heals, and advances hours',
+      G.cash === 200 - showA.cost && G.P.hp === 40 + showA.heal
+      && Math.abs(((G.dayPhase - dpA + 1) % 1) - showA.hours / 24) < 1e-9,
+      'cash=' + G.cash + ' hp=' + G.P.hp);
+    G.theaterHallExit();
+    frame(5);
+    G.player.position.set(kdoor.x, groundY(kdoor.x, kdoor.z), kdoor.z);
+    frame(10);
+    G.closeShop(); G.theaterHallEnter();
+    const showB = G.THEATERHALL.show;
+    check('lmth-var: the next visit picks a different show (variety rotates)',
+      showB.name !== showA.name, showA.name + ' -> ' + showB.name);
+    G.P.hp = 40; G.updateHpHUD();
+    const dpB = G.dayPhase;
+    G.theaterWatchShow();
+    check('lmth-var: visit 2 (' + showB.name + ') charges, heals, and advances hours',
+      G.cash === 200 - showA.cost - showB.cost && G.P.hp === 40 + showB.heal
+      && Math.abs(((G.dayPhase - dpB + 1) % 1) - showB.hours / 24) < 1e-9,
+      'cash=' + G.cash + ' hp=' + G.P.hp);
+    check('lmth-var: one show per visit still holds after the variety change',
+      G.THEATERHALL.showOn === false && G.THEATERHALL.inHall === true);
+    G.theaterHallExit();
 
     /* HUD chip: shows within 500m with bearing arrow + distance, hidden when far */
     frame(20);
