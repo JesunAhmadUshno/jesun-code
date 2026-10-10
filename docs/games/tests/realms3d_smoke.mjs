@@ -163,6 +163,7 @@ globalThis.__R3D = {
   amuseUpdate, amuseAnimate, amusePlace, amusePark, amuseBox, amuseTint,
   amuseSlotWorld, amuseRideName, updateAmuseChip,
   amuseHintEl, amuseChipEl, HELP_AMUSE,
+  amusebearingEl, amusebarrEl, amusebtxtEl,
   AMUSE_N, AMUSE_SCAN, A_INST, AMUSE_WHEEL_W, AMUSE_CAR_W, AMUSE_NAMES,
   AMUSE_FW_LX, AMUSE_FW_LZ, AMUSE_FW_CY, AMUSE_FW_R,
   /* Phase 5 rural civic buildings v1 */
@@ -4647,6 +4648,35 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('amuse: exit frees the rider, chip hides, steps off at the wheel base',
     G.AMUSE.riding === false && G.amuseChipEl.style.display === 'none'
     && Math.hypot(G.player.position.x - aslot.x, G.player.position.z - aslot.z) > 1.0);
+
+  /* venue bearing chip (amusebearing): the visible midway sign. Truthful
+     park name + screen-direction bearing + positive distance on foot;
+     hidden while riding so it never overlaps the NOW RIDING readout. */
+  check('amuse: bearing chip DOM exists (amusebearing/amusebarr/amusebtxt)',
+    !!G.amusebearingEl && !!G.amusebarrEl && !!G.amusebtxtEl);
+  check('amuse-static: bearing chip pins below the apt chip in the top-left stack (no overlap)',
+    html.includes('#amusebearing {\n    position: absolute; top: 390px; left: 18px;'));
+  G.player.position.set(aslot.x + 40, groundY(aslot.x + 40, aslot.z), aslot.z);
+  frame(20);   // bearing chip cadence (4 Hz)
+  const abt = G.amusebtxtEl.textContent;
+  check('amuse: bearing chip shows the park name with a positive distance on foot',
+    G.amusebearingEl.style.display === 'block' && /^[A-Z ]+ \d+M$/.test(abt)
+    && parseInt(abt.slice(abt.lastIndexOf(' ') + 1), 10) > 0, abt);
+  check('amuse: bearing chip arrow rotates to the park bearing',
+    /rotate\(-?\d+(\.\d+)?deg\)/.test(G.amusebarrEl.style.transform), G.amusebarrEl.style.transform);
+  G.player.position.set(aslot.x, groundY(aslot.x, aslot.z), aslot.z);
+  frame(3);
+  G.amuseEnter();
+  frame(20);
+  check('amuse: bearing chip hides while riding (the NOW RIDING chip owns the readout)',
+    G.amuseChipEl.style.display === 'block' && G.amusebearingEl.style.display === 'none');
+  G.amuseExit();
+  frame(20);
+  check('amuse: bearing chip returns on foot after the ride',
+    G.amusebearingEl.style.display === 'block', G.amusebtxtEl.textContent);
+  check('amuse: bearing chip round trip leaves zero console errors/warnings',
+    consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
+
   check('amuse: ride/exit round trip leaves zero console errors/warnings',
     consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
 }
