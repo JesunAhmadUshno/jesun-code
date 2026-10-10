@@ -188,6 +188,19 @@ globalThis.__R3D = {
   pokerChipEl, pokerPanelEl, pokerPayEl, pokerCardsEl, pokerStatusEl,
   pokerBetEl, pokerDealEl, pokerDrawEl, pokerBigWinEl,
   POKER_BETS, POKER_PAY, POKER_HASH_A, POKER_HASH_B, HELP_LMPOKER,
+  /* Phase 5 landmark casino baccarat v1 (sixth table game: baccarat) */
+  CASINOBACC, casinoBaccSit, casinoBaccStand,
+  baccRank, baccSuit, baccIsRed, baccCardStr, baccCardVal, baccHandVal,
+  baccBuildShoe, baccShoeSeed, baccDraw, baccBankerDraws,
+  baccTotalBet, baccPlace, baccClear, baccCycleBet,
+  baccDeal, baccRevealOne, baccSkipSqueeze, baccFinishReveal,
+  baccOutcome, baccNetFor, baccWinSting, baccSettle, baccUpdate,
+  baccPayRows, baccRender,
+  baccChipEl, baccPanelEl, baccPayEl, baccPlabelEl, baccBlabelEl,
+  baccPlayerEl, baccBankerEl, baccSqueezeEl, baccStatusEl,
+  baccBetEl, baccDealEl, baccClearEl, baccBigWinEl, baccTabEls,
+  BACC_BETS, BACC_SIDES, BACC_PAY, BACC_HASH_A, BACC_HASH_B, HELP_LMBACC,
+  baccClearBoard,
   LMCASINO_COL, LMCAS_R, LMCAS_SEGS, LMCAS_GATE_K, LMCAS_CHIP_R2, LMCAS_DOOR, LMCAS_DOOR_R2,
   CASINO_ROOM_Y, LMCS_BETS, LMCS_SYMS, LMCS_WILD, LMCS_SEVEN, LMCS_LINES, LMCS_TAPE, LMCS_OUT_AT,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
@@ -6859,7 +6872,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('roul-static: single keydown listener (Q rides the existing one)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1
-    && html.includes("switch the table seat: slots, cards, roulette, dice or poker"));
+    && html.includes("switch the table seat: slots, cards, roulette, dice, poker or baccarat"));
   check('roul-static: #roulchip pins its own top-left slot (no chip overlap)',
     html.includes('#roulchip {') && html.includes('top: 720px'));
 
@@ -7123,7 +7136,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
   G.closeShop(); G.casinoHallEnter();
   check('dice: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
-  /* the 5-cycle: slots -> cards -> roulette -> dice -> poker -> slots */
+  /* the 6-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> slots */
   G.CASINOHALL.seatKind = 'slots';
   G.casinoSeatToggle();
   check('dice: seat cycle slots -> cards', G.CASINOHALL.seatKind === 'bj');
@@ -7132,9 +7145,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.casinoSeatToggle();
   check('dice: seat cycle roulette -> dice', G.CASINOHALL.seatKind === 'dice');
   G.casinoSeatToggle();
-  check('dice: seat cycle dice -> poker (the 5-cycle)', G.CASINOHALL.seatKind === 'poker');
+  check('dice: seat cycle dice -> poker', G.CASINOHALL.seatKind === 'poker');
   G.casinoSeatToggle();
-  check('dice: seat cycle poker -> slots (the 5-cycle closes)', G.CASINOHALL.seatKind === 'slots');
+  check('dice: seat cycle poker -> baccarat (the 6-cycle)', G.CASINOHALL.seatKind === 'bacc');
+  G.casinoSeatToggle();
+  check('dice: seat cycle baccarat -> slots (the 6-cycle closes)', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 4 && G.CASINOHALL.seatKind !== 'dice'; q++) G.casinoSeatToggle();
   frame(20);
   check('dice: PLAY DICE prompt shows inside',
@@ -7349,11 +7364,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
   G.closeShop(); G.casinoHallEnter();
   check('poker: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
-  /* the 5-cycle: slots -> cards -> roulette -> dice -> poker -> slots */
+  /* the 6-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> slots */
   G.CASINOHALL.seatKind = 'slots';
-  const pCyc = ['bj', 'roul', 'dice', 'poker', 'slots'];
-  const pCycNames = ['cards', 'roulette', 'dice', 'poker', 'slots'];
-  for (let q = 0; q < 5; q++) {
+  const pCyc = ['bj', 'roul', 'dice', 'poker', 'bacc', 'slots'];
+  const pCycNames = ['cards', 'roulette', 'dice', 'poker', 'baccarat', 'slots'];
+  for (let q = 0; q < 6; q++) {
     G.casinoSeatToggle();
     check('poker: seat cycle lands ' + pCycNames[q], G.CASINOHALL.seatKind === pCyc[q]);
   }
@@ -7503,6 +7518,287 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   if (G.CASINOHALL.inHall) G.casinoHallExit();
   G.player.position.set(0, groundY(0, 0), 0);
   G.FT.routeKey = ''; G.FT.driving = false; G.ftRebuild(0, 0);
+}
+
+/* ================= PHASE 5: LANDMARK CASINO BACCARAT v1 ("BACCARAT") ================= */
+{
+  /* --- static pins: the baccarat block is seeded-only, DOM-only, chip-clean --- */
+  const baccSrc = html.slice(html.indexOf('CASINO BACCARAT v1'), html.indexOf('PHASE 5: LANDMARK FIRE STATION v1'));
+  check('bacc: the baccarat block holds zero Math.random lines (seeded idiom only)',
+    baccSrc.length > 8000 && !/Math\.random/.test(baccSrc), baccSrc.length + ' chars');
+  check('bacc: the baccarat block adds zero InstancedMesh literals (pin holds at 48)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('bacc: #baccchip owns the next free top-left slot (852px, no overlap)',
+    (html.match(/top: 852px; left: 18px/g) || []).length === 1);
+  check('bacc: no placeholder or em dash text in the baccarat block',
+    !/\b(TODO|FIXME|placeholder)\b/i.test(baccSrc) && !baccSrc.includes('—'));
+  check('bacc: one keydown listener only (1-3 extends it, no new listener)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('bacc: the table is merged into the hall mesh (zero new draws)',
+    /baccarat table \(casino baccarat v1\)/.test(html) && /amenPart\(parts, 0, 3\.0, 0\.12, 2\.4, 9\.5/.test(html));
+  check('bacc: zero new lights, zero new audio nodes (pins hold)',
+    (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6
+    && (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 31);
+  check('bacc: the shoe seed lives in the fresh hash space (6533, 11)',
+    G.BACC_HASH_A === 6533 && G.BACC_HASH_B === 11 && G.baccShoeSeed() !== 0
+    && G.BACC_HASH_A !== 6503 && G.BACC_HASH_A !== 6521 && G.BACC_HASH_A !== 6529);
+  check('bacc: the bet tiers mirror the POKER_BETS idiom',
+    G.BACC_BETS.join(',') === '5,10,25' && G.BACC_SIDES.join(',') === 'player,banker,tie');
+
+  /* --- card math: A=1, 2-9 face, 10/J/Q/K=0; hand value is sum mod 10 --- */
+  check('bacc: ace counts 1', G.baccCardVal(0) === 1);
+  check('bacc: 7 counts 7', G.baccCardVal(6) === 7);
+  check('bacc: 10/J/Q/K count 0', G.baccCardVal(9) === 0 && G.baccCardVal(10) === 0
+    && G.baccCardVal(11) === 0 && G.baccCardVal(51) === 0);
+  check('bacc: A+7 is 8', G.baccHandVal([0, 6]) === 8);
+  check('bacc: 10+J is 0', G.baccHandVal([9, 10]) === 0);
+  check('bacc: 9+8 is 7 (mod 10)', G.baccHandVal([8, 7]) === 7);
+
+  /* --- the standard banker tableau against the player's third card --- */
+  check('bacc: banker draws on 0-2 against anything', G.baccBankerDraws(2, 8) === true);
+  check('bacc: banker on 3 stands only against a third-card 8',
+    G.baccBankerDraws(3, 8) === false && G.baccBankerDraws(3, 7) === true);
+  check('bacc: banker on 4 draws on 2-7',
+    G.baccBankerDraws(4, 1) === false && G.baccBankerDraws(4, 2) === true
+    && G.baccBankerDraws(4, 7) === true && G.baccBankerDraws(4, 8) === false);
+  check('bacc: banker on 5 draws on 4-7',
+    G.baccBankerDraws(5, 3) === false && G.baccBankerDraws(5, 4) === true
+    && G.baccBankerDraws(5, 7) === true && G.baccBankerDraws(5, 8) === false);
+  check('bacc: banker on 6 draws on 6-7',
+    G.baccBankerDraws(6, 5) === false && G.baccBankerDraws(6, 6) === true
+    && G.baccBankerDraws(6, 7) === true && G.baccBankerDraws(6, 8) === false);
+  check('bacc: banker stands on 7', G.baccBankerDraws(7, 6) === false);
+
+  /* --- payout math: 1:1 sides, 8:1 tie, tie pushes side bets --- */
+  check('bacc: player 1:1 (net on top of returned stakes)',
+    G.baccNetFor('player', { player: 10, banker: 5, tie: 5 }) === 0);
+  check('bacc: banker 1:1 wins the side bet',
+    G.baccNetFor('banker', { player: 5, banker: 10, tie: 0 }) === 5);
+  check('bacc: tie pays 8:1', G.baccNetFor('tie', { player: 10, banker: 10, tie: 5 }) === 40);
+  check('bacc: tie pushes player and banker bets (net 0 without a tie bet)',
+    G.baccNetFor('tie', { player: 10, banker: 10, tie: 0 }) === 0);
+
+  /* --- the honest shoe: seeded, full 52, reshuffles under 15 --- */
+  const bShoeA = G.baccBuildShoe(4321), bShoeB = G.baccBuildShoe(4321);
+  check('bacc: the shoe is a full honest 52',
+    bShoeA.length === 52 && [...bShoeA].sort((a, b) => a - b).every((c, i) => c === i));
+  check('bacc: the same seed replays the same shoe (deterministic)',
+    bShoeA.every((c, i) => c === bShoeB[i]));
+  check('bacc: a different seed shuffles differently',
+    !G.baccBuildShoe(4322).every((c, i) => c === bShoeA[i]));
+  G.CASINOBACC.shoe = []; for (let i = 0; i < 14; i++) G.CASINOBACC.shoe.push(i);
+  G.baccDraw();
+  check('bacc: the shoe reshuffles when under 15 cards',
+    G.CASINOBACC.shoe.length === 51, 'shoe=' + G.CASINOBACC.shoe.length);
+
+  /* --- enter the hall and ride the 6-cycle to the baccarat seat --- */
+  let baccd = null;
+  baccouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'casino') { baccd = a; break baccouter; }
+    }
+  check('bacc: a seeded casino chunk exists in the scan window', !!baccd);
+  const probsB = consoleProblems.length;
+  G.P.dead = false; G.P.godT = 0;
+  const baccdoor = G.casinoHallDoorWorld(baccd);
+  G.player.position.set(baccdoor.x, groundY(baccdoor.x, baccdoor.z), baccdoor.z);
+  frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
+  G.closeShop(); G.casinoHallEnter();
+  check('bacc: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
+  G.CASINOHALL.seatKind = 'slots';
+  for (let q = 0; q < 5; q++) G.casinoSeatToggle();
+  check('bacc: five toggles land the baccarat seat (the 6-cycle)', G.CASINOHALL.seatKind === 'bacc');
+  G.casinoSeatToggle();
+  check('bacc: the 6-cycle closes baccarat -> slots', G.CASINOHALL.seatKind === 'slots');
+  for (let q = 0; q < 5; q++) G.casinoSeatToggle();
+  frame(20);
+  check('bacc: PLAY BACCARAT prompt shows inside',
+    G.casinoslothintEl.style.opacity == 1 && /PLAY BACCARAT/.test(G.casinoslothintEl.textContent),
+    G.casinoslothintEl.textContent);
+  check('bacc: the toggle chip names the seat',
+    /TABLE: BACCARAT/.test(G.casinobjselEl.textContent), G.casinobjselEl.textContent);
+
+  /* --- E sits at the baccarat chair --- */
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('bacc: KeyE sits at the baccarat chair (panel opens)',
+    G.CASINOHALL.seated === true && G.CASINOBACC.playing === true
+    && G.baccPanelEl.style.display === 'block',
+    'seated=' + G.CASINOHALL.seated);
+  check('bacc: sit parks the player at the east-table chair, facing the table',
+    Math.abs(G.player.position.x - G.CASINOHALL.baccSeatX) < 0.01
+    && Math.abs(G.player.position.z - G.CASINOHALL.baccSeatZ) < 0.01
+    && Math.abs(G.player.rotation.y - Math.PI) < 0.01,
+    'x=' + G.player.position.x.toFixed(2) + ' z=' + G.player.position.z.toFixed(2)
+    + ' yaw=' + G.player.rotation.y.toFixed(2));
+  check('bacc: the status chip shows while playing',
+    G.baccChipEl.style.display === 'block' && /^BACC /.test(G.baccChipEl.textContent),
+    G.baccChipEl.textContent);
+  check('bacc: the help line names the side keys', /1-3/.test(G.HELP_LMBACC), G.HELP_LMBACC);
+
+  /* --- BET cycles 10 -> 25 -> 5 -> 10 --- */
+  G.baccCycleBet();
+  check('bacc: BET cycles 10 -> 25', G.BACC_BETS[G.CASINOBACC.betIdx] === 25);
+  G.baccCycleBet();
+  check('bacc: BET cycles 25 -> 5', G.BACC_BETS[G.CASINOBACC.betIdx] === 5);
+  G.baccCycleBet();
+  check('bacc: BET cycles 5 -> 10', G.BACC_BETS[G.CASINOBACC.betIdx] === 10);
+
+  /* --- a broke player is denied the deal, never trapped --- */
+  G.cash = 3;
+  G.baccDeal();
+  check('bacc: a broke player is denied the deal (cash untouched, still idle)',
+    G.cash === 3 && G.CASINOBACC.phase === 'idle' && G.baccTotalBet() === 0, 'cash=' + G.cash);
+
+  /* --- side tabs take bets by call and by key (1-3 capture) --- */
+  G.cash = 100;
+  G.baccPlace('player');
+  check('bacc: PLAYER tab takes the $10 bet (cash debited)',
+    G.cash === 90 && G.CASINOBACC.bets.player === 10, 'cash=' + G.cash);
+  stubs.fireGlobal('keydown', { code: 'Digit1', preventDefault() {} });
+  check('bacc: key 1 adds to the PLAYER tab (the keydown capture works)',
+    G.cash === 80 && G.CASINOBACC.bets.player === 20, 'cash=' + G.cash);
+  stubs.fireGlobal('keydown', { code: 'Digit2', preventDefault() {} });
+  check('bacc: key 2 bets the BANKER tab', G.CASINOBACC.bets.banker === 10 && G.cash === 70);
+  G.baccClear();
+  check('bacc: CLEAR refunds the pending bets ($70 -> $100)',
+    G.cash === 100 && G.baccTotalBet() === 0, 'cash=' + G.cash);
+  stubs.fireGlobal('keydown', { code: 'Digit1', preventDefault() {} });
+  stubs.fireGlobal('keydown', { code: 'Digit1', preventDefault() {} });
+
+  /* --- DEAL: rigged shoe, player natural 9; the squeeze target is PLAYER --- */
+  const bFiller = []; for (let i = 0; i < 15; i++) bFiller.push(40 + i);
+  G.CASINOBACC.shoe = bFiller.concat([9, 6, 7, 0]);   // pops deal [0,7,6,9]: player A+8=9 natural, banker 7+10=7
+  G.baccDeal();
+  check('bacc: DEAL keeps the $20 in play and turns every card face-down',
+    G.cash === 80 && G.CASINOBACC.phase === 'squeeze'
+    && G.CASINOBACC.shown.player.every(v => !v) && G.CASINOBACC.shown.banker.every(v => !v),
+    'cash=' + G.cash + ' phase=' + G.CASINOBACC.phase);
+  check('bacc: the natural 9 draws no third card',
+    G.CASINOBACC.player.join(',') === '0,7' && G.CASINOBACC.banker.join(',') === '6,9'
+    && G.CASINOBACC.natural === true && G.CASINOBACC.revealQ.length === 4,
+    'p=' + G.CASINOBACC.player.join(',') + ' b=' + G.CASINOBACC.banker.join(','));
+  check('bacc: the richer side gets squeezed first (player), the other side after',
+    G.CASINOBACC.target === 'player'
+    && G.CASINOBACC.revealQ[0].join(',') === 'player,0'
+    && G.CASINOBACC.revealQ[1].join(',') === 'player,1'
+    && G.CASINOBACC.revealQ[2].join(',') === 'banker,0'
+    && G.CASINOBACC.revealQ[3].join(',') === 'banker,1',
+    'q=' + G.CASINOBACC.revealQ.map(s => s.join(':')).join(' '));
+  check('bacc: the SQUEEZE caption shows during the ritual',
+    G.baccSqueezeEl.style.display === 'block');
+
+  /* --- the ritual runs on the tick loop: one card per beat --- */
+  for (let f = 0; f < 160; f++) G.baccUpdate(1 / 60);   // 2.67s: the 0.55s beats reveal all four cards
+  check('bacc: the ritual reveals every card, then the headline lands',
+    G.CASINOBACC.phase === 'resolve' && G.CASINOBACC.lastOut === 'player'
+    && G.CASINOBACC.player.every((c, i) => G.CASINOBACC.shown.player[i])
+    && G.CASINOBACC.banker.every((c, i) => G.CASINOBACC.shown.banker[i]),
+    'phase=' + G.CASINOBACC.phase + ' out=' + G.CASINOBACC.lastOut);
+  check('bacc: the bankroll waits for the headline (cash untouched mid-resolve)',
+    G.cash === 80 && G.CASINOBACC.settleTb === 20 && G.CASINOBACC.settleNet === 20, 'cash=' + G.cash);
+  check('bacc: the winning side row glows on the paytable',
+    !!G.baccPayRows().find(r => r.name === 'PLAYER' && r.win === true));
+  for (let f = 0; f < 80; f++) G.baccUpdate(1 / 60);   // 1.33s: the 0.6s headline fires the settle
+  check('bacc: the settle pays stakes back plus net honestly ($80 -> $120)',
+    G.CASINOBACC.phase === 'done' && G.cash === 120 && G.CASINOBACC.lastDelta === 20,
+    'cash=' + G.cash + ' phase=' + G.CASINOBACC.phase);
+
+  /* --- E skips the ritual to an instant reveal (banker wins the hand) --- */
+  G.baccPlace('banker');   // fresh felt after done; cash 120 -> 110
+  const bFiller2 = []; for (let i = 0; i < 15; i++) bFiller2.push(30 + i);
+  G.CASINOBACC.shoe = bFiller2.concat([5, 8, 7, 10, 9]);   // pops [9,10,7,8,5]: player 10+J=0 draws 6 -> 6, banker 8+9=7 stands
+  G.baccDeal();
+  check('bacc: the third card is automatic (player draws on 0, banker stands on 7)',
+    G.CASINOBACC.player.join(',') === '9,10,5' && G.CASINOBACC.banker.join(',') === '7,8'
+    && G.CASINOBACC.revealQ.length === 5
+    && G.CASINOBACC.revealQ[4].join(',') === 'player,2',
+    'p=' + G.CASINOBACC.player.join(',') + ' b=' + G.CASINOBACC.banker.join(','));
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('bacc: KeyE skips the ritual to an instant reveal (no stand, no exit)',
+    G.CASINOBACC.phase === 'resolve' && G.CASINOBACC.lastOut === 'banker'
+    && G.CASINOHALL.seated === true && G.CASINOBACC.playing === true
+    && G.CASINOBACC.player.every((c, i) => G.CASINOBACC.shown.player[i])
+    && G.CASINOBACC.banker.every((c, i) => G.CASINOBACC.shown.banker[i]),
+    'phase=' + G.CASINOBACC.phase + ' out=' + G.CASINOBACC.lastOut);
+  check('bacc: the skipped hand computes the settle honestly',
+    G.CASINOBACC.settleTb === 10 && G.CASINOBACC.settleNet === 10, 'net=' + G.CASINOBACC.settleNet);
+  for (let f = 0; f < 80; f++) G.baccUpdate(1 / 60);
+  check('bacc: the skipped hand settles ($110 -> $130)',
+    G.CASINOBACC.phase === 'done' && G.cash === 130, 'cash=' + G.cash);
+
+  /* --- standing mid-squeeze refunds, and the pending settle no-ops --- */
+  G.baccPlace('player');
+  G.CASINOBACC.shoe = bFiller.concat([9, 6, 7, 0]);
+  G.baccDeal();
+  check('bacc: the third deal opens a pending squeeze', G.cash === 120 && G.CASINOBACC.phase === 'squeeze');
+  G.casinoBaccStand();
+  check('bacc: standing mid-squeeze refunds the pending bets ($120 -> $130)',
+    G.cash === 130 && G.CASINOBACC.playing === false && G.CASINOBACC.phase === 'idle'
+    && G.baccPanelEl.style.display === 'none' && G.baccChipEl.style.display === 'none',
+    'cash=' + G.cash);
+  G.baccUpdate(10);
+  check('bacc: the pending settle no-ops after the stand (cash frozen)',
+    G.cash === 130 && G.CASINOBACC.phase === 'idle', 'cash=' + G.cash);
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });   // stand already done: E exits the hall
+  check('bacc: KeyE exits the hall after the stand (round trip complete)',
+    G.CASINOHALL.inHall === false && G.CASINOHALL.seated === false);
+  const baccBackD = Math.hypot(G.player.position.x - G.CASINOHALL.doorX, G.player.position.z - G.CASINOHALL.doorZ);
+  check('bacc: exit teleports back to the door', baccBackD < 0.01, 'd=' + baccBackD.toFixed(3));
+
+  /* --- the tie bet pays 8:1 with the headline moment --- */
+  G.P.dead = false; G.P.godT = 0;
+  G.player.position.set(baccdoor.x, groundY(baccdoor.x, baccdoor.z), baccdoor.z);
+  frame(20);
+  G.closeShop(); G.casinoHallEnter();
+  for (let q = 0; q < 5 && G.CASINOHALL.seatKind !== 'bacc'; q++) G.casinoSeatToggle();
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('bacc: re-seated at the baccarat chair', G.CASINOBACC.playing === true);
+  G.baccPlace('tie');
+  const bFiller3 = []; for (let i = 0; i < 15; i++) bFiller3.push(20 + i);
+  G.CASINOBACC.shoe = bFiller3.concat([6, 1, 7, 0]);   // pops [0,7,1,6]: player A+8=9, banker 2+7=9, natural tie
+  G.baccDeal();
+  check('bacc: the natural tie draws no third card, and the tied target is the banker',
+    G.CASINOBACC.natural === true && G.CASINOBACC.revealQ.length === 4
+    && G.CASINOBACC.target === 'banker', 'target=' + G.CASINOBACC.target);
+  for (let f = 0; f < 160; f++) G.baccUpdate(1 / 60);
+  check('bacc: the tie resolves with the 8:1 headline',
+    G.CASINOBACC.phase === 'resolve' && G.CASINOBACC.lastOut === 'tie'
+    && G.baccBigWinEl.style.display === 'block' && /TIE 8:1/.test(G.baccBigWinEl.textContent),
+    'out=' + G.CASINOBACC.lastOut);
+  check('bacc: the tie bet nets 8:1 on top of the returned stake',
+    G.CASINOBACC.settleTb === 10 && G.CASINOBACC.settleNet === 80, 'net=' + G.CASINOBACC.settleNet);
+  for (let f = 0; f < 80; f++) G.baccUpdate(1 / 60);
+  check('bacc: the tie settles honestly ($120 -> $210)',
+    G.CASINOBACC.phase === 'done' && G.cash === 210 && G.CASINOBACC.lastDelta === 80,
+    'cash=' + G.cash);
+
+  /* --- death ejects from the hall: no gambling while dead --- */
+  G.baccPlace('player');
+  G.P.dead = true;
+  for (let f = 0; f < 3; f++) G.casinoHallTick(1 / 60);   // the death-eject path, hermetic
+  check('bacc: death ejects from the hall (never trapped)',
+    G.CASINOHALL.inHall === false && G.CASINOBACC.playing === false
+    && G.baccPanelEl.style.display === 'none' && G.baccChipEl.style.display === 'none');
+  check('bacc: the death stand refunds the pending bet ($200 -> $210)', G.cash === 210, 'cash=' + G.cash);
+  G.P.dead = false;
+
+  /* --- session only: save/load round trip carries zero baccarat keys --- */
+  G.saveGame();
+  G.loadSave();
+  const bSvStr = JSON.stringify(G.collectSave());
+  check('bacc: save schema carries zero baccarat keys',
+    !/bacc/i.test(bSvStr) && !/CASINOBACC/.test(bSvStr), bSvStr.slice(0, 120));
+  check('bacc: the round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsB, consoleProblems.slice(probsB).join(' | '));
+
+  /* leave the world as the next block expects: player at origin */
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+  G.player.position.set(0, groundY(0, 0), 0);
 }
 
 /* ================= PHASE 5: FIRE TRUCK v1 + WILDFIRE EVENTS ================= */
