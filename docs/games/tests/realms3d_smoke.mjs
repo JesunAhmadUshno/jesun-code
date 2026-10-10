@@ -228,6 +228,12 @@ globalThis.__R3D = {
   HELP_FIRHALL,
   LMFS_COL, LMFS_R, LMFS_SEGS, LMFS_GATE_K, LMFS_CHIP_R2, LMFS_DOOR, LMFS_DOOR_R2, LMFS_BAY,
   FIRESTATION_ROOM_Y,
+  /* Phase 5 fire station v2: firefighter dispatch */
+  FIRECREW, INCIDENTS, fireIncidentOnIgnite, fireDispatch, fireCalloutId,
+  fireStampInc, nearestFireStation, ffPostFor, fireIncidentDone, fireNearest,
+  fireStandDown, ffMoveTo, writeFFSpraySegments, hideFFSpraySegments,
+  FF_SPRAY_N, FF_SEEK_R2, FF_INC_R2, FF_SPRAYHIT_R2, FF_CD_S,
+  FF_DISPATCH_TOAST_R2, WF_TOAST_R2, WF_CHIP_R2,
   FLORA,
 };
 `;
@@ -760,7 +766,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 47 IM literals (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 47, 'count=' + imCount);
+  check('perf6: 48 IM literals (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 48, 'count=' + imCount);
 
   /* PERF-6 merge regression: slot maps, Y-band lifts, identity colors */
   {
@@ -1262,8 +1268,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 47 IM literals (bike section)',
-    imCount2 === 47, 'count=' + imCount2);
+  check('perf6: 48 IM literals (bike section)',
+    imCount2 === 48, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1363,8 +1369,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 47 IM literals (bicycle section)',
-    imCount3 === 47, 'count=' + imCount3);
+  check('perf6: 48 IM literals (bicycle section)',
+    imCount3 === 48, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1465,8 +1471,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 47 IM literals (scooter section)',
-    imCount4 === 47, 'count=' + imCount4);
+  check('perf6: 48 IM literals (scooter section)',
+    imCount4 === 48, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1782,8 +1788,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 47 IM literals (wildlife5 section)',
-      imCount5 === 47, 'count=' + imCount5);
+    check('perf6: 48 IM literals (wildlife5 section)',
+      imCount5 === 48, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2131,8 +2137,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 47 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
-      n === 47 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf6: 48 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
+      n === 48 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2276,8 +2282,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('food-static: InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2506,8 +2512,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('farmv1-static: InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2878,8 +2884,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -3098,8 +3104,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3895,8 +3901,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('casino-static: no em dashes in the casino block', !casinoSrc.includes('\u2014'));
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
-  check('casino-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('casino-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('casino-static: 6 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet, apartment owns its fleet)',
     G.bldgMeshes.length === 6);
   check('casino-static: casino def shares the store fleet mesh',
@@ -4024,8 +4030,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('theater-static: no em dashes in the theater block', !theaterSrc.includes('\u2014'));
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
-  check('theater-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('theater-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',
@@ -4158,8 +4164,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('civic-static: no em dashes in the civic block', !civicSrc.includes('—'));
   check('civic-static: no external URLs in the civic block', !/https?:\/\//.test(civicSrc));
   check('civic-static: no TODO markers in the civic block', !/\bTODO\b/.test(civicSrc));
-  check('civic-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('civic-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
   check('civic-static: 6 runtime building meshes (house, barn, store, civic, worship, apartment)',
@@ -4435,8 +4441,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('stadium-static: no em dashes in the stadium block', !stadiumSrc.includes('—'));
   check('stadium-static: no external URLs in the stadium block', !/https?:\/\//.test(stadiumSrc));
   check('stadium-static: no TODO markers in the stadium block', !/\bTODO\b/.test(stadiumSrc));
-  check('stadium-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('stadium-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('stadium-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('stadium-static: audio nodes pin unchanged (17 osc, 30 gain: cheer reuses sfxBlip)',
@@ -4580,8 +4586,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('amuse-static: no em dashes in the amusement block', !amuseSrc.includes('—'));
   check('amuse-static: no external URLs in the amusement block', !/https?:\/\//.test(amuseSrc));
   check('amuse-static: no TODO markers in the amusement block', !/\bTODO\b/.test(amuseSrc));
-  check('amuse-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: amuse rides the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('amuse-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: amuse rides the shared venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('amuse-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('amuse-static: audio nodes pin unchanged (17 osc, 30 gain: chimes reuse sfxBlip)',
@@ -5271,8 +5277,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmstad-static: no TODO markers in the stadium block', !/\bTODO\b/.test(lmstadSrc));
   check('lmstad-static: stad residue is checked after all existing amenity types (never displaces them)',
     html.indexOf("if (h % 10 === 6) return 'park';") < html.indexOf("if (h % 37 === 13) return 'stad';"));
-  check('lmstad-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; stad rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('lmstad-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; stad rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('lmstad-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmstad-static: single keydown listener (zero new keybinds)',
@@ -5417,8 +5423,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmause-static: no TODO markers in the park block', lmauseSrc.indexOf('TODO') === -1);
   check('lmause-static: amuse residue is checked after stad (never displaces existing types)',
     html.indexOf("if (h % 37 === 13) return 'stad';") < html.indexOf("if (h % 41 === 29) return 'amuse';"));
-  check('lmause-static: whole-file IM literals pin at 47 (46 + 1 fire truck v1; 46 = 42 + 4 ride fleets)',
-    (html.split('new THREE.InstancedMesh').length - 1) === 47);
+  check('lmause-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 46 + 1 fire truck v1; 46 = 42 + 4 ride fleets)',
+    (html.split('new THREE.InstancedMesh').length - 1) === 48);
   check('lmause-static: Math.random lines pin at 92',
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
   check('lmause-static: single keydown listener (zero new keybinds)',
@@ -5647,8 +5653,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmhosp-static: no TODO markers in the hospital block', !/\bTODO\b/.test(lmhospSrc));
   check('lmhosp-static: hosp residue is checked after all existing amenity types (never displaces them)',
     html.indexOf("if (h % 41 === 29) return 'amuse';") < html.indexOf("if (h % 47 === 23) return 'hosp';"));
-  check('lmhosp-static: whole-file IM literals pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; hosp rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('lmhosp-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; hosp rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('lmhosp-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmhosp-static: single keydown listener (zero new keybinds)',
@@ -5862,8 +5868,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmth-static: no TODO markers in the theater block', !/\bTODO\b/.test(lmthSrc));
   check('lmth-static: theater residue is checked after hosp (never displaces existing types)',
     html.indexOf("if (h % 47 === 23) return 'hosp';") < html.indexOf("if (h % 53 === 31) return 'theater';"));
-  check('lmth-static: whole-file IM literals pin at 47 (theater rides the shared def-loop literal; room is plain Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('lmth-static: whole-file IM literals pin at 48 (theater rides the shared def-loop literal; room is plain Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('lmth-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmth-static: single keydown listener (zero new keybinds)',
@@ -6156,8 +6162,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmcs-static: no TODO markers in the casino block', !/\bTODO\b/.test(lmcsSrc));
   check('lmcs-static: casino residue is checked after theater (never displaces existing types)',
     html.indexOf("if (h % 53 === 31) return 'theater';") < html.indexOf("if (h % 61 === 37) return 'casino';"));
-  check('lmcs-static: whole-file IM literals pin at 47 (casino rides the shared def-loop literal; hall is plain Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('lmcs-static: whole-file IM literals pin at 48 (casino rides the shared def-loop literal; hall is plain Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('lmcs-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmcs-static: single keydown listener (zero new keybinds)',
@@ -6582,6 +6588,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
 
   /* --- wildfire: water cannon extinguishes in the cone --- */
   trees.getMatrixAt(ti, _m4); _v3.setFromMatrixPosition(_m4);
+  /* the fire-crew dispatch hook is live: reset crew state so the cone test
+     isolates the truck spray (same hygiene as the firecrew section) */
+  for (const n of G.BUSNPC.ff.crew) { n.state = 'POST'; n.spraying = false; }
+  G.BUSNPC.ff.incident = null; G.BUSNPC.ff.sprayOn = false;
+  G.INCIDENTS.length = 0; G.FIRECREW.lastDispatch = -1e9;
   G.wildfireIgnite(ti, _v3.x, _v3.z);
   // if the seeded gate rejected it, force a record for the cone test
   if (G.FIRES.length === 0) G.FIRES.push({ idx: ti, x: _v3.x, z: _v3.z, t: 1, burnDur: 70, spreadDone: true, dmgT: 0, phase: 0 });
@@ -6670,8 +6681,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmfirest-static: no em dashes in the fire station block', !lmfsSrc.includes('\u2014'));
   check('lmfirest-static: no external URLs in the fire station block', !/https?:\/\//.test(lmfsSrc));
   check('lmfirest-static: no TODO markers in the fire station block', !/\bTODO\b/.test(lmfsSrc));
-  check('lmfirest-static: whole-file IM literals pin at 47',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('lmfirest-static: whole-file IM literals pin at 48',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('lmfirest-static: 92 Math.random lines pin holds',
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
   check('lmfirest-static: single keydown listener (zero new keybinds)',
@@ -6947,6 +6958,165 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.FT.routeKey = ''; G.FT.driving = false; G.FT.water = 100; G.FT.hp = 100; G.ftRebuild(0, 0);
     G.FIRES.length = 0;
   }
+}
+
+/* ================= PHASE 5: FIRE STATION v2 - FIREFIGHTER DISPATCH ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.FIRESTHALL.inHall) G.firestHallExit();
+  G.FT.driving = false; G.waterHeld = false;
+  G.FIRES.length = 0; G.INCIDENTS.length = 0;
+  const crew = G.BUSNPC.ff.crew;
+  for (const n of crew) { n.state = 'POST'; n.spraying = false; }
+  G.BUSNPC.ff.incident = null; G.BUSNPC.ff.sprayOn = false;
+  G.FIRECREW.lastDispatch = -1e9; G.FIRECREW.putOut = 0;
+
+  /* static: the fire-crew block adds exactly one IM literal (the helmet
+     fleet), zero new lights, no unseeded RNG, no em dashes, no external
+     URLs, no markers; whole-file pins move 47 -> 48 with justification */
+  const ffSrc = html.slice(html.indexOf('/* ================= PHASE 5: FIRE STATION v2 - FIREFIGHTER DISPATCH'),
+                           html.indexOf('/* ==================== VEHICLES PHASE 1: DRIVABLE CAR'));
+  check('firecrew-static: the helmet fleet is the one +1 IM literal (lives in the PEOPLE block, 2 slots)',
+    (html.match(/npcHelmIM = new THREE\.InstancedMesh/g) || []).length === 1);
+  check('firecrew-static: fire-crew block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(ffSrc));
+  check('firecrew-static: no unseeded RNG in the fire-crew block', !/Math\.random/.test(ffSrc));
+  check('firecrew-static: no em dashes in the fire-crew block', !ffSrc.includes('\u2014'));
+  check('firecrew-static: no external URLs in the fire-crew block', !/https?:\/\//.test(ffSrc));
+  check('firecrew-static: no markers in the fire-crew block', !/\bTODO\b/.test(ffSrc));
+  check('firecrew-static: whole-file IM literals pin at 48 (47 + 1 fire-crew helmet fleet)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('firecrew-static: 92 Math.random lines pin holds',
+    html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
+
+  /* the rig: 2 firefighters on the pedestrian fleet, helmet fleet holds 2 */
+  check('firecrew: the crew rides the pedestrian rig (2 NPCs, zone fire, POST)',
+    crew.length === 2 && crew.every(n => n.zone === 'fire' && n.state === 'POST'),
+    crew.map(n => n.zone + '/' + n.state).join(','));
+  check('firecrew: helmet fleet holds 2 slots',
+    G.BUSNPC.helmIM.isInstancedMesh === true && G.BUSNPC.helmIM.count === 2);
+
+  /* the station activates near the player; the crew snaps to the post */
+  let fgx = 0, fgz = 0, ffound = false;
+  fouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) === 'firestation' && G.amenityAccepted(gx, gz)) { fgx = gx; fgz = gz; ffound = true; break fouter; }
+    }
+  check('firecrew: a seeded firestation chunk exists', ffound, 'at ' + fgx + ',' + fgz);
+  const fcd = G.amenityCenterFor(fgx, fgz);
+  G.player.position.set(fcd.x + 60, groundY(fcd.x + 60, fcd.z), fcd.z);
+  frame(20);
+  const ffa = G.AMEN.active.firestation.find(a => Math.hypot(a.x - fcd.x, a.z - fcd.z) < 1);
+  check('firecrew: the station activates near the player', !!ffa);
+  const fpost = G.ffPostFor(ffa);
+  check('firecrew: the crew stands by at the station post',
+    crew.every(n => Math.hypot(n.pos.x - fpost.x, n.pos.z - fpost.z) < 3),
+    crew.map(n => n.pos.x.toFixed(1) + ',' + n.pos.z.toFixed(1)).join(' '));
+
+  /* a seeded-ignitable tree 8-100m from the (stationary) player */
+  const ftrees = G.FLORA.trees;
+  const _fm4 = new THREE.Matrix4(), _fv3 = new THREE.Vector3();
+  let fti = -1, ftx = 0, ftz = 0;
+  for (let i = 0; i < ftrees.count && fti < 0; i++) {
+    ftrees.getMatrixAt(i, _fm4); _fv3.setFromMatrixPosition(_fm4);
+    const pdx = _fv3.x - G.player.position.x, pdz = _fv3.z - G.player.position.z;
+    const pd2 = pdx * pdx + pdz * pdz;
+    if (pd2 < 64 || pd2 > 100 * 100) continue;
+    const h = G.hash2i(Math.floor(_fv3.x), Math.floor(_fv3.z)) ^ G.hash2i(i, 7);
+    if ((h & 3) !== 0) { fti = i; ftx = _fv3.x; ftz = _fv3.z; }
+  }
+  check('firecrew: a seeded-ignitable tree exists 8-100m out', fti >= 0, 'idx=' + fti);
+  const probs1 = consoleProblems.length;
+  const ignOk = G.wildfireIgnite(fti, ftx, ftz);   // synchronous: no frames, no recycle
+  check('firecrew: ignition registers an incident with a seeded callout ID',
+    ignOk && G.INCIDENTS.length === 1 && /^INC-[0-9A-F]{6}$/.test(G.INCIDENTS[0].id)
+    && G.INCIDENTS[0].state === 'active',
+    'inc=' + JSON.stringify(G.INCIDENTS[0]));
+  check('firecrew: the fire record carries the incident id',
+    G.FIRES.length === 1 && G.FIRES[0].incId === G.INCIDENTS[0].id);
+  check('firecrew: the nearest station dispatches the crew (TO_INCIDENT)',
+    crew.every(n => n.state === 'TO_INCIDENT'),
+    crew.map(n => n.state).join(','));
+  check('firecrew: ignition toast wins inside 150m (dispatch toast suppressed, no stomp)',
+    G.toastEl.textContent === 'WILDFIRE!', G.toastEl.textContent);
+
+  /* dispatch toast + busy guard, driven directly (deterministic, no frames) */
+  for (const n of crew) { n.state = 'POST'; n.spraying = false; }
+  G.BUSNPC.ff.incident = null; G.INCIDENTS.length = 0; G.FIRES.length = 0;
+  G.FIRECREW.lastDispatch = -1e9;
+  const px = G.player.position.x, pz = G.player.position.z;
+  const inc2 = { id: 'INC-TST01', x: px + 200, z: pz, state: 'active' };
+  G.INCIDENTS.push(inc2);
+  const dOk = G.fireDispatch(inc2, false);
+  check('firecrew: FIREFIGHTERS DISPATCHED toast within 300m',
+    dOk === true && G.toastEl.textContent === 'FIREFIGHTERS DISPATCHED', G.toastEl.textContent);
+  check('firecrew: a busy crew is not re-dispatched (busy guard)',
+    G.fireDispatch({ id: 'INC-TST02', x: px + 210, z: pz, state: 'active' }, false) === false
+    && crew.every(n => n.state === 'TO_INCIDENT'),
+    crew.map(n => n.state).join(','));
+
+  /* a real fire for the suppression leg: reset, re-ignite, walk the crew in */
+  for (const n of crew) { n.state = 'POST'; n.spraying = false; }
+  G.BUSNPC.ff.incident = null; G.BUSNPC.ff.sprayOn = false;
+  G.INCIDENTS.length = 0; G.FIRES.length = 0;
+  G.FIRECREW.lastDispatch = -1e9;
+  G.wildfireIgnite(fti, ftx, ftz);
+  const ff0 = G.FIRES[0];
+  check('firecrew: re-ignition re-dispatches a rested crew',
+    !!ff0 && crew.every(n => n.state === 'TO_INCIDENT'));
+  for (const n of crew) {
+    n.state = 'SUPPRESS';
+    n.pos.set(ff0.x + 5, groundY(ff0.x + 5, ff0.z), ff0.z);
+  }
+  frame(30);   // chip cadence
+  check('firecrew: chip reads CREW ON SITE while suppressing',
+    /CREW ON SITE/.test(G.fireTxtEl.textContent), G.fireTxtEl.textContent);
+  const ft0 = ff0.t;
+  frame(60);   // 1s of suppression
+  check('firecrew: suppression degrades the burn timer (~3x per firefighter)',
+    ff0.t - ft0 > 2, 'dt=' + (ff0.t - ft0).toFixed(2));
+  check('firecrew: the hose arc is live while suppressing',
+    G.BUSNPC.ff.sprayOn === true);
+  /* a suppressed fire counts as put out when it crosses burnout */
+  ff0.t = ff0.burnDur - 0.05; ff0.spreadDone = true;
+  const po0 = G.FIRECREW.putOut;
+  frame(30);
+  check('firecrew: a suppressed fire counts as put out', G.FIRECREW.putOut > po0,
+    'putOut=' + G.FIRECREW.putOut);
+
+  /* incident clears: stand down, FIRE OUT, walk back to post */
+  G.FIRES.length = 0;
+  frame(5);
+  check('firecrew: the crew stands down when the incident clears (RETURN)',
+    crew.every(n => n.state === 'RETURN'),
+    crew.map(n => n.state).join(','));
+  check('firecrew: FIRE OUT toast in range', G.toastEl.textContent === 'FIRE OUT', G.toastEl.textContent);
+  const fpost2 = G.ffPostFor(ffa);
+  for (const n of crew) n.pos.set(fpost2.x + 1, groundY(fpost2.x + 1, fpost2.z), fpost2.z);
+  frame(30);
+  check('firecrew: the crew returns to post and stands down (POST)',
+    crew.every(n => n.state === 'POST'),
+    crew.map(n => n.state).join(','));
+
+  /* neutrality: wanted heat never moves the crew */
+  G.setHeat(5, true);
+  frame(30);
+  check('firecrew: wanted heat never moves the crew (neutral, no flee)',
+    crew.every(n => n.state === 'POST'),
+    crew.map(n => n.state).join(','));
+  G.setHeat(0, true);
+
+  frame(30);
+  check('firecrew: round trip leaves zero console errors/warnings',
+    consoleProblems.length === probs1, consoleProblems.slice(probs1).join(' | '));
+
+  /* leave the world clean: player at origin, no fires, crew at post */
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.FIRES.length = 0; G.INCIDENTS.length = 0;
+  for (const n of crew) { n.state = 'POST'; n.spraying = false; }
+  G.BUSNPC.ff.incident = null; G.BUSNPC.ff.sprayOn = false;
 }
 
 /* ---------- zero console errors ---------- */
