@@ -289,7 +289,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     frame(2);                                          // re-pose instanced matrices
     rc.setFromCamera(center, G.camera);
     const hits = rc.intersectObjects(G.enemyMeshes, false);
-    const first = hits.map(h => h.object.userData.enemyOf[h.instanceId])
+    /* PERF-5: the brute body is a Mesh (no instanceId); same mapping as shoot() */
+    const first = hits.map(h => h.object.userData.enemyOf[h.instanceId === undefined ? 0 : h.instanceId])
       .find(ee => ee && ee.state !== 'dead');
     if (first === brute) { placed = true; break; }
   }
@@ -676,7 +677,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 48 IM literals (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)', imCount === 48, 'count=' + imCount);
+  check('perf5: 44 IM literals (48 - PERF-5: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)', imCount === 44, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1137,8 +1138,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bikeBodyIM.isInstancedMesh === true);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater (bike section)',
-    imCount2 === 48, 'count=' + imCount2);
+  check('perf5: 44 IM literals after PERF-5 consolidation (bike section)',
+    imCount2 === 44, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1238,8 +1239,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.bcBodyIM.isInstancedMesh === true);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater (bicycle section)',
-    imCount3 === 48, 'count=' + imCount3);
+  check('perf5: 44 IM literals after PERF-5 consolidation (bicycle section)',
+    imCount3 === 44, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1340,8 +1341,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.scBodyIM.isInstancedMesh === true);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater (scooter section)',
-    imCount4 === 48, 'count=' + imCount4);
+  check('perf5: 44 IM literals after PERF-5 consolidation (scooter section)',
+    imCount4 === 44, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1657,8 +1658,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater (wildlife5 section)',
-      imCount5 === 48, 'count=' + imCount5);
+    check('perf5: 44 IM literals after PERF-5 consolidation (wildlife5 section)',
+      imCount5 === 44, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2006,8 +2007,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal, 4 runtime building meshes',
-      n === 48 && G.bldgMeshes.length === 4, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf5: 44 IM literals after PERF-5 consolidation; civic fleet rides the shared def-loop literal, 4 runtime building meshes',
+      n === 44 && G.bldgMeshes.length === 4, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2151,8 +2152,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('food-static: InstancedMesh literal sites pin at 44 (48 - PERF-5 consolidation: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 44);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2381,8 +2382,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('farmv1-static: InstancedMesh literal sites pin at 44 (48 - PERF-5 consolidation: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 44);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2753,8 +2754,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 44 (48 - PERF-5 consolidation: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 44);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2973,8 +2974,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 48 (50 - PERF-4 consolidation + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 44 (48 - PERF-5 consolidation: trunks+fol merge, npcLegs->limbIM, copGuns->limbIM, brute IM->Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 44);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3770,8 +3771,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no em dashes in the casino block', !casinoSrc.includes('\u2014'));
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
-  check('casino-static: whole-file IM literals pin at 48 (civic fleet rides the shared def-loop literal: +0 literal sites, +1 runtime draw)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('casino-static: whole-file IM literals pin at 44 (48 - PERF-5 consolidation: trunks+fol, npcLegs, copGuns, brute->Mesh; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 44);
   check('casino-static: 4 runtime building meshes (casino rides the store mesh, civic types share the civic fleet)',
     G.bldgMeshes.length === 4);
   check('casino-static: casino def shares the store fleet mesh',
@@ -3899,8 +3900,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('theater-static: no em dashes in the theater block', !theaterSrc.includes('\u2014'));
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
-  check('theater-static: whole-file IM literals pin at 48 (47 + 1 theater)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('theater-static: whole-file IM literals pin at 44 (48 - PERF-5 consolidation: trunks+fol, npcLegs, copGuns, brute->Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 44);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',
@@ -4033,8 +4034,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('civic-static: no em dashes in the civic block', !civicSrc.includes('—'));
   check('civic-static: no external URLs in the civic block', !/https?:\/\//.test(civicSrc));
   check('civic-static: no TODO markers in the civic block', !/\bTODO\b/.test(civicSrc));
-  check('civic-static: whole-file IM literals pin at 48 (the civic fleet rides the shared def-loop literal: +0 literal sites)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('civic-static: whole-file IM literals pin at 44 (48 - PERF-5 consolidation: trunks+fol, npcLegs, copGuns, brute->Mesh; civic fleet rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 44);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
   check('civic-static: 4 runtime building meshes (house, barn, store, civic)',

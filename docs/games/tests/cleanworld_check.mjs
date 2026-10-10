@@ -56,7 +56,7 @@ function instPos(mesh, i) {
 }
 function snapFlora() {
   const trees = [], rocks = [];
-  const tm = G.FLORA.trunks, rm = G.FLORA.rocks;
+  const tm = G.FLORA.trees, rm = G.FLORA.rocks;
   /* PERF-2a: slots [0, nf) are the static forest-landmark pines (densely
      clustered by design, exempt from wild spacing rules); the wild
      redistributed trees live at [nf, count), same set this check measured
