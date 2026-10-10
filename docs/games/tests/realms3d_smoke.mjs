@@ -121,7 +121,7 @@ globalThis.__R3D = {
   HOOPS, basketballCourtFor, hoopsRimWorld, hoopsSpawnAt, hoopsParkBall,
   hoopsBallNear, hoopsCanShoot, doHoopShot, hoopsResetBall, hoopsScore,
   hoopsMiss, hoopsHoopCollide, hoopsTick, hoopChipEl, shootHintEl,
-  AMEN, AMEN_DEF, hash2i, sportHash, amenityTypeFor, amenityAccepted,
+  AMEN, AMEN_DEF, hash2i, sportHash, amenityTypeFor, amenityAccepted, redistributeAmenities,
   stadChipEl, stadTxtEl, stadArrEl, LMSTAD_FLOOD_MATS, LMSTAD_WALL_COL, LMSTAD_CHIP_R2,  /* Phase 5 landmark stadium v1 */
   /* Phase 5 landmark amusement park v1 */
   LMAUSE_CAP, LMAUSE_CABINS, LMAUSE_COL, LMAUSE_CHIP_R2, LMAUSE_WHEEL_R, LMAUSE_TRAIN_T,
@@ -5356,19 +5356,19 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       && Array.isArray(G.AMEN.active.stad));
 
     /* merged geometry: one mesh, one vertexColors material, per-part colors */
-    const sgeo = G.AMEN_DEF.stad.mesh.geometry;
+    const sgeo = G.AMEN_DEF.stad.meshes[0].geometry;
     check('lmstad: merged geometry carries per-part vertex colors',
       !!sgeo.attributes.color && sgeo.attributes.color.count === sgeo.attributes.position.count
       && sgeo.attributes.position.count > 500, 'verts=' + sgeo.attributes.position.count);
     check('lmstad: one material with vertexColors on',
-      G.AMEN_DEF.stad.mesh.material.vertexColors === true);
+      G.AMEN_DEF.stad.meshes[0].material.vertexColors === true);
     check('lmstad: floodlight materials ride the day/night emissive ramp (stad + amuse + hosp + theater + casino + firestation)',
-      G.LMSTAD_FLOOD_MATS.length === 6 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
-      && G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.mesh.material
-      && G.LMSTAD_FLOOD_MATS[2] === G.AMEN_DEF.hosp.mesh.material
-      && G.LMSTAD_FLOOD_MATS[3] === G.AMEN_DEF.theater.mesh.material
-      && G.LMSTAD_FLOOD_MATS[4] === G.AMEN_DEF.casino.mesh.material
-      && G.LMSTAD_FLOOD_MATS[5] === G.AMEN_DEF.firestation.mesh.material
+      G.LMSTAD_FLOOD_MATS.length === 6 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.meshes[0].material
+      && G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.meshes[0].material
+      && G.LMSTAD_FLOOD_MATS[2] === G.AMEN_DEF.hosp.meshes[0].material
+      && G.LMSTAD_FLOOD_MATS[3] === G.AMEN_DEF.theater.meshes[0].material
+      && G.LMSTAD_FLOOD_MATS[4] === G.AMEN_DEF.casino.meshes[0].material
+      && G.LMSTAD_FLOOD_MATS[5] === G.AMEN_DEF.firestation.meshes[0].material
       && !!G.LMSTAD_FLOOD_MATS[0].emissiveMap);
 
     /* wall collision: the rim wall blocks a walker, the gates stay open.
@@ -5508,18 +5508,18 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       (G.hash2i(mgx, mgz) % 41) === 29);
 
     /* merged statics: one mesh, one vertexColors material, per-part colors */
-    const ageo = G.AMEN_DEF.amuse.mesh.geometry;
+    const ageo = G.AMEN_DEF.amuse.meshes[0].geometry;
     check('lmause: merged statics carry per-part vertex colors',
       !!ageo.attributes.color && ageo.attributes.color.count === ageo.attributes.position.count
       && ageo.attributes.position.count > 800, 'verts=' + ageo.attributes.position.count);
     check('lmause: one material with vertexColors on',
-      G.AMEN_DEF.amuse.mesh.material.vertexColors === true);
+      G.AMEN_DEF.amuse.meshes[0].material.vertexColors === true);
     check('lmause: string-light bulbs carry glow UVs (night emissive targets)',
       (() => { const uv = ageo.attributes.uv; let n = 0;
                for (let i = 0; i < uv.count; i++) if (Math.abs(uv.getX(i) - 0.25) < 1e-6) n++;
                return n > 0; })());
     check('lmause: park material rides the shared day/night emissive ramp',
-      G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.mesh.material
+      G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.meshes[0].material
       && !!G.LMSTAD_FLOOD_MATS[1].emissiveMap);
 
     /* the real park activates near the player; ride fleets size to it */
@@ -5759,18 +5759,18 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       G.LMHOSP_COL.every(c => Math.hypot(c[0] - 0, c[1] - 13) > 2.5));
 
     /* merged geometry: one mesh, one vertexColors material, per-part colors */
-    const hgeo = G.AMEN_DEF.hosp.mesh.geometry;
+    const hgeo = G.AMEN_DEF.hosp.meshes[0].geometry;
     check('lmhosp: merged geometry carries per-part vertex colors',
       !!hgeo.attributes.color && hgeo.attributes.color.count === hgeo.attributes.position.count
       && hgeo.attributes.position.count > 500, 'verts=' + hgeo.attributes.position.count);
     check('lmhosp: one material with vertexColors on',
-      G.AMEN_DEF.hosp.mesh.material.vertexColors === true);
+      G.AMEN_DEF.hosp.meshes[0].material.vertexColors === true);
     check('lmhosp: window bands carry glow UVs (night emissive targets)',
       (() => { const uv = hgeo.attributes.uv; let n = 0;
                for (let i = 0; i < uv.count; i++) if (Math.abs(uv.getX(i) - 0.25) < 1e-6) n++;
                return n > 100; })());
     check('lmhosp: window material rides the day/night emissive ramp',
-      G.LMSTAD_FLOOD_MATS[2] === G.AMEN_DEF.hosp.mesh.material
+      G.LMSTAD_FLOOD_MATS[2] === G.AMEN_DEF.hosp.meshes[0].material
       && !!G.LMSTAD_FLOOD_MATS[2].emissiveMap);
 
     /* wall collision: the hedge wall + block block a walker, the entrance
@@ -5979,12 +5979,12 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       G.LMTHEATER_COL.every(c => Math.hypot(c[0] - 0, c[1] - 6.8) > 1.6));
 
     /* merged geometry: one mesh, one vertexColors material, per-part colors */
-    const tgeo = G.AMEN_DEF.theater.mesh.geometry;
+    const tgeo = G.AMEN_DEF.theater.meshes[0].geometry;
     check('lmth: merged geometry carries per-part vertex colors',
       !!tgeo.attributes.color && tgeo.attributes.color.count === tgeo.attributes.position.count
       && tgeo.attributes.position.count > 500, 'verts=' + tgeo.attributes.position.count);
     check('lmth: one material with vertexColors on',
-      G.AMEN_DEF.theater.mesh.material.vertexColors === true);
+      G.AMEN_DEF.theater.meshes[0].material.vertexColors === true);
     check('lmth: marquee board samples the sign-text band (v 0.78..1)',
       (() => { const uv = tgeo.attributes.uv; let n = 0;
                for (let i = 0; i < uv.count; i++) if (uv.getY(i) >= 0.77) n++;
@@ -5995,8 +5995,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
                  if (Math.abs(uv.getX(i) - 0.25) < 1e-6 && Math.abs(uv.getY(i) - 0.25) < 1e-6) n++;
                return n > 50; })());
     check('lmth: marquee material rides the day/night emissive ramp',
-      G.LMSTAD_FLOOD_MATS.includes(G.AMEN_DEF.theater.mesh.material)
-      && !!G.AMEN_DEF.theater.mesh.material.emissiveMap);
+      G.LMSTAD_FLOOD_MATS.includes(G.AMEN_DEF.theater.meshes[0].material)
+      && !!G.AMEN_DEF.theater.meshes[0].material.emissiveMap);
 
     /* the cached room: built once, invisible until entered, lit by emissive */
     check('lmth: the screening room is cached (invisible, zero net draws)',
@@ -6162,8 +6162,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.dayPhase = 0.75;   // midnight
     frame(5);
     check('lmth: marquee bulbs glow at night (shared emissive ramp, no new lights)',
-      G.AMEN_DEF.theater.mesh.material.emissiveIntensity > 1,
-      G.AMEN_DEF.theater.mesh.material.emissiveIntensity.toFixed(2));
+      G.AMEN_DEF.theater.meshes[0].material.emissiveIntensity > 1,
+      G.AMEN_DEF.theater.meshes[0].material.emissiveIntensity.toFixed(2));
 
     frame(30);
     check('lmth: round trip leaves zero console errors/warnings',
@@ -6279,12 +6279,12 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       G.LMCASINO_COL.every(c => Math.hypot(c[0] - 0, c[1] - 6.8) > 1.6));
 
     /* merged geometry: one mesh, one vertexColors material, per-part colors */
-    const cgeo = G.AMEN_DEF.casino.mesh.geometry;
+    const cgeo = G.AMEN_DEF.casino.meshes[0].geometry;
     check('lmcs: merged geometry carries per-part vertex colors',
       !!cgeo.attributes.color && cgeo.attributes.color.count === cgeo.attributes.position.count
       && cgeo.attributes.position.count > 500, 'verts=' + cgeo.attributes.position.count);
     check('lmcs: one material with vertexColors on',
-      G.AMEN_DEF.casino.mesh.material.vertexColors === true);
+      G.AMEN_DEF.casino.meshes[0].material.vertexColors === true);
     check('lmcs: marquee board samples the sign-text band (v 0.78..1)',
       (() => { const uv = cgeo.attributes.uv; let n = 0;
                for (let i = 0; i < uv.count; i++) if (uv.getY(i) >= 0.77) n++;
@@ -6295,8 +6295,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
                  if (Math.abs(uv.getX(i) - 0.25) < 1e-6 && Math.abs(uv.getY(i) - 0.25) < 1e-6) n++;
                return n > 50; })());
     check('lmcs: marquee material rides the day/night emissive ramp',
-      G.LMSTAD_FLOOD_MATS.includes(G.AMEN_DEF.casino.mesh.material)
-      && !!G.AMEN_DEF.casino.mesh.material.emissiveMap);
+      G.LMSTAD_FLOOD_MATS.includes(G.AMEN_DEF.casino.meshes[0].material)
+      && !!G.AMEN_DEF.casino.meshes[0].material.emissiveMap);
 
     /* the cached hall: built once, invisible until entered, lit by emissive */
     check('lmcs: the gaming hall is cached (invisible, zero net draws)',
@@ -6505,8 +6505,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.dayPhase = 0.75;   // midnight
     frame(5);
     check('lmcs: marquee bulbs glow at night (shared emissive ramp, no new lights)',
-      G.AMEN_DEF.casino.mesh.material.emissiveIntensity > 1,
-      G.AMEN_DEF.casino.mesh.material.emissiveIntensity.toFixed(2));
+      G.AMEN_DEF.casino.meshes[0].material.emissiveIntensity > 1,
+      G.AMEN_DEF.casino.meshes[0].material.emissiveIntensity.toFixed(2));
 
     frame(30);
     check('lmcs: round trip leaves zero console errors/warnings',
@@ -6785,7 +6785,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       G.LMFS_COL.every(c => Math.hypot(c[0] - G.LMFS_BAY[0], c[1] - G.LMFS_BAY[1]) > c[2] + 1.2));
 
     /* merged geometry: one mesh, one vertexColors material, per-part colors */
-    const fgeo = G.AMEN_DEF.firestation.mesh.geometry;
+    const fgeo = G.AMEN_DEF.firestation.meshes[0].geometry;
     check('lmfirest: merged exterior geometry carries per-part vertex colors',
       !!fgeo.attributes.color && fgeo.attributes.color.count === fgeo.attributes.position.count
       && fgeo.attributes.position.count > 500, 'verts=' + fgeo.attributes.position.count);
@@ -6990,8 +6990,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.dayPhase = 0.75;   // midnight
     frame(5);
     check('lmfirest: beacon + bay interiors glow at night (shared emissive ramp, no new lights)',
-      G.AMEN_DEF.firestation.mesh.material.emissiveIntensity > 1,
-      G.AMEN_DEF.firestation.mesh.material.emissiveIntensity.toFixed(2));
+      G.AMEN_DEF.firestation.meshes[0].material.emissiveIntensity > 1,
+      G.AMEN_DEF.firestation.meshes[0].material.emissiveIntensity.toFixed(2));
     G.dayPhase = 0.3;
 
     frame(30);
@@ -7003,6 +7003,119 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.player.position.set(0, groundY(0, 0), 0);
     G.FT.routeKey = ''; G.FT.driving = false; G.FT.water = 100; G.FT.hp = 100; G.ftRebuild(0, 0);
     G.FIRES.length = 0;
+  }
+}
+
+/* ================= PERF-7 CHUNK-BOUNDED INSTANCING v1 (perf) =================
+   The 6 landmark amenity types (stad, amuse, hosp, theater, casino,
+   firestation; cap 2 each) ride per-site InstancedMesh fleets instead of one
+   shared mesh per type. One batch per world-space site, each with tight
+   per-site bounds, so three.js rejects whole off-screen sites before any
+   per-instance work (the chunkSize pattern). The 5 non-landmark types keep
+   the shared-mesh idiom untouched. */
+{
+  const LM_KEYS = ['stad', 'amuse', 'hosp', 'theater', 'casino', 'firestation'];
+  const SH_KEYS = ['gas', 'garage', 'rest', 'park', 'land'];
+
+  /* fleet registry shape: per-site meshes for landmarks, shared mesh otherwise */
+  for (const k of LM_KEYS) {
+    const d = G.AMEN_DEF[k];
+    check('perf7-cb: ' + k + ' def carries per-site meshes[] of length cap',
+      !!d && Array.isArray(d.meshes) && d.meshes.length === d.cap, 'cap=' + (d && d.cap));
+    check('perf7-cb: ' + k + ' def.mesh is null (no stale shared ref)', !!d && d.mesh === null);
+    check('perf7-cb: ' + k + ' every site mesh is an InstancedMesh of capacity 1, frustum-culled, frozen',
+      !!d && d.meshes.every(sm => sm instanceof THREE.InstancedMesh
+        && sm.instanceMatrix.count === 1 && sm.frustumCulled === true
+        && sm.castShadow === false && G.FROZEN_STATICS.includes(sm)));
+  }
+  for (const k of SH_KEYS) {
+    const d = G.AMEN_DEF[k];
+    check('perf7-cb: ' + k + ' keeps the shared mesh (frustumCulled false, frozen)',
+      !!d && d.mesh instanceof THREE.InstancedMesh && d.mesh.frustumCulled === false
+      && G.FROZEN_STATICS.includes(d.mesh) && !('meshes' in d));
+  }
+  check('perf7-cb: whole-file InstancedMesh literal pin still 48 (one amenIM constructor)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+
+  /* find a chunk with at least one active landmark site, and one with none */
+  let lmChunk = null;
+  lmouter: for (let gx = -80; gx <= 80 && !lmChunk; gx++)
+    for (let gz = -80; gz <= 80 && !lmChunk; gz++)
+      for (const k of LM_KEYS)
+        if (G.amenityTypeFor(gx, gz) === k && G.amenityAccepted(gx, gz)) { lmChunk = [gx, gz, k]; break lmouter; }
+  check('perf7-cb: a seeded landmark chunk exists in the scan window', !!lmChunk,
+    lmChunk ? lmChunk.join(',') : 'none');
+
+  let emptyChunk = null;
+  emptyouter: for (let gx = 200; gx <= 400 && !emptyChunk; gx += 7)
+    for (let gz = 200; gz <= 400 && !emptyChunk; gz += 7) {
+      let any = false;
+      for (let ax = gx - 3; ax <= gx + 3 && !any; ax++)
+        for (let az = gz - 3; az <= gz + 3 && !any; az++) {
+          const t = G.amenityTypeFor(ax, az);
+          if (t && LM_KEYS.indexOf(t) !== -1 && G.amenityAccepted(ax, az)) any = true;
+        }
+      if (!any) emptyChunk = [gx, gz];
+    }
+  check('perf7-cb: a landmark-free chunk exists in the far scan window', !!emptyChunk,
+    emptyChunk ? emptyChunk.join(',') : 'none');
+
+  if (lmChunk && emptyChunk) {
+    const probsC = consoleProblems.length;
+    /* occupied state: real redistribute at the landmark chunk */
+    G.redistributeAmenities(lmChunk[0], lmChunk[1]);
+    for (const k of LM_KEYS) {
+      const d = G.AMEN_DEF[k], arr = G.AMEN.active[k];
+      for (let i = 0; i < d.cap; i++) {
+        const sm = d.meshes[i], occ = i < arr.length;
+        check('perf7-cb: ' + k + '[' + i + '] visible matches occupancy (' + occ + ')',
+          sm.visible === occ);
+        check('perf7-cb: ' + k + '[' + i + '] count matches occupancy (' + (occ ? 1 : 0) + ')',
+          sm.count === (occ ? 1 : 0));
+        check('perf7-cb: ' + k + '[' + i + '] frustumCulled stays true',
+          sm.frustumCulled === true);
+        if (occ) {
+          const bs = sm.boundingSphere;
+          check('perf7-cb: ' + k + '[' + i + '] bounding sphere is tight (< 90m)',
+            !!bs && bs.radius < 90 && bs.radius > 0, 'r=' + (bs && bs.radius.toFixed(1)));
+          /* instance matrix matches the site transform (the redistribute idiom) */
+          const a = arr[i];
+          const m4 = new THREE.Matrix4();
+          sm.getMatrixAt(0, m4);
+          check('perf7-cb: ' + k + '[' + i + '] instance sits at the site origin',
+            Math.abs(m4.elements[12] - a.x) < 0.01 && Math.abs(m4.elements[14] - a.z) < 0.01,
+            'dx=' + (m4.elements[12] - a.x).toFixed(3));
+        }
+      }
+    }
+    /* worst-case draw-site submission: 6 landmark types x cap 2 = 12 meshes max */
+    const visibleSites = LM_KEYS.reduce((n, k) =>
+      n + G.AMEN_DEF[k].meshes.filter(sm => sm.visible).length, 0);
+    check('perf7-cb: at most 12 landmark site meshes can submit (worst case +6 vs 6 before)',
+      visibleSites <= 12, 'visible=' + visibleSites);
+
+    /* toggle: move to the empty chunk, every site mesh must hide */
+    G.redistributeAmenities(emptyChunk[0], emptyChunk[1]);
+    const allHidden = LM_KEYS.every(k => G.AMEN.active[k].length === 0
+      && G.AMEN_DEF[k].meshes.every(sm => sm.visible === false && sm.count === 0));
+    check('perf7-cb: empty chunk hides every landmark site mesh (visible=false, count=0)', allHidden);
+
+    /* shared-mesh behavior unchanged for the non-landmark types */
+    for (const k of SH_KEYS) {
+      const d = G.AMEN_DEF[k];
+      check('perf7-cb: ' + k + ' shared mesh count tracks active sites',
+        d.mesh.count === G.AMEN.active[k].length,
+        'count=' + d.mesh.count + ' active=' + G.AMEN.active[k].length);
+    }
+    check('perf7-cb: redistribute round trip leaves zero console errors/warnings',
+      consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
+
+    /* restore: one live tick at the player chunk re-syncs the chunk-change
+       tracker (_lastPCX/_lastPCZ) with AMEN.active, so the next block's
+       teleport triggers a real chunk redistribute instead of reading stale
+       state. A direct redistributeAmenities() call alone would leave the
+       tracker stale and break the next block's activation checks. */
+    frame(2);
   }
 }
 

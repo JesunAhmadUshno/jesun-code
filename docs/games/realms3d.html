@@ -9150,6 +9150,10 @@ const WIN_GLOW_TEX = (() => {
 /* Phase 5 landmark stadium: floodlight-head materials, ramped by the
    day/night tick (emissiveMap only, zero new runtime lights). */
 const LMSTAD_FLOOD_MATS = [];
+/* PERF-7 chunk-bounded instancing v1: the AMEN_DEF loop below builds every
+   amenity mesh through this single constructor, keeping the whole-file
+   InstancedMesh literal pin at 48. */
+function amenIM(geo, mat, cap) { return new THREE.InstancedMesh(geo, mat, cap); }
 const AMEN_DEF = {};
 for (const d of AMEN_DEF_LIST) {
   AMEN_DEF[d.key] = d;
@@ -9169,13 +9173,33 @@ for (const d of AMEN_DEF_LIST) {
     mat = new THREE.MeshStandardMaterial({ map: d.tex(), vertexColors: true,
       roughness: 0.85, side: THREE.DoubleSide });
   }
-  const mesh = new THREE.InstancedMesh(d.build(), mat, d.cap);
-  mesh.frustumCulled = false;
-  mesh.castShadow = false;
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  mesh.count = 0;
-  scene.add(freezeStatic(mesh));   // PERF-7: mesh never moves (instances stream in per chunk, not the mesh)
-  d.mesh = mesh;
+  if (d.glow) {
+    /* PERF-7 chunk-bounded instancing v1: one InstancedMesh per landmark
+       site (cap slots), each carrying exactly its own site instance with
+       tight per-site bounds. Three.js frustum-culls whole sites before any
+       per-instance work, the chunkSize pattern (batch per world-space cell).
+       Site meshes never move (freezeStatic holds); instances stream per chunk. */
+    d.mesh = null;   // no shared mesh for landmark types: d.meshes owns the sites
+    d.meshes = [];
+    for (let si = 0; si < d.cap; si++) {
+      const smesh = amenIM(d.build(), mat, 1);
+      smesh.frustumCulled = true;   // tight bounds below drive whole-site culling
+      smesh.castShadow = false;
+      smesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      smesh.count = 0;
+      smesh.visible = false;
+      scene.add(freezeStatic(smesh));
+      d.meshes.push(smesh);
+    }
+  } else {
+    const mesh = amenIM(d.build(), mat, d.cap);
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.count = 0;
+    scene.add(freezeStatic(mesh));   // PERF-7: mesh never moves (instances stream in per chunk, not the mesh)
+    d.mesh = mesh;
+  }
 }
 
 /* ---- zone pads: one instanced ground disc per active amenity (exactly +1
@@ -9368,7 +9392,31 @@ function redistributeAmenities(pcx, pcz) {
         AMEN.colliders.push({ x: a.x + ox * c + oz * s, z: a.z - ox * s + oz * c, r });
     }
   for (const key in AMEN.active) {
-    const def = AMEN_DEF[key], mesh = def.mesh, arr = AMEN.active[key];
+    const def = AMEN_DEF[key], arr = AMEN.active[key];
+    if (def.glow) {
+      /* PERF-7 chunk-bounded instancing v1: per-site meshes (d.meshes), each
+         holding exactly its own site instance with a tight bounding sphere,
+         so off-screen sites are culled whole. Occupancy toggles visible. */
+      for (let i = 0; i < def.cap; i++) {
+        const smesh = def.meshes[i];
+        if (i < arr.length) {
+          const a = arr[i];
+          _aE.set(0, a.yaw, 0); _aQ.setFromEuler(_aE);
+          _aP.set(a.x, a.y, a.z);
+          _aM.compose(_aP, _aQ, _aS);
+          smesh.setMatrixAt(0, _aM);
+          smesh.count = 1;
+          smesh.instanceMatrix.needsUpdate = true;
+          smesh.computeBoundingSphere();   // tight per-site bounds for frustum culling
+          smesh.visible = true;
+        } else {
+          smesh.visible = false;
+          smesh.count = 0;
+        }
+      }
+      continue;
+    }
+    const mesh = def.mesh;
     for (let i = 0; i < arr.length; i++) {
       const a = arr[i];
       _aE.set(0, a.yaw, 0); _aQ.setFromEuler(_aE);
