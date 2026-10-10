@@ -19218,7 +19218,7 @@ const CIVIC_HINT_TXT = { hospital: 'HEAL [E]', bank: 'ATM [E]', hotel: 'REST [E]
 const CIVIC_ACT_TXT = { hospital: 'HEAL $30', bank: 'WITHDRAW $20', hotel: 'REST $40' };
 const CIVIC_FOOT_TXT = {
   hospital: 'FULL HEAL TO 100 HP',
-  bank: 'WALLET $x | BANK $y | DAILY ALLOWANCE ONCE PER IN-GAME DAY',   // placeholder: rendered live by updateCivicChip
+  bank: 'WALLET $x | BANK $y | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY',   // placeholder: rendered live by updateCivicChip
   hotel: 'FULL HEAL + SLEEP TO 06:00',
 };
 const HELP_CIVIC = '<b>E</b> leave &nbsp; <b>TOUCH</b> tap action';
@@ -19261,7 +19261,7 @@ function updateCivicChip() {
     /* Phase 5 bank: chip names the deposit/withdraw verbs; foot renders the
        wallet and bank balances live after every action */
     civicChipEl.textContent = 'BANK | DEPOSIT / WITHDRAW / $20 DAILY | E LEAVE';
-    civicFootEl.textContent = 'WALLET $' + cash + ' | BANK $' + bankBal + ' | DAILY ALLOWANCE ONCE PER IN-GAME DAY';
+    civicFootEl.textContent = 'WALLET $' + cash + ' | BANK $' + bankBal + ' | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY';
   } else {
     civicChipEl.textContent = CIVIC.state.toUpperCase() + ' | ' + CIVIC_ACT_TXT[CIVIC.state] + ' | E LEAVE';
   }
@@ -19382,6 +19382,24 @@ function civicWithdraw() {
   sfxBuy(); toast('WITHDREW $' + amt);
   updateCivicChip();
 }
+/* Phase 5 bank interest v2: the bank pays 2% per in-game day, credited at
+   the dawn tick (the day/night clock wrap that CIVIC.day counts). Session
+   logic only: the balance persists through save v4 already, so no schema
+   change is needed. applySave restores the raw balance with no credit at
+   load; newGame starts at zero, so no double-credit is possible. The credit
+   can never shrink the balance: zero stays zero (and silent), and the
+   floor-rounding edge on tiny balances credits nothing instead of less.
+   Zero new THREE objects, zero new draw calls, zero new RNG. */
+const BANK_INTEREST_RATE = 1.02;   // 2% per in-game day
+function bankDawnInterest() {
+  if (bankBal <= 0) return;                       // zero balance: no interest, no toast
+  const next = Math.floor(bankBal * BANK_INTEREST_RATE);
+  if (next <= bankBal) return;                    // floor edge: interest never shrinks the balance
+  const credit = next - bankBal;
+  bankBal = next;
+  updateCivicChip();                              // re-render the panel line if the bank is open
+  sfxBuy(); toast('+$' + credit + ' BANK INTEREST');   // the cash sfx idiom
+}
 /* Phase 5 bank heist: rob the bank. Session-only state machine, no save
    touch, zero THREE objects (loot sacks are data only, walk-over pickup like
    the loot boxes). The bank balance is never at risk: the take rides in the
@@ -19473,7 +19491,7 @@ let civicBearingT = 0;
 function civicTick(dt) {
   /* in-game day counter: the day/night clock wraps dayPhase 1 -> 0 */
   const dp = dayPhase;
-  if (CIVIC.lastPhase - dp >= 0.5) CIVIC.day++;
+  if (CIVIC.lastPhase - dp >= 0.5) { CIVIC.day++; bankDawnInterest(); }   // Phase 5 bank interest v2: dawn pays 2% on the bank balance
   CIVIC.lastPhase = dp;
   if (!CIVIC.state) {
     // parked: nearest interactive civic inside its porch hint radius shows the prompt (slot idiom)

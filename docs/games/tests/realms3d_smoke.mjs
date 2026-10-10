@@ -203,6 +203,7 @@ globalThis.__R3D = {
   civicEnter, civicExit, civicAct, civicHeal, civicAtm, civicRest, civicTick,
   updateCivicChip, CIVIC_HINT_TXT, CIVIC_ACT_TXT, CIVIC_FOOT_TXT,
   civicDeposit, civicWithdraw, civicActEl2, civicActEl3,   /* Phase 5 bank: deposit protection */
+  bankDawnInterest, BANK_INTEREST_RATE,              /* Phase 5 bank interest v2 */
   civicHeist, civicActEl4, heistChipEl, updateHeistChip, seedHeistSacks, endHeist, heistTick, HEIST,
   HEIST_N, HEIST_R2, HEIST_GRAB_R2, HEIST_ESCALATE_S,   /* Phase 5 bank heist v1 */
   busted, migrateSave,                                      /* Phase 5 bank: bust hook + save migration */
@@ -7383,7 +7384,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.civicChipEl.textContent);
   G.cash = 50; G.bankBal = 0; G.updateCivicChip();
   check('bank: foot renders wallet + bank balances live',
-    G.civicFootEl.textContent === 'WALLET $50 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY',
+    G.civicFootEl.textContent === 'WALLET $50 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY',
     G.civicFootEl.textContent);
 
   /* deposit: all carried cash moves to the bank */
@@ -7393,7 +7394,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.cash === 0 && G.bankBal === 150 && G.toastEl.textContent === 'DEPOSITED $100',
     'cash=' + G.cash + ' bank=' + G.bankBal);
   check('bank: foot updates after the deposit',
-    G.civicFootEl.textContent === 'WALLET $0 | BANK $150 | DAILY ALLOWANCE ONCE PER IN-GAME DAY',
+    G.civicFootEl.textContent === 'WALLET $0 | BANK $150 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY',
     G.civicFootEl.textContent);
   /* deposit denied at cash 0 */
   G.civicDeposit();
@@ -7657,6 +7658,140 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.civicAtm();
   check('heist: $20 daily allowance still pays on the day gate',
     G.cash === allow1 + 20 && G.CIVIC.atmDay === G.CIVIC.day, 'cash=' + G.cash);
+  G.civicExit();
+  for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+  G.setHeat(0, true); G.P.godT = 9999;
+}
+
+/* ================= 36. BANK INTEREST v2 (Phase 5 buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
+  G.closeShop();
+  if (G.CIVIC.state) G.civicExit();
+  if (G.HEIST.active) G.endHeist('test');
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.player.rotation.y = 0;
+  frame(3);
+  const ipx = G.player.position.x, ipz = G.player.position.z;
+  const synthBank = (type) => {
+    for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+    G.BLDG.active[type].push({ x: ipx + 3, z: ipz, y: groundY(ipx + 3, ipz), yaw: 0, gx: 0, gz: 0, name: type.toUpperCase(), type });
+    G.player.position.set(ipx + 3 + 6.5, groundY(ipx + 9.5, ipz), ipz);
+  };
+  /* the real dawn path: the day/night clock wrap 1 -> 0, like the section-30 re-arm drive */
+  const dawnWrap = () => {
+    const day0 = G.CIVIC.day;
+    G.dayPhase = 0.99; frame(2);
+    G.dayPhase = 0.01; frame(2);
+    return day0;
+  };
+
+  /* static: rate pin, zero new THREE objects, zero new RNG, panel line ships */
+  check('interest-static: the rate pins at exactly 2%',
+    G.BANK_INTEREST_RATE === 1.02, G.BANK_INTEREST_RATE);
+  check('interest-static: zero new THREE objects in the interest block',
+    !/new THREE\./.test(html.slice(html.indexOf('function bankDawnInterest()'), html.indexOf('queueMicrotask(() => worldTickers.push(heistTick))'))));
+  check('interest-static: zero new Math.random in the interest block',
+    !/Math\.random/.test(html.slice(html.indexOf('function bankDawnInterest()'), html.indexOf('queueMicrotask(() => worldTickers.push(heistTick))'))));
+  check('interest-static: the bank panel carries the INTEREST 2%/DAY line',
+    G.CIVIC_FOOT_TXT.bank.includes('INTEREST 2%/DAY'));
+
+  /* zero balance: silent, no credit, no toast */
+  G.bankBal = 0; G.toastEl.textContent = 'SENTINEL';
+  G.bankDawnInterest();
+  check('interest: zero balance stays zero with no toast spam',
+    G.bankBal === 0 && G.toastEl.textContent === 'SENTINEL',
+    'bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+
+  /* tiny balance: $1 never decreases (floor edge credits nothing, not less) */
+  G.bankBal = 1; G.toastEl.textContent = 'SENTINEL';
+  G.bankDawnInterest();
+  check('interest: $1 balance never decreases',
+    G.bankBal === 1 && G.toastEl.textContent === 'SENTINEL', 'bank=' + G.bankBal);
+
+  /* exact math: floor(1000 * 1.02) = 1020, credit $20 */
+  G.bankBal = 1000; G.toastEl.textContent = '';
+  G.bankDawnInterest();
+  check('interest: $1000 earns exactly floor(1000*1.02) = $1020',
+    G.bankBal === 1020, 'bank=' + G.bankBal);
+  check('interest: toast credits the exact amount',
+    G.toastEl.textContent === '+$20 BANK INTEREST', G.toastEl.textContent);
+  /* floor rounding on an odd balance: floor(150 * 1.02) = 153 */
+  G.bankBal = 150; G.bankDawnInterest();
+  check('interest: floor rounding applies on odd balances (150 -> 153)',
+    G.bankBal === 153 && G.toastEl.textContent === '+$3 BANK INTEREST',
+    'bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+
+  /* the real dawn path: one clock wrap ticks the day and credits once */
+  G.bankBal = 1000; G.toastEl.textContent = '';
+  const day0 = dawnWrap();
+  check('interest: the dawn wrap ticks the day and credits 2% exactly once',
+    G.CIVIC.day === day0 + 1 && G.bankBal === 1020
+    && G.toastEl.textContent === '+$20 BANK INTEREST',
+    'day=' + G.CIVIC.day + ' bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+
+  /* no interest at load time: the saved balance restores raw */
+  G.player.position.set(12.34, groundY(12.34, 56.78), 56.78);
+  G.cash = 200; G.bankBal = 1000; G.P.hp = 100;
+  G.saveGame();
+  G.cash = 0; G.bankBal = 0;
+  G.loadSave();
+  check('interest: load restores the saved balance with no credit applied',
+    G.cash === 200 && G.bankBal === 1000, 'cash=' + G.cash + ' bank=' + G.bankBal);
+
+  /* save round-trip keeps the post-interest balance */
+  G.bankBal = 1020;
+  G.saveGame();
+  G.bankBal = 0;
+  G.loadSave();
+  check('interest: save round-trip keeps the post-interest balance',
+    G.bankBal === 1020, 'bank=' + G.bankBal);
+
+  /* newGame resets: a fresh session starts broke */
+  G.bankBal = 500;
+  G.newGame();
+  check('interest: newGame resets the bank balance to zero',
+    G.bankBal === 0, 'bank=' + G.bankBal);
+  G.toastEl.textContent = 'SENTINEL';
+  G.bankDawnInterest();
+  check('interest: no toast fires on a zero balance after newGame',
+    G.bankBal === 0 && G.toastEl.textContent === 'SENTINEL',
+    'bank=' + G.bankBal + ' toast=' + G.toastEl.textContent);
+
+  /* economy flows unchanged after interest: deposit, withdraw, ATM */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);   // godT 0: civicEnter refuses while spawn-protected
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  check('interest: the foot line shows balances plus INTEREST 2%/DAY',
+    G.civicFootEl.textContent === 'WALLET $0 | BANK $0 | DAILY ALLOWANCE ONCE PER IN-GAME DAY | INTEREST 2%/DAY',
+    G.civicFootEl.textContent);
+  G.bankBal = 1020;
+  G.civicWithdraw();
+  check('interest: withdraw still pulls the whole post-interest balance back',
+    G.cash === 1020 && G.bankBal === 0, 'cash=' + G.cash + ' bank=' + G.bankBal);
+  G.civicDeposit();
+  check('interest: deposit still moves the whole wallet after interest',
+    G.cash === 0 && G.bankBal === 1020, 'cash=' + G.cash + ' bank=' + G.bankBal);
+  G.CIVIC.atmDay = G.CIVIC.day - 1;
+  const allow2 = G.cash;
+  G.civicAtm();
+  check('interest: $20 daily allowance still pays on the day gate',
+    G.cash === allow2 + 20 && G.CIVIC.atmDay === G.CIVIC.day, 'cash=' + G.cash);
+  G.civicExit();
+
+  /* heist flow unchanged after interest: start pays into the wallet, bank untouched */
+  synthBank('bank');
+  frame(3);
+  G.civicEnter();
+  G.cash = 100; G.bankBal = 300;
+  G.civicHeist();
+  check('interest: heist still starts after interest (+2 heat, sacks seeded)',
+    G.HEIST.active === true && G.W.heat === 2 && G.HEIST.sacks.length === 5,
+    'heat=' + G.W.heat);
+  G.endHeist('test');
+  check('interest: the bank balance survives the heist start untouched',
+    G.bankBal === 300, 'bank=' + G.bankBal);
   G.civicExit();
   for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
   G.setHeat(0, true); G.P.godT = 9999;
