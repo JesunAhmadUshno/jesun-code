@@ -106,7 +106,11 @@ globalThis.__R3D = {
   SOCCER, ballIM, soccerPitchFor, soccerFindPitch, soccerSpawnAt, soccerParkBall,
   soccerCanKick, soccerBallNear, doKick, soccerAssignGoalie, soccerReleaseGoalie,
   soccerGoal, soccerTick, socChipEl, kickHintEl,
-  AMEN, hash2i,
+  /* Phase 5 tennis mini-game */
+  TENNIS, tennisCourtFor, tennisSpawnAt, tennisParkBall, tennisResetForServe,
+  tennisCanHit, tennisBallNear, doTennisHit, tennisAssignOpp, tennisReleaseOpp,
+  tennisPoint, tennisNpcReturn, tennisTick, tennChipEl, hitHintEl,
+  AMEN, hash2i, sportHash,
 };
 `;
 writeFileSync(BOOT, src);
@@ -2136,11 +2140,21 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('soccer: selector is a seeded subset of parks',
     G.soccerPitchFor(spa.gx, spa.gz) === true);
 
-  /* teleport next to it; the real tick runs find + spawn */
-  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999;
-  G.setHeat(0, true);
+  /* teleport next to it; the real tick runs find + spawn.
+     The chunk jump rebuilds the taxi/bus loops, and a far jump teleports
+     the cab to stop 0, which can be the pitch itself; a cab sitting on the
+     center spot would dribble the ball on spawn (by design) and break the
+     seeded-spawn assertions. Shoo every vehicle off the pitch first. */
   G.player.position.set(spa.x + 8, groundY(spa.x + 8, spa.z), spa.z);
-  frame(3);   // chunk change -> redistributeAmenities -> soccerTick spawns
+  frame(1);   // chunk change -> redistributeAmenities -> soccerTick spawns
+  {
+    const p0 = G.SOCCER.pitch || spa;
+    for (const v of [G.CAR, G.BUS, G.TX, G.BIKE, G.BC, G.SC]) {
+      if (Math.hypot(v.pos.x - p0.x, v.pos.z - p0.z) < 12)
+        v.pos.set(p0.x + 60, groundY(p0.x + 60, p0.z), p0.z + 40);
+    }
+  }
+  frame(2);
   const p = G.SOCCER.pitch;
   check('soccer: ball spawns at the active soccer park',
     G.SOCCER.active === true && G.ballIM.count === 1 && !!p,
@@ -2280,6 +2294,190 @@ const groundY = (x, z) => G.terrainHeight(x, z);
       (globalThis.__renderCount || 0) - r0 === 3,
       'renders=' + ((globalThis.__renderCount || 0) - r0));
   }
+}
+
+/* ================= 21. TENNIS MINI-GAME (Phase 5 sports) ================= */
+{
+  /* deterministic tennis court: pure chunk function, disjoint from soccer/basketball */
+  let tca = null, tcaD = Infinity;
+  for (let gx = -14; gx <= 14; gx++)
+    for (let gz = -14; gz <= 14; gz++) {
+      if (!G.tennisCourtFor(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (!a) continue;
+      const d = a.x * a.x + a.z * a.z;
+      if (d < tcaD) { tcaD = d; tca = a; }
+    }
+  check('tennis: deterministic tennis court found near spawn', !!tca,
+    tca ? 'chunk(' + tca.gx + ',' + tca.gz + ')' : 'none');
+  check('tennis: sportHash residue %5===3, disjoint from soccer %5===1 and basketball %5===2',
+    G.sportHash(tca.gx, tca.gz) % 5 === 3);
+
+  /* teleport next to it; the real tick runs find + spawn + serve */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 9999;
+  G.setHeat(0, true);
+  G.player.position.set(tca.x + 4, groundY(tca.x + 4, tca.z), tca.z);
+  frame(3);   // chunk change -> redistributeAmenities -> tennisTick spawns
+  const tp = G.TENNIS.court;
+  check('tennis: ball spawns at the active tennis court',
+    G.TENNIS.active === true && G.ballIM.count === 1 && !!tp,
+    'active=' + G.TENNIS.active + ' count=' + G.ballIM.count);
+  check('tennis: chip shows READY before the serve',
+    G.tennChipEl.style.display === 'block' &&
+    G.tennChipEl.textContent === 'READY! - RALLIES 0', G.tennChipEl.textContent);
+  {
+    const c = G.ballIM.instanceColor, e = new THREE.Color(0xd4e157);
+    check('tennis: ball tinted tennis-yellow via instanceColor',
+      !!c && Math.abs(c.getX(0) - e.r) < 0.002 && Math.abs(c.getY(0) - e.g) < 0.002 &&
+      Math.abs(c.getZ(0) - e.b) < 0.002);
+  }
+
+  /* opponent: assigned near the court, announce toast. Release first so the
+     announce toast is observable on re-assignment (soccer goalie pattern). */
+  G.tennisReleaseOpp();
+  frame(5);
+  const ti = G.TENNIS.opp;
+  check('tennis: opponent assigned near the court',
+    ti >= 0 && G.TENNIS.npcs[ti].state === 'TENNIS', 'opp=' + ti);
+  check('tennis: opponent announce toast fires',
+    G.toastEl.textContent === 'OPPONENT READY', G.toastEl.textContent);
+
+  /* serve: the opponent serves into the player's half after the beat */
+  for (let i = 0; i < 40 && G.TENNIS.serveT > 0; i++) frame(1);
+  {
+    const p = G.TENNIS.court, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const vlx = G.TENNIS.vel.x * c - G.TENNIS.vel.z * s;   // local-x velocity
+    check('tennis: serve fires from the NPC toward the player half',
+      G.TENNIS.hitBy === 'NPC' && G.TENNIS.rally === 0 &&
+      (vlx > 0) === (G.TENNIS.pSide > 0),
+      'hitBy=' + G.TENNIS.hitBy + ' vlx=' + vlx.toFixed(2));
+  }
+  check('tennis: serve toast fires', G.toastEl.textContent === 'READY!',
+    G.toastEl.textContent);
+
+  /* forehand: F path via doTennisHit, auto-aim at the far court */
+  G.TENNIS.pos.set(G.player.position.x + 1, groundY(G.player.position.x, G.player.position.z) + 0.6,
+    G.player.position.z);
+  G.TENNIS.vel.set(0, 0, 0);
+  G.P.punchCd = 0;
+  check('tennis: hit allowed on foot near the ball', G.tennisCanHit() === true);
+  G.doTennisHit();
+  check('tennis: forehand aims at the far court with a live arc',
+    G.TENNIS.hitBy === 'P' && G.TENNIS.rally === 1 && G.TENNIS.vel.y > 0,
+    'rally=' + G.TENNIS.rally + ' vy=' + G.TENNIS.vel.y.toFixed(1));
+  check('tennis: rally shows on the chip',
+    G.tennChipEl.textContent.indexOf('RALLY x1!') === 0, G.tennChipEl.textContent);
+  /* F guard: driving blocks it (doPunch guard idiom) */
+  G.CAR.driving = true;
+  check('tennis: hit blocked while driving', G.tennisCanHit() === false);
+  G.CAR.driving = false;
+
+  /* opponent auto-return: the ball landing on their side comes back */
+  for (let i = 0; i < 120 && !(G.TENNIS.hitBy === 'NPC' && G.TENNIS.rally === 2); i++) frame(1);
+  check('tennis: opponent auto-returns the landed ball',
+    G.TENNIS.hitBy === 'NPC' && G.TENNIS.rally === 2,
+    'hitBy=' + G.TENNIS.hitBy + ' rally=' + G.TENNIS.rally);
+
+  /* net: crossing below the tape drops it dead, the hitter loses the point */
+  {
+    const p = G.TENNIS.court, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const w = (lx, lz) => [p.x + lx * c + lz * s, p.z - lx * s + lz * c];
+    const [wx, wz] = w(-0.6, 0);
+    G.TENNIS.hitBy = 'P'; G.TENNIS.bounces = 0; G.TENNIS.bounceSide = 0;
+    G.TENNIS.pointOver = false; G.TENNIS.serveT = 0;
+    G.TENNIS.pos.set(wx, groundY(wx, wz) + 0.5, wz);
+    G.TENNIS.vel.set(c * 8, 0, -s * 8);   // local +X, below the tape
+    const cash0 = G.cash, pts0 = G.TENNIS.pts;
+    frame(10);
+    check('tennis: netted ball loses the point (no cash, no tally)',
+      G.TENNIS.pointOver === true && G.cash === cash0 && G.TENNIS.pts === pts0 &&
+      G.toastEl.textContent === 'INTO THE NET',
+      'pointOver=' + G.TENNIS.pointOver + ' toast=' + G.toastEl.textContent);
+  }
+
+  /* out: first bounce outside the rect after a hit loses the point */
+  {
+    const p = G.TENNIS.court, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const w = (lx, lz) => [p.x + lx * c + lz * s, p.z - lx * s + lz * c];
+    const [wx, wz] = w(G.TENNIS.oSide * 12, 0);   // beyond the baseline
+    G.TENNIS.hitBy = 'P'; G.TENNIS.bounces = 0; G.TENNIS.bounceSide = 0;
+    G.TENNIS.pointOver = false; G.TENNIS.serveT = 0;
+    G.TENNIS.pos.set(wx, groundY(wx, wz) + 3, wz);
+    G.TENNIS.vel.set(0, -4, 0);
+    frame(40);
+    check('tennis: out bounce loses the point',
+      G.TENNIS.pointOver === true && G.toastEl.textContent === 'OUT!',
+      'pointOver=' + G.TENNIS.pointOver + ' toast=' + G.toastEl.textContent);
+  }
+
+  /* double bounce: two bounces on the player's side, point to the NPC */
+  {
+    G.tennisResetForServe();
+    for (let i = 0; i < 45 && G.TENNIS.serveT > 0; i++) frame(1);   // serve fires
+    const p = G.TENNIS.court, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const w = (lx, lz) => [p.x + lx * c + lz * s, p.z - lx * s + lz * c];
+    const [wx, wz] = w(G.TENNIS.pSide * 5, 0);
+    G.TENNIS.hitBy = 'NPC'; G.TENNIS.bounces = 0; G.TENNIS.bounceSide = 0;
+    G.TENNIS.pos.set(wx, groundY(wx, wz) + 2.5, wz);
+    G.TENNIS.vel.set(0, 0, 0);
+    /* the point beat (1.1s) outlasts a long frame run, so stop the moment
+       the point is decided instead of framing a fixed count */
+    for (let i = 0; i < 100 && !G.TENNIS.pointOver; i++) frame(1);
+    check('tennis: double bounce on the player side loses the point',
+      G.TENNIS.pointOver === true && G.toastEl.textContent === 'DOUBLE BOUNCE',
+      'pointOver=' + G.TENNIS.pointOver + ' toast=' + G.toastEl.textContent);
+  }
+
+  /* point won: the NPC nets it, cash scales with rally length */
+  {
+    G.tennisResetForServe();
+    for (let i = 0; i < 45 && G.TENNIS.serveT > 0; i++) frame(1);   // serve fires
+    const p = G.TENNIS.court, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const w = (lx, lz) => [p.x + lx * c + lz * s, p.z - lx * s + lz * c];
+    const [wx, wz] = w(0.6, 0);   // positive local x, into the tape below it
+    G.TENNIS.hitBy = 'NPC'; G.TENNIS.bounces = 0; G.TENNIS.bounceSide = 0;
+    G.TENNIS.pointOver = false; G.TENNIS.serveT = 0; G.TENNIS.rally = 6;
+    G.TENNIS.pos.set(wx, groundY(wx, wz) + 0.5, wz);
+    G.TENNIS.vel.set(-c * 8, 0, s * 8);   // local -X, below the tape
+    const cash0 = G.cash, pts0 = G.TENNIS.pts;
+    frame(10);
+    check('tennis: rally won pays $25 + $5 per hit beyond 4',
+      G.cash === cash0 + 35 && G.TENNIS.pts === pts0 + 1,
+      'cash=' + G.cash + ' pts=' + G.TENNIS.pts);
+    check('tennis: POINT! toast fires', G.toastEl.textContent === 'POINT! +$35',
+      G.toastEl.textContent);
+  }
+
+  /* leave: teleport to spawn (no tennis court within 60u there) */
+  const oi = G.TENNIS.opp;
+  G.player.position.set(0, groundY(0, 0), 0);
+  frame(3);
+  const tParked = !G.AMEN.active.park.some(a => G.tennisCourtFor(a.gx, a.gz));
+  if (tParked && oi >= 0) {
+    check('tennis: ball parks when the player leaves',
+      G.TENNIS.active === false && G.ballIM.count === 0,
+      'active=' + G.TENNIS.active);
+    check('tennis: opponent resumes wander on release',
+      G.TENNIS.opp === -1 && G.TENNIS.npcs[oi].state !== 'TENNIS',
+      'state=' + G.TENNIS.npcs[oi].state);
+    check('tennis: chip hides with no active court',
+      G.tennChipEl.style.display === 'none');
+  } else {
+    check('tennis: ball parks when the player leaves (skipped: court near spawn)', true);
+    check('tennis: opponent resumes wander on release (skipped: court near spawn)', true);
+    check('tennis: chip hides with no active court (skipped: court near spawn)', true);
+  }
+
+  /* static pins for the tennis block */
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 46',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('tennis-static: tennis block creates no lights and no audio nodes',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
+      html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
+                 html.indexOf('/* === WORLD-PEOPLE-ANCHOR === */'))) &&
+    !/createOscillator|createGain|AudioContext/.test(
+      html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
+                 html.indexOf('/* === WORLD-PEOPLE-ANCHOR === */'))));
 }
 
 /* ---------- zero console errors ---------- */

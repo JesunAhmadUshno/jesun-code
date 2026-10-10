@@ -343,6 +343,21 @@
     font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
+  /* ---- tennis HUD (Phase 5 sports): tennis chip reuses the pet-chip chip
+         language, stacked below #hoopchip; HIT prompt mirrors the SHOOT-hint
+         pattern and is tappable (touch works). DOM only, zero draw calls. ---- */
+  #tennischip {
+    position: absolute; top: 614px; right: 18px; color: #d4e157; font-size: 12px;
+    background: rgba(10,12,10,.72); border: 1px solid #4a5240; padding: 8px 12px;
+    letter-spacing: 2px; min-width: 92px; text-align: center; display: none;
+    pointer-events: none; white-space: nowrap;
+  }
+  #hithint {
+    position: absolute; bottom: 476px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #d4e157; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
 
   /* ---- lightning flash: DOM layer above the canvas only, capped under 0.18
          opacity, pointer-events none, no layout impact ---- */
@@ -426,6 +441,8 @@
   <div id="kickhint"></div>
   <div id="hoopchip"></div>
   <div id="shoothint"></div>
+  <div id="tennischip"></div>
+  <div id="hithint"></div>
   <div id="emotehint"></div>
   <div id="shop">
     <h3 id="shopname">SHOP</h3>
@@ -5996,6 +6013,31 @@ function buildParkGeo() {
   amenPart(parts, 0, 0.5, 0.06, 0.1, 6.42, 3.05, 0, HOOPC);         // rim connector
   amenPart(parts, 4, 0.40, 0.48, 0, 6.2, 3.05, 0, HOOPC);           // rim ring
   amenPart(parts, 2, 0.44, 0.36, 0.5, 6.2, 2.78, 0, NETC);          // net
+  /* ---- Phase 5 tennis: court + net baked into the shared park geometry
+         (zero new draw calls), same idiom as soccer/basketball: the court
+         is visible in every park, gameplay only at seeded tennis courts
+         (hash2i%5===3, disjoint from soccer's %5===1 and basketball's
+         %5===2). Court 20x10, long axis = local X, net at local x = 0.
+         Surface at y 0.045 sits 5mm above the basketball court (0.04) and
+         the soccer pitch (0.035); tennis lines at 0.06 sit above the
+         basketball lines (0.055), so the three painted games never
+         z-fight. White tape and bright lines stay readable at night. ---- */
+  const TCOURT = 0x3e7057, NETD = 0x2b2f36;
+  flatRect(20, 10, 0, 0, 0.045, TCOURT);                        // court surface
+  flatRect(20.2, 0.16, 0, 5, 0.06, LINE);                       // sidelines
+  flatRect(20.2, 0.16, 0, -5, 0.06, LINE);
+  flatRect(0.16, 10, 10, 0, 0.06, LINE);                        // baselines
+  flatRect(0.16, 10, -10, 0, 0.06, LINE);
+  flatRect(0.16, 10, 4, 0, 0.06, LINE);                         // service lines
+  flatRect(0.16, 10, -4, 0, 0.06, LINE);
+  flatRect(8, 0.16, 0, 0, 0.06, LINE);                          // center service line
+  for (const sz of [-1, 1])
+    amenPart(parts, 1, 0.05, 0.05, 1.05, 0, 0.52, sz * 5.35, POSTW);  // net posts
+  amenPart(parts, 0, 0.09, 0.1, 10.8, 0, 0.98, 0, LINE);         // white tape
+  for (let i = 0; i < 6; i++)                                   // net cords
+    amenPart(parts, 0, 0.035, 0.035, 10.6, 0, 0.2 + i * 0.13, 0, NETD);
+  for (let i = 0; i <= 12; i++)
+    amenPart(parts, 1, 0.018, 0.018, 0.72, 0, 0.55, -5.3 + i * (10.6 / 12), NETD);
   for (const [tx, tz, s] of [[-5, -3, 1.1], [4.5, -4, 0.9], [0.5, 5.5, 1.2]]) {
     amenPart(parts, 1, 0.14 * s, 0.2 * s, 1.9 * s, tx, 0.95 * s, tz, 0x4a3520);
     amenPart(parts, 2, 1.5 * s, 3.0 * s, 0, tx, 3.0 * s, tz, 0x24401f);
@@ -7229,7 +7271,7 @@ addEventListener('keydown', e => {
     return;                                           // no weapon select, no car toggle while shopping
   }
   if (e.code === 'KeyE') { if (!farmTryHarvest()) mountToggle(); }        // farm harvest wins over mounts near a plot
-  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else doPunch(); }
+  if (e.code === 'KeyF') { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
@@ -7472,11 +7514,12 @@ const SOCCER = {
   _s1: new THREE.Vector3(1, 1, 1),
 };
 
-/* shared by soccer and basketball: one ball (ballIM), one active sport at a
-   a time. The nearest active court within HOOP_NEAR decides which sport owns
-   the ball; the ball gets an orange instanceColor tint on basketball courts
-   and the normal soccer look elsewhere. Zero per-frame allocation: the
-   result lands in the caller-provided out object. */
+/* shared by soccer, basketball, and tennis: one ball (ballIM), one active sport
+   at a time. The nearest active court within HOOP_NEAR decides which sport
+   owns the ball; the ball gets an orange instanceColor tint on basketball
+   courts, tennis-yellow on tennis courts, and the normal soccer look
+   elsewhere. Zero per-frame allocation: the result lands in the
+   caller-provided out object. */
 const _courtAct = { type: null, court: null };
 function courtFindActive(out) {
   const px = player.position.x, pz = player.position.z;
@@ -7485,6 +7528,7 @@ function courtFindActive(out) {
     let type = null;
     if (basketballCourtFor(a.gx, a.gz)) type = 'hoops';
     else if (soccerPitchFor(a.gx, a.gz)) type = 'soccer';
+    else if (tennisCourtFor(a.gx, a.gz)) type = 'tennis';
     if (!type) continue;
     const dx = a.x - px, dz = a.z - pz, d = dx * dx + dz * dz;
     if (d < bd) { bd = d; best = a; out.type = type; }
@@ -7493,11 +7537,12 @@ function courtFindActive(out) {
   if (!best) out.type = null;
   return best !== null;
 }
-/* ball look: orange tint for basketball, normal soccer look otherwise.
-   instanceColor multiplies the vertex colors; white = no change. */
+/* ball look: orange tint for basketball, tennis-yellow for tennis, normal
+   soccer look otherwise. instanceColor multiplies the vertex colors;
+   white = no change. */
 const _ballCol = new THREE.Color();
-function ballSetLook(hoops) {
-  _ballCol.setHex(hoops ? 0xd97a26 : 0xffffff);
+function ballSetLook(kind) {
+  _ballCol.setHex(kind === 'tennis' ? 0xd4e157 : kind === 'hoops' ? 0xd97a26 : 0xffffff);
   ballIM.setColorAt(0, _ballCol);
   ballIM.instanceColor.needsUpdate = true;
 }
@@ -7515,12 +7560,22 @@ function soccerFindPitch() {
   }
   return best;
 }
+/* sport split (Phase 5 tennis, 2026-10-09 builder fix): raw hash2i%5 is
+   vacuous on parks, because the park gate is h%10===6 so EVERY park hashes
+   to residue 1. Soccer's old %5===1 therefore matched every park and
+   basketball's %5===2 matched none (basketball could never activate).
+   Salting the coords before the hash restores a uniform split while
+   keeping the %5===1/2/3 sport residues disjoint and deterministic on
+   revisit. Pure function of chunk coords (same idiom as amenityAccepted). */
+function sportHash(gx, gz) {
+  return hash2i(gx ^ 0x9e3779b9, gz ^ 0x85ebca6b);
+}
 /* seeded subset of park amenities: pure function of chunk coords,
-   deterministic on revisit (same idiom as amenityAccepted). Residue %5===1
-   is soccer's; basketball takes %5===2 below, so the two never overlap. */
+   deterministic on revisit. Residue %5===1 is soccer's; basketball takes
+   %5===2 and tennis %5===3, so the three never overlap. */
 function soccerPitchFor(gx, gz) {
   return amenityTypeFor(gx, gz) === 'park' && amenityAccepted(gx, gz) &&
-         (hash2i(gx, gz) % 5 === 1);
+         (sportHash(gx, gz) % 5 === 1);
 }
 function soccerSpawnAt(a) {
   SOCCER.pitch = a;
@@ -7529,13 +7584,13 @@ function soccerSpawnAt(a) {
   SOCCER.quat.identity();
   SOCCER.active = true;
   SOCCER.goalie = -1; SOCCER.goalieTold = false;
-  ballSetLook(false);                       // soccer ball look
+  ballSetLook('soccer');                   // soccer ball look
   updateSoccerChip(true);
 }
 function soccerParkBall() {
   SOCCER.active = false;
   SOCCER.pitch = null;
-  if (!HOOPS.active) ballIM.count = 0;   // hoops owns the ball this frame: no flicker
+  if (!HOOPS.active && !TENNIS.active) ballIM.count = 0;   // another sport owns the ball: no flicker
   soccerReleaseGoalie();
   updateSoccerChip(true);
 }
@@ -7546,7 +7601,7 @@ function soccerAssignGoalie() {
   let bi = -1, bd = Infinity;
   for (let i = 0; i < SOCCER.npcs.length; i++) {
     const n = SOCCER.npcs[i];
-    if (n.state === 'FLEE' || n.state === 'GOALIE') continue;
+    if (n.state === 'FLEE' || n.state === 'GOALIE' || n.state === 'TENNIS') continue;
     if (BUS.boarded.indexOf(i) >= 0) continue;   // never steal a bus passenger
     const dx = n.pos.x - p.x, dz = n.pos.z - p.z, d = dx * dx + dz * dz;
     if (d < bd) { bd = d; bi = i; }
@@ -7817,7 +7872,7 @@ const SHOT_TIMEOUT = 15;              // miss if no score in 15s
 
 function basketballCourtFor(gx, gz) {
   return amenityTypeFor(gx, gz) === 'park' && amenityAccepted(gx, gz) &&
-         (hash2i(gx, gz) % 5 === 2);
+         (sportHash(gx, gz) % 5 === 2);
 }
 
 const HOOPS = {
@@ -7855,7 +7910,7 @@ function hoopsSpawnAt(a) {
   HOOPS.quat.identity();
   HOOPS.active = true;
   HOOPS.shot = null; HOOPS.shotRng = null;
-  ballSetLook(true);                        // basketball orange tint
+  ballSetLook('hoops');                     // basketball orange tint
   toast('BASKETBALL COURT');
   updateHoopsChip(true);
 }
@@ -7863,7 +7918,7 @@ function hoopsParkBall() {
   HOOPS.active = false;
   HOOPS.court = null;
   HOOPS.shot = null; HOOPS.shotRng = null;
-  if (!SOCCER.active) ballIM.count = 0;   // soccer owns the ball this frame: no flicker
+  if (!SOCCER.active && !TENNIS.active) ballIM.count = 0;   // another sport owns the ball: no flicker
   hoopsShootHint(false);
   updateHoopsChip(true);
 }
@@ -8123,6 +8178,448 @@ function hoopsTick(dt) {
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(hoopsTick));
 
+/* ================== TENNIS MINI-GAME (Phase 5 sports) ==================
+   - Court 20x10 + net are baked into buildParkGeo (shared park instanced
+     geometry): zero new draw calls. The court is visible in every park;
+     gameplay only at seeded tennis courts (tennisCourtFor = park +
+     accepted + sportHash%5===3, disjoint from soccer's %5===1 and
+     basketball's %5===2), deterministic on revisit.
+   - Ball: ZERO new draw calls. Reuses the soccer/basketball ballIM
+     (1 instance): one active ball at a time; the nearest active court
+     within HOOP_NEAR decides the sport (soccer/hoops/tennis). Tennis
+     courts tint it tennis-yellow via instanceColor; soccer restores the
+     classic look, basketball orange.
+   - Rally: when the player enters with no ball active, the nearest free
+     pedestrian takes the TENNIS state (goalie pattern: holds the
+     baseline, mirrors the ball laterally at 3.5 u/s, faces the ball,
+     resumes WALK wander on release; never a bus passenger) and serves
+     into the player's half. F within 3u of the ball, on foot, is a
+     forehand return toward the far court: auto-aim with seeded
+     depth/angle error via mulberry32, real kinematic flight (gravity,
+     bounce 0.55, spin), no fudged curves. Net plane at mid-court:
+     crossing below the tape = netted (ball drops dead on the hitter's
+     side, point lost). First bounce outside the court rect after a hit =
+     out (point lost). Two bounces on a side = point to the other side
+     (the last hitter wins the normal case). The opponent auto-returns
+     when the ball lands on their side, with a seeded miss chance that
+     grows with rally length (base ~15%).
+   - Cash: +$25 per rally won, +$5 per rally hit beyond 4 (Racket Club
+     "points rally": longer rallies raise the stakes), streak bonus
+     capped so payouts stay sane. Session RALLIES tally on the chip
+     (READY!/RALLY xN!/FAULT states), tappable HIT [F] hint, toasts for
+     every mechanic. newGame resets the tally. Save schema v3 untouched
+     (session-only state). The ball parks when the player leaves; 30u
+     out-of-bounds ends the point with a toast.
+   - No new lights, no new audio nodes (sfxBlip idiom only), no new
+     keybinds (F triples), no external URLs, seeded PRNG only. Zero
+     per-frame allocation: all temps live on TENNIS. */
+const TENNIS_HX = 10, TENNIS_HZ = 5;  // court half extents, park-local
+const NET_H = 0.95;                   // net tape height above the court
+const HIT_R = 3.0;                    // F becomes HIT inside this range
+const TENNIS_SPD = 3.5;               // opponent lateral speed cap u/s
+const TENNIS_LEAVE = 45;              // opponent releases beyond this radius
+const RALLY_CASH = 25, RALLY_HIT_BONUS = 5, RALLY_BONUS_CAP = 60;
+const SERVE_BEAT = 1.1;               // pause before the re-serve after a point
+
+/* seeded subset of park amenities: pure function of chunk coords,
+   deterministic on revisit. Residue %5===3 is tennis's; soccer takes
+   %5===1 and basketball %5===2, so the three never overlap (see the
+   sportHash note at soccerPitchFor: the salt is what makes the split
+   real, because raw hash2i%5 is vacuous on parks). */
+function tennisCourtFor(gx, gz) {
+  return amenityTypeFor(gx, gz) === 'park' && amenityAccepted(gx, gz) &&
+         (sportHash(gx, gz) % 5 === 3);
+}
+
+const TENNIS = {
+  pos: new THREE.Vector3(0, -100, 0),
+  vel: new THREE.Vector3(),
+  quat: new THREE.Quaternion(),
+  prevX: 0, prevY: 0,
+  active: false,
+  court: null,                 // active park {x, z, yaw, gx, gz}
+  pts: 0,                      // session tally (rallies won)
+  rally: 0,                    // hits in the live rally
+  pSide: -1, oSide: 1,         // court halves: player / opponent (local-x sign)
+  hitBy: null,                 // 'P' | 'NPC' | null: last hitter
+  bounces: 0,                  // consecutive ground bounces since the last hit
+  bounceSide: 0,               // local-x sign of the bounce side
+  pointOver: false, pointT: 0, // beat before the re-serve
+  serveT: 0,                   // serve beat after spawn
+  opp: -1,                     // NPC index, -1 = none assigned
+  oppTold: false,
+  hitT: 0, faultT: 0,          // HUD state timers
+  chipState: '',
+  rng: null,                   // seeded stream per rally (placement, misses)
+  npcs: null,                  // wired by the PEOPLE block (SOCCER.npcs pattern)
+  _loc: new THREE.Vector3(), _t1: new THREE.Vector3(),
+  _tq: new THREE.Quaternion(), _m: new THREE.Matrix4(),
+  _s1: new THREE.Vector3(1, 1, 1),
+};
+
+/* park-local coords for a world point, into the caller-provided out. */
+function tennisLocal(wx, wz, out) {
+  const p = TENNIS.court;
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  const dx = wx - p.x, dz = wz - p.z;
+  out.x = dx * c - dz * s;
+  out.z = dx * s + dz * c;
+  return out;
+}
+function tennisSpawnAt(a) {
+  const T = TENNIS;
+  tennisReleaseOpp();                       // a court change frees the old opponent
+  T.court = a; T.active = true;
+  T.rally = 0; T.hitBy = null; T.bounces = 0; T.bounceSide = 0;
+  T.pointOver = false; T.pointT = 0; T.serveT = 0.6;
+  T.opp = -1; T.oppTold = false; T.hitT = 0; T.faultT = 0;
+  T.rng = mulberry32((hash2i(a.gx, a.gz) ^ 0x7e3a) >>> 0);
+  /* the player's half = the half the player stands on (default -X local) */
+  tennisLocal(player.position.x, player.position.z, T._loc);
+  T.pSide = T._loc.x >= 0 ? 1 : -1;
+  T.oSide = -T.pSide;
+  /* ball parks at center until the serve */
+  T.pos.set(a.x, terrainHeight(a.x, a.z) + BALL_R + 0.05, a.z);
+  T.vel.set(0, 0, 0);
+  T.quat.identity();
+  ballSetLook('tennis');                    // tennis-yellow tint
+  toast('TENNIS COURT');
+  updateTennisChip(true);
+}
+function tennisParkBall() {
+  TENNIS.active = false;
+  TENNIS.court = null;
+  if (!SOCCER.active && !HOOPS.active) ballIM.count = 0;   // another sport owns it: no flicker
+  tennisReleaseOpp();
+  tennisHitHint(false);
+  updateTennisChip(true);
+}
+/* opponent: nearest free pedestrian takes TENNIS, resumes wander on
+   release (soccer goalie pattern; never a bus passenger). */
+function tennisAssignOpp() {
+  const T = TENNIS;
+  if (!T.npcs || T.opp >= 0) return;
+  const p = T.court;
+  let bi = -1, bd = Infinity;
+  for (let i = 0; i < T.npcs.length; i++) {
+    const n = T.npcs[i];
+    if (n.state === 'FLEE' || n.state === 'GOALIE' || n.state === 'TENNIS') continue;
+    if (BUS.boarded.indexOf(i) >= 0) continue;
+    const dx = n.pos.x - p.x, dz = n.pos.z - p.z, d = dx * dx + dz * dz;
+    if (d < bd) { bd = d; bi = i; }
+  }
+  if (bi < 0) return;
+  T.opp = bi;
+  const n = T.npcs[bi];
+  n.state = 'TENNIS'; n.chatWith = -1; n.idleT = 0;
+  n.swingL = 0; n.swingR = 0;
+  /* arcade: the opponent takes their baseline at once, then holds it. */
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  const lx = T.oSide * (TENNIS_HX + 1.2);
+  n.pos.set(p.x + lx * c, terrainHeight(p.x + lx * c, p.z - lx * s), p.z - lx * s);
+  n.yaw = Math.atan2(p.x - n.pos.x, p.z - n.pos.z);
+}
+function tennisReleaseOpp() {
+  if (TENNIS.opp >= 0 && TENNIS.npcs) {
+    const n = TENNIS.npcs[TENNIS.opp];
+    if (n && n.state === 'TENNIS') n.state = 'WALK';   // back on the route
+  }
+  TENNIS.opp = -1; TENNIS.oppTold = false;
+}
+/* serve: the opponent serves from their baseline into the player's half,
+   seeded placement. Real kinematic arc, solved time-of-flight. */
+function tennisServe() {
+  const T = TENNIS, p = T.court;
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  const sx = T.oSide * (TENNIS_HX - 0.5);
+  const sz = (T.rng() * 2 - 1) * TENNIS_HZ * 0.5;
+  T.pos.set(p.x + sx * c + sz * s, terrainHeight(p.x, p.z) + 1.2, p.z - sx * s + sz * c);
+  const tx = T.pSide * (TENNIS_HX * (0.3 + T.rng() * 0.45));
+  const tz = (T.rng() * 2 - 1) * (TENNIS_HZ - 0.6);
+  const dx = p.x + tx * c + tz * s - T.pos.x, dz = p.z - tx * s + tz * c - T.pos.z;
+  const d = Math.hypot(dx, dz) || 0.001;
+  const Tt = 0.6 + d * 0.03;
+  const ty = terrainHeight(p.x, p.z) + BALL_R;
+  T.vel.set(dx / Tt, (ty - T.pos.y + 0.5 * BALL_GRAV * Tt * Tt) / Tt, dz / Tt);
+  T.hitBy = 'NPC'; T.bounces = 0; T.bounceSide = 0; T.rally = 0;
+  toast('READY!');
+  updateTennisChip(true);
+}
+/* ball near the player's feet and low, rally live: the F key becomes HIT. */
+function tennisBallNear() {
+  const T = TENNIS;
+  if (!T.active || T.pointOver || T.serveT > 0) return false;
+  const dx = T.pos.x - player.position.x, dz = T.pos.z - player.position.z;
+  if (dx * dx + dz * dz > HIT_R * HIT_R) return false;
+  return T.pos.y - terrainHeight(T.pos.x, T.pos.z) < 2.5;
+}
+/* F triples as HIT near the ball. Same guard idiom as soccerCanKick:
+   dead, shop open, driving, riding all block it. */
+function tennisCanHit() {
+  if (!playing() || P.dead || P.punchCd > 0 || shopOpen) return false;
+  if (CAR.driving || HORSE.riding || BUS.driving || BUS.riding || TX.riding ||
+      BIKE.driving || BC.driving || SC.driving) return false;
+  return tennisBallNear();
+}
+/* forehand return: auto-aim at the far court, seeded depth/angle error via
+   mulberry32 (the rally stream), solved time-of-flight arc. Reuses the
+   punch swing anim + cooldown for feedback. */
+function doTennisHit() {
+  if (!tennisCanHit()) return;
+  const T = TENNIS, p = T.court;
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  const tx = T.oSide * (TENNIS_HX * (0.3 + T.rng() * 0.5));
+  const tz = (T.rng() * 2 - 1) * (TENNIS_HZ - 0.5);
+  const dx = p.x + tx * c + tz * s - T.pos.x, dz = p.z - tx * s + tz * c - T.pos.z;
+  const d = Math.hypot(dx, dz) || 0.001;
+  const Tt = 0.55 + d * 0.035;
+  const ty = terrainHeight(p.x, p.z) + BALL_R;
+  T.vel.set(dx / Tt, (ty - T.pos.y + 0.5 * BALL_GRAV * Tt * Tt) / Tt, dz / Tt);
+  T.hitBy = 'P'; T.bounces = 0; T.bounceSide = 0; T.rally++;
+  T.hitT = 0.7;
+  P.punchCd = 0.45; P.punchDur = 0.32; P.punchT = P.punchDur; P.punchHit = false;
+  sfxBlip(240, 0.09, 'sine', 0.4);            // racket thwack
+  setTimeout(() => sfxBlip(480, 0.08, 'triangle', 0.22), 50);
+  updateTennisChip(true);
+}
+/* opponent auto-return when the ball lands on their side: seeded aim at
+   the player's half, seeded miss chance that grows with rally length
+   (base ~15%). A miss goes into the tape or long on purpose. */
+function tennisNpcReturn() {
+  const T = TENNIS, p = T.court;
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  const missP = Math.min(0.6, 0.15 + Math.max(0, T.rally - 4) * 0.05);
+  const miss = T.rng() < missP;
+  let tx, tz, netIt = false;
+  if (miss && T.rng() < 0.5) { netIt = true; tx = 0.2 * T.pSide; tz = (T.rng() * 2 - 1) * 2; }
+  else if (miss) { tx = T.pSide * (TENNIS_HX + 1.5 + T.rng() * 2); tz = (T.rng() * 2 - 1) * TENNIS_HZ; }
+  else { tx = T.pSide * (TENNIS_HX * (0.3 + T.rng() * 0.5)); tz = (T.rng() * 2 - 1) * (TENNIS_HZ - 0.5); }
+  const dx = p.x + tx * c + tz * s - T.pos.x, dz = p.z - tx * s + tz * c - T.pos.z;
+  const d = Math.hypot(dx, dz) || 0.001;
+  const Tt = 0.55 + d * 0.035;
+  const ty = terrainHeight(p.x, p.z) + BALL_R;
+  let vy = (ty - T.pos.y + 0.5 * BALL_GRAV * Tt * Tt) / Tt;
+  if (netIt) vy *= 0.45;                      // dumps it into the tape
+  T.vel.set(dx / Tt, vy, dz / Tt);
+  T.hitBy = 'NPC'; T.bounces = 0; T.bounceSide = 0; T.rally++;
+  updateTennisChip(true);
+}
+/* the point goes to the winner. Player cash scales with rally length
+   (Racket Club points-rally: longer rallies raise the stakes), capped so
+   payouts stay sane. */
+function tennisPoint(winner, why) {
+  const T = TENNIS;
+  T.pointOver = true; T.pointT = SERVE_BEAT; T.faultT = 1.0;
+  if (winner === 'P') {
+    T.pts++;
+    const total = RALLY_CASH + Math.min(RALLY_BONUS_CAP, Math.max(0, T.rally - 4) * RALLY_HIT_BONUS);
+    cash += total; updateCashHUD();            // the cash idiom
+    toast('POINT! +$' + total);
+    sfxBlip(523, 0.12, 'square', 0.3);
+    setTimeout(() => sfxBlip(784, 0.2, 'square', 0.3), 130);
+  } else {
+    toast(why === 'net' ? 'INTO THE NET' : why === 'out' ? 'OUT!' : 'DOUBLE BOUNCE');
+    sfxBlip(220, 0.2, 'sawtooth', 0.25);
+  }
+  updateTennisChip(true);
+}
+/* fresh serve after the point beat: new seeded stream, rally reset. */
+function tennisResetForServe() {
+  const T = TENNIS, p = T.court;
+  T.pos.set(p.x, terrainHeight(p.x, p.z) + BALL_R + 0.05, p.z);
+  T.vel.set(0, 0, 0);
+  T.rally = 0; T.hitBy = null; T.bounces = 0; T.bounceSide = 0;
+  T.pointOver = false; T.serveT = 0.6;
+  T.rng = mulberry32((hash2i(p.gx, p.gz) ^ ((T.pts * 7919 + 0x7e3a) | 0)) >>> 0);
+}
+/* opponent: holds their baseline, mirrors the ball laterally at
+   TENNIS_SPD, faces the ball. tennisTick owns the position (it runs just
+   before the NPC ticker each frame). Zero per-frame allocation. */
+function tennisTickOpp(dt, p, c, s) {
+  const T = TENNIS;
+  const pdx = player.position.x - p.x, pdz = player.position.z - p.z;
+  if (pdx * pdx + pdz * pdz < TENNIS_LEAVE * TENNIS_LEAVE) {
+    tennisAssignOpp();
+    if (T.opp >= 0 && T.npcs) {
+      const n = T.npcs[T.opp];
+      if (n.state === 'TENNIS') {
+        if (!T.oppTold) { T.oppTold = true; toast('OPPONENT READY'); }
+        tennisLocal(T.pos.x, T.pos.z, T._loc);
+        const clz = Math.max(-TENNIS_HZ - 1, Math.min(TENNIS_HZ + 1, T._loc.z));
+        const tlx = T.oSide * (TENNIS_HX + 1.2);
+        const tx = p.x + tlx * c + clz * s;
+        const tz = p.z - tlx * s + clz * c;
+        const gx = tx - n.pos.x, gz = tz - n.pos.z;
+        const gd = Math.hypot(gx, gz);
+        if (gd > 0.05) {
+          const step = Math.min(gd, TENNIS_SPD * dt);
+          n.pos.x += gx / gd * step; n.pos.z += gz / gd * step;
+        }
+        n.pos.y = terrainHeight(n.pos.x, n.pos.z);
+        n.tennisYaw = Math.atan2(T.pos.x - n.pos.x, T.pos.z - n.pos.z);
+      }
+    }
+  } else {
+    tennisReleaseOpp();
+  }
+}
+
+/* ---- HUD: rallies chip (pet-chip chip language) + HIT prompt (SHOOT-hint
+        pattern, tappable). DOM only, zero draw calls. ---- */
+const tennChipEl = document.getElementById('tennischip');
+function updateTennisChip(force) {
+  const T = TENNIS;
+  let s;
+  if (!T.active) s = '';
+  else if (T.faultT > 0) s = 'FAULT - RALLIES ' + T.pts;
+  else if (T.rally > 0) s = 'RALLY x' + T.rally + '! - RALLIES ' + T.pts;
+  else if (T.serveT > 0 || T.pointOver) s = 'READY! - RALLIES ' + T.pts;
+  else s = 'TENNIS - RALLIES ' + T.pts;
+  if (!force && s === T.chipState) return;
+  T.chipState = s;
+  tennChipEl.style.display = s ? 'block' : 'none';
+  if (s) tennChipEl.textContent = s;
+}
+const hitHintEl = document.getElementById('hithint');
+hitHintEl.addEventListener('click', () => { doTennisHit(); });
+let hitHintOn = false;
+function tennisHitHint(show) {
+  if (show === hitHintOn) return;
+  hitHintOn = show;
+  hitHintEl.style.opacity = show ? 1 : 0;
+  if (show) hitHintEl.textContent = 'HIT [F]';
+}
+
+/* pose the one shared ball instance (soccer/basketball/tennis take turns). */
+function tennisPoseBall() {
+  const T = TENNIS;
+  T._m.compose(T.pos, T.quat, T._s1);
+  ballIM.setMatrixAt(0, T._m);
+  ballIM.instanceMatrix.needsUpdate = true;
+  ballIM.count = 1;
+}
+
+/* ---- tennis tick: activation, serve, ball physics, net/bounce faults,
+        opponent. Zero per-frame allocation. ---- */
+function tennisTick(dt) {
+  if (dt <= 0) return;
+  const T = TENNIS;
+  const has = courtFindActive(_courtAct);
+  if (!has || _courtAct.type !== 'tennis') {
+    if (T.active) tennisParkBall();
+    tennisHitHint(false);
+    return;
+  }
+  if (!T.active || T.court !== _courtAct.court) tennisSpawnAt(_courtAct.court);
+  const p = T.court;
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+
+  if (T.serveT > 0) {
+    /* serve beat, then the opponent serves into the player's half */
+    T.serveT -= dt;
+    if (T.serveT <= 0) { tennisAssignOpp(); tennisServe(); }
+  } else if (T.pointOver) {
+    /* point beat: ball rests at center, then a fresh serve */
+    T.pointT -= dt;
+    if (T.pointT <= 0) tennisResetForServe();
+  } else {
+    /* ball physics: gravity, bounce, rolling friction, speed cap (soccer idiom) */
+    T.prevX = T.pos.x; T.prevY = T.pos.y;
+    T.vel.y -= BALL_GRAV * dt;
+    const sp2 = T.vel.x * T.vel.x + T.vel.z * T.vel.z;
+    if (sp2 > BALL_MAXV * BALL_MAXV) {
+      const k = BALL_MAXV / Math.sqrt(sp2);
+      T.vel.x *= k; T.vel.z *= k;
+    }
+    T.pos.x += T.vel.x * dt; T.pos.y += T.vel.y * dt; T.pos.z += T.vel.z * dt;
+    const gy = terrainHeight(T.pos.x, T.pos.z) + BALL_R;
+    let bounced = false;
+    if (T.pos.y <= gy) {
+      T.pos.y = gy;
+      if (T.vel.y < 0) {
+        if (T.vel.y < -1.0) bounced = true;   // a real bounce, not a settle
+        T.vel.y *= -BALL_REST;
+      }
+      if (Math.abs(T.vel.y) < 0.9) T.vel.y = 0;
+      const f = Math.max(0, 1 - BALL_ROLL * dt);
+      T.vel.x *= f; T.vel.z *= f;
+      if (T.vel.x * T.vel.x + T.vel.z * T.vel.z < 0.0025) { T.vel.x = 0; T.vel.z = 0; }
+    }
+    /* spin: rolling rotation on the ground, free spin on flight (hoops idiom) */
+    const hs = Math.hypot(T.vel.x, T.vel.z);
+    if (hs > 0.01) {
+      T._t1.set(T.vel.z / hs, 0, -T.vel.x / hs);
+      T._tq.setFromAxisAngle(T._t1, hs * dt / BALL_R * (T.pos.y <= gy + 0.01 ? 1 : 1.6));
+      T.quat.premultiply(T._tq);
+    }
+
+    /* park-local coords */
+    tennisLocal(T.pos.x, T.pos.z, T._loc);
+    const lx = T._loc.x, lz = T._loc.z;
+    const plx = (T.prevX - p.x) * c - (T.pos.z - p.z) * s;
+
+    /* net plane at local x = 0: crossing below the tape = netted. The
+       hitter loses the point; the ball drops dead on their side. */
+    if (T.hitBy && ((plx > 0) !== (lx > 0))) {
+      const t = plx / (plx - lx);
+      const yCross = T.prevY + t * (T.pos.y - T.prevY);
+      if (yCross - (terrainHeight(p.x, p.z) + NET_H) < BALL_R * 0.5) {
+        T.vel.set(T.vel.x * 0.05, Math.min(T.vel.y, 0), T.vel.z * 0.05);
+        tennisPoint(T.hitBy === 'P' ? 'NPC' : 'P', 'net');
+      }
+    }
+
+    /* bounce faults. First bounce after a hit must land in-bounds on the
+       receiver's side; anything else is out/fault. Two consecutive
+       bounces on one side lose the point for that side. */
+    if (bounced && !T.pointOver) {
+      const bs = lx >= 0 ? 1 : -1;
+      const inRect = Math.abs(lx) <= TENNIS_HX + 0.3 && Math.abs(lz) <= TENNIS_HZ + 0.3;
+      const expectSide = T.hitBy === 'P' ? T.oSide : T.pSide;
+      if (T.bounces === 0) {
+        if (!inRect || bs !== expectSide) {
+          tennisPoint(T.hitBy === 'P' ? 'NPC' : 'P', inRect ? 'fault' : 'out');
+        } else {
+          T.bounces = 1; T.bounceSide = bs;
+          /* the opponent auto-returns when the ball lands on their side
+             and is actually there to hit it */
+          if (bs === T.oSide && T.hitBy === 'P' && T.opp >= 0) tennisNpcReturn();
+        }
+      } else if (bs === T.bounceSide) {
+        T.bounces++;
+        if (T.bounces >= 2) tennisPoint(T.bounceSide === T.pSide ? 'NPC' : 'P', 'double');
+      } else {
+        T.bounces = 1; T.bounceSide = bs;   // rolled across: keep it alive
+      }
+    }
+
+    /* out of bounds: 30u from the court center ends the point (out) */
+    if (!T.pointOver) {
+      const rdx = T.pos.x - p.x, rdz = T.pos.z - p.z;
+      if (rdx * rdx + rdz * rdz > 30 * 30) {
+        T.pos.set(p.x, terrainHeight(p.x, p.z) + BALL_R + 0.05, p.z);
+        T.vel.set(0, 0, 0);
+        tennisPoint(T.hitBy === 'P' ? 'NPC' : 'P', 'out');
+      }
+    }
+  }
+
+  tennisTickOpp(dt, p, c, s);
+
+  /* HUD: chip states + HIT prompt */
+  const onFoot = playing() && !P.dead && !shopOpen &&
+    !CAR.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding &&
+    !BIKE.driving && !BC.driving && !SC.driving;
+  T.hitT = Math.max(0, T.hitT - dt);
+  T.faultT = Math.max(0, T.faultT - dt);
+  updateTennisChip(false);
+  tennisHitHint(onFoot && tennisBallNear());
+
+  tennisPoseBall();
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(tennisTick));
+
 /* === WORLD-PEOPLE-ANCHOR === */
 /* Phase 3 buses: passenger hook. The PEOPLE block below stores its npc list
    and an instance hide/show helper here; the bus block reads them. Declared
@@ -8238,6 +8735,7 @@ const BUSNPC = { npcs: null, hideNPC: null };
      sim keeps running underneath and resumes on alight. */
   BUSNPC.npcs = npcs;
   SOCCER.npcs = npcs;   /* Phase 5 soccer: the goalie is one of these walkers */
+  TENNIS.npcs = npcs;   /* Phase 5 tennis: the opponent is one of these walkers */
   BUSNPC.hideNPC = (i, hide) => {
     const s = hide ? 0 : 1;
     _nM1.makeScale(s, s, s);
@@ -8336,6 +8834,17 @@ const BUSNPC = { npcs: null, hideNPC: null };
         const swg = Math.sin(now * 11 + n.phase);
         n.swingL = swg * 0.55; n.swingR = -swg * 0.55;
         n.yaw = n.goalieYaw || 0;
+        continue;
+      }
+
+      /* Phase 5 tennis: the opponent holds the baseline; tennisTick owns
+         its position (it runs just before this ticker each frame). Legs
+         paddle in place, face the ball; flee and night-shelter logic
+         are skipped. */
+      if (n.state === 'TENNIS') {
+        const swg = Math.sin(now * 11 + n.phase);
+        n.swingL = swg * 0.55; n.swingR = -swg * 0.55;
+        n.yaw = n.tennisYaw || 0;
         continue;
       }
 
@@ -12047,6 +12556,7 @@ function newGame() {
   cash = 0; kills = 0;
   SOCCER.goals = 0; updateSoccerChip(true);   // Phase 5 soccer: new session, new tally
   HOOPS.pts = 0; HOOPS.streak = 0; HOOPS.shots = 0; updateHoopsChip(true);  // Phase 5 hoops
+  TENNIS.pts = 0; TENNIS.rally = 0; updateTennisChip(true);  // Phase 5 tennis: new session, new tally
   releasePet(true);   // Phase 5 wildlife: new game releases the pet (silent)
   for (const k of FOOD_ORDER) FOOD[k] = 0;   // Phase 5 cooking: empty the pantry
   updateFoodHUD();
