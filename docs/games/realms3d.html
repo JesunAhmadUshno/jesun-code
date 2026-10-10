@@ -513,6 +513,22 @@
     letter-spacing: 2px; display: none; pointer-events: none;
   }
   #lmausearr { display: inline-block; color: #ff9d3c; font-size: 14px; }
+  /* ---- landmark hospital HUD (Phase 5): bearing chip mirrors #lmausechip,
+         stacked below it in the top-left stack so live chips never overlap.
+         DOM only, zero draw calls. The #hospheal prompt mirrors the
+         #worshiphint pattern (clickable, touch-friendly). ---- */
+  #hospchip {
+    position: absolute; top: 489px; left: 18px; color: #dff2f2; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #3a8a8a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #hosparr { display: inline-block; color: #7dd8d0; font-size: 14px; }
+  #hospheal {
+    position: absolute; bottom: 722px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #9be8e0; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
   /* ---- worship HUD (Phase 5): ENTER prompt mirrors the amusement hint
          pattern, stacked above it so live prompts never overlap. The
          #worshipchip state readout sits top-right below the amusement chip.
@@ -873,6 +889,8 @@
   <div id="storechip"><span id="storearr">^</span> <span id="storetxt"></span></div>
   <div id="stadchip"><span id="lmstadarr">^</span> <span id="lmstadtxt"></span></div>
   <div id="lmausechip"><span id="lmausearr">^</span> <span id="lmauusetxt"></span></div>
+  <div id="hospchip"><span id="hosparr">^</span> <span id="hosptxt"></span></div>
+  <div id="hospheal"></div>
 </div>
 
 <div id="dmgflash"></div>
@@ -7259,8 +7277,195 @@ function lmauseChipTick(dt) {
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(lmauseChipTick));
 
+/* ================= PHASE 5: LANDMARK HOSPITAL v1 (buildings/places) ====================
+   One seeded landmark hospital per rare chunk (the 'hosp' amenity type: own
+   hash residue h%47===23 checked after every existing type including
+   'amuse', cross-type winner-take-all spacing via amenityCenterFor).
+   Bespoke merged geometry, exactly +1 draw call (the 'hosp' InstancedMesh
+   built by the shared AMEN_DEF loop below): 3-story white main block with
+   procedural facade, window bands that sample the WIN_GLOW_TEX warm rect
+   via amenGlowUV (the existing day/night emissive ramp lights them at
+   night; zero new runtime lights), red-cross signage (white board + two
+   red boxes), a roof helipad (disc + vertex-color 'H'), an ambulance bay
+   (canopy + drive apron) on the east side, and a hedge-ring perimeter with
+   a 4m entrance gap (the stadium-gate idiom: collider segment k=4 skipped).
+   The building fits inside the 14m amenity flora clear zone (pad radius
+   13). Gameplay: walk in through the entrance gap to the lobby heal pad
+   (white disc + red cross, local (0, 8.6)); E (or tap) heals to full HP,
+   free of charge, with a 90-second cooldown per hospital. The HUD prompt
+   and the post-heal toast keep the mechanic visible: no silent mechanics.
+   Pure seeded math, no RNG anywhere in this block. */
+const LMHOSP_R = 13, LMHOSP_SEGS = 16, LMHOSP_GATE_K = 4;   // gate at angle PI/2 (front, +Z)
+const LMHOSP_CHIP_R2 = 500 * 500;             // chip shows within 500m
+const LMHOSP_HEAL_R2 = 3.2 * 3.2;             // lobby heal-pad trigger radius
+const LMHOSP_HEAL_CD = 90;                    // seconds of cooldown per hospital
+const LMHOSP_PAD = [0, 8.6];                  // heal-pad center, park-local
+/* radial colliders, park-local [x, z, r]: hedge-ring wall (gate gap open),
+   main-block edges, entrance-canopy posts, gate posts, ambulance-bay posts.
+   Mirrors the LMSTAD_WALL_COL idiom. */
+const LMHOSP_COL = [];
+for (let _hk = 0; _hk < LMHOSP_SEGS; _hk++) {
+  if (_hk === LMHOSP_GATE_K) continue;        // entrance gap stays walkable
+  const _ha = _hk / LMHOSP_SEGS * Math.PI * 2;
+  LMHOSP_COL.push([LMHOSP_R * Math.cos(_ha), LMHOSP_R * Math.sin(_ha), 2.2]);
+}
+for (const _hz of [-5, 5]) for (const _hx of [-7.5, -2.5, 2.5, 7.5]) LMHOSP_COL.push([_hx, _hz, 3.0]);
+for (const _hx of [-9, 9]) for (const _hz of [-2.5, 2.5]) LMHOSP_COL.push([_hx, _hz, 3.0]);
+LMHOSP_COL.push([-2.2, 7.6, 0.5], [2.2, 7.6, 0.5]);       // entrance-canopy posts
+LMHOSP_COL.push([-3.59, 12.49, 0.5], [3.59, 12.49, 0.5]); // gate posts
+for (const _bx of [9.5, 13.5]) for (const _bz of [-3, 3]) LMHOSP_COL.push([_bx, _bz, 0.4]);
+function hospWinQuad(parts, w, h, x, y, z, ry) {
+  const g = new THREE.PlaneGeometry(w, h);
+  if (ry) g.rotateY(ry);
+  g.translate(x, y, z);
+  amenGlowUV(g); amenPaint(g, 0xffffff);       // window band: glows at night
+  parts.push(g);
+}
+function buildLandmarkHospGeo() {
+  const parts = [];
+  const WHITE = 0xeef0f2, CONC = 0x565a60, PLINTH = 0xb9bdc4,
+        TRIM = 0xc23b2e, HEDGE = 0x2f6b46, APRON = 0x9a9da2,
+        PADW = 0x3f4145, SIGNW = 0xf2f5ee;
+  amenPart(parts, 3, 13, 0, 0, 0, 0.03, 0, 0x3f4145);   // ground pad disc
+  /* main block: plinth + 3-story white box + roof slab + red brand band */
+  amenPart(parts, 0, 18.6, 0.6, 10.6, 0, 0.3, 0, PLINTH);
+  amenPart(parts, 0, 18, 9, 10, 0, 4.5, 0, WHITE);
+  amenPart(parts, 0, 18.2, 0.6, 10.2, 0, 8.7, 0, TRIM);
+  amenPart(parts, 0, 18.4, 0.4, 10.4, 0, 9.2, 0, CONC);
+  /* window bands: two floors, all four faces, glow at night via the shared
+     day/night emissive ramp (zero new runtime lights) */
+  for (const _wy of [2.2, 5.2]) {
+    for (const _wx of [-7.5, -4.5, -1.5, 1.5, 4.5, 7.5]) {
+      hospWinQuad(parts, 1.9, 1.5, _wx, _wy, 5.06, 0);
+      hospWinQuad(parts, 1.9, 1.5, _wx, _wy, -5.06, Math.PI);
+    }
+    for (const _wz of [-3, 0, 3]) {
+      hospWinQuad(parts, 1.6, 1.5, 9.06, _wy, _wz, Math.PI / 2);
+      hospWinQuad(parts, 1.6, 1.5, -9.06, _wy, _wz, -Math.PI / 2);
+    }
+  }
+  /* red-cross signage: white board + red cross (two boxes) on the facade */
+  amenPart(parts, 0, 3.6, 1.8, 0.25, 0, 7.7, 5.06, SIGNW);
+  amenPart(parts, 0, 0.7, 1.4, 0.1, 0, 7.7, 5.2, TRIM);
+  amenPart(parts, 0, 1.4, 0.7, 0.1, 0, 7.7, 5.2, TRIM);
+  /* roof helipad: flat circle + 'H' marking in vertex colors */
+  amenPart(parts, 3, 3.6, 0, 0, 0, 9.42, 0, PADW);
+  amenPart(parts, 0, 0.5, 0.03, 1.8, -0.7, 9.44, 0, SIGNW);
+  amenPart(parts, 0, 0.5, 0.03, 1.8, 0.7, 9.44, 0, SIGNW);
+  amenPart(parts, 0, 0.9, 0.03, 0.5, 0, 9.44, 0, SIGNW);
+  /* entrance canopy: slab + two posts, in front of the facade doors */
+  amenPart(parts, 0, 5, 0.3, 3, 0, 3.2, 6.5, CONC);
+  for (const _px of [-2.2, 2.2]) amenPart(parts, 0, 0.3, 3.2, 0.3, _px, 1.6, 7.6, PLINTH);
+  /* hedge-ring perimeter wall: the entrance segment stays open */
+  for (let _k = 0; _k < LMHOSP_SEGS; _k++) {
+    if (_k === LMHOSP_GATE_K) continue;
+    const _a = _k / LMHOSP_SEGS * Math.PI * 2;
+    const _w = (2 * Math.PI * LMHOSP_R / LMHOSP_SEGS) * 1.02;
+    amenPart(parts, 0, _w, 1.2, 0.7,
+             LMHOSP_R * Math.cos(_a), 0.6, LMHOSP_R * Math.sin(_a),
+             HEDGE, -_a - Math.PI / 2);
+  }
+  /* gate posts + name board + red-cross roundel over the entrance */
+  for (const _sx of [-3.59, 3.59]) amenPart(parts, 0, 0.55, 3.2, 0.55, _sx, 1.6, 12.49, SIGNW);
+  amenPart(parts, 0, 7.5, 1.0, 0.25, 0, 3.6, 12.49, SIGNW);
+  amenPart(parts, 0, 0.35, 0.7, 0.08, 0, 3.6, 12.62, TRIM);
+  amenPart(parts, 0, 0.7, 0.35, 0.08, 0, 3.6, 12.62, TRIM);
+  /* ambulance bay (east side): canopy + posts + drive apron */
+  amenPart(parts, 0, 4.5, 0.3, 7, 11.3, 3.8, 0, CONC);
+  for (const _bx of [9.5, 13.5]) for (const _bz of [-3, 3])
+    amenPart(parts, 0, 0.35, 3.8, 0.35, _bx, 1.9, _bz, PLINTH);
+  const _ap = new THREE.PlaneGeometry(6, 8);
+  _ap.rotateX(-Math.PI / 2); _ap.translate(11, 0.05, 0);
+  amenUV(_ap, 0.5, 0.5); amenPaint(_ap, APRON); parts.push(_ap);
+  /* lobby heal pad: white disc + flat red cross, the E-to-heal zone */
+  amenPart(parts, 3, 2.5, 0, 0, LMHOSP_PAD[0], 0.05, LMHOSP_PAD[1], SIGNW);
+  amenPart(parts, 0, 0.7, 0.02, 1.6, LMHOSP_PAD[0], 0.07, LMHOSP_PAD[1], TRIM);
+  amenPart(parts, 0, 1.6, 0.02, 0.7, LMHOSP_PAD[0], 0.07, LMHOSP_PAD[1], TRIM);
+  return mergeAmenGeos(parts);
+}
+/* ---- landmark hospital gameplay: free E-to-heal lobby pad (civic
+        hint idiom). 90-second cooldown per hospital, charged on the live
+        amenity instance. HUD prompt + toast + sfx: no silent mechanics. ---- */
+const HOSP = { hintOn: false, nearIdx: -1, tickT: 0, chipT: 0 };
+const hosphealEl = document.getElementById('hospheal');
+const hospChipEl = document.getElementById('hospchip');
+const hospTxtEl = document.getElementById('hosptxt');
+const hospArrEl = document.getElementById('hosparr');
+hosphealEl.addEventListener('click', () => { if (HOSP.hintOn) hospHeal(); });
+function hospPadWorld(a) {   // lobby heal-pad center in world coords (the redistributeAmenities yaw idiom)
+  const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+  return { x: a.x + LMHOSP_PAD[0] * c + LMHOSP_PAD[1] * s,
+           z: a.z - LMHOSP_PAD[0] * s + LMHOSP_PAD[1] * c };
+}
+function hospHeal() {
+  if (!HOSP.hintOn || HOSP.nearIdx < 0) return;
+  const a = AMEN.active.hosp[HOSP.nearIdx];
+  if (!a) return;
+  const nowS = performance.now() / 1000;
+  if (nowS - (a.healAt || -1e9) < LMHOSP_HEAL_CD) return;   // cooldown gate (safety)
+  a.healAt = nowS;
+  P.hp = 100; updateHpHUD();
+  toast('HOSPITAL: FULL HEAL (FREE)');
+  sfxBlip(880, 0.15, 'square', 0.2);
+  HOSP.hintOn = false; hosphealEl.style.opacity = 0;
+}
+function hospTick(dt) {
+  if (!playing() || P.dead) {
+    HOSP.hintOn = false; hosphealEl.style.opacity = 0; hospChipEl.style.display = 'none';
+    return;
+  }
+  HOSP.tickT += dt;
+  if (HOSP.tickT >= 0.25) {
+    HOSP.tickT = 0;
+    const onFoot = !shopOpen && !CAR.driving && !BUS.driving && !BUS.riding && !TX.riding && !HORSE.riding
+      && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying
+      && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state
+      && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching;
+    let best = -1;
+    const nowS = performance.now() / 1000;
+    if (onFoot && P.hp < 100) {
+      const px = player.position.x, pz = player.position.z;
+      for (let i = 0; i < AMEN.active.hosp.length; i++) {
+        const a = AMEN.active.hosp[i];
+        if (nowS - (a.healAt || -1e9) < LMHOSP_HEAL_CD) continue;   // per-hospital cooldown
+        const p = hospPadWorld(a);
+        const dx = p.x - px, dz = p.z - pz;
+        if (dx * dx + dz * dz < LMHOSP_HEAL_R2) { best = i; break; }
+      }
+    }
+    HOSP.nearIdx = best;
+    if ((best >= 0) !== HOSP.hintOn) {
+      HOSP.hintOn = best >= 0;
+      hosphealEl.style.opacity = HOSP.hintOn ? 1 : 0;
+    }
+    if (HOSP.hintOn)
+      hosphealEl.textContent = IS_TOUCH ? 'TAP TO HEAL' : 'HEAL [E]';
+  }
+  /* bearing chip (landchip idiom): nearest active hospital within 500m */
+  HOSP.chipT += dt;
+  if (HOSP.chipT >= 0.25) {
+    HOSP.chipT = 0;
+    const px = player.position.x, pz = player.position.z;
+    let hb = null, hd = 1e18;
+    for (const H of AMEN.active.hosp) {
+      const dx = H.x - px, dz = H.z - pz, d2 = dx * dx + dz * dz;
+      if (d2 < hd) { hd = d2; hb = H; }
+    }
+    if (hb && hd < LMHOSP_CHIP_R2) {
+      hospChipEl.style.display = 'block';
+      camera.getWorldDirection(_mB);
+      const dx = hb.x - px, dz = hb.z - pz;
+      const deg = -(Math.atan2(dx, dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
+      hospArrEl.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
+      hospTxtEl.textContent = 'HOSPITAL ' + Math.round(Math.sqrt(hd)) + 'M';
+    } else hospChipEl.style.display = 'none';
+  }
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(hospTick));
+
 /* ---- instanced meshes: one per type, one draw call each ---- */
-const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [], land: [], stad: [], amuse: [] } };
+const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [], land: [], stad: [], amuse: [], hosp: [] } };
 const AMEN_DEF_LIST = [
   { key: 'gas', cap: 6, tex: () => makeSignTex('GAS - REPAIR', '#c23b2e'), build: buildGasGeo, trigR: 6.5,
     colliders: [[-4.2, -3.2, 0.35], [4.2, -3.2, 0.35], [-4.2, 3.2, 0.35], [4.2, 3.2, 0.35],
@@ -7280,6 +7485,8 @@ const AMEN_DEF_LIST = [
     colliders: LMSTAD_WALL_COL },
   { key: 'amuse', cap: 2, tex: makePlainTex, build: buildLandmarkAmuseGeo, trigR: 0, glow: true,
     colliders: LMAUSE_COL },
+  { key: 'hosp', cap: 2, tex: makePlainTex, build: buildLandmarkHospGeo, trigR: 0, glow: true,
+    colliders: LMHOSP_COL },
 ];
 /* window-glow texture: black field, one warm rect. Window quads sample the
    rect (glow at night); every other part samples black (never glows). Moved
@@ -7339,6 +7546,7 @@ const ZONE_PAD_COLORS = {
   land:   new THREE.Color(0xb8b4ac),   // off-white
   stad:   new THREE.Color(0x8a3a44),   // arena red (Phase 5 landmark stadium)
   amuse:  new THREE.Color(0x7a5a9e),   // midway violet (Phase 5 landmark amusement park)
+  hosp:   new THREE.Color(0xdfe8ee),   // hospital pale blue (Phase 5 landmark hospital)
   farm:   new THREE.Color(0x5a4128),   // tilled soil brown (Phase 5 farming)
 };
 let ZONE_PADS;
@@ -7427,6 +7635,10 @@ function amenityTypeFor(gx, gz) {
      'stad' so it never displaces an existing amenity type; only
      previously-null chunks change. */
   if (h % 41 === 29) return 'amuse';
+  /* Phase 5 landmark hospital: rare hospital chunk. Checked after 'amuse'
+     so it never displaces an existing amenity type; only previously-null
+     chunks change. */
+  if (h % 47 === 23) return 'hosp';
   return null;
 }
 /* spacing: winner-take-all across ALL amenity types in the 3x3 chunk
@@ -8497,6 +8709,15 @@ function redistributeBuildings(pcx, pcz) {
     for (const col of AMEN_DEF.amuse.colliders)
       BLDG.foot.push({ x: a.x + col[0] * c + col[1] * s, z: a.z - col[0] * s + col[1] * c, r: col[2] });
   }
+  /* Phase 5 landmark hospital: the walls block the player on foot too
+     (rural-building foot idiom). The entrance gap stays walkable. Vehicles
+     already resolve via AMEN.colliders, filled by redistributeAmenities
+     just above. */
+  for (const a of AMEN.active.hosp) {
+    const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+    for (const col of AMEN_DEF.hosp.colliders)
+      BLDG.foot.push({ x: a.x + col[0] * c + col[1] * s, z: a.z - col[0] * s + col[1] * c, r: col[2] });
+  }
   for (const m of bldgMeshes) m.count = 0;   // shared meshes start empty each redistribute
   /* shared fleets take cumulative slot offsets per mesh: casino rides the
      store mesh at [nStores, nStores + nCasino); the four civic types share
@@ -9368,7 +9589,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
+  if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
@@ -12211,7 +12432,9 @@ function busRebuildRoute(pcx, pcz) {
          routes identical to before the stadium; a stadium stop is a later item) */
       /* Phase 5 landmark amusement park: not a transit stop in v1 (keeps
          bus routes identical to before the park; a park stop is a later item) */
-      if (a && a.type !== 'stad' && a.type !== 'amuse') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });
+      /* Phase 5 landmark hospital: not a transit stop in v1 (keeps bus
+         routes identical to before the hospital; a hospital stop is a later item) */
+      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -12757,7 +12980,9 @@ function ambRebuild(pcx, pcz) {
   for (let gx = pcx - AMB_SCAN; gx <= pcx + AMB_SCAN; gx++)
     for (let gz = pcz - AMB_SCAN; gz <= pcz + AMB_SCAN; gz++) {
       const a = amenityCenterFor(gx, gz);
-      if (!a) continue;
+      /* Phase 5 landmark hospital: not an ambulance anchor in v1 (keeps
+         anchors identical to before the hospital; a hospital anchor is a later item) */
+      if (!a || a.type === 'hosp') continue;
       const d2 = (a.x - px) * (a.x - px) + (a.z - pz) * (a.z - pz);
       if (d2 < abd) { abd = d2; anyBest = a; }
       if (a.type === 'rest' && d2 < bd) { bd = d2; best = a; }
@@ -12829,7 +13054,9 @@ function txRebuild(pcx, pcz) {
          routes identical to before the stadium; a stadium stop is a later item) */
       /* Phase 5 landmark amusement park: not a transit stop in v1 (keeps
          taxi routes identical to before the park; a park stop is a later item) */
-      if (a && a.type !== 'stad' && a.type !== 'amuse') found.push({ x: a.x, z: a.z, type: a.type });
+      /* Phase 5 landmark hospital: not a transit stop in v1 (keeps taxi
+         routes identical to before the hospital; a hospital stop is a later item) */
+      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type });
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -13103,7 +13330,9 @@ function bikeRebuild(pcx, pcz) {
   for (let gx = pcx - BIKE_SCAN; gx <= pcx + BIKE_SCAN; gx++)
     for (let gz = pcz - BIKE_SCAN; gz <= pcz + BIKE_SCAN; gz++) {
       const a = amenityCenterFor(gx, gz);
-      if (a) found.push(a);
+      /* Phase 5 landmark hospital: not a bike pad anchor in v1 (keeps pads
+         identical to before the hospital; a hospital pad is a later item) */
+      if (a && a.type !== 'hosp') found.push(a);
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -13481,7 +13710,9 @@ function bcRebuild(pcx, pcz) {
   for (let gx = pcx - BC_SCAN; gx <= pcx + BC_SCAN; gx++)
     for (let gz = pcz - BC_SCAN; gz <= pcz + BC_SCAN; gz++) {
       const a = amenityCenterFor(gx, gz);
-      if (a) found.push(a);
+      /* Phase 5 landmark hospital: not a bike pad anchor in v1 (keeps pads
+         identical to before the hospital; a hospital pad is a later item) */
+      if (a && a.type !== 'hosp') found.push(a);
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -13843,7 +14074,9 @@ function scRebuild(pcx, pcz) {
   for (let gx = pcx - SC_SCAN; gx <= pcx + SC_SCAN; gx++)
     for (let gz = pcz - SC_SCAN; gz <= pcz + SC_SCAN; gz++) {
       const a = amenityCenterFor(gx, gz);
-      if (a) found.push(a);
+      /* Phase 5 landmark hospital: not a scooter pad anchor in v1 (keeps
+         pads identical to before the hospital; a hospital pad is a later item) */
+      if (a && a.type !== 'hosp') found.push(a);
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
