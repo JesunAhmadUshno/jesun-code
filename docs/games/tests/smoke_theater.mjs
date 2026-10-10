@@ -850,20 +850,28 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     check('wildlife2: redistribute is a pure function of chunk coords', snap() === s1);
   }
 
-  /* rabbit hop: body bob is nonzero while moving */
+  /* rabbit hop: body bob is nonzero while moving.
+     2026-10-10: made history-independent. It was: the rabbit's whole-suite
+     rng history decided whether its think grazed or walked inside the
+     30-frame window, so adding any amenity type (which reshuffles the
+     winner-take-all layout, bus-adjacent timings and animal relocations)
+     could flip it. Now the chunk-crossing relocation settles first, then
+     the walk is posed directly with grazing isolated. */
   parkEnemies(150, 150);
   G.player.position.set(-100, groundY(-100, -100), -100);
   for (const a of G.animals) { a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0; }
   const rab = w2.find(a => a.kind === 'rabbit');
-  rab.pos.set(40, G.terrainHeight(40, 40), 40);
-  rab.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
-  rab.mode = 'walk'; rab.t = 999; rab.target.set(70, 0, 40);
-  rab.fleeT = 0; rab.grazeT = 0;
+  frame(1);   // chunk-crossing relocation (if any) settles before the pose
+  rab.zone = { x0: rab.pos.x - 40, x1: rab.pos.x + 40, z0: rab.pos.z - 40, z1: rab.pos.z + 40 };
+  rab.target.set(rab.pos.x + 30, 0, rab.pos.z);
+  rab.mode = 'walk'; rab.t = 999; rab.fleeT = 0; rab.grazeT = 0;
+  const grazeWas = rab.graze; rab.graze = false;   // isolate the hop from the graze coin flip
   let bobMax = 0;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 45; i++) {
     frame(1);
     if (Math.abs(rab.bobY) > bobMax) bobMax = Math.abs(rab.bobY);
   }
+  rab.graze = grazeWas;
   check('wildlife2: rabbit hop bob is nonzero while moving', bobMax > 0.05,
     'bobMax=' + bobMax.toFixed(3));
 

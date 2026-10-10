@@ -119,7 +119,8 @@ globalThis.__R3D = {
   HOOPS, basketballCourtFor, hoopsRimWorld, hoopsSpawnAt, hoopsParkBall,
   hoopsBallNear, hoopsCanShoot, doHoopShot, hoopsResetBall, hoopsScore,
   hoopsMiss, hoopsHoopCollide, hoopsTick, hoopChipEl, shootHintEl,
-  AMEN, hash2i, sportHash, amenityTypeFor, amenityAccepted,
+  AMEN, AMEN_DEF, hash2i, sportHash, amenityTypeFor, amenityAccepted,
+  stadChipEl, stadTxtEl, stadArrEl, LMSTAD_FLOOD_MATS, LMSTAD_WALL_COL, LMSTAD_CHIP_R2,  /* Phase 5 landmark stadium v1 */
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
   /* Phase 5 boats/ships v1 */
   BOAT, boatEnter, boatExit, boatRebuild, boatFloat, waterSurfaceY, dockFor,
@@ -210,8 +211,11 @@ function frame(n) {
   for (let i = 0; i < n; i++) { stubs.clock.advance(16.667); G.tick(); }
 }
 const groundY = (x, z) => G.terrainHeight(x, z);
+globalThis.__pchunk = (tag) => console.log('DBG-chunk ' + tag + ' player=' + G.player.position.x.toFixed(0) + ',' + G.player.position.z.toFixed(0));
+globalThis.__rabPos = () => { const r = G.animals.find(a => a.kind === 'rabbit'); return r.pos.x.toFixed(0) + ',' + r.pos.z.toFixed(0) + ':' + r.mode; };
 
 /* ================= 1. MISSION ACTIVATION ================= */
+console.log('DBG-pos @1 ' + globalThis.__rabPos());
 {
   G.P.godT = 9999; G.P.dead = false; G.P.hp = 100;
   const cash0 = G.cash, kills0 = G.kills;
@@ -235,6 +239,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 }
 
 /* ================= 2. CAR DRIVE ================= */
+console.log('DBG-pos @2 ' + globalThis.__rabPos());
 {
   G.P.dead = false; G.P.hp = 100; G.P.godT = 9999;
   const px = G.CAR.pos.x + 2, pz = G.CAR.pos.z;
@@ -275,6 +280,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 }
 
 /* ================= 4. SAVE / LOAD ROUND-TRIP ================= */
+console.log('DBG-pos @4 ' + globalThis.__rabPos());
 {
   G.player.position.set(12.34, groundY(12.34, 56.78), 56.78);
   G.cash = 1234; G.kills = 7; G.P.hp = 100;
@@ -337,11 +343,13 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 }
 
 /* ================= 6. BUS ROUTE + BOARD + DRIVE ================= */
+console.log('DBG-pos @6 ' + globalThis.__rabPos());
 {
   G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.cash = 100;
   G.setHeat(0, true);
   G.player.position.set(0, groundY(0, 0), 0);          // anchor chunk (0,0)
   frame(3);                                            // busUpdate builds the route
+  console.log('DBG-busroute ' + JSON.stringify(G.BUS.route.map(s => [s.x.toFixed(0), s.z.toFixed(0), s.label])));
   check('bus: route activates near spawn', G.BUS.active === true && G.BUS.route.length >= 2,
     'stops=' + G.BUS.route.length);
   const r1 = JSON.stringify(G.BUS.route), key1 = G.BUS.routeKey;
@@ -368,6 +376,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   G.keys.KeyW = true;
   frame(90);                                           // ~1.5 s of bus-throttle driving
   G.keys.KeyW = false;
+  globalThis.__pchunk('bus-end');
   const moved = G.BUS.pos.distanceTo(start);
   check('bus: player-driven bus moves under throttle', moved > 3, 'moved=' + moved.toFixed(2) + 'u');
   G.mountToggle();                                     // E while driving: get off
@@ -396,6 +405,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 }
 
 /* ================= 7. HIGHER IQ (Phase 3) ================= */
+  globalThis.__pchunk('sec7-start');
 {
   const resetBrains = () => {
     for (const e of G.enemies) {
@@ -499,6 +509,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 }
 
 /* ================= 8. EMERGENCY + SERVICE VEHICLES (Phase 5) ================= */
+console.log('DBG-pos @8 ' + globalThis.__rabPos());
 {
   G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.cash = 100;
   G.setHeat(0, true);
@@ -677,6 +688,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
 }
 
 /* ================= 10. WILDLIFE (Phase 5) ================= */
+console.log('DBG-pos @10 ' + globalThis.__rabPos());
 {
   G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.setHeat(0, true);
   G.CAR.driving = false; G.HORSE.riding = false;
@@ -917,20 +929,28 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     check('wildlife2: redistribute is a pure function of chunk coords', snap() === s1);
   }
 
-  /* rabbit hop: body bob is nonzero while moving */
+  /* rabbit hop: body bob is nonzero while moving.
+     2026-10-10: made history-independent. It was: the rabbit's whole-suite
+     rng history decided whether its think grazed or walked inside the
+     30-frame window, so adding any amenity type (which reshuffles the
+     winner-take-all layout, bus-adjacent timings and animal relocations)
+     could flip it. Now the chunk-crossing relocation settles first, then
+     the walk is posed directly with grazing isolated. */
   parkEnemies(150, 150);
   G.player.position.set(-100, groundY(-100, -100), -100);
   for (const a of G.animals) { a.pos.set(200, G.terrainHeight(200, 200), 200); a.fleeT = 0; }
   const rab = w2.find(a => a.kind === 'rabbit');
-  rab.pos.set(40, G.terrainHeight(40, 40), 40);
-  rab.zone = { x0: 0, x1: 80, z0: 0, z1: 80 };
-  rab.mode = 'walk'; rab.t = 999; rab.target.set(70, 0, 40);
-  rab.fleeT = 0; rab.grazeT = 0;
+  frame(1);   // chunk-crossing relocation (if any) settles before the pose
+  rab.zone = { x0: rab.pos.x - 40, x1: rab.pos.x + 40, z0: rab.pos.z - 40, z1: rab.pos.z + 40 };
+  rab.target.set(rab.pos.x + 30, 0, rab.pos.z);
+  rab.mode = 'walk'; rab.t = 999; rab.fleeT = 0; rab.grazeT = 0;
+  const grazeWas = rab.graze; rab.graze = false;   // isolate the hop from the graze coin flip
   let bobMax = 0;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 45; i++) {
     frame(1);
     if (Math.abs(rab.bobY) > bobMax) bobMax = Math.abs(rab.bobY);
   }
+  rab.graze = grazeWas;
   check('wildlife2: rabbit hop bob is nonzero while moving', bobMax > 0.05,
     'bobMax=' + bobMax.toFixed(3));
 
@@ -5180,6 +5200,147 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   G.redistributeGlyphBoards();
   check('signglyph: fleet restores clean after the synthetic slots leave',
     G.glyphBoardIM.count === gas0 * 2 + gar0 + st0, 'count=' + G.glyphBoardIM.count);
+}
+
+/* ================= PHASE 5: LANDMARK STADIUM v1 (buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.STADIUM.watching) G.stadiumExit();
+  if (G.THEATER.watching) G.theaterExit();
+  if (G.SLOT.playing) G.slotExit();
+  if (G.PIANO.playing) G.pianoExit();
+  if (G.CIVIC.state) G.civicExit();
+
+  /* static: bespoke merged geometry, zero new IM literals (the shared
+     AMEN_DEF loop builds the one 'stad' mesh: +1 runtime draw call), zero
+     new runtime lights, zero new keybinds, no unseeded RNG, no em dashes,
+     no external URLs, no TODO text in the block */
+  const lmstadSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK STADIUM v1 (buildings/places)'),
+                               html.indexOf('const AMEN_DEF_LIST = ['));
+  check('lmstad-static: zero IM literals in the stadium block (shared AMEN_DEF loop builds the one mesh)',
+    (lmstadSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('lmstad-static: stadium block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(lmstadSrc));
+  check('lmstad-static: no unseeded RNG in the stadium block', !/Math\.random/.test(lmstadSrc));
+  check('lmstad-static: no em dashes in the stadium block', !lmstadSrc.includes('—'));
+  check('lmstad-static: no external URLs in the stadium block', !/https?:\/\//.test(lmstadSrc));
+  check('lmstad-static: no TODO markers in the stadium block', !/\bTODO\b/.test(lmstadSrc));
+  check('lmstad-static: stad residue is checked after all existing amenity types (never displaces them)',
+    html.indexOf("if (h % 10 === 6) return 'park';") < html.indexOf("if (h % 37 === 13) return 'stad';"));
+  check('lmstad-static: whole-file IM literals pin at 42 (stad rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 42);
+  check('lmstad-static: Math.random lines pin at 92',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
+  check('lmstad-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+
+  /* seeded placement: pure deterministic hash, cross-type winner-take-all */
+  let sgx = 0, sgz = 0, sd = null;
+  souter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'stad' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'stad') { sgx = gx; sgz = gz; sd = a; break souter; }
+    }
+  check('lmstad: a seeded stadium chunk exists in the scan window', !!sd, sd ? 'at ' + sgx + ',' + sgz : 'none');
+  if (sd) {
+    const sd2 = G.amenityCenterFor(sgx, sgz);
+    check('lmstad: amenityCenterFor is deterministic across calls',
+      !!sd2 && sd2.x === sd.x && sd2.z === sd.z && sd2.yaw === sd.yaw && sd2.type === 'stad');
+    let wtaOk = true;
+    for (let ax = sgx - 1; ax <= sgx + 1; ax++)
+      for (let az = sgz - 1; az <= sgz + 1; az++) {
+        if (ax === sgx && az === sgz) continue;
+        if (G.amenityTypeFor(ax, az) && G.amenityAccepted(ax, az)) wtaOk = false;
+      }
+    check('lmstad: cross-type winner-take-all holds (no other accepted amenity in the 3x3)', wtaOk);
+    check('lmstad: def is registered (cap 2, glow flag, 14 wall colliders)',
+      G.AMEN_DEF.stad && G.AMEN_DEF.stad.cap === 2 && G.AMEN_DEF.stad.glow === true
+      && G.AMEN_DEF.stad.colliders.length === 14 && G.LMSTAD_WALL_COL.length === 14
+      && Array.isArray(G.AMEN.active.stad));
+
+    /* merged geometry: one mesh, one vertexColors material, per-part colors */
+    const sgeo = G.AMEN_DEF.stad.mesh.geometry;
+    check('lmstad: merged geometry carries per-part vertex colors',
+      !!sgeo.attributes.color && sgeo.attributes.color.count === sgeo.attributes.position.count
+      && sgeo.attributes.position.count > 500, 'verts=' + sgeo.attributes.position.count);
+    check('lmstad: one material with vertexColors on',
+      G.AMEN_DEF.stad.mesh.material.vertexColors === true);
+    check('lmstad: floodlight material rides the day/night emissive ramp',
+      G.LMSTAD_FLOOD_MATS.length === 1 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
+      && !!G.LMSTAD_FLOOD_MATS[0].emissiveMap);
+
+    /* wall collision: the rim wall blocks a walker, the gates stay open.
+       Colliders are pushed exactly the way redistributeBuildings does for
+       the live stadium (rural-building foot idiom), then removed. */
+    const def = G.AMEN_DEF.stad;
+    const c0 = Math.cos(sd.yaw), s0 = Math.sin(sd.yaw);
+    const wx = (ox, oz) => sd.x + ox * c0 + oz * s0;
+    const wz = (ox, oz) => sd.z - ox * s0 + oz * c0;
+    const foot0 = G.BLDG.foot.length;
+    for (const col of def.colliders) G.BLDG.foot.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+    const wc = def.colliders[3];   // a mid-wall collider, far from either gate
+    G.player.position.set(wx(wc[0], wc[1]), groundY(wx(wc[0], wc[1]), wz(wc[0], wc[1])), wz(wc[0], wc[1]));
+    G.resolveBldgFoot();
+    const wd = Math.hypot(G.player.position.x - wx(wc[0], wc[1]), G.player.position.z - wz(wc[0], wc[1]));
+    check('lmstad: the rim wall blocks a walker (pushed out of the wall)',
+      wd >= wc[2] + 0.45 - 0.01, 'd=' + wd.toFixed(2) + ' min=' + (wc[2] + 0.45).toFixed(2));
+    const gx0 = wx(11.5, 0), gz0 = wz(11.5, 0);   // east gate center: no collider there
+    G.player.position.set(gx0, groundY(gx0, gz0), gz0);
+    G.resolveBldgFoot();
+    const gd = Math.hypot(G.player.position.x - gx0, G.player.position.z - gz0);
+    check('lmstad: the entry gate stays open (walker not pushed)', gd < 0.01, 'd=' + gd.toFixed(3));
+    G.BLDG.foot.length = foot0;
+
+    /* vehicle collision: the car is pushed out of the rim wall via AMEN.colliders */
+    const am0 = G.AMEN.colliders.length;
+    for (const col of def.colliders) G.AMEN.colliders.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+    G.CAR.pos.set(wx(wc[0], wc[1]), 0, wz(wc[0], wc[1]));
+    G.CAR.hitCd = 0; G.CAR.speed = 0; G.CAR.hp = 100; G.CAR.armor = 0;
+    G.carAmenityHit(0.016);
+    const cd = Math.hypot(G.CAR.pos.x - wx(wc[0], wc[1]), G.CAR.pos.z - wz(wc[0], wc[1]));
+    check('lmstad: the rim wall blocks light vehicles (pushed out via AMEN.colliders)',
+      cd >= wc[2] + 1.15 - 0.01, 'd=' + cd.toFixed(2));
+    G.AMEN.colliders.length = am0;
+
+    /* HUD chip: shows within 500m with bearing arrow + distance, hidden when far.
+       Uses the real stadium: teleporting near it lets redistributeAmenities
+       populate AMEN.active.stad with the live instance. */
+    G.player.position.set(sd.x + 100, groundY(sd.x + 100, sd.z), sd.z);
+    frame(20);   // chunk redistribute + stadT cadence 0.25s
+    const near = G.AMEN.active.stad.some(a => Math.hypot(a.x - sd.x, a.z - sd.z) < 1);
+    check('lmstad: the real stadium activates near the player', near);
+    check('lmstad: chip shows within range',
+      G.stadChipEl.style.display === 'block', 'display=' + G.stadChipEl.style.display);
+    check('lmstad: chip reads STADIUM <distance>M',
+      /^STADIUM \d+M$/.test(G.stadTxtEl.textContent), G.stadTxtEl.textContent);
+    check('lmstad: chip arrow carries a bearing rotation',
+      /rotate\(-?\d+(\.\d+)?deg\)/.test(G.stadArrEl.style.transform || ''),
+      G.stadArrEl.style.transform);
+    G.player.position.set(sd.x + 1000, groundY(sd.x + 1000, sd.z), sd.z);
+    frame(20);
+    check('lmstad: chip hides when far',
+      G.stadChipEl.style.display === 'none', 'display=' + G.stadChipEl.style.display);
+
+    /* night: floodlight heads glow via the emissive ramp, zero new lights */
+    G.dayPhase = 0.75;   // midnight
+    frame(5);
+    check('lmstad: floodlight heads glow at night (emissiveMap ramp, no new lights)',
+      G.LMSTAD_FLOOD_MATS.every(m => m.emissiveIntensity > 1),
+      G.LMSTAD_FLOOD_MATS.map(m => m.emissiveIntensity.toFixed(2)).join(','));
+    G.dayPhase = 0.25;   // noon
+    frame(5);
+    check('lmstad: floodlight heads dark by day',
+      G.LMSTAD_FLOOD_MATS.every(m => m.emissiveIntensity < 0.01),
+      G.LMSTAD_FLOOD_MATS.map(m => m.emissiveIntensity.toFixed(2)).join(','));
+
+    const probsL = consoleProblems.length;
+    frame(30);
+    check('lmstad: round trip leaves zero console errors/warnings',
+      consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
+  }
 }
 
 /* ---------- zero console errors ---------- */
