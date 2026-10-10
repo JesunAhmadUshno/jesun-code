@@ -569,6 +569,67 @@
     font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
     pointer-events: auto; cursor: pointer; white-space: nowrap;
   }
+  /* ---- landmark casino HUD (Phase 5): bearing chip mirrors #thallchip,
+         stacked below it in the top-left stack (#thallchip owns 555px) so
+         live chips never overlap. The #casinohallhint door prompt and the
+         #casinoslothint sit/stand prompt mirror the #thallhint / #tshowhint
+         pattern (clickable, touch-friendly). The #lmcasinopanel is the
+         3x3 slot machine (DOM only, zero draw calls): three reel windows,
+         a win readout, BET and SPIN buttons, a pay table, and a big-win
+         overlay. Winning payline cells take .lmcs-win (gold pulse). ---- */
+  #casinchip {
+    position: absolute; top: 588px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #casinarr { display: inline-block; color: #ffd24a; font-size: 14px; }
+  #casinohallhint {
+    position: absolute; bottom: 884px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #ffd24a; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #casinoslothint {
+    position: absolute; bottom: 920px; left: 50%; transform: translateX(-50%);
+    color: #0c0e0a; background: #f0d8a8; font-size: 13px; letter-spacing: 3px;
+    font-weight: bold; padding: 10px 20px; opacity: 0; transition: opacity .2s;
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+  }
+  #lmcasinopanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
+    padding: 14px 16px; display: none; text-align: center; z-index: 40;
+    user-select: none; -webkit-user-select: none;
+  }
+  #lmcs-title { color: #ffd24a; font-size: 15px; letter-spacing: 4px; font-weight: bold; margin-bottom: 8px; }
+  #lmcs-reels { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+  .lmcs-reel {
+    width: 64px; height: 156px; overflow: hidden; position: relative;
+    background: #101310; border: 1px solid #4a5240; border-radius: 6px;
+  }
+  .lmcs-cell {
+    position: absolute; left: 0; width: 64px; height: 52px; line-height: 52px;
+    font-size: 34px; text-align: center;
+  }
+  .lmcs-cell.lmcs-win { background: rgba(255,210,74,.28); border-radius: 6px;
+    animation: lmcs-pulse .5s ease-in-out infinite alternate; }
+  @keyframes lmcs-pulse { from { box-shadow: inset 0 0 0 2px #ffd24a; } to { box-shadow: inset 0 0 0 3px #fff2c0; } }
+  #lmcs-win { color: #cfe8d8; font-size: 14px; letter-spacing: 2px; min-height: 20px; margin-bottom: 8px; }
+  #lmcs-controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 8px; }
+  #lmcs-bet, #lmcs-spin {
+    font-size: 14px; letter-spacing: 2px; font-weight: bold; padding: 10px 18px;
+    border-radius: 6px; border: 1px solid #c9a227; cursor: pointer;
+  }
+  #lmcs-bet { color: #ffd24a; background: #2a2416; }
+  #lmcs-spin { color: #0c0e0a; background: #ffd24a; }
+  #lmcs-pay { color: #8b937a; font-size: 10px; letter-spacing: 1px; line-height: 1.7; }
+  #lmcs-bigwin {
+    position: absolute; left: 0; right: 0; top: 34%; color: #ffd24a;
+    font-size: 34px; font-weight: bold; letter-spacing: 4px; display: none;
+    text-shadow: 0 0 18px #ff9a2a; pointer-events: none;
+    animation: lmcs-bigwin .4s ease-in-out infinite alternate;
+  }
+  @keyframes lmcs-bigwin { from { transform: scale(1); } to { transform: scale(1.12); } }
   /* ---- worship HUD (Phase 5): ENTER prompt mirrors the amusement hint
          pattern, stacked above it so live prompts never overlap. The
          #worshipchip state readout sits top-right below the amusement chip.
@@ -936,6 +997,21 @@
   <div id="hospheal"></div>
   <div id="thallhint"></div>
   <div id="tshowhint"></div>
+  <div id="casinchip"><span id="casinarr">^</span> <span id="casintxt"></span></div>
+  <div id="casinohallhint"></div>
+  <div id="casinoslothint"></div>
+  <div id="lmcasinopanel">
+    <div id="lmcs-title">ROYAL REELS</div>
+    <div id="lmcs-reels">
+      <div class="lmcs-reel" id="lmcs-reel0"></div>
+      <div class="lmcs-reel" id="lmcs-reel1"></div>
+      <div class="lmcs-reel" id="lmcs-reel2"></div>
+    </div>
+    <div id="lmcs-win">BET $10</div>
+    <div id="lmcs-controls"><button id="lmcs-bet">BET $10</button><button id="lmcs-spin">SPIN</button></div>
+    <div id="lmcs-pay">3 WILD 50x &nbsp; 3 SEVENS 25x &nbsp; 3 OF A KIND 10x &nbsp; PAIR 2x<br>WILD SUBS FOR ALL &nbsp; 5 LINES</div>
+    <div id="lmcs-bigwin"></div>
+  </div>
 </div>
 
 <div id="dmgflash"></div>
@@ -5622,6 +5698,7 @@ function busted() {
   if (WORSHIP.state) worshipExit();   // Phase 5 worship: busted out of the chapel too
   if (APARTMENT.state) apartmentExit();   // Phase 5 apartments: busted out of the unit too
   if (THEATERHALL.inHall) theaterHallExit();   // Phase 5 theater hall: busted out of the screening too
+  if (CASINOHALL.inHall) casinoHallExit();   // Phase 5 casino hall: busted out of the gaming hall too
   if (TX.riding) taxiExit();   // busted out of the taxi too
   if (BIKE.driving) bikeExit();   // busted off the bike too
   if (FT.driving) ftExit();   // busted out of the fire truck too
@@ -7825,7 +7902,7 @@ function theaterHallTick(dt) {
     HELI.hintOn = false; PLANE.hintOn = false; TRAIN.hintOn = false; FT.hintOn = false;
     SLOT.hintOn = false; PIANO.hintOn = false; THEATER.hintOn = false; CIVIC.hintOn = false;
     WORSHIP.hintOn = false; APARTMENT.hintOn = false; AMUSE.hintOn = false; STADIUM.hintOn = false;
-    HOSP.hintOn = false; PET.hintOn = false;
+    HOSP.hintOn = false; PET.hintOn = false; CASINOHALL.hintEnter = false;
     carHintEl.style.opacity = 0; busHintEl.style.opacity = 0; txHintEl.style.opacity = 0;
     rideHintEl.style.opacity = 0; bikeHintEl.style.opacity = 0; bcHintEl.style.opacity = 0;
     scHintEl.style.opacity = 0; boatHintEl.style.opacity = 0; heliHintEl.style.opacity = 0;
@@ -7833,7 +7910,7 @@ function theaterHallTick(dt) {
     casinohintEl.style.opacity = 0; pianoHintEl.style.opacity = 0; theaterHintEl.style.opacity = 0;
     civichintEl.style.opacity = 0; worshiphintEl.style.opacity = 0; apthintEl.style.opacity = 0;
     amuseHintEl.style.opacity = 0; stadiumHintEl.style.opacity = 0; hosphealEl.style.opacity = 0;
-    petHintEl.style.opacity = 0;
+    petHintEl.style.opacity = 0; casinohallhintEl.style.opacity = 0; casinoslothintEl.style.opacity = 0;
     if (THEATERHALL.tickT >= 0.25) {
       THEATERHALL.tickT = 0;
       const showTxt = IS_TOUCH ? 'TAP TO WATCH' : 'WATCH SHOW [E]';
@@ -7849,7 +7926,7 @@ function theaterHallTick(dt) {
     THEATERHALL.tickT = 0;
     const onFoot = !shopOpen && !CAR.driving && !FT.driving && !BUS.driving && !BUS.riding && !TX.riding && !HORSE.riding
       && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying
-      && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CIVIC.state
+      && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CASINOHALL.inHall && !CIVIC.state
       && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching;
     let best = -1;
     if (onFoot) {
@@ -7892,8 +7969,600 @@ function theaterHallTick(dt) {
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(theaterHallTick));
 
+/* ================= PHASE 5: LANDMARK CASINO v1 (buildings/places) ================
+   One seeded landmark casino per rare chunk (the 'casino' amenity type: own
+   hash residue h%61===37 checked after every existing type including
+   'theater', cross-type winner-take-all spacing via amenityCenterFor, 14m
+   flora clear zone via the shared rebuildFloraNoGo pass). Bespoke merged
+   geometry, exactly +1 runtime draw call when active (the 'casino'
+   InstancedMesh built by the shared AMEN_DEF loop below; zero new
+   THREE.InstancedMesh literals in this block): deep-red hall with a gold
+   brand band, a columned portico, a marquee canopy with a 'CASINO' sign
+   board (makeSignTex text band) and two bulb rows that sample the
+   WIN_GLOW_TEX warm rect via amenGlowUV (the existing day/night emissive
+   ramp lights them at night; zero new runtime lights), and a hedge-ring
+   perimeter with a front entrance gap (the stadium-gate idiom). Gameplay:
+   walk in through the entrance gap to the door, ENTER [E] teleports the
+   player to the cached gaming hall (built once, parked at
+   CASINO_ROOM_Y=-400, one merged mesh, visible=false until entered: zero
+   net draws when cached). The hall holds a four-machine slot row, two card
+   tables, a roulette table, rug, curtains, sconces and a chandelier, lit by
+   constant emissive (zero new runtime lights; never a black doorway).
+   Inside, PLAY SLOTS [E] sits the player at the featured machine: a 3x3
+   DOM reel grid (royal-reels idiom: symbol tape scroll, exponential
+   ease-out deceleration, staggered 0.9/1.5/2.1s stops, 5 paylines, WILD
+   substitutes, payline glow on winning cells, big-win overlay, procedural
+   WebAudio, pay table in the panel). E stands up and exits: E never traps.
+   Session-only; the save schema is untouched; a save inside stores the
+   casino door (collectSave idiom). Pure seeded math, no RNG anywhere in
+   this block. Naming note: the rural store-fleet building already owns the
+   'casino' BLDG key, the #casbearing div and the SLOT const, so this
+   landmark uses the CASINOHALL namespace, the #casinchip bearing chip, and
+   the #casinohallhint / #casinoslothint prompts (no collisions).
+   Research: valentin2333/royal-reels-slot-machine (3x3 grid, 5 paylines,
+   wild substitutes, 50-symbol tape with exponential ease-out, staggered
+   0.9/1.5/2.1s stops, payline glow overlay after all reels stop, mega-win
+   overlay, procedural WebAudio, pay-table modal). Adapted to DOM cells
+   (crisp text, no canvas) driven by the existing slotUpdate ease-out idiom. */
+const LMCAS_R = 13, LMCAS_SEGS = 16, LMCAS_GATE_K = 4;   // gate at angle PI/2 (front, +Z)
+const LMCAS_CHIP_R2 = 500 * 500;             // chip shows within 500m
+const LMCAS_DOOR = [0, 6.8];                 // door trigger, park-local (just outside the doors)
+const LMCAS_DOOR_R2 = 3.5 * 3.5;             // door prompt radius
+const CASINO_ROOM_Y = -400;                  // the cached gaming hall sits far below the world
+const LMCS_BETS = [5, 10, 25];
+const LMCS_SYMS = ['\u{1F352}', '\u{1F34B}', '\u{1F514}', '\u2B50', '7', '\u{1F0CF}'];
+const LMCS_WILD = 5, LMCS_SEVEN = 4;
+const LMCS_TAPE = 30, LMCS_OUT_AT = 27;      // outcome forced at tape[27..29]
+const LMCS_CELL_H = 52;
+const LMCS_LINES = [                         // 5 paylines: 3 rows + 2 diagonals (royal-reels idiom)
+  [[0, 0], [1, 0], [2, 0]], [[0, 1], [1, 1], [2, 1]], [[0, 2], [1, 2], [2, 2]],
+  [[0, 0], [1, 1], [2, 2]], [[0, 2], [1, 1], [2, 0]],
+];
+/* radial colliders, park-local [x, z, r]: hedge-ring wall (gate gap open),
+   hall edges (the door column x=0 stays open), portico columns, marquee
+   posts, gate posts. 35 colliders, mirrors the LMTHEATER_COL idiom. */
+const LMCASINO_COL = [];
+for (let _ck = 0; _ck < LMCAS_SEGS; _ck++) {
+  if (_ck === LMCAS_GATE_K) continue;        // entrance gap stays walkable
+  const _ca = _ck / LMCAS_SEGS * Math.PI * 2;
+  LMCASINO_COL.push([LMCAS_R * Math.cos(_ca), LMCAS_R * Math.sin(_ca), 2.2]);
+}
+for (const _cz of [-8, -2]) for (const _cx of [-9, -4.5, 4.5, 9]) LMCASINO_COL.push([_cx, _cz, 2.6]);
+for (const _cx of [-9, -4.5, 4.5, 9]) LMCASINO_COL.push([_cx, 4, 2.6]);   // front edge, door column open
+for (const _cx of [-7.5, -3.5, 3.5, 7.5]) LMCASINO_COL.push([_cx, 6.5, 0.6]);  // portico columns
+for (const _px of [-4.2, 4.2]) LMCASINO_COL.push([_px, 8.4, 0.4]);   // marquee posts
+for (const _sx of [-2.6, 2.6]) LMCASINO_COL.push([_sx, 12.74, 0.5]); // gate posts
+function buildLandmarkCasinoGeo() {
+  const parts = [];
+  const HALL = 0x6e1f2a, CONC = 0x565a60, TRIM = 0xc9a227, DARK = 0x1c1410,
+        CREAM = 0xf2ede0, PADM = 0x3f4145, HEDGE = 0x2f6b46;
+  amenPart(parts, 3, 13, 0, 0, 0, 0.02, 0, PADM);                  // ground pad disc
+  /* main hall + gold brand band + roof slab */
+  amenPart(parts, 0, 18, 7, 12, 0, 3.5, -2, HALL);
+  amenPart(parts, 0, 18.4, 0.6, 12.4, 0, 6.8, -2, TRIM);
+  amenPart(parts, 0, 18.4, 0.4, 12.4, 0, 7.3, -2, CONC);
+  /* entrance: dark doorway plane (visual only; entry is the E teleport),
+     glowing transom, door posts, step */
+  const _door = amenPart(parts, 5, 3.6, 3.2, 0, 0, 1.6, 4.06, DARK);
+  amenUV(_door, 0.5, 0.5);
+  const _transom = new THREE.PlaneGeometry(3.6, 0.5);
+  _transom.translate(0, 3.5, 4.06);
+  amenGlowUV(_transom); amenPaint(_transom, 0xffe9c0); parts.push(_transom);
+  for (const _dx of [-1.9, 1.9]) amenPart(parts, 0, 0.4, 3.4, 0.4, _dx, 1.7, 4.0, TRIM);
+  amenPart(parts, 0, 4.6, 0.25, 1.2, 0, 0.12, 4.4, CONC);
+  /* portico: roof slab + four columns in front of the doors */
+  amenPart(parts, 0, 16, 0.5, 4, 0, 4.5, 6, CONC);
+  amenPart(parts, 0, 16.4, 0.3, 4.4, 0, 4.85, 6, TRIM);
+  for (const _cx of [-7.5, -3.5, 3.5, 7.5])
+    amenPart(parts, 1, 0.45, 0.45, 4.5, _cx, 2.25, 6.5, CREAM);
+  /* marquee: canopy + posts, sign board (text band), two bulb rows that
+     glow at night through the shared day/night emissive ramp */
+  amenPart(parts, 0, 9, 0.4, 3, 0, 3.6, 7.2, HALL);
+  for (const _px of [-4.2, 4.2]) amenPart(parts, 0, 0.3, 3.6, 0.3, _px, 1.8, 8.4, CONC);
+  const _mq = amenPart(parts, 5, 8, 2, 0, 0, 5.2, 6.05, 0xffffff);
+  amenSignUV(_mq, 0);                                            // sign-text band of makeSignTex
+  for (let _bi = 0; _bi < 9; _bi++) {
+    const _bx = -3.2 + _bi * 0.8;
+    for (const _by of [4.1, 6.3]) {
+      const _bq = new THREE.PlaneGeometry(0.32, 0.32);
+      _bq.translate(_bx, _by, 6.06);
+      amenGlowUV(_bq); amenPaint(_bq, 0xfff2c8);
+      parts.push(_bq);
+    }
+  }
+  /* hedge-ring perimeter wall: the entrance segment stays open */
+  for (let _k = 0; _k < LMCAS_SEGS; _k++) {
+    if (_k === LMCAS_GATE_K) continue;
+    const _a = _k / LMCAS_SEGS * Math.PI * 2;
+    const _w = (2 * Math.PI * LMCAS_R / LMCAS_SEGS) * 1.02;
+    amenPart(parts, 0, _w, 1.2, 0.7,
+             LMCAS_R * Math.cos(_a), 0.6, LMCAS_R * Math.sin(_a),
+             HEDGE, -_a - Math.PI / 2);
+  }
+  for (const _sx of [-2.6, 2.6]) amenPart(parts, 0, 0.5, 2.6, 0.5, _sx, 1.3, 12.74, CREAM);
+  return mergeAmenGeos(parts);
+}
+/* ---- the cached gaming hall: one merged mesh, built once, parked at
+        CASINO_ROOM_Y under the active casino (zero net draws when cached:
+        visible=false until entered). Slot-machine row, card tables,
+        roulette table, rug, curtains, sconces, chandelier. Lit by constant
+        emissive (fully lit, never a black doorway); zero new runtime
+        lights. ---- */
+function buildCasinoHallGeo() {
+  const parts = [];
+  const FELT = 0x1f5a34, WALL = 0x24402e, CEIL = 0x1c1410, RUG = 0x7a1f2d,
+        TRIMH = 0xc9a227, MACH = 0x5a1f28, MACHD = 0x2e1418, SCREEN = 0xffe9a8,
+        TABLE = 0x1f6b3a, WOOD = 0x6b4a2e, SCONCE = 0xffe0b0, CURTAIN = 0x8a1f2d,
+        CREAM = 0xf2ede0;
+  amenPart(parts, 0, 26, 0.4, 24, 0, -0.2, 2, FELT);            // floor (z -10..14)
+  amenPart(parts, 0, 14, 0.44, 10, 0, 0.02, 4, RUG);           // center rug
+  amenPart(parts, 0, 26, 9, 0.6, 0, 4.5, 13.7, WALL);          // back wall
+  amenPart(parts, 0, 26, 9, 0.6, 0, 4.5, -9.7, WALL);          // front wall
+  amenPart(parts, 0, 0.6, 9, 24, -12.7, 4.5, 2, WALL);         // side walls
+  amenPart(parts, 0, 0.6, 9, 24, 12.7, 4.5, 2, WALL);
+  amenPart(parts, 0, 26, 0.4, 24, 0, 9.2, 2, CEIL);            // ceiling
+  amenPart(parts, 0, 26, 0.5, 0.2, 0, 2.6, 13.35, TRIMH);      // gold wainscot band
+  /* slot-machine row: four cabinets along the front wall, screens lit */
+  for (let _mi = 0; _mi < 4; _mi++) {
+    const _mx = -6.75 + _mi * 4.5;
+    amenPart(parts, 0, 1.4, 2.2, 0.9, _mx, 1.1, -8.4, MACH);
+    amenPart(parts, 0, 1.5, 0.25, 1.0, _mx, 2.3, -8.4, TRIMH);
+    amenPart(parts, 0, 1.5, 0.2, 1.0, _mx, 0.1, -8.4, MACHD);
+    const _scr = amenPart(parts, 5, 1.0, 0.8, 0, _mx, 1.7, -7.94, SCREEN);
+    amenUV(_scr, 0.5, 0.5);
+    amenPart(parts, 1, 0.06, 0.06, 0.7, _mx + 0.85, 1.9, -8.4, TRIMH);  // lever
+    amenPart(parts, 3, 0.12, 0, 0, _mx + 0.85, 2.28, -8.4, TRIMH);      // lever knob
+  }
+  /* card tables: green tops, legs, chairs */
+  for (const _tx of [-6, 6]) {
+    amenPart(parts, 1, 1.6, 1.7, 0.15, _tx, 0.9, 4, TABLE);
+    amenPart(parts, 1, 0.18, 0.18, 0.9, _tx, 0.45, 4, WOOD);
+    for (const _ca of [0, Math.PI / 2, Math.PI, -Math.PI / 2])
+      amenPart(parts, 0, 0.6, 0.9, 0.6, _tx + Math.cos(_ca) * 2.3, 0.45, 4 + Math.sin(_ca) * 2.3, WOOD);
+  }
+  /* roulette table */
+  amenPart(parts, 0, 3.4, 0.9, 1.6, 0, 0.9, 9, TABLE);
+  amenPart(parts, 0, 3.6, 0.12, 1.8, 0, 1.38, 9, CREAM);
+  for (const _lx of [-1.4, 1.4]) amenPart(parts, 0, 0.25, 0.9, 0.25, _lx, 0.45, 9, WOOD);
+  /* curtains + sconces + chandelier */
+  amenPart(parts, 0, 2.2, 6.5, 0.7, -7.1, 3.85, -9.3, CURTAIN);
+  amenPart(parts, 0, 2.2, 6.5, 0.7, 7.1, 3.85, -9.3, CURTAIN);
+  amenPart(parts, 0, 16.5, 1.8, 0.7, 0, 7.6, -9.3, CURTAIN);
+  for (const _wx of [-12.3, 12.3]) for (const _wz of [-4, 4])
+    amenPart(parts, 0, 0.25, 1.4, 0.5, _wx, 4.2, _wz, SCONCE);
+  amenPart(parts, 1, 0.08, 0.08, 1.6, 0, 8.2, 2, TRIMH);
+  amenPart(parts, 1, 1.1, 0.9, 0.25, 0, 7.3, 2, TRIMH);
+  for (let _bi = 0; _bi < 5; _bi++) {
+    const _ba = _bi / 5 * Math.PI * 2;
+    amenPart(parts, 3, 0.22, 0, 0, Math.cos(_ba) * 0.8, 7.15, 2 + Math.sin(_ba) * 0.8, SCONCE);
+  }
+  /* cashier counter */
+  amenPart(parts, 0, 4, 1.2, 1.2, 10, 0.6, -4, WOOD);
+  amenPart(parts, 0, 4.2, 0.12, 1.4, 10, 1.26, -4, CREAM);
+  return mergeAmenGeos(parts);
+}
+const casinoHallMesh = new THREE.Mesh(buildCasinoHallGeo(),
+  new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xfff1d8,
+    emissiveIntensity: 0.7, roughness: 0.9, side: THREE.DoubleSide }));
+casinoHallMesh.castShadow = false;
+casinoHallMesh.frustumCulled = false;
+casinoHallMesh.visible = false;          // cached: zero net draws until entered
+scene.add(casinoHallMesh);
+/* ---- landmark casino gameplay: ENTER the cached gaming hall, PLAY SLOTS
+        (3x3 mini-game, bet with cash economy), E exits: never traps.
+        The E chain (after the theater hall) runs ENTER, then PLAY, then
+        EXIT, so E never traps: a broke gambler is denied the spin and can
+        still leave. HUD prompts + toasts + sfx: no silent mechanics. ---- */
+const CASINOHALL = {
+  inHall: false, hintEnter: false, sitOn: false, nearIdx: -1,
+  doorX: 0, doorZ: 0,
+  standX: 0, standZ: 0, seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the machines (-Z)
+  seated: false,
+  hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
+  hallPos: new THREE.Vector3(),
+  tickT: 0, chipT: 0,
+};
+const CASINOSLOT = {
+  playing: false, betIdx: 1, spins: 0, spinning: false, spinT: 0,
+  lastWin: 0, bigWinT: 0,
+  reels: [], cellEls: [],
+};
+for (let i = 0; i < 3; i++)
+  CASINOSLOT.reels.push({ pos: 0, startPos: 0, finalPos: 0, travel: 0, dur: 1,
+    locked: true, tape: new Array(LMCS_TAPE).fill(0), outcome: [0, 0, 0] });
+const casinohallhintEl = document.getElementById('casinohallhint');
+const casinoslothintEl = document.getElementById('casinoslothint');
+const casinChipEl = document.getElementById('casinchip');
+const casinTxtEl = document.getElementById('casintxt');
+const casinArrEl = document.getElementById('casinarr');
+const lmcsPanelEl = document.getElementById('lmcasinopanel');
+const lmcsWinEl = document.getElementById('lmcs-win');
+const lmcsSpinEl = document.getElementById('lmcs-spin');
+const lmcsBetEl = document.getElementById('lmcs-bet');
+const lmcsBigWinEl = document.getElementById('lmcs-bigwin');
+for (let i = 0; i < 3; i++) {
+  const reelEl = document.getElementById('lmcs-reel' + i);
+  const row = [];
+  for (let j = -1; j <= 2; j++) {
+    const d = document.createElement('div');
+    d.className = 'lmcs-cell';
+    reelEl.appendChild(d);
+    row.push(d);
+  }
+  CASINOSLOT.cellEls.push(row);
+}
+casinohallhintEl.textContent = 'ENTER [E]';
+casinohallhintEl.addEventListener('click', () => { if (CASINOHALL.hintEnter) casinoHallEnter(); });
+casinoslothintEl.addEventListener('click', () => { if (CASINOHALL.inHall) casinoHallKeyE(); });
+function lmcsSpinBtn(e) { e.preventDefault(); e.stopPropagation(); lmcsSpin(); }
+lmcsSpinEl.addEventListener('touchstart', lmcsSpinBtn, { passive: false });
+lmcsSpinEl.addEventListener('click', lmcsSpinBtn);
+function lmcsBetBtn(e) { e.preventDefault(); e.stopPropagation(); lmcsCycleBet(); }
+lmcsBetEl.addEventListener('touchstart', lmcsBetBtn, { passive: false });
+lmcsBetEl.addEventListener('click', lmcsBetBtn);
+function casinoHallDoorWorld(a) {   // door trigger in world coords (the redistributeAmenities yaw idiom)
+  const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+  return { x: a.x + LMCAS_DOOR[0] * c + LMCAS_DOOR[1] * s,
+           z: a.z - LMCAS_DOOR[0] * s + LMCAS_DOOR[1] * c };
+}
+function lmcsCoin() {   // win arpeggio: the theaterJingle setTimeout idiom, coin register
+  sfxBlip(1318, 0.09, 'square', 0.18);
+  setTimeout(() => sfxBlip(1760, 0.12, 'square', 0.18), 110);
+}
+function lmcsFanfare() {   // big-win fanfare: C-E-G-C up, the theaterJingle idiom
+  const notes = [523, 659, 784, 1047, 1318];
+  notes.forEach((f, i) => setTimeout(() => sfxBlip(f, 0.16, 'triangle', 0.22), i * 130));
+}
+/* payline cell: WILD substitutes for any symbol (royal-reels idiom) */
+function lmcsLineMult(cells) {
+  const nw = cells.filter(s => s !== LMCS_WILD);
+  if (nw.length === 0) return 50;                    // three wilds
+  const first = nw[0];
+  if (nw.every(s => s === first)) return first === LMCS_SEVEN ? 25 : 10;   // effective 3 of a kind
+  if (new Set(nw).size === 2) return 2;              // a pair (wilds complete or extend it)
+  return 0;
+}
+function lmcsDrawReel(i) {
+  const rl = CASINOSLOT.reels[i], cells = CASINOSLOT.cellEls[i];
+  const base = Math.floor(rl.pos), frac = rl.pos - base;
+  for (let j = -1; j <= 2; j++) {
+    const idx = (((base + j) % LMCS_TAPE) + LMCS_TAPE) % LMCS_TAPE;
+    const d = cells[j + 1];
+    d.textContent = LMCS_SYMS[rl.tape[idx]];
+    d.style.top = ((j + frac) * LMCS_CELL_H) + 'px';
+  }
+}
+function lmcsClearWin() {
+  for (const row of CASINOSLOT.cellEls) for (const d of row) d.classList.remove('lmcs-win');
+  lmcsBigWinEl.style.display = 'none';
+  CASINOSLOT.bigWinT = 0;
+}
+function lmcsResetReels() {
+  const r = mulberry32(hash2i(6501, 78));   // seeded idle pattern, no unseeded RNG
+  for (let i = 0; i < 3; i++) {
+    const rl = CASINOSLOT.reels[i];
+    for (let j = 0; j < LMCS_TAPE; j++) rl.tape[j] = Math.floor(r() * LMCS_SYMS.length);
+    rl.pos = 0; rl.locked = true;
+    lmcsDrawReel(i);
+  }
+  lmcsClearWin();
+}
+function lmcsCycleBet() {
+  if (!CASINOSLOT.playing || CASINOSLOT.spinning) return;
+  CASINOSLOT.betIdx = (CASINOSLOT.betIdx + 1) % LMCS_BETS.length;
+  const b = LMCS_BETS[CASINOSLOT.betIdx];
+  lmcsBetEl.textContent = 'BET $' + b;
+  lmcsWinEl.textContent = 'BET $' + b;
+  sfxBlip(990, 0.07, 'square', 0.16);
+}
+function lmcsSpin() {
+  if (!CASINOSLOT.playing || CASINOSLOT.spinning) return;
+  const bet = LMCS_BETS[CASINOSLOT.betIdx];
+  if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
+  cash -= bet; updateCashHUD(); floatCash('-$' + bet);            // the cash idiom
+  CASINOSLOT.spins++;
+  CASINOSLOT.spinning = true; CASINOSLOT.spinT = 0; CASINOSLOT.lastWin = 0;
+  lmcsWinEl.textContent = 'GOOD LUCK';
+  lmcsWinEl.style.color = '#cfe8d8';
+  lmcsClearWin();
+  /* seeded RNG idiom (no unseeded RNG): one stream per spin, seeded from
+     the building-hash space and the spin count, so the sequence is
+     deterministic for a given session history. */
+  const r = mulberry32((hash2i(6501, 77) ^ (CASINOSLOT.spins * 0x9e3779b9)) >>> 0);
+  for (let i = 0; i < 3; i++) {
+    const rl = CASINOSLOT.reels[i];
+    const out = [Math.floor(r() * LMCS_SYMS.length), Math.floor(r() * LMCS_SYMS.length), Math.floor(r() * LMCS_SYMS.length)];
+    rl.outcome = out;
+    for (let j = 0; j < LMCS_OUT_AT; j++) rl.tape[j] = Math.floor(r() * LMCS_SYMS.length);
+    rl.tape[LMCS_OUT_AT] = out[0]; rl.tape[LMCS_OUT_AT + 1] = out[1]; rl.tape[LMCS_OUT_AT + 2] = out[2];
+    const cur = Math.round(rl.pos) % LMCS_TAPE;
+    const delta = (((LMCS_OUT_AT - cur) % LMCS_TAPE) + LMCS_TAPE) % LMCS_TAPE;
+    rl.startPos = cur;
+    rl.finalPos = cur + 2 * LMCS_TAPE + delta;      // 2 full turns, then the outcome lands
+    rl.travel = rl.finalPos - rl.startPos;
+    rl.dur = [0.9, 1.5, 2.1][i];                    // staggered stops left to right (royal-reels idiom)
+    rl.locked = false;
+  }
+  sfxBlip(220, 0.12, 'square', 0.18);                // spin clunk
+}
+function lmcsFinish() {
+  CASINOSLOT.spinning = false;
+  const bet = LMCS_BETS[CASINOSLOT.betIdx];
+  const grid = [[], [], []];
+  for (let i = 0; i < 3; i++) for (let row = 0; row < 3; row++) grid[i][row] = CASINOSLOT.reels[i].outcome[row];
+  let total = 0, jackpot = false;
+  const winCells = [];
+  for (const line of LMCS_LINES) {
+    const cells = line.map(([c, r]) => grid[c][r]);
+    const m = lmcsLineMult(cells);
+    if (m > 0) {
+      total += m * bet;
+      if (m === 50) jackpot = true;
+      for (const [c, r] of line) winCells.push([c, r]);
+    }
+  }
+  CASINOSLOT.lastWin = total;
+  if (total > 0) {
+    cash += total; updateCashHUD(); floatCash('+$' + total);   // the cash idiom
+    for (const [c, r] of winCells) CASINOSLOT.cellEls[c][r + 1].classList.add('lmcs-win');
+    if (total >= 10 * bet) {                                   // big-win tier (royal-reels idiom)
+      lmcsBigWinEl.textContent = 'BIG WIN $' + total;
+      lmcsBigWinEl.style.display = 'block';
+      CASINOSLOT.bigWinT = 2.5;
+      lmcsFanfare();
+      toast('BIG WIN $' + total);
+    } else {
+      lmcsCoin();
+      toast(jackpot ? 'JACKPOT $' + total : 'WIN $' + total);
+    }
+    lmcsWinEl.textContent = (jackpot ? 'JACKPOT $' : 'WIN $') + total;
+    lmcsWinEl.style.color = '#ffd24a';
+  } else {
+    lmcsWinEl.textContent = 'NO WIN - SPIN AGAIN';
+  }
+}
+function lmcsUpdate(dt) {
+  if (!CASINOSLOT.playing) return;
+  if (CASINOSLOT.bigWinT > 0) {
+    CASINOSLOT.bigWinT -= dt;
+    if (CASINOSLOT.bigWinT <= 0) lmcsBigWinEl.style.display = 'none';
+  }
+  if (!CASINOSLOT.spinning) return;
+  CASINOSLOT.spinT += dt;
+  let n = 0;
+  for (let i = 0; i < 3; i++) {
+    const rl = CASINOSLOT.reels[i];
+    if (rl.locked) { n++; continue; }
+    const t = CASINOSLOT.spinT / rl.dur;
+    if (t >= 1) {
+      rl.pos = rl.finalPos; rl.locked = true; n++;
+      sfxBlip(1500 + i * 250, 0.06, 'square', 0.16);   // reel-lock tick
+    } else {
+      rl.pos = rl.startPos + rl.travel * (1 - Math.pow(2, -10 * t));   // exponential ease-out
+    }
+    lmcsDrawReel(i);
+  }
+  if (n === 3) lmcsFinish();
+}
+function casinoSlotSit() {
+  if (CASINOHALL.seated || !CASINOHALL.inHall) return;
+  emoteCancel();   // no emotes while gambling
+  CASINOHALL.seated = true; CASINOHALL.sitOn = false;
+  CASINOSLOT.playing = true; CASINOSLOT.betIdx = 1; CASINOSLOT.spins = 0;
+  CASINOSLOT.spinning = false; CASINOSLOT.lastWin = 0;
+  player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
+  player.rotation.y = CASINOHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  lmcsResetReels();
+  const b = LMCS_BETS[CASINOSLOT.betIdx];
+  lmcsBetEl.textContent = 'BET $' + b;
+  lmcsWinEl.textContent = 'BET $' + b;
+  lmcsWinEl.style.color = '#cfe8d8';
+  lmcsPanelEl.style.display = 'block';
+  casinoslothintEl.style.opacity = 0;
+  helpEl.innerHTML = HELP_LMCS;
+  toast('ROYAL REELS');
+  sfxBlip(660, 0.09, 'triangle', 0.2);
+}
+function casinoSlotStand() {
+  if (!CASINOHALL.seated) return;
+  CASINOHALL.seated = false; CASINOHALL.sitOn = false;
+  CASINOSLOT.playing = false; CASINOSLOT.spinning = false;
+  CASINOSLOT.lastWin = 0;
+  lmcsPanelEl.style.display = 'none';
+  lmcsClearWin();
+  player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  helpEl.innerHTML = HELP_CASINOHALL;
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+/* E inside the hall: sit, then stand and exit. One press per step, always
+   outward: E never traps. Mirrors the theater showOn flip. */
+function casinoHallKeyE() {
+  if (!CASINOHALL.inHall) return;
+  if (CASINOSLOT.playing) { casinoSlotStand(); casinoHallExit(); }
+  else if (CASINOHALL.sitOn) casinoSlotSit();
+  else casinoHallExit();
+}
+function casinoHallEnter() {
+  if (CASINOHALL.inHall || THEATERHALL.inHall || THEATER.watching || AMUSE.riding || STADIUM.watching || CIVIC.state || WORSHIP.state || APARTMENT.state
+      || SLOT.playing || PIANO.playing || CAR.driving || BUS.driving || BUS.riding || TX.riding || HORSE.riding || BIKE.driving || BC.driving
+      || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || FT.driving || !playing() || P.dead || shopOpen || P.godT > 0) return;
+  emoteCancel();   // no emotes while inside
+  const i = CASINOHALL.nearIdx;
+  if (i < 0) return;
+  const arr = AMEN.active.casino;
+  if (i >= arr.length) return;
+  const a = arr[i];
+  const d = casinoHallDoorWorld(a);
+  const dx = player.position.x - d.x, dz = player.position.z - d.z;
+  if (dx * dx + dz * dz > LMCAS_DOOR_R2) return;
+  CASINOHALL.inHall = true; CASINOHALL.sitOn = true;
+  CASINOHALL.hintEnter = false; casinohallhintEl.style.opacity = 0;   // door prompt off: E now plays
+  CASINOHALL.doorX = player.position.x; CASINOHALL.doorZ = player.position.z;
+  CASINOHALL.standX = a.x; CASINOHALL.standZ = a.z + 2;
+  CASINOHALL.seatX = a.x - 6.75; CASINOHALL.seatZ = a.z - 6.0; CASINOHALL.seatYaw = Math.PI;
+  CASINOHALL.hallPos.set(a.x, CASINO_ROOM_Y, a.z - 6.0);
+  player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
+  player.rotation.y = CASINOHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0; P.grounded = true;
+  player.visible = true;
+  casinoHallMesh.position.set(a.x, CASINO_ROOM_Y, a.z);   // park the cached room under this casino
+  casinoHallMesh.visible = true;
+  casinohallhintEl.style.opacity = 0; CASINOHALL.hintEnter = false; CASINOHALL.nearIdx = -1;
+  carHintEl.style.opacity = 0; CAR.hintOn = false;
+  busHintEl.style.opacity = 0; BUS.hintOn = false;
+  txHintEl.style.opacity = 0; TX.hintOn = false;
+  rideHintEl.style.opacity = 0; HORSE.hintOn = false;
+  bikeHintEl.style.opacity = 0; BIKE.hintOn = false;
+  bcHintEl.style.opacity = 0; BC.hintOn = false;
+  scHintEl.style.opacity = 0; SC.hintOn = false;
+  boatHintEl.style.opacity = 0; BOAT.hintOn = false;
+  heliHintEl.style.opacity = 0; HELI.hintOn = false;
+  planeHintEl.style.opacity = 0; PLANE.hintOn = false;
+  trainHintEl.style.opacity = 0; TRAIN.hintOn = false;
+  ftHintEl.style.opacity = 0; FT.hintOn = false;
+  petHintEl.style.opacity = 0; PET.hintOn = false;
+  pianoHintEl.style.opacity = 0; PIANO.hintOn = false;
+  casinohintEl.style.opacity = 0; SLOT.hintOn = false;
+  civichintEl.style.opacity = 0; CIVIC.hintOn = false;
+  worshiphintEl.style.opacity = 0; WORSHIP.hintOn = false;
+  apthintEl.style.opacity = 0; APARTMENT.hintOn = false;
+  stadiumHintEl.style.opacity = 0; STADIUM.hintOn = false;
+  amuseHintEl.style.opacity = 0; AMUSE.hintOn = false;
+  theaterHintEl.style.opacity = 0; THEATER.hintOn = false;
+  thallhintEl.style.opacity = 0; THEATERHALL.hintEnter = false;
+  tshowhintEl.style.opacity = 0;
+  hosphealEl.style.opacity = 0; HOSP.hintOn = false;
+  if (IS_TOUCH) {
+    exitBtnEl.style.display = 'flex';              // touch exit path
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'none';   // JUMP/FIRE/PUNCH hidden while inside
+  }
+  helpEl.innerHTML = HELP_CASINOHALL;
+  toast('CASINO');
+  sfxBlip(523, 0.09, 'triangle', 0.2);
+}
+function casinoHallExit() {
+  if (!CASINOHALL.inHall) return;
+  if (CASINOHALL.seated) casinoSlotStand();
+  CASINOHALL.inHall = false; CASINOHALL.sitOn = false; CASINOHALL.nearIdx = -1;
+  casinoHallMesh.visible = false;
+  casinoslothintEl.style.opacity = 0;
+  lmcsPanelEl.style.display = 'none';
+  exitBtnEl.style.display = 'none';
+  if (IS_TOUCH) {
+    for (const bid of ['jumpbtn', 'firebtn', 'punchbtn'])
+      document.getElementById(bid).style.display = 'flex';
+  }
+  /* back to the door, never inside the walls */
+  player.position.set(CASINOHALL.doorX, terrainHeight(CASINOHALL.doorX, CASINOHALL.doorZ), CASINOHALL.doorZ);
+  P.vel.set(0, 0, 0); P.vy = 0;
+  player.visible = true;
+  helpEl.innerHTML = HELP_FOOT;
+  toast('ON FOOT');
+  sfxBlip(330, 0.09, 'square', 0.18);
+}
+const HELP_CASINOHALL = '<b>E</b> play/exit &nbsp; <b>TOUCH</b> tap play/exit';
+const HELP_LMCS = '<b>SPIN</b> play &nbsp; <b>E</b> exit &nbsp; <b>TOUCH</b> tap SPIN';
+function casinoHallTick(dt) {
+  if (!playing() || P.dead) {
+    if (CASINOHALL.inHall) casinoHallExit();   // death always ejects: no slots while dead
+    CASINOHALL.hintEnter = false; casinohallhintEl.style.opacity = 0;
+    CASINOSLOT.playing = false; casinoslothintEl.style.opacity = 0;
+    lmcsPanelEl.style.display = 'none';
+    casinChipEl.style.display = 'none';
+    return;
+  }
+  CASINOHALL.tickT += dt;
+  if (CASINOHALL.inHall) {
+    /* frozen in the hall: at the machine seat while playing, at the room
+       center otherwise. The locomotion skip-chain (tick) and the gravity
+       guard own the rest of the freeze. */
+    if (CASINOHALL.seated) {
+      player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
+      player.rotation.y = CASINOHALL.seatYaw;
+    } else {
+      player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
+    }
+    P.vel.set(0, 0, 0); P.vy = 0;
+    /* the room is exclusive: no other prompt can arm while inside (their
+       ticks run before this one and would re-arm on the door x/z) */
+    CAR.hintOn = false; BUS.hintOn = false; TX.hintOn = false; HORSE.hintOn = false;
+    BIKE.hintOn = false; BC.hintOn = false; SC.hintOn = false; BOAT.hintOn = false;
+    HELI.hintOn = false; PLANE.hintOn = false; TRAIN.hintOn = false; FT.hintOn = false;
+    SLOT.hintOn = false; PIANO.hintOn = false; THEATER.hintOn = false; CIVIC.hintOn = false;
+    WORSHIP.hintOn = false; APARTMENT.hintOn = false; AMUSE.hintOn = false; STADIUM.hintOn = false;
+    HOSP.hintOn = false; PET.hintOn = false; THEATERHALL.hintEnter = false;
+    carHintEl.style.opacity = 0; busHintEl.style.opacity = 0; txHintEl.style.opacity = 0;
+    rideHintEl.style.opacity = 0; bikeHintEl.style.opacity = 0; bcHintEl.style.opacity = 0;
+    scHintEl.style.opacity = 0; boatHintEl.style.opacity = 0; heliHintEl.style.opacity = 0;
+    planeHintEl.style.opacity = 0; trainHintEl.style.opacity = 0; ftHintEl.style.opacity = 0;
+    casinohintEl.style.opacity = 0; pianoHintEl.style.opacity = 0; theaterHintEl.style.opacity = 0;
+    civichintEl.style.opacity = 0; worshiphintEl.style.opacity = 0; apthintEl.style.opacity = 0;
+    amuseHintEl.style.opacity = 0; stadiumHintEl.style.opacity = 0; hosphealEl.style.opacity = 0;
+    petHintEl.style.opacity = 0; thallhintEl.style.opacity = 0; tshowhintEl.style.opacity = 0;
+    if (CASINOHALL.tickT >= 0.25) {
+      CASINOHALL.tickT = 0;
+      const playTxt = IS_TOUCH ? 'TAP TO PLAY' : 'PLAY SLOTS [E]';
+      const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
+      const txt = CASINOHALL.seated ? exitTxt : (CASINOHALL.sitOn ? playTxt : exitTxt);
+      if (casinoslothintEl.textContent !== txt) casinoslothintEl.textContent = txt;
+      casinoslothintEl.style.opacity = 1;
+    }
+    lmcsUpdate(dt);   // reel animation + big-win overlay timer
+    casinChipEl.style.display = 'none';
+    return;
+  }
+  if (CASINOHALL.tickT >= 0.25) {
+    CASINOHALL.tickT = 0;
+    const onFoot = !shopOpen && !CAR.driving && !FT.driving && !BUS.driving && !BUS.riding && !TX.riding && !HORSE.riding
+      && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying
+      && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CASINOHALL.inHall && !CIVIC.state
+      && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching;
+    let best = -1;
+    if (onFoot) {
+      const px = player.position.x, pz = player.position.z;
+      for (let i = 0; i < AMEN.active.casino.length; i++) {
+        const a = AMEN.active.casino[i];
+        const d = casinoHallDoorWorld(a);
+        const dx = d.x - px, dz = d.z - pz;
+        if (dx * dx + dz * dz < LMCAS_DOOR_R2) { best = i; break; }
+      }
+    }
+    CASINOHALL.nearIdx = best;
+    if ((best >= 0) !== CASINOHALL.hintEnter) {
+      CASINOHALL.hintEnter = best >= 0;
+      casinohallhintEl.style.opacity = CASINOHALL.hintEnter ? 1 : 0;
+    }
+    const enterTxt = IS_TOUCH ? 'TAP TO ENTER' : 'ENTER [E]';
+    if (casinohallhintEl.textContent !== enterTxt) casinohallhintEl.textContent = enterTxt;
+  }
+  /* bearing chip (landchip idiom): nearest active casino within 500m */
+  CASINOHALL.chipT += dt;
+  if (CASINOHALL.chipT >= 0.25) {
+    CASINOHALL.chipT = 0;
+    const px = player.position.x, pz = player.position.z;
+    let hb = null, hd = 1e18;
+    for (const H of AMEN.active.casino) {
+      const dx = H.x - px, dz = H.z - pz, d2 = dx * dx + dz * dz;
+      if (d2 < hd) { hd = d2; hb = H; }
+    }
+    if (hb && hd < LMCAS_CHIP_R2) {
+      casinChipEl.style.display = 'block';
+      camera.getWorldDirection(_mB);
+      const dx = hb.x - px, dz = hb.z - pz;
+      const deg = -(Math.atan2(dx, dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
+      casinArrEl.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
+      casinTxtEl.textContent = 'CASINO ' + Math.round(Math.sqrt(hd)) + 'M';
+    } else casinChipEl.style.display = 'none';
+  }
+}
+/* worldTickers is declared later in this module, so register after it exists */
+queueMicrotask(() => worldTickers.push(casinoHallTick));
+
 /* ---- instanced meshes: one per type, one draw call each ---- */
-const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [], land: [], stad: [], amuse: [], hosp: [], theater: [] } };
+const AMEN = { colliders: [], active: { gas: [], garage: [], rest: [], park: [], land: [], stad: [], amuse: [], hosp: [], theater: [], casino: [] } };
 const AMEN_DEF_LIST = [
   { key: 'gas', cap: 6, tex: () => makeSignTex('GAS - REPAIR', '#c23b2e'), build: buildGasGeo, trigR: 6.5,
     colliders: [[-4.2, -3.2, 0.35], [4.2, -3.2, 0.35], [-4.2, 3.2, 0.35], [4.2, 3.2, 0.35],
@@ -7917,6 +8586,8 @@ const AMEN_DEF_LIST = [
     colliders: LMHOSP_COL },
   { key: 'theater', cap: 2, tex: () => makeSignTex('THEATER', '#8a1f2d'), build: buildLandmarkTheaterGeo, trigR: 0, glow: true,
     colliders: LMTHEATER_COL },
+  { key: 'casino', cap: 2, tex: () => makeSignTex('CASINO', '#7a1f2d'), build: buildLandmarkCasinoGeo, trigR: 0, glow: true,
+    colliders: LMCASINO_COL },
 ];
 /* window-glow texture: black field, one warm rect. Window quads sample the
    rect (glow at night); every other part samples black (never glows). Moved
@@ -7978,6 +8649,7 @@ const ZONE_PAD_COLORS = {
   amuse:  new THREE.Color(0x7a5a9e),   // midway violet (Phase 5 landmark amusement park)
   hosp:   new THREE.Color(0xdfe8ee),   // hospital pale blue (Phase 5 landmark hospital)
   theater: new THREE.Color(0xa88a3a),   // theater marquee gold (Phase 5 landmark theater)
+  casino: new THREE.Color(0x8a6a2a),   // casino gold (Phase 5 landmark casino)
   farm:   new THREE.Color(0x5a4128),   // tilled soil brown (Phase 5 farming)
 };
 let ZONE_PADS;
@@ -8074,6 +8746,11 @@ function amenityTypeFor(gx, gz) {
      so it never displaces an existing amenity type; only previously-null
      chunks change. */
   if (h % 53 === 31) return 'theater';
+  /* Phase 5 landmark casino: rare casino chunk. Checked after 'theater'
+     so it never displaces an existing amenity type; only previously-null
+     chunks change. (The rural store-fleet building named 'casino' lives in
+     bldgTypeFor; this is the separate amenity-namespace landmark.) */
+  if (h % 61 === 37) return 'casino';
   return null;
 }
 /* spacing: winner-take-all across ALL amenity types in the 3x3 chunk
@@ -9162,6 +9839,15 @@ function redistributeBuildings(pcx, pcz) {
     for (const col of AMEN_DEF.theater.colliders)
       BLDG.foot.push({ x: a.x + col[0] * c + col[1] * s, z: a.z - col[0] * s + col[1] * c, r: col[2] });
   }
+  /* Phase 5 landmark casino: the walls block the player on foot too
+     (rural-building foot idiom). The entrance gap and the door column
+     stay walkable. Vehicles already resolve via AMEN.colliders, filled
+     by redistributeAmenities just above. */
+  for (const a of AMEN.active.casino) {
+    const c = Math.cos(a.yaw), s = Math.sin(a.yaw);
+    for (const col of AMEN_DEF.casino.colliders)
+      BLDG.foot.push({ x: a.x + col[0] * c + col[1] * s, z: a.z - col[0] * s + col[1] * c, r: col[2] });
+  }
   for (const m of bldgMeshes) m.count = 0;   // shared meshes start empty each redistribute
   /* shared fleets take cumulative slot offsets per mesh: casino rides the
      store mesh at [nStores, nStores + nCasino); the four civic types share
@@ -9203,7 +9889,7 @@ function redistributeBuildings(pcx, pcz) {
    health with cash, walk out to re-arm. No new economy code. */
 let shopBldg = false, shopBldgSlot = -1;
 function openBldgStore(S, slot) {
-  if (shopOpen || P.dead || THEATERHALL.inHall || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || FT.driving || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching || !playing()) return;
+  if (shopOpen || P.dead || THEATERHALL.inHall || CASINOHALL.inHall || CAR.driving || BUS.driving || BUS.riding || TX.riding || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || FT.driving || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching || !playing()) return;
   shopOpen = true; shopBldg = true; shopBldgSlot = slot; shopOpenIdx = -1;
   SHOP_LIST = SHOP_ITEMS; shopRest = false;
   shopNameEl.textContent = S.name;
@@ -10033,7 +10719,7 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
+  if (e.code === 'KeyE') { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (APARTMENT.state) apartmentExit(); else if (THEATER.watching) theaterExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (WORSHIP.hintOn) worshipEnter(); else if (APARTMENT.hintOn) apartmentEnter(); else if (!farmTryPlant()) if (!farmTryHarvest()) mountToggle(); }   // E always frees the fan first; E enters a live civic prompt; planting wins over pet-tame near a fallow plot; harvest wins over mounts near a ripe plot
   if (e.code === 'KeyF' && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) { if (CAR.driving) carExit(); else if (HORSE.riding) horseExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (PLANE.flying) planeExitFlight(); else if (HELI.flying) heliExit(); else if (TRAIN.riding) trainExit(); else if (BOAT.driving) boatExit(); else if (hoopsCanShoot()) doHoopShot(); else if (soccerCanKick()) doKick(); else if (tennisCanHit()) doTennisHit(); else doPunch(); }
   if (e.code === 'Digit1') selectWeapon('rifle');
   if (e.code === 'Digit2') selectWeapon('shotgun');
@@ -11790,7 +12476,7 @@ function updateRain(dt, rainAmt, wind) {
      evaluation, so the reference is live. */
   const spraying = FT.driving && FT.spraying;
   /* the screening room sits below the world: no rain indoors */
-  rain.visible = (rainAmt > 0 || spraying) && !THEATERHALL.inHall;
+  rain.visible = (rainAmt > 0 || spraying) && !THEATERHALL.inHall && !CASINOHALL.inHall;
   if (!rain.visible) return;
   if (rainAmt > 0) {
     const speed = rainAmt === 2 ? 27 : 20;             // storm falls faster
@@ -12773,7 +13459,7 @@ function mountToggle() {
   else carEnter();
 }
 /* the touch EXIT button doubles as the dismount button while riding */
-function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (THEATER.watching) theaterExit(); else if (THEATERHALL.inHall) theaterHallExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (FT.driving) ftExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); else if (APARTMENT.state) apartmentExit(); }
+function vehicleExit() { if (AMUSE.riding) amuseExit(); else if (STADIUM.watching) stadiumExit(); else if (CIVIC.state) civicExit(); else if (WORSHIP.state) worshipExit(); else if (THEATER.watching) theaterExit(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.inHall) casinoHallExit(); else if (SLOT.playing) slotExit(); else if (PIANO.playing) pianoExit(); else if (HORSE.riding) horseExit(); else if (CAR.driving) carExit(); else if (BUS.driving || BUS.riding) busExit(); else if (TX.riding) taxiExit(); else if (BIKE.driving) bikeExit(); else if (BC.driving) bcExit(); else if (SC.driving) scExit(); else if (BOAT.driving) boatExit(); else if (FT.driving) ftExit(); else if (HELI.flying) heliExit(); else if (PLANE.flying) planeExit(); else if (TRAIN.riding) trainExit(); else if (APARTMENT.state) apartmentExit(); }
 
 /* ---- horse ticker: prompt, controller, procedural gait, audio, HUD ---- */
 function horseUpdate(sdt, now) {
@@ -13061,7 +13747,7 @@ function busRebuildRoute(pcx, pcz) {
          routes identical to before the hospital; a hospital stop is a later item) */
       /* Phase 5 landmark theater: not a transit stop in v1 (keeps bus
          routes identical to before the theater; a theater stop is a later item) */
-      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });
+      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -13611,7 +14297,7 @@ function ambRebuild(pcx, pcz) {
          anchors identical to before the hospital; a hospital anchor is a later item) */
       /* Phase 5 landmark theater: not an ambulance anchor in v1 (keeps
          anchors identical to before the theater; a theater anchor is a later item) */
-      if (!a || a.type === 'hosp' || a.type === 'theater') continue;
+      if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino') continue;
       const d2 = (a.x - px) * (a.x - px) + (a.z - pz) * (a.z - pz);
       if (d2 < abd) { abd = d2; anyBest = a; }
       if (a.type === 'rest' && d2 < bd) { bd = d2; best = a; }
@@ -13687,7 +14373,7 @@ function txRebuild(pcx, pcz) {
          routes identical to before the hospital; a hospital stop is a later item) */
       /* Phase 5 landmark theater: not a transit stop in v1 (keeps taxi
          routes identical to before the theater; a theater stop is a later item) */
-      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type });
+      if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type });
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -14270,7 +14956,7 @@ function bikeRebuild(pcx, pcz) {
          identical to before the hospital; a hospital pad is a later item) */
       /* Phase 5 landmark theater: not a bike pad anchor in v1 (keeps pads
          identical to before the theater; a theater pad is a later item) */
-      if (a && a.type !== 'hosp' && a.type !== 'theater') found.push(a);
+      if (a && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push(a);
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -14652,7 +15338,7 @@ function bcRebuild(pcx, pcz) {
          identical to before the hospital; a hospital pad is a later item) */
       /* Phase 5 landmark theater: not a bike pad anchor in v1 (keeps pads
          identical to before the theater; a theater pad is a later item) */
-      if (a && a.type !== 'hosp' && a.type !== 'theater') found.push(a);
+      if (a && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push(a);
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -15016,7 +15702,7 @@ function scRebuild(pcx, pcz) {
       const a = amenityCenterFor(gx, gz);
       /* Phase 5 landmark theater: not a scooter pad anchor in v1 (keeps
          pads identical to before the theater; a theater pad is a later item) */
-      if (a && a.type !== 'hosp' && a.type !== 'theater') found.push(a);
+      if (a && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push(a);
     }
   found.sort((p, q) => ((p.x - cx) * (p.x - cx) + (p.z - cz) * (p.z - cz))
                      - ((q.x - cx) * (q.x - cx) + (q.z - cz) * (q.z - cz)));
@@ -19443,7 +20129,7 @@ function tick() {
 
   /* --- accelerate / decelerate (no ice-skating, no teleport).
          Skipped while driving or riding: the vehicle ticker owns motion instead. --- */
-  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
+  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CASINOHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize().multiplyScalar(maxSpeed);
       tmpV.copy(wishDir).sub(P.vel);
@@ -19474,7 +20160,7 @@ function tick() {
 
   /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
-  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
+  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CASINOHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
     if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -19485,7 +20171,7 @@ function tick() {
 
   /* --- procedural walk cycle (frozen while driving: the driver is seated;
          frozen while riding: the horse ticker poses the rider) --- */
-  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
+  if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CASINOHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
   P.walkPhase += sdt * (4 + speed * 1.6);
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
@@ -19528,7 +20214,7 @@ function tick() {
 
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
   const inBus = BUS.driving || BUS.riding;
-  const inVeh = CAR.driving || FT.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || THEATERHALL.inHall || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching || HORSE.riding || inBus || TX.riding;
+  const inVeh = CAR.driving || FT.driving || BIKE.driving || BC.driving || SC.driving || BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || THEATERHALL.inHall || CASINOHALL.inHall || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching || HORSE.riding || inBus || TX.riding;
   if (IS_TOUCH) {   // emote button lives only on touch; hide while driving/riding/dead
     const emShow = !inVeh && !P.dead && playing();
     if (emShow !== EMO.btnOn) { EMO.btnOn = emShow; emoteBtnEl.style.display = emShow ? 'flex' : 'none'; }
@@ -19536,19 +20222,19 @@ function tick() {
   if (inVeh) {
     /* the camera swings behind the velocity direction (not the nose) in a drift */
     const driftBlend = CAR.driving ? Math.min(1, Math.abs(CAR.slip) / CAR.slipMax) : 0;
-    const camAng = (THEATERHALL.inHall ? THEATERHALL.hallCamAng : APARTMENT.state ? APARTMENT.camAng : WORSHIP.state ? WORSHIP.camAng : CIVIC.state ? CIVIC.camAng : (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (AMUSE.riding ? AMUSE.camAng : (STADIUM.watching ? STADIUM.camAng : (THEATER.watching ? THEATER.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (FT.driving ? FT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading))))))))))))))))
+    const camAng = (THEATERHALL.inHall ? THEATERHALL.hallCamAng : CASINOHALL.inHall ? CASINOHALL.hallCamAng : APARTMENT.state ? APARTMENT.camAng : WORSHIP.state ? WORSHIP.camAng : CIVIC.state ? CIVIC.camAng : (SLOT.playing ? SLOT.camAng : (PIANO.playing ? PIANO.camAng : (AMUSE.riding ? AMUSE.camAng : (STADIUM.watching ? STADIUM.camAng : (THEATER.watching ? THEATER.camAng : (CAR.driving ? CAR.heading : (BIKE.driving ? BIKE.heading : (BC.driving ? BC.heading : (SC.driving ? SC.heading : (BOAT.driving ? BOAT.heading : (FT.driving ? FT.heading : (PLANE.flying ? PLANE.heading : (HELI.flying ? HELI.heading : (TRAIN.riding ? TRAIN.heading : (inBus ? BUS.heading : (TX.riding ? TX.heading : HORSE.heading))))))))))))))))
       + (CAR.driving ? CAR.slip * driftBlend : 0));
-    const vPos = THEATERHALL.inHall ? THEATERHALL.hallPos : APARTMENT.state ? APARTMENT.pos : WORSHIP.state ? WORSHIP.pos : CIVIC.state ? CIVIC.pos : (SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (AMUSE.riding ? AMUSE.pos : (STADIUM.watching ? STADIUM.pos : (THEATER.watching ? THEATER.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (FT.driving ? FT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos))))))))))))))));
-    const vDist = THEATERHALL.inHall ? THEATERHALL.hallCamDist : APARTMENT.state ? APARTMENT.camDist : WORSHIP.state ? WORSHIP.camDist : CIVIC.state ? CIVIC.camDist : (SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (AMUSE.riding ? AMUSE.camDist : (STADIUM.watching ? STADIUM.camDist : (THEATER.watching ? THEATER.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (FT.driving ? FT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist))))))))))))))));
-    const vH = THEATERHALL.inHall ? THEATERHALL.hallCamH : APARTMENT.state ? APARTMENT.camH : WORSHIP.state ? WORSHIP.camH : CIVIC.state ? CIVIC.camH : (SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (AMUSE.riding ? AMUSE.camH : (STADIUM.watching ? STADIUM.camH : (THEATER.watching ? THEATER.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (FT.driving ? FT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH))))))))))))))));
-    lookTarget.copy(vPos); lookTarget.y += THEATERHALL.inHall ? 1.5 : APARTMENT.state ? 1.2 : WORSHIP.state ? 1.2 : CIVIC.state ? 1.2 : (SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (AMUSE.riding ? 1.6 : (STADIUM.watching ? 1.2 : (THEATER.watching ? 1.6 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (FT.driving ? 1.8 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1))))))))))))));
+    const vPos = THEATERHALL.inHall ? THEATERHALL.hallPos : CASINOHALL.inHall ? CASINOHALL.hallPos : APARTMENT.state ? APARTMENT.pos : WORSHIP.state ? WORSHIP.pos : CIVIC.state ? CIVIC.pos : (SLOT.playing ? SLOT.pos : (PIANO.playing ? PIANO.pos : (AMUSE.riding ? AMUSE.pos : (STADIUM.watching ? STADIUM.pos : (THEATER.watching ? THEATER.pos : (CAR.driving ? CAR.pos : (BIKE.driving ? BIKE.pos : (BC.driving ? BC.pos : (SC.driving ? SC.pos : (BOAT.driving ? BOAT.pos : (FT.driving ? FT.pos : (PLANE.flying ? PLANE.pos : (HELI.flying ? HELI.pos : (TRAIN.riding ? TRAIN.pos : (inBus ? BUS.pos : (TX.riding ? TX.pos : HORSE.pos))))))))))))))));
+    const vDist = THEATERHALL.inHall ? THEATERHALL.hallCamDist : CASINOHALL.inHall ? CASINOHALL.hallCamDist : APARTMENT.state ? APARTMENT.camDist : WORSHIP.state ? WORSHIP.camDist : CIVIC.state ? CIVIC.camDist : (SLOT.playing ? SLOT.camDist : (PIANO.playing ? PIANO.camDist : (AMUSE.riding ? AMUSE.camDist : (STADIUM.watching ? STADIUM.camDist : (THEATER.watching ? THEATER.camDist : (CAR.driving ? CAR.camDist : (BIKE.driving ? BIKE.camDist : (BC.driving ? BC.camDist : (SC.driving ? SC.camDist : (BOAT.driving ? BOAT.camDist : (FT.driving ? FT.camDist : (PLANE.flying ? PLANE.camDist : (HELI.flying ? HELI.camDist : (TRAIN.riding ? TRAIN.camDist : (inBus ? BUS.camDist : (TX.riding ? TX.camDist : HORSE.camDist))))))))))))))));
+    const vH = THEATERHALL.inHall ? THEATERHALL.hallCamH : CASINOHALL.inHall ? CASINOHALL.hallCamH : APARTMENT.state ? APARTMENT.camH : WORSHIP.state ? WORSHIP.camH : CIVIC.state ? CIVIC.camH : (SLOT.playing ? SLOT.camH : (PIANO.playing ? PIANO.camH : (AMUSE.riding ? AMUSE.camH : (STADIUM.watching ? STADIUM.camH : (THEATER.watching ? THEATER.camH : (CAR.driving ? CAR.camH : (BIKE.driving ? BIKE.camH : (BC.driving ? BC.camH : (SC.driving ? SC.camH : (BOAT.driving ? BOAT.camH : (FT.driving ? FT.camH : (PLANE.flying ? PLANE.camH : (HELI.flying ? HELI.camH : (TRAIN.riding ? TRAIN.camH : (inBus ? BUS.camH : (TX.riding ? TX.camH : HORSE.camH))))))))))))))));
+    lookTarget.copy(vPos); lookTarget.y += THEATERHALL.inHall ? 1.5 : CASINOHALL.inHall ? 1.5 : APARTMENT.state ? 1.2 : WORSHIP.state ? 1.2 : CIVIC.state ? 1.2 : (SLOT.playing ? 1.2 : (PIANO.playing ? 1.3 : (AMUSE.riding ? 1.6 : (STADIUM.watching ? 1.2 : (THEATER.watching ? 1.6 : (CAR.driving ? 1.6 : (BIKE.driving ? 1.4 : (BC.driving ? 1.3 : (SC.driving ? 1.2 : (BOAT.driving ? 1.5 : (FT.driving ? 1.8 : (PLANE.flying ? 2.0 : (HELI.flying ? 1.8 : (TRAIN.riding ? 2.2 : 2.1))))))))))))));
     camTargetPos.set(
       lookTarget.x - Math.sin(camAng) * vDist,
       lookTarget.y + vH,
       lookTarget.z - Math.cos(camAng) * vDist
     );
     /* the screening room sits below the world: no terrain clamp inside it */
-    if (!THEATERHALL.inHall) {
+    if (!THEATERHALL.inHall && !CASINOHALL.inHall) {
       const camGround = terrainHeight(camTargetPos.x, camTargetPos.z) + 0.5;
       if (camTargetPos.y < camGround) camTargetPos.y = camGround;
     }
@@ -19570,7 +20256,7 @@ function tick() {
   camera.position.copy(camPos);
   }
   /* wider FOV while driving or galloping, eases back to normal after */
-  const fovT = THEATERHALL.inHall ? CAR.fovWalk : APARTMENT.state ? CAR.fovWalk : WORSHIP.state ? CAR.fovWalk : CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (AMUSE.riding ? CAR.fovWalk : (STADIUM.watching ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (FT.driving ? FT.fovDrive : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk))))))))))))))));
+  const fovT = THEATERHALL.inHall ? CAR.fovWalk : CASINOHALL.inHall ? CAR.fovWalk : APARTMENT.state ? CAR.fovWalk : WORSHIP.state ? CAR.fovWalk : CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (AMUSE.riding ? CAR.fovWalk : (STADIUM.watching ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (FT.driving ? FT.fovDrive : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk))))))))))))))));
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
@@ -19869,10 +20555,11 @@ function migrateSave(env) {
 /* compact payload, under 300 bytes JSON. sg/sm: -1 = not owned, else ammo. */
 function collectSave() {
   const r2 = v => Math.round(v * 100) / 100;
-  /* a save inside the screening room stores the theater door: the room is
-     session-only and the player reloads on foot at the door */
-  const sx = THEATERHALL.inHall ? THEATERHALL.doorX : player.position.x;
-  const sz = THEATERHALL.inHall ? THEATERHALL.doorZ : player.position.z;
+  /* a save inside the screening room stores the theater door, a save inside
+     the gaming hall stores the casino door: the rooms are session-only and
+     the player reloads on foot at the door */
+  const sx = THEATERHALL.inHall ? THEATERHALL.doorX : CASINOHALL.inHall ? CASINOHALL.doorX : player.position.x;
+  const sz = THEATERHALL.inHall ? THEATERHALL.doorZ : CASINOHALL.inHall ? CASINOHALL.doorZ : player.position.z;
   return {
     x: r2(sx), z: r2(sz),
     cash: cash | 0, kills: kills | 0,

@@ -137,6 +137,16 @@ globalThis.__R3D = {
   thallhintEl, tshowhintEl, thallChipEl, thallTxtEl, thallArrEl,
   LMTHEATER_COL, LMTH_R, LMTH_SEGS, LMTH_GATE_K, LMTH_CHIP_R2, LMTH_DOOR, LMTH_DOOR_R2,
   THEATER_ROOM_Y, THEATER_SHOW_COST, THEATER_SHOW_HEAL, THEATER_SHOW_HOURS,
+  /* Phase 5 landmark casino v1 */
+  CASINOHALL, CASINOSLOT, casinoHallEnter, casinoHallExit, casinoHallKeyE, casinoHallTick,
+  casinoSlotSit, casinoSlotStand, casinoHallDoorWorld, buildLandmarkCasinoGeo, buildCasinoHallGeo,
+  casinoHallMesh, lmcsSpin, lmcsFinish, lmcsLineMult, lmcsCycleBet, lmcsUpdate, lmcsResetReels,
+  lmcsDrawReel, lmcsCoin, lmcsFanfare,
+  casinohallhintEl, casinoslothintEl, casinChipEl, casinTxtEl, casinArrEl,
+  lmcsPanelEl, lmcsWinEl, lmcsSpinEl, lmcsBetEl, lmcsBigWinEl,
+  HELP_CASINOHALL, HELP_LMCS,
+  LMCASINO_COL, LMCAS_R, LMCAS_SEGS, LMCAS_GATE_K, LMCAS_CHIP_R2, LMCAS_DOOR, LMCAS_DOOR_R2,
+  CASINO_ROOM_Y, LMCS_BETS, LMCS_SYMS, LMCS_WILD, LMCS_SEVEN, LMCS_LINES, LMCS_TAPE, LMCS_OUT_AT,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
   /* Phase 5 boats/ships v1 */
   BOAT, boatEnter, boatExit, boatRebuild, boatFloat, waterSurfaceY, dockFor,
@@ -5292,11 +5302,12 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       && sgeo.attributes.position.count > 500, 'verts=' + sgeo.attributes.position.count);
     check('lmstad: one material with vertexColors on',
       G.AMEN_DEF.stad.mesh.material.vertexColors === true);
-    check('lmstad: floodlight materials ride the day/night emissive ramp (stad + amuse + hosp + theater)',
-      G.LMSTAD_FLOOD_MATS.length === 4 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
+    check('lmstad: floodlight materials ride the day/night emissive ramp (stad + amuse + hosp + theater + casino)',
+      G.LMSTAD_FLOOD_MATS.length === 5 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
       && G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.mesh.material
       && G.LMSTAD_FLOOD_MATS[2] === G.AMEN_DEF.hosp.mesh.material
       && G.LMSTAD_FLOOD_MATS[3] === G.AMEN_DEF.theater.mesh.material
+      && G.LMSTAD_FLOOD_MATS[4] === G.AMEN_DEF.casino.mesh.material
       && !!G.LMSTAD_FLOOD_MATS[0].emissiveMap);
 
     /* wall collision: the rim wall blocks a walker, the gates stay open.
@@ -5404,9 +5415,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmause-static: single keydown listener (zero new keybinds)',
     (html.split("addEventListener('keydown'").length - 1) === 1);
   check('lmause-static: bus route rebuild excludes amuse + hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
   check('lmause-static: taxi route rebuild excludes amuse + hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
 
   /* seeded placement: pure deterministic hash, cross-type winner-take-all */
   let mgx = 0, mgz = 0, md = null;
@@ -5634,17 +5645,17 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmhosp-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('lmhosp-static: E heals at a live hospital prompt in the keydown chain',
-    html.includes("else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (WORSHIP.hintOn) worshipEnter();"));
+    html.includes("else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (WORSHIP.hintOn) worshipEnter();"));
   check('lmhosp-static: bus route rebuild excludes hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
   check('lmhosp-static: taxi route rebuild excludes hosp in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
   check('lmhosp-static: chip pins below the amusement chip in the top-left stack (no overlap)',
     html.includes('#hospchip {\n    position: absolute; top: 489px; left: 18px;'));
   check('lmhosp-static: bike/bc/scooter pad scans exclude hosp in v1 (byte-identical pads)',
-    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater'\) found\.push\(a\);/g) || []).length === 3);
+    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater' && a\.type !== 'casino'\) found\.push\(a\);/g) || []).length === 3);
   check('lmhosp-static: ambulance anchor scan excludes hosp in v1',
-    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater') continue;"));
+    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino') continue;"));
 
   /* seeded placement: pure deterministic hash, own residue, cross-type winner-take-all */
   let hgx = 0, hgz = 0, hd = null;
@@ -5849,20 +5860,20 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmth-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('lmth-static: E chain wires theater after the hospital heal (exit prefixes intact)',
-    html.includes("else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (WORSHIP.hintOn) worshipEnter();"));
+    html.includes("else if (HOSP.hintOn) hospHeal(); else if (THEATERHALL.hintEnter) theaterHallEnter(); else if (THEATERHALL.showOn) theaterWatchShow(); else if (THEATERHALL.inHall) theaterHallExit(); else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (WORSHIP.hintOn) worshipEnter();"));
   check('lmth-static: #thallchip does not collide with the existing #theaterchip',
     html.includes('id="thallchip"') && html.includes('id="theaterchip"')
     && (html.match(/id="thallchip"/g) || []).length === 1);
   check('lmth-static: chip pins in its own top-left slot (no overlap)',
     html.includes('#thallchip {\n    position: absolute; top: 555px; left: 18px;'));
   check('lmth-static: bus route rebuild excludes theater in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
   check('lmth-static: taxi route rebuild excludes theater in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
   check('lmth-static: bike/bc/scooter pad scans exclude theater in v1 (byte-identical pads)',
-    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater'\) found\.push\(a\);/g) || []).length === 3);
+    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater' && a\.type !== 'casino'\) found\.push\(a\);/g) || []).length === 3);
   check('lmth-static: ambulance anchor scan excludes theater in v1',
-    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater') continue;"));
+    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino') continue;"));
 
   /* seeded placement: pure deterministic hash, own residue, cross-type winner-take-all */
   let tgx = 0, tgz = 0, td = null;
@@ -6099,6 +6110,349 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
 
     /* leave the world as the next block expects: exit the hall, player at origin, FT rebuilt there */
     if (G.THEATERHALL.inHall) G.theaterHallExit();
+    G.player.position.set(0, groundY(0, 0), 0);
+    G.FT.routeKey = ''; G.FT.driving = false; G.ftRebuild(0, 0);
+  }
+}
+
+/* ================= PHASE 5: LANDMARK CASINO v1 (buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.STADIUM.watching) G.stadiumExit();
+  if (G.THEATER.watching) G.theaterExit();
+  if (G.SLOT.playing) G.slotExit();
+  if (G.PIANO.playing) G.pianoExit();
+  if (G.CIVIC.state) G.civicExit();
+  if (G.WORSHIP.state) G.worshipExit();
+  if (G.APARTMENT.state) G.apartmentExit();
+  if (G.THEATERHALL.inHall) G.theaterHallExit();
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+
+  /* static: bespoke merged geometry, zero new IM literals (the shared
+     AMEN_DEF loop builds the one 'casino' mesh: +1 runtime draw call; the
+     cached hall is plain Mesh, visible=false until entered), zero new
+     runtime lights, zero new keybinds, no unseeded RNG, no em dashes,
+     no external URLs, no TODO text in the block */
+  const lmcsSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK CASINO v1 (buildings/places)'),
+                             html.indexOf('/* ---- instanced meshes: one per type, one draw call each ---- */'));
+  check('lmcs-static: zero IM literals in the casino block (shared AMEN_DEF loop builds the one mesh)',
+    (lmcsSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('lmcs-static: casino block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(lmcsSrc));
+  check('lmcs-static: no unseeded RNG in the casino block', !/Math\.random/.test(lmcsSrc));
+  check('lmcs-static: no em dashes in the casino block', !lmcsSrc.includes('—'));
+  check('lmcs-static: no external URLs in the casino block', !/https?:\/\//.test(lmcsSrc));
+  check('lmcs-static: no TODO markers in the casino block', !/\bTODO\b/.test(lmcsSrc));
+  check('lmcs-static: casino residue is checked after theater (never displaces existing types)',
+    html.indexOf("if (h % 53 === 31) return 'theater';") < html.indexOf("if (h % 61 === 37) return 'casino';"));
+  check('lmcs-static: whole-file IM literals pin at 47 (casino rides the shared def-loop literal; hall is plain Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('lmcs-static: Math.random lines pin at 92',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
+  check('lmcs-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('lmcs-static: E chain wires casino after the theater hall (exit prefixes intact)',
+    html.includes("else if (CASINOHALL.hintEnter) casinoHallEnter(); else if (CASINOHALL.inHall) casinoHallKeyE(); else if (WORSHIP.hintOn) worshipEnter();"));
+  check('lmcs-static: #casinchip does not collide with existing chips',
+    html.includes('id="casinchip"') && (html.match(/id="casinchip"/g) || []).length === 1);
+  check('lmcs-static: chip pins in its own top-left slot (no overlap)',
+    html.includes('#casinchip {\n    position: absolute; top: 588px; left: 18px;'));
+  check('lmcs-static: bus route rebuild excludes casino in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+  check('lmcs-static: taxi route rebuild excludes casino in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp' && a.type !== 'theater' && a.type !== 'casino') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+  check('lmcs-static: bike/bc/scooter pad scans exclude casino in v1 (byte-identical pads)',
+    (html.match(/if \(a && a\.type !== 'hosp' && a\.type !== 'theater' && a\.type !== 'casino'\) found\.push\(a\);/g) || []).length === 3);
+  check('lmcs-static: ambulance anchor scan excludes casino in v1',
+    html.includes("if (!a || a.type === 'hosp' || a.type === 'theater' || a.type === 'casino') continue;"));
+  check('lmcs-static: save inside stores the casino door',
+    html.includes("CASINOHALL.inHall ? CASINOHALL.doorX : player.position.x"));
+  check('lmcs-static: rain hides inside the gaming hall',
+    html.includes("&& !THEATERHALL.inHall && !CASINOHALL.inHall;"));
+  check('lmcs-static: panel carries a real pay table (no placeholder text)',
+    html.includes('3 WILD 50x') && html.includes('WILD SUBS FOR ALL'));
+
+  /* seeded placement: pure deterministic hash, own residue, cross-type winner-take-all */
+  let cgx = 0, cgz = 0, cd = null;
+  couter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'casino') { cgx = gx; cgz = gz; cd = a; break couter; }
+    }
+  check('lmcs: a seeded casino chunk exists in the scan window', !!cd, cd ? 'at ' + cgx + ',' + cgz : 'none');
+  if (cd) {
+    const cd2 = G.amenityCenterFor(cgx, cgz);
+    check('lmcs: amenityCenterFor is deterministic across calls',
+      !!cd2 && cd2.x === cd.x && cd2.z === cd.z && cd2.yaw === cd.yaw && cd2.type === 'casino');
+    let wtaOk = true;
+    for (let ax = cgx - 1; ax <= cgx + 1; ax++)
+      for (let az = cgz - 1; az <= cgz + 1; az++) {
+        if (ax === cgx && az === cgz) continue;
+        if (G.amenityTypeFor(ax, az) && G.amenityAccepted(ax, az)) wtaOk = false;
+      }
+    check('lmcs: cross-type winner-take-all holds (no other accepted amenity in the 3x3)', wtaOk);
+    /* measured non-displacement: no casino chunk would have matched an
+       earlier type (the residue is checked last) */
+    let displaceOk = true, casinoCount = 0;
+    for (let gx = -60; gx <= 60; gx++)
+      for (let gz = -60; gz <= 60; gz++) {
+        if (G.amenityTypeFor(gx, gz) !== 'casino') continue;
+        casinoCount++;
+        const h = G.hash2i(gx, gz);
+        if (h % 41 === 20 || h % 15 === 4 || h % 19 === 9 || h % 13 === 11
+            || h % 10 === 6 || h % 37 === 13 || h % 41 === 29 || h % 47 === 23
+            || h % 53 === 31) displaceOk = false;
+      }
+    check('lmcs: casino never displaces an existing amenity type (checked last)',
+      casinoCount > 0 && displaceOk, 'casino=' + casinoCount);
+    check('lmcs: def is registered (cap 2, glow flag, 35 colliders)',
+      G.AMEN_DEF.casino && G.AMEN_DEF.casino.cap === 2 && G.AMEN_DEF.casino.glow === true
+      && G.AMEN_DEF.casino.colliders.length === 35 && G.LMCASINO_COL.length === 35
+      && Array.isArray(G.AMEN.active.casino));
+    check('lmcs: the entrance gap has no collider (walk-in idiom)',
+      G.LMCASINO_COL.every(c => Math.hypot(c[0] - 0, c[1] - 13) > 2.5));
+    check('lmcs: the door column stays walkable (no collider within 1.6m of the door)',
+      G.LMCASINO_COL.every(c => Math.hypot(c[0] - 0, c[1] - 6.8) > 1.6));
+
+    /* merged geometry: one mesh, one vertexColors material, per-part colors */
+    const cgeo = G.AMEN_DEF.casino.mesh.geometry;
+    check('lmcs: merged geometry carries per-part vertex colors',
+      !!cgeo.attributes.color && cgeo.attributes.color.count === cgeo.attributes.position.count
+      && cgeo.attributes.position.count > 500, 'verts=' + cgeo.attributes.position.count);
+    check('lmcs: one material with vertexColors on',
+      G.AMEN_DEF.casino.mesh.material.vertexColors === true);
+    check('lmcs: marquee board samples the sign-text band (v 0.78..1)',
+      (() => { const uv = cgeo.attributes.uv; let n = 0;
+               for (let i = 0; i < uv.count; i++) if (uv.getY(i) >= 0.77) n++;
+               return n >= 4; })());
+    check('lmcs: marquee bulbs carry glow UVs (night emissive targets)',
+      (() => { const uv = cgeo.attributes.uv; let n = 0;
+               for (let i = 0; i < uv.count; i++)
+                 if (Math.abs(uv.getX(i) - 0.25) < 1e-6 && Math.abs(uv.getY(i) - 0.25) < 1e-6) n++;
+               return n > 50; })());
+    check('lmcs: marquee material rides the day/night emissive ramp',
+      G.LMSTAD_FLOOD_MATS.includes(G.AMEN_DEF.casino.mesh.material)
+      && !!G.AMEN_DEF.casino.mesh.material.emissiveMap);
+
+    /* the cached hall: built once, invisible until entered, lit by emissive */
+    check('lmcs: the gaming hall is cached (invisible, zero net draws)',
+      G.casinoHallMesh.visible === false);
+    check('lmcs: the hall is one merged mesh with vertex colors',
+      !!G.casinoHallMesh.geometry.attributes.color
+      && G.casinoHallMesh.geometry.attributes.position.count > 800);
+    check('lmcs: the hall is emissive-lit (never a black doorway), zero new lights',
+      G.casinoHallMesh.material.emissiveIntensity > 0.5);
+    check('lmcs: the hall parks below the theater room (no overlap)',
+      G.CASINO_ROOM_Y === -400 && G.CASINO_ROOM_Y !== G.THEATER_ROOM_Y);
+
+    /* payline math: pure unit checks on lmcsLineMult (WILD = 5, SEVEN = 4) */
+    check('lmcs: three wilds pay 50x', G.lmcsLineMult([5, 5, 5]) === 50);
+    check('lmcs: three sevens pay 25x', G.lmcsLineMult([4, 4, 4]) === 25);
+    check('lmcs: three of a kind pays 10x', G.lmcsLineMult([0, 0, 0]) === 10);
+    check('lmcs: wild completes three of a kind', G.lmcsLineMult([0, 0, 5]) === 10);
+    check('lmcs: wild completes three sevens', G.lmcsLineMult([4, 5, 4]) === 25);
+    check('lmcs: a pair pays 2x', G.lmcsLineMult([0, 0, 1]) === 2);
+    check('lmcs: wild plus two different symbols pays a pair',
+      G.lmcsLineMult([0, 5, 1]) === 2);
+    check('lmcs: no match pays 0', G.lmcsLineMult([0, 1, 2]) === 0);
+    check('lmcs: 5 paylines (3 rows + 2 diagonals)',
+      G.LMCS_LINES.length === 5 && G.LMCS_LINES[3].length === 3 && G.LMCS_LINES[4].length === 3);
+
+    /* wall collision: the hedge wall + boxes block a walker, the entrance
+       gap and the door column stay open (rural-building foot idiom) */
+    const def = G.AMEN_DEF.casino;
+    const c0 = Math.cos(cd.yaw), s0 = Math.sin(cd.yaw);
+    const wx = (ox, oz) => cd.x + ox * c0 + oz * s0;
+    const wz = (ox, oz) => cd.z - ox * s0 + oz * c0;
+    const footSaved = G.BLDG.foot.slice();
+    G.BLDG.foot.length = 0;   // isolate: ambient colliders must not perturb the measurement
+    for (const col of def.colliders) G.BLDG.foot.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+    const wc = def.colliders[0];   // hedge-ring wall collider, far from the gate
+    G.player.position.set(wx(wc[0], wc[1]), groundY(wx(wc[0], wc[1]), wz(wc[0], wc[1])), wz(wc[0], wc[1]));
+    for (let _ri = 0; _ri < 3; _ri++) G.resolveBldgFoot();   // settle like the per-frame game loop
+    let wallOk = true, wallMin = 1e18;
+    for (const col of def.colliders) {
+      const dcol = Math.hypot(G.player.position.x - wx(col[0], col[1]), G.player.position.z - wz(col[0], col[1])) - (col[2] + 0.45);
+      if (dcol < wallMin) wallMin = dcol;
+      /* adjacent ring colliders overlap by 0.22m (theater-identical idiom);
+         sequential resolution settles ~0.13m inside the lens: an invisible
+         graze, the walker cannot pass the wall. */
+      if (dcol < -0.15) wallOk = false;
+    }
+    check('lmcs: the hedge wall blocks a walker (pushed out of every collider)',
+      wallOk, 'min clearance=' + wallMin.toFixed(3));
+    const gx0 = wx(0, 13), gz0 = wz(0, 13);   // entrance gate center: no collider there
+    G.player.position.set(gx0, groundY(gx0, gz0), gz0);
+    G.resolveBldgFoot();
+    const gd = Math.hypot(G.player.position.x - gx0, G.player.position.z - gz0);
+    check('lmcs: the entrance gap stays open (walker not pushed)', gd < 0.01, 'd=' + gd.toFixed(3));
+    const dx0 = wx(0, 6.8), dz0 = wz(0, 6.8);   // door column: walkable to the trigger
+    G.player.position.set(dx0, groundY(dx0, dz0), dz0);
+    G.resolveBldgFoot();
+    const dd = Math.hypot(G.player.position.x - dx0, G.player.position.z - dz0);
+    check('lmcs: the door column stays walkable (walker not pushed)', dd < 0.01, 'd=' + dd.toFixed(3));
+    G.BLDG.foot.length = 0;
+    for (const f of footSaved) G.BLDG.foot.push(f);
+
+    /* vehicle collision: the car is pushed out of the wall via AMEN.colliders */
+    const am0 = G.AMEN.colliders.length;
+    for (const col of def.colliders) G.AMEN.colliders.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+    G.CAR.pos.set(wx(wc[0], wc[1]), 0, wz(wc[0], wc[1]));
+    G.CAR.hitCd = 0; G.CAR.speed = 0; G.CAR.hp = 100; G.CAR.armor = 0;
+    G.carAmenityHit(0.016);
+    const cdst = Math.hypot(G.CAR.pos.x - wx(wc[0], wc[1]), G.CAR.pos.z - wz(wc[0], wc[1]));
+    check('lmcs: the wall blocks light vehicles (pushed out via AMEN.colliders)',
+      cdst >= wc[2] + 1.15 - 0.01, 'd=' + cdst.toFixed(2));
+    G.AMEN.colliders.length = am0;
+
+    /* the real casino activates near the player; ENTER prompt at the door */
+    G.player.position.set(cd.x + 60, groundY(cd.x + 60, cd.z), cd.z);
+    frame(20);   // chunk redistribute + casinoHallTick cadence
+    const ca = G.AMEN.active.casino.find(a => Math.hypot(a.x - cd.x, a.z - cd.z) < 1);
+    check('lmcs: the real casino activates near the player', !!ca);
+    const door = G.casinoHallDoorWorld(ca);
+    G.player.position.set(door.x, groundY(door.x, door.z), door.z);
+    frame(20);
+    check('lmcs: ENTER prompt shows at the door',
+      G.CASINOHALL.hintEnter === true && G.casinohallhintEl.style.opacity == 1, 'hint=' + G.CASINOHALL.hintEnter);
+    check('lmcs: the hall stays cached until entered (zero net draws)',
+      G.casinoHallMesh.visible === false);
+
+    /* enter/exit round trip */
+    const probsC = consoleProblems.length;
+    G.closeShop(); G.casinoHallEnter();
+    check('lmcs: ENTER teleports into the cached hall',
+      G.CASINOHALL.inHall === true && G.player.position.y === G.CASINO_ROOM_Y
+      && G.casinoHallMesh.visible === true,
+      'y=' + G.player.position.y);
+    check('lmcs: the hall parks under the active casino',
+      Math.abs(G.casinoHallMesh.position.x - ca.x) < 0.01
+      && Math.abs(G.casinoHallMesh.position.z - ca.z) < 0.01);
+    frame(20);   // 0.33s clears the 0.25s prompt cadence
+    check('lmcs: PLAY SLOTS prompt shows inside',
+      G.casinoslothintEl.style.opacity == 1 && /PLAY SLOTS/.test(G.casinoslothintEl.textContent),
+      G.casinoslothintEl.textContent);
+
+    /* E key wiring: E sits at the machine, E stands and exits */
+    G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+    stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+    check('lmcs: KeyE sits at the slot machine (panel opens)',
+      G.CASINOHALL.seated === true && G.CASINOSLOT.playing === true
+      && G.lmcsPanelEl.style.display === 'block',
+      'seated=' + G.CASINOHALL.seated);
+    frame(20);   // let the 0.25s prompt cadence flip the text
+    check('lmcs: the sit prompt flips to EXIT (E never traps)',
+      /EXIT/.test(G.casinoslothintEl.textContent), G.casinoslothintEl.textContent);
+
+    /* spin: $10 debit, seeded outcome, staggered ease-out stops */
+    G.cash = 100;
+    G.lmcsSpin();
+    check('lmcs: SPIN debits the $10 bet', G.cash === 90 && G.CASINOSLOT.spinning === true, 'cash=' + G.cash);
+    check('lmcs: reels stop staggered 0.9/1.5/2.1s',
+      G.CASINOSLOT.reels[0].dur === 0.9 && G.CASINOSLOT.reels[1].dur === 1.5 && G.CASINOSLOT.reels[2].dur === 2.1);
+    frame(150);   // 2.5s: all reels stopped
+    check('lmcs: the spin completes (all reels locked)',
+      G.CASINOSLOT.spinning === false && G.CASINOSLOT.reels.every(r => r.locked));
+    check('lmcs: cash settles to bet plus last win',
+      G.cash === 90 + G.CASINOSLOT.lastWin, 'cash=' + G.cash + ' win=' + G.CASINOSLOT.lastWin);
+
+    /* rigged payout: all sevens on every reel = 5 lines x 25x x $10 */
+    G.cash = 200; G.CASINOSLOT.betIdx = 1;
+    for (let i = 0; i < 3; i++) G.CASINOSLOT.reels[i].outcome = [4, 4, 4];
+    G.lmcsFinish();
+    check('lmcs: rigged all-sevens pays 5 lines x 25x x $10',
+      G.cash === 200 + 1250 && G.CASINOSLOT.lastWin === 1250,
+      'cash=' + G.cash + ' win=' + G.CASINOSLOT.lastWin);
+    check('lmcs: big-win overlay shows on a 125x-bet hit',
+      G.lmcsBigWinEl.style.display === 'block' && /1250/.test(G.lmcsBigWinEl.textContent),
+      G.lmcsBigWinEl.textContent);
+    check('lmcs: winning cells glow on the paylines',
+      G.CASINOSLOT.cellEls.some(row => row.some(d => d.classList.contains('lmcs-win'))));
+
+    /* broke gambler: denied the spin, can still leave (no trap) */
+    G.cash = 3;
+    G.lmcsSpin();
+    check('lmcs: a broke gambler is denied (cash untouched, no spin)',
+      G.cash === 3 && G.CASINOSLOT.spinning === false, 'cash=' + G.cash);
+
+    /* bet cycles 10 -> 25 -> 5 */
+    G.lmcsCycleBet();
+    check('lmcs: BET cycles to $25', G.LMCS_BETS[G.CASINOSLOT.betIdx] === 25);
+    G.lmcsCycleBet();
+    check('lmcs: BET cycles to $5', G.LMCS_BETS[G.CASINOSLOT.betIdx] === 5);
+    G.CASINOSLOT.betIdx = 1;
+
+    /* E exits: stand up and leave the hall in one press */
+    stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+    check('lmcs: KeyE stands and exits (round trip complete)',
+      G.CASINOHALL.inHall === false && G.casinoHallMesh.visible === false
+      && G.lmcsPanelEl.style.display === 'none');
+    const backD = Math.hypot(G.player.position.x - G.CASINOHALL.doorX, G.player.position.z - G.CASINOHALL.doorZ);
+    check('lmcs: exit teleports back to the door', backD < 0.01, 'd=' + backD.toFixed(3));
+
+    /* save inside stores the casino door (collectSave idiom) */
+    G.closeShop();
+    const kdoor = G.casinoHallDoorWorld(ca);
+    G.player.position.set(kdoor.x, groundY(kdoor.x, kdoor.z), kdoor.z);
+    frame(10);
+    G.casinoHallEnter();
+    const sv = G.collectSave();
+    check('lmcs: save inside stores the casino door position',
+      Math.abs(sv.x - G.CASINOHALL.doorX) < 0.01 && Math.abs(sv.z - G.CASINOHALL.doorZ) < 0.01,
+      'x=' + sv.x + ' z=' + sv.z);
+    G.casinoHallExit();
+
+    /* HUD chip: shows within 500m with bearing arrow + distance, hidden when far */
+    frame(20);
+    check('lmcs: chip shows within range',
+      G.casinChipEl.style.display === 'block', 'display=' + G.casinChipEl.style.display);
+    check('lmcs: chip reads CASINO <distance>M',
+      /^CASINO \d+M$/.test(G.casinTxtEl.textContent), G.casinTxtEl.textContent);
+    check('lmcs: chip arrow carries a bearing rotation',
+      /rotate\(-?\d+(\.\d+)?deg\)/.test(G.casinArrEl.style.transform || ''),
+      G.casinArrEl.style.transform);
+    /* chip hides when far from every casino (scan for a truly far point) */
+    let farX = cd.x + 1000, farZ = cd.z;
+    for (let fx = cd.x + 1000; fx <= cd.x + 3000; fx += 500) {
+      let ok = true;
+      for (let gx = -80; gx <= 80 && ok; gx++) for (let gz = -80; gz <= 80 && ok; gz++) {
+        if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+        const a = G.amenityCenterFor(gx, gz);
+        if (a && a.type === 'casino' && Math.hypot(a.x - fx, a.z - farZ) < 600) ok = false;
+      }
+      if (ok) { farX = fx; break; }
+    }
+    G.player.position.set(farX, groundY(farX, farZ), farZ);
+    frame(20);
+    check('lmcs: chip hides when far',
+      G.casinChipEl.style.display === 'none', 'display=' + G.casinChipEl.style.display);
+
+    /* transit: bus/taxi routes never stop at the casino in v1 */
+    G.busRebuildRoute(cgx, cgz);
+    check('lmcs: bus routes never stop at the casino in v1',
+      G.BUS.route.every(s => s.type !== 'casino'), 'stops=' + G.BUS.route.length);
+    G.TX.riding = false; G.TX.routeKey = '';
+    G.txRebuild(cgx, cgz);
+    check('lmcs: taxi routes never stop at the casino in v1',
+      (G.TX.route || []).every(s => s.type !== 'casino'), 'stops=' + (G.TX.route || []).length);
+
+    /* night: marquee bulbs glow via the shared emissive ramp, zero new lights */
+    G.player.position.set(cd.x + 60, groundY(cd.x + 60, cd.z), cd.z);
+    G.dayPhase = 0.75;   // midnight
+    frame(5);
+    check('lmcs: marquee bulbs glow at night (shared emissive ramp, no new lights)',
+      G.AMEN_DEF.casino.mesh.material.emissiveIntensity > 1,
+      G.AMEN_DEF.casino.mesh.material.emissiveIntensity.toFixed(2));
+
+    frame(30);
+    check('lmcs: round trip leaves zero console errors/warnings',
+      consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
+
+    /* leave the world as the next block expects: exit the hall, player at origin, FT rebuilt there */
+    if (G.CASINOHALL.inHall) G.casinoHallExit();
     G.player.position.set(0, groundY(0, 0), 0);
     G.FT.routeKey = ''; G.FT.driving = false; G.ftRebuild(0, 0);
   }
