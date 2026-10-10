@@ -672,7 +672,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 47 IM literals (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 47, 'count=' + imCount);
+  check('perf6: 48 IM literals (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 48, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1142,7 +1142,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 46 IM literals after PERF-5 consolidation (bike section)',
-    imCount2 === 47, 'count=' + imCount2);
+    imCount2 === 48, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1243,7 +1243,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 46 IM literals after PERF-5 consolidation (bicycle section)',
-    imCount3 === 47, 'count=' + imCount3);
+    imCount3 === 48, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1345,7 +1345,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 46 IM literals after PERF-5 consolidation (scooter section)',
-    imCount4 === 47, 'count=' + imCount4);
+    imCount4 === 48, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1662,7 +1662,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
     check('perf6: 46 IM literals after PERF-5 consolidation (wildlife5 section)',
-      imCount5 === 47, 'count=' + imCount5);
+      imCount5 === 48, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2017,7 +2017,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
     check('perf6: 46 IM literals after PERF-5 consolidation, 6 runtime building meshes',
-      n === 47 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+      n === 48 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2161,8 +2161,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('food-static: InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2391,8 +2391,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('farmv1-static: InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2763,8 +2763,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2983,8 +2983,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 47 (47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3781,7 +3781,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
   check('casino-static: whole-file IM literals pin at 42 (theater adds the one fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   /* AUDIT 2026-10-10 (TEST-MAINT-1): the old pin of 3 runtime meshes predates the
      civic/worship/apartment building fleets. 13 defs, 7 shared riders
      (casino->store, hospital/bank/hotel/school->civic, church/mosque->worship)
@@ -3919,7 +3919,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
   check('theater-static: whole-file IM literals pin at 42 (47 + 1 theater)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 47);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (17 osc, 30 gain: music reuses sfxBlip)',

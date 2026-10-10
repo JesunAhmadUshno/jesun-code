@@ -4635,20 +4635,20 @@ const eBodyBruMesh = new THREE.Mesh(mergeAnimalParts([
    declared later in the cop section, both are 5. */
 const E_LEG_BASE = 0, E_ARM_BASE = 10, COP_LEG_BASE = 20, COP_LEG_N = 10;
 /* PERF-5: NPC legs (24 slots) + cop guns (5 slots) join the limb fleet.
-   - slots NPC_LEG_BASE+30..53: NPC legs. The old geoLeg box (0.22 x 0.9 x 0.26,
+   - slots NPC_LEG_BASE+30..57: NPC legs. The old geoLeg box (0.22 x 0.9 x 0.26,
      hip-pivot offset -0.45 baked into the geometry) renders with EGEO.limb
      (0.2 x 0.9 x 0.24) via per-axis compensation (LEG_FX/LEG_FZ) and the baked
      offset folded into the instance matrix (T(0,-0.45,0) * S); pivots/swing
      stay world-space, render is identical (normals/UVs of axis boxes
-     unaffected). NPC_N is declared later in the NPC section (12 -> 24 slots).
-   - slots COP_GUN_BASE+54..58: cop guns. The old EGEO.gunA box
+     unaffected). NPC_N is declared later in the NPC section (14 -> 28 slots).
+   - slots COP_GUN_BASE+58..62: cop guns. The old EGEO.gunA box
      (0.08 x 0.11 x 0.45) renders via per-axis compensation (GUN_FX/FY/FZ)
      folded into the matrix. COP_MAX is declared later (5).
    Material keeps roughness 0.9 (matches matLeg and copGunM exactly); white
    base + instanceColor carries the old final colors (npc legs 0x24262e,
    cop guns 0x141416). 2 draw calls become 0 new draws. */
-const NPC_LEG_BASE = 30, NPC_LEG_N = 24, COP_GUN_BASE = 54, COP_GUN_N = 5;
-const LIMB_CAP = 59;
+const NPC_LEG_BASE = 30, NPC_LEG_N = 28, COP_GUN_BASE = 58, COP_GUN_N = 5;
+const LIMB_CAP = 63;
 const ARM_FX = 0.16 / 0.2, ARM_FY = 0.62 / 0.9, ARM_FZ = 0.2 / 0.24;
 const LEG_FX = 0.22 / 0.2, LEG_FZ = 0.26 / 0.24;
 const GUN_FX = 0.08 / 0.2, GUN_FY = 0.11 / 0.9, GUN_FZ = 0.45 / 0.24;
@@ -11574,6 +11574,7 @@ function soccerAssignGoalie() {
   let bi = -1, bd = Infinity;
   for (let i = 0; i < SOCCER.npcs.length; i++) {
     const n = SOCCER.npcs[i];
+    if (n.zone === 'fire') continue;   // Phase 5 fire station v2: firefighters never draft
     if (n.state === 'FLEE' || n.state === 'GOALIE' || n.state === 'TENNIS') continue;
     if (BUS.boarded.indexOf(i) >= 0) continue;   // never steal a bus passenger
     const dx = n.pos.x - p.x, dz = n.pos.z - p.z, d = dx * dx + dz * dz;
@@ -12276,6 +12277,7 @@ function tennisAssignOpp() {
   let bi = -1, bd = Infinity;
   for (let i = 0; i < T.npcs.length; i++) {
     const n = T.npcs[i];
+    if (n.zone === 'fire') continue;   // Phase 5 fire station v2: firefighters never draft
     if (n.state === 'FLEE' || n.state === 'GOALIE' || n.state === 'TENNIS') continue;
     if (BUS.boarded.indexOf(i) >= 0) continue;
     const dx = n.pos.x - p.x, dz = n.pos.z - p.z, d = dx * dx + dz * dz;
@@ -12617,10 +12619,21 @@ const BUSNPC = { npcs: null, hideNPC: null };
   /* PERF-5: legs live in the shared limbIM (slots NPC_LEG_BASE+), zero new
      draws. The old geoLeg/matLeg are gone; see the limb fleet comment. */
 
-  /* 2 draw calls: bodies, heads (legs ride the shared limbIM: L at NPC_LEG_BASE+2i, R at +2i+1) */
-  const NPC_N = 12;
+  /* 2 draw calls: bodies, heads (legs ride the shared limbIM: L at NPC_LEG_BASE+2i, R at +2i+1).
+     Phase 5 fire station v2: slots 12/13 are the firefighter crew (bodies,
+     heads, legs all ride the same fleets); the helmet fleet below is the
+     one +1 InstancedMesh literal this feature is allowed (pin: 48). */
+  const NPC_N = 14, NPC_FF_BASE = 12;
   const npcBodyIM = new THREE.InstancedMesh(geoBody, matBody, NPC_N);
   const npcHeadIM = new THREE.InstancedMesh(geoHead, matHead, NPC_N);
+  /* firefighter helmets: one sphere fleet, 2 slots, white base so the
+     instanceColor carries the helmet yellow. Zero new lights, +1 draw. */
+  const geoHelm = new THREE.SphereGeometry(0.21, 12, 8);
+  const matHelm = new THREE.MeshStandardMaterial({ roughness: 0.55 });
+  const npcHelmIM = new THREE.InstancedMesh(geoHelm, matHelm, 2);
+  npcHelmIM.castShadow = true; npcHelmIM.frustumCulled = false;
+  npcHelmIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(npcHelmIM);
   const _nCol = new THREE.Color();
   for (const im of [npcBodyIM, npcHeadIM]) {
     im.castShadow = true; im.frustumCulled = false;
@@ -12666,6 +12679,21 @@ const BUSNPC = { npcs: null, hideNPC: null };
   const clampCity = (x, z) => [Math.min(104, Math.max(36, x)), Math.min(-36, Math.max(-104, z))];
   for (let i = 0; i < 6; i++) makeNPC(i, i, 'city', cityWps, i * 2);
   for (let i = 0; i < 6; i++) makeNPC(i + 3, i + 1, 'spawn', spawnWps, i);
+  /* Phase 5 fire station v2: the 2 firefighter NPCs ride slots 12/13.
+     Turnout colors via per-instance color (red / tan), helmet-yellow heads
+     under the helmet shells. They start at POST; the fire-crew tick owns
+     their states and walks them to the station post once one is active. */
+  for (let i = 0; i < 2; i++) makeNPC(i + 5, i + 2, 'fire', spawnWps, i);
+  for (let k = 0; k < 2; k++) {
+    const fi = NPC_FF_BASE + k, n = npcs[fi];
+    n.state = 'POST'; n.spraying = false;
+    _nCol.setHex(k === 0 ? 0xc22a1e : 0xc9a227); npcBodyIM.setColorAt(fi, _nCol);
+    _nCol.setHex(0xf7c948); npcHeadIM.setColorAt(fi, _nCol);
+    _nCol.setHex(0xf7c948); npcHelmIM.setColorAt(k, _nCol);
+    n.pos.set(k === 0 ? 2 : -2, 0, 4);
+    n.pos.y = terrainHeight(n.pos.x, n.pos.z);
+  }
+  npcHelmIM.instanceColor.needsUpdate = true;
   npcBodyIM.instanceColor.needsUpdate = true;
   npcHeadIM.instanceColor.needsUpdate = true;
 
@@ -12706,6 +12734,17 @@ const BUSNPC = { npcs: null, hideNPC: null };
     npcBodyIM.instanceMatrix.needsUpdate = true;
     npcHeadIM.instanceMatrix.needsUpdate = true;
     limbIM.instanceMatrix.needsUpdate = true;
+    /* Phase 5 fire station v2: helmet shells ride the firefighter slots
+       (head at y 1.68, box top ~1.84: the shell sits over it). */
+    for (let k = 0; k < 2; k++) {
+      const n = npcs[NPC_FF_BASE + k], p = n.pos;
+      _nM1.makeRotationY(n.yaw);
+      _nM1.setPosition(p.x, p.y, p.z);
+      _nM2.makeTranslation(0, 1.78, 0.02); _nM2.premultiply(_nM1);
+      _nM3.makeScale(1.05, 0.8, 1.15); _nM2.multiply(_nM3);
+      npcHelmIM.setMatrixAt(k, _nM2);
+    }
+    npcHelmIM.instanceMatrix.needsUpdate = true;
   }
   poseNPCs();   /* pose once before the first tick so no instance sits at the origin */
 
@@ -12731,6 +12770,11 @@ const BUSNPC = { npcs: null, hideNPC: null };
   /* higher-IQ: expose the amenity finder for the bus/NPC bridge (function
      declarations hoist, so this runs before the def below). */
   BUSNPC.nearestAmenity = nearestAmenityCenter;
+  /* Phase 5 fire station v2: the firefighter crew rides slots 12/13; the
+     fire-crew section below drives them through FIRECREW.tickOne. */
+  BUSNPC.ff = { crew: [npcs[NPC_FF_BASE], npcs[NPC_FF_BASE + 1]],
+                station: null, incident: null, sprayOn: false };
+  BUSNPC.helmIM = npcHelmIM;
 
   /* worldTickers is declared later in this module (const, temporal dead zone):
      register after full module evaluation (same pattern as the city worker). */
@@ -12827,6 +12871,13 @@ const BUSNPC = { npcs: null, hideNPC: null };
         n.yaw = n.tennisYaw || 0;
         continue;
       }
+
+      /* Phase 5 fire station v2: firefighters run the dispatch state machine
+         (FIRECREW.tickOne, assigned by the fire-crew section below). The
+         branch runs before the flee/heat/shelter logic: the crew is neutral
+         emergency personnel, outside the wanted and enemy systems, and is
+         never drafted by soccer/tennis/bus (zone guards there too). */
+      if (n.zone === 'fire') { if (FIRECREW.tickOne) FIRECREW.tickOne(n, dt, now); continue; }
 
       /* --- FLEE trigger: gunfire or mission violence within 25u, or wanted heat --- */
       if (n.state !== 'FLEE') {
@@ -12983,10 +13034,18 @@ scene.add(rain);
 /* Phase 5 fire truck: the water cannon borrows the last SPRAY_N rain
    segments as its spray bank (zero new draw calls, zero new meshes). */
 const SPRAY_N = 48;
+/* Phase 5 fire station v2: the fire crew borrows FF_SPRAY_N rain-bank
+   segments for hose arcs (the FT water-cannon idiom), ahead of the FT bank:
+   indices [RAIN_N-SPRAY_N-FF_SPRAY_N, RAIN_N-SPRAY_N). Zero new draws. */
+const FF_SPRAY_N = 12;
 function updateRain(dt, rainAmt, wind) {
   /* FT is declared later in the module; this ticker runs after full
      evaluation, so the reference is live. */
-  const spraying = FT.driving && FT.spraying;
+  const ftSpraying = FT.driving && FT.spraying;
+  /* the fire crew's hose arcs ride the same bank (BUSNPC.ff is wired by the
+     PEOPLE block; the writers are hoisted declarations below). */
+  const ffSpraying = !!(BUSNPC.ff && BUSNPC.ff.sprayOn);
+  const spraying = ftSpraying || ffSpraying;
   /* the screening room sits below the world: no rain indoors */
   rain.visible = (rainAmt > 0 || spraying) && !THEATERHALL.inHall && !CASINOHALL.inHall && !FIRESTHALL.inHall;
   if (!rain.visible) return;
@@ -12994,7 +13053,7 @@ function updateRain(dt, rainAmt, wind) {
     const speed = rainAmt === 2 ? 27 : 20;             // storm falls faster
     const slantX = WX.windVec.x * wind * speed * speed * 0.0009;   // slant ~ speed^2
     const slantZ = WX.windVec.y * wind * speed * speed * 0.0009;
-    for (let i = 0; i < RAIN_N - SPRAY_N; i++) {
+    for (let i = 0; i < RAIN_N - SPRAY_N - FF_SPRAY_N; i++) {
       const d = rainDrops[i];
       d[1] -= speed * dt;                             // fall; recycle inside the volume
       if (d[1] < 0) { d[1] += RAIN_H; d[0] = Math.random() * RAIN_W; d[2] = Math.random() * RAIN_D; }
@@ -13004,15 +13063,17 @@ function updateRain(dt, rainAmt, wind) {
     }
     rain.position.set(camera.position.x - RAIN_W / 2, camera.position.y - RAIN_H / 2,
                       camera.position.z - RAIN_D / 2);
-    if (spraying) writeSpraySegments(true);   // local to the rain volume
+    if (ftSpraying) writeSpraySegments(true);   // local to the rain volume
+    if (ffSpraying) writeFFSpraySegments(true); else hideFFSpraySegments(true);
   } else {
     rain.position.set(0, 0, 0);
-    for (let i = 0; i < RAIN_N - SPRAY_N; i++) {   // collapse the rain bank
+    for (let i = 0; i < RAIN_N - SPRAY_N - FF_SPRAY_N; i++) {   // collapse the rain bank
       const o = i * 6;
       rainPos[o] = 0; rainPos[o + 1] = -1000; rainPos[o + 2] = 0;
       rainPos[o + 3] = 0; rainPos[o + 4] = -1000; rainPos[o + 5] = 0;
     }
-    if (spraying) writeSpraySegments(false);  // world coords
+    if (ftSpraying) writeSpraySegments(false);  // world coords
+    if (ffSpraying) writeFFSpraySegments(false); else hideFFSpraySegments(false);
   }
   rainGeo.attributes.position.needsUpdate = true;
   rainMat.opacity += ((rainAmt === 2 ? 0.8 : (spraying ? 0.7 : 0.55)) - rainMat.opacity) * Math.min(1, 3 * dt);
@@ -13348,6 +13409,12 @@ function wildfireIgnite(idx, x, z) {
     burnDur: 60 + (Math.abs(h) % 30),                        // 60-90s, seeded
     spreadDone: false, dmgT: 0, phase: (Math.abs(h) % 628) / 100 });
   if (pd2 < WF_TOAST_R2) toast('WILDFIRE!');
+  /* Phase 5 fire station v2: register the ignition with the incident
+     registry; the registry dispatches the fire crew from the nearest active
+     station (session-only). fireIncidentOnIgnite is a hoisted declaration in
+     the fire-crew section below; `toasted` keeps the dispatch toast from
+     stomping the ignition toast inside 150m. */
+  fireIncidentOnIgnite(idx, x, z, pd2 < WF_TOAST_R2);
   return true;
 }
 /* storm hook, called from triggerBolt: nearest tree within 15m of the strike */
@@ -13384,6 +13451,7 @@ function wildfireSpread(f) {
 /* chunk recycle burns the record: fires die with the old chunk, char resets */
 function wildfireChunkReset() {
   FIRES.length = 0;
+  INCIDENTS.length = 0;   // Phase 5 fire station v2: incidents die with their fires (session-only)
   const trees = FLORA.trees;
   if (trees && trees.instanceColor) {
     const cap = trees.instanceMatrix.count;
@@ -13463,11 +13531,251 @@ function wildfireTick(dt) {
       const dx = fb.x - px, dz = fb.z - pz;
       const deg = -(Math.atan2(dx, dz) - Math.atan2(_mB.x, _mB.z)) * 180 / Math.PI;
       fireArrEl.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
-      fireTxtEl.textContent = 'WILDFIRE ' + Math.round(Math.sqrt(fd)) + 'M';
+      /* Phase 5 fire station v2: crew status rides the wildfire chip */
+      let wfTxt = 'WILDFIRE ' + Math.round(Math.sqrt(fd)) + 'M';
+      const _ff = BUSNPC.ff;
+      if (_ff && _ff.crew) {
+        if (_ff.crew[0].state === 'SUPPRESS' || _ff.crew[1].state === 'SUPPRESS') wfTxt += ' - CREW ON SITE';
+        else if (_ff.crew[0].state === 'TO_INCIDENT' || _ff.crew[1].state === 'TO_INCIDENT') wfTxt += ' - CREW EN ROUTE';
+      }
+      fireTxtEl.textContent = wfTxt;
     } else fireChipEl.style.display = 'none';
   }
 }
 queueMicrotask(() => worldTickers.push(wildfireTick));
+
+/* ================= PHASE 5: FIRE STATION v2 - FIREFIGHTER DISPATCH =================
+   Wildfire ignition registers a seeded incident (callout ID); the nearest
+   active fire-station amenity dispatches the 2 firefighter NPCs. The crew
+   reuses the pedestrian NPC rig (PEOPLE fleet slots 12/13: bodies, heads,
+   shared limb legs, helmet shells) and the pedestrian behavior tick idiom:
+   walk to the incident, suppress fires in range (the hose debuff accelerates
+   the per-tree burn timer; the visible arc borrows FF_SPRAY_N rain-bank
+   segments, the FT water-cannon idiom), retarget to newly ignited fires
+   nearby, then walk back to the station post and stand down.
+   Neutral: the PEOPLE tick's fire branch runs before the flee/heat/shelter
+   logic, so wanted heat and gunfire never touch the crew; soccer, tennis,
+   and bus drafts guard zone === 'fire'; the wildfire damage loop only
+   touches enemies, cops, the player, and the truck. Session-only: the
+   incident registry never touches the save schema. Seeded: callout IDs are
+   hash2i streams; zero new unseeded-RNG lines.
+   Pins: +1 InstancedMesh literal (the helmet fleet, 2 slots; whole-file pin
+   moves 47 -> 48 with justification), zero new lights, zero new
+   renderer.render calls, zero external URLs, no leftover markers, no em dashes. */
+const FIRECREW = { tickOne: null, lastDispatch: -1e9, putOut: 0 };
+const INCIDENTS = [];                       // {id, x, z, state}
+const FF_SEEK_R2 = 40 * 40, FF_INC_R2 = 45 * 45, FF_SPRAYHIT_R2 = 10 * 10,
+      FF_CD_S = 20, FF_DISPATCH_TOAST_R2 = 300 * 300;
+const _ffT = new THREE.Vector3();           // move-to temp, zero alloc
+
+/* seeded callout ID, e.g. INC-9F3A2C */
+function fireCalloutId(idx, x, z) {
+  const h = (hash2i(Math.floor(x), Math.floor(z)) ^ hash2i(idx, 0x9e37)) >>> 0;
+  return 'INC-' + h.toString(16).toUpperCase().padStart(8, '0').slice(0, 6);
+}
+/* stamp the incident id onto the fresh fire record */
+function fireStampInc(idx, id) {
+  for (const f of FIRES) if (f.idx === idx && !f.incId) f.incId = id;
+}
+/* ignition entry: cluster into a nearby active incident or open a new one,
+   then try the dispatch. Called from wildfireIgnite (hoisted). */
+function fireIncidentOnIgnite(idx, x, z, toasted) {
+  for (const inc of INCIDENTS) {
+    if (inc.state !== 'active') continue;
+    const dx = x - inc.x, dz = z - inc.z;
+    if (dx * dx + dz * dz < FF_INC_R2) { fireStampInc(idx, inc.id); return inc; }
+  }
+  const inc = { id: fireCalloutId(idx, x, z), x, z, state: 'active' };
+  INCIDENTS.push(inc);
+  for (let i = INCIDENTS.length - 1; i >= 0 && INCIDENTS.length > 8; i--)
+    if (INCIDENTS[i].state !== 'active') INCIDENTS.splice(i, 1);
+  fireStampInc(idx, inc.id);
+  fireDispatch(inc, toasted);
+  return inc;
+}
+/* nearest active fire-station amenity to the incident, or null when no
+   station chunk is loaded (the crew holds at post, no dispatch). */
+function nearestFireStation(x, z) {
+  let best = null, bd = Infinity;
+  for (const a of AMEN.active.firestation) {
+    const dx = a.x - x, dz = a.z - z, d = dx * dx + dz * dz;
+    if (d < bd) { bd = d; best = a; }
+  }
+  return best;
+}
+/* the crew post: beside the station door (the firestHallDoorWorld idiom) */
+function ffPostFor(a) {
+  const d = firestHallDoorWorld(a);
+  return { x: d.x + 2.5, z: d.z + 1.5 };
+}
+/* dispatch the 2 firefighters from the nearest active station. One crew, one
+   incident at a time (the busy guard) plus a 20s global cooldown, so one
+   storm never spams crews. */
+function fireDispatch(inc, toasted) {
+  const ff = BUSNPC.ff;
+  if (!ff || !ff.crew) return false;
+  if (ff.crew[0].state !== 'POST' || ff.crew[1].state !== 'POST') return false;
+  const nowS = performance.now() / 1000;
+  if (nowS - FIRECREW.lastDispatch < FF_CD_S) return false;
+  const st = nearestFireStation(inc.x, inc.z);
+  if (!st) return false;
+  FIRECREW.lastDispatch = nowS;
+  ff.station = st; ff.incident = inc; ff.sprayOn = false;
+  for (const n of ff.crew) { n.state = 'TO_INCIDENT'; n.spraying = false; }
+  /* the ignition toast already has the player's attention inside 150m; the
+     dispatch toast carries the wider 300m chip range instead. */
+  const pdx = inc.x - player.position.x, pdz = inc.z - player.position.z;
+  if (!toasted && pdx * pdx + pdz * pdz < FF_DISPATCH_TOAST_R2) {
+    toast('FIREFIGHTERS DISPATCHED');
+    sfxBlip(392, 0.12, 'square', 0.2);
+    setTimeout(() => sfxBlip(523, 0.12, 'square', 0.2), 150);
+  }
+  return true;
+}
+/* the incident is done when none of its fires remain in FIRES */
+function fireIncidentDone(inc) {
+  for (const f of FIRES) if (f.incId === inc.id) return false;
+  return true;
+}
+/* nearest active fire to a point (retarget idiom) */
+function fireNearest(x, z) {
+  let bf = null, bd = FF_SEEK_R2;
+  for (const f of FIRES) {
+    const dx = f.x - x, dz = f.z - z, d2 = dx * dx + dz * dz;
+    if (d2 < bd) { bd = d2; bf = f; }
+  }
+  return bf;
+}
+/* stand the crew down: walk back to the station, one FIRE OUT toast in range */
+function fireStandDown(ff) {
+  const inc = ff.incident;
+  ff.incident = null; ff.sprayOn = false;
+  for (const n of ff.crew) { n.state = 'RETURN'; n.spraying = false; }
+  if (inc) {
+    inc.state = 'done';
+    const pdx = inc.x - player.position.x, pdz = inc.z - player.position.z;
+    if (pdx * pdx + pdz * pdz < WF_TOAST_R2) {
+      toast('FIRE OUT');
+      sfxBlip(523, 0.1, 'sine', 0.2);
+    }
+  }
+}
+/* walk the pedestrian idiom toward (tx, tz); returns distance. Zero alloc. */
+function ffMoveTo(n, tx, tz, dt, now, speed, arriveR) {
+  const p = n.pos;
+  _ffT.set(tx - p.x, 0, tz - p.z);
+  const d = _ffT.length();
+  if (d < arriveR) { n.swingL = 0; n.swingR = 0; return d; }
+  _ffT.normalize();
+  p.x += _ffT.x * speed * dt; p.z += _ffT.z * speed * dt;
+  n.yaw = Math.atan2(_ffT.x, _ffT.z);
+  const sw = Math.sin(now * 7 + n.phase);
+  n.swingL = sw * 0.6; n.swingR = -sw * 0.6;
+  return d;
+}
+/* the per-NPC dispatch state machine, called from the PEOPLE behavior tick
+   (the zone === 'fire' branch). POST -> TO_INCIDENT -> SUPPRESS -> RETURN. */
+FIRECREW.tickOne = function (n, dt, now) {
+  const ff = BUSNPC.ff, p = n.pos;
+  let post = null;
+  if (ff.station && AMEN.active.firestation.indexOf(ff.station) >= 0) post = ffPostFor(ff.station);
+  else {
+    const st = nearestFireStation(p.x, p.z);
+    if (st) { ff.station = st; post = ffPostFor(st); }
+  }
+  if (!post) {   // no station chunk loaded: hold, idle bob
+    n.swingL = 0; n.swingR = 0; n.spraying = false;
+    p.y = terrainHeight(p.x, p.z) + Math.abs(Math.sin(now * 2 + n.phase)) * 0.04;
+    ff.sprayOn = ff.crew[0].spraying || ff.crew[1].spraying;
+    return;
+  }
+  if (n.state === 'POST' && Math.hypot(p.x - post.x, p.z - post.z) > 60) {
+    /* fresh station chunk: snap the crew to their post (arcade, no cross-map trek) */
+    p.x = post.x; p.z = post.z; n.yaw = Math.PI;
+  }
+  const inc = ff.incident;
+  if (n.state === 'POST') {
+    ffMoveTo(n, post.x, post.z, dt, now, 1.8, 0.8);
+    n.spraying = false;
+  } else if (n.state === 'TO_INCIDENT') {
+    n.spraying = false;
+    if (!inc || inc.state !== 'active' || fireIncidentDone(inc)) n.state = 'RETURN';
+    else if (ffMoveTo(n, inc.x, inc.z, dt, now, 3.2, 4) < 4) n.state = 'SUPPRESS';
+  } else if (n.state === 'SUPPRESS') {
+    const f = fireNearest(p.x, p.z);
+    if (!f) {
+      n.spraying = false;
+      if (!inc || inc.state !== 'active' || fireIncidentDone(inc)) {
+        if (inc && inc.state === 'active') fireStandDown(ff); else n.state = 'RETURN';
+      } else ffMoveTo(n, inc.x, inc.z, dt, now, 2.4, 4);
+    } else {
+      const dx = f.x - p.x, dz = f.z - p.z, d = Math.hypot(dx, dz);
+      if (d * d > FF_SPRAYHIT_R2) { ffMoveTo(n, f.x, f.z, dt, now, 2.2, 10); n.spraying = false; }
+      else {
+        n.yaw = Math.atan2(dx, dz);
+        const sw = Math.sin(now * 9 + n.phase);
+        n.swingL = sw * 0.5; n.swingR = -sw * 0.5;
+        n.spraying = true;
+        /* hose debuff: the burn timer runs ~3x while the crew works the tree */
+        f.t += dt * 2;
+        if (f.t >= f.burnDur && !f.crewCounted) { f.crewCounted = true; FIRECREW.putOut++; }
+      }
+    }
+  } else {   // RETURN
+    n.spraying = false;
+    if (ffMoveTo(n, post.x, post.z, dt, now, 2.0, 0.8) < 0.8) { n.state = 'POST'; n.yaw = Math.PI; }
+  }
+  /* player collision: the same push idiom as pedestrians */
+  const dxp = p.x - player.position.x, dzp = p.z - player.position.z;
+  const pd = Math.hypot(dxp, dzp);
+  if (pd < 1.2 && pd > 0.001) { p.x += (dxp / pd) * 2.5 * dt; p.z += (dzp / pd) * 2.5 * dt; }
+  p.y = terrainHeight(p.x, p.z);
+  ff.sprayOn = ff.crew[0].spraying || ff.crew[1].spraying;
+};
+
+/* hose arc writers: one 6-segment arc per firefighter, borrowed from the
+   rain-bank tail (the FT water-cannon idiom). Zero alloc, zero new draws.
+   Hoisted declarations: updateRain above calls them at runtime. */
+function writeFFSpraySegments(inVolume) {
+  const crew = BUSNPC.ff.crew;
+  const ox = inVolume ? rain.position.x : 0,
+        oy = inVolume ? rain.position.y : 0,
+        oz = inVolume ? rain.position.z : 0;
+  for (let k = 0; k < 2; k++) {
+    const n = crew[k];
+    const s = Math.sin(n.yaw), c = Math.cos(n.yaw);
+    const nx = n.pos.x + s * 0.35, nz = n.pos.z + c * 0.35, ny = n.pos.y + 1.45;
+    for (let i = 0; i < 6; i++) {
+      const o = (RAIN_N - SPRAY_N - FF_SPRAY_N + k * 6 + i) * 6;
+      if (!n.spraying) {
+        rainPos[o] = -ox; rainPos[o + 1] = -1000 - oy; rainPos[o + 2] = -oz;
+        rainPos[o + 3] = -ox; rainPos[o + 4] = -1000 - oy; rainPos[o + 5] = -oz;
+        continue;
+      }
+      const t0 = 0.1 + i * 0.14, t1 = t0 + 0.09;
+      const v0 = 11, el = 0.18, ch = Math.cos(el), sh = Math.sin(el);
+      const x0 = nx + s * ch * v0 * t0, z0 = nz + c * ch * v0 * t0;
+      const x1 = nx + s * ch * v0 * t1, z1 = nz + c * ch * v0 * t1;
+      let y0 = ny + sh * v0 * t0 - 4.9 * t0 * t0;
+      let y1 = ny + sh * v0 * t1 - 4.9 * t1 * t1;
+      const g0 = terrainHeight(x0, z0) + 0.1, g1 = terrainHeight(x1, z1) + 0.1;
+      if (y0 < g0) y0 = g0;
+      if (y1 < g1) y1 = g1;
+      rainPos[o] = x0 - ox;     rainPos[o + 1] = y0 - oy; rainPos[o + 2] = z0 - oz;
+      rainPos[o + 3] = x1 - ox; rainPos[o + 4] = y1 - oy; rainPos[o + 5] = z1 - oz;
+    }
+  }
+}
+function hideFFSpraySegments(inVolume) {
+  const ox = inVolume ? rain.position.x : 0,
+        oy = inVolume ? rain.position.y : 0,
+        oz = inVolume ? rain.position.z : 0;
+  for (let i = 0; i < FF_SPRAY_N; i++) {
+    const o = (RAIN_N - SPRAY_N - FF_SPRAY_N + i) * 6;
+    rainPos[o] = -ox; rainPos[o + 1] = -1000 - oy; rainPos[o + 2] = -oz;
+    rainPos[o + 3] = -ox; rainPos[o + 4] = -1000 - oy; rainPos[o + 5] = -oz;
+  }
+}
 
 /* ==================== VEHICLES PHASE 1: DRIVABLE CAR ======================
    Arcade car, first Phase 2 vehicle. One parked car near spawn (marked spot).
@@ -14395,6 +14703,7 @@ function busDwellService() {
   if (seats > 0) {
     for (let i = 0; i < BUSNPC.npcs.length && seats > 0; i++) {
       const n = BUSNPC.npcs[i];
+      if (n.zone === 'fire') continue;   // Phase 5 fire station v2: firefighters never board
       if (n.busRidden || n.state === 'FLEE') continue;
       const dx = n.pos.x - door.x, dz = n.pos.z - door.z;
       if (dx * dx + dz * dz < 64) {
