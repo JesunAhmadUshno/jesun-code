@@ -27,8 +27,15 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
   nids); CPython 10,800-tick randomized pump across modes/maps/difficulties
   zero exceptions; determinism byte-identical (50-tick dungeon FPP plus
   talk-path keys); Node+Pyodide exact bridge flow ALL GREEN, scene build avg
-  37.9ms/tick, p95 96.0ms (budget 120ms). Next up: Enemy separation
-  steering.
+  37.9ms/tick, p95 96.0ms (budget 120ms).
+- Live playtest of the pushed page (build 20261010a confirmed served, no
+  deploy lag): clean boot to the Emberhold overworld, ~96 WASD moves with
+  the 3D overworld rendering correctly, zero errors at any point. Gap,
+  stated plainly: no NPC was bumped during the walk window, so the new
+  E-to-talk fallback was not functionally exercised in the browser; it is
+  covered by the scripted CPython checks above, which drive the exact
+  bump/step/E sequence through the same interpreter and bridge tokens.
+  Next up: Enemy separation steering.
 
 ## 2026-10-09
 
