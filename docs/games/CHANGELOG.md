@@ -2,6 +2,34 @@
 
 Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
+## 2026-10-10
+
+### REALMS E-to-talk reliability vs wandering NPCs (roadmap item 13) (indie dev loop)
+- Bumping an NPC now records a sticky bump memory keyed by a new unique NPC
+  id (`G["bump_npc"]`), which survives one successful step (unlike
+  `block_npc`), and freezes the bumped NPC for 120 ticks so they cannot
+  wander out of reach while the player finds E. This closes the 2026-10-09
+  playtest dead end where Elder Marla (the quest giver) went unreachable
+  after bump + step + wander.
+- `interact` resolution order is now: the blocking NPC, an adjacent NPC, then
+  the last bumped NPC within 4 tiles (Chebyshev). The memory clears when the
+  talk lands or on map regen; E with nobody near still reports "Nobody to
+  talk to here."
+- Every NPC gets a unique numeric `nid` at creation (overworld + dungeon);
+  numeric ids are used because the interpreter's `is` does deep table
+  equality, not identity.
+- Game logic stays 100% Jesun.Code; `deepdelve.jc`/`deepdelve.html` untouched.
+  Driver: `APP_VERSION` bumped to `20261010a` so the new `realms.jc` is
+  cache-busted on the live page.
+- Verified: targeted repro script (bump, step, NPC wanders 2 away, E) failed
+  before the fix and talks after; unit checks (freeze scope, memory clearing
+  on talk and on dungeon entry, elder blessing quest via bump memory, unique
+  nids); CPython 10,800-tick randomized pump across modes/maps/difficulties
+  zero exceptions; determinism byte-identical (50-tick dungeon FPP plus
+  talk-path keys); Node+Pyodide exact bridge flow ALL GREEN, scene build avg
+  37.9ms/tick, p95 96.0ms (budget 120ms). Next up: Enemy separation
+  steering.
+
 ## 2026-10-09
 
 ### REALMS touch controls pass (roadmap item 2, bullet 3: touch controls) (indie dev loop)
