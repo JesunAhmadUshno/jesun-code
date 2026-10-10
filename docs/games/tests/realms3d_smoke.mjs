@@ -127,6 +127,9 @@ globalThis.__R3D = {
   buildLmauseTrainGeo, lmauseCoasterCurve, LMAUSE_COASTER,
   lmauseWheelIM, lmauseCabinIM, lmauseCarIM, lmauseTrainIM, LMAUSE_RIDE_MAT,
   lmauseUpdate, lmauseChipTick, lmauseChipEl, lmauseTxtEl, lmauseArrEl,
+  /* Phase 5 landmark hospital v1 */
+  HOSP, hospHeal, hospPadWorld, hospTick, hosphealEl, hospChipEl, hospTxtEl, hospArrEl,
+  LMHOSP_COL, LMHOSP_CHIP_R2, LMHOSP_HEAL_R2, LMHOSP_HEAL_CD, LMHOSP_PAD, buildLandmarkHospGeo,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
   /* Phase 5 boats/ships v1 */
   BOAT, boatEnter, boatExit, boatRebuild, boatFloat, waterSurfaceY, dockFor,
@@ -5274,9 +5277,10 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       && sgeo.attributes.position.count > 500, 'verts=' + sgeo.attributes.position.count);
     check('lmstad: one material with vertexColors on',
       G.AMEN_DEF.stad.mesh.material.vertexColors === true);
-    check('lmstad: floodlight material rides the day/night emissive ramp',
-      G.LMSTAD_FLOOD_MATS.length === 2 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
+    check('lmstad: floodlight materials ride the day/night emissive ramp (stad + amuse + hosp)',
+      G.LMSTAD_FLOOD_MATS.length === 3 && G.LMSTAD_FLOOD_MATS[0] === G.AMEN_DEF.stad.mesh.material
       && G.LMSTAD_FLOOD_MATS[1] === G.AMEN_DEF.amuse.mesh.material
+      && G.LMSTAD_FLOOD_MATS[2] === G.AMEN_DEF.hosp.mesh.material
       && !!G.LMSTAD_FLOOD_MATS[0].emissiveMap);
 
     /* wall collision: the rim wall blocks a walker, the gates stay open.
@@ -5383,10 +5387,10 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
   check('lmause-static: single keydown listener (zero new keybinds)',
     (html.split("addEventListener('keydown'").length - 1) === 1);
-  check('lmause-static: bus route rebuild excludes amuse in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
-  check('lmause-static: taxi route rebuild excludes amuse in v1',
-    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+  check('lmause-static: bus route rebuild excludes amuse + hosp in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+  check('lmause-static: taxi route rebuild excludes amuse + hosp in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
 
   /* seeded placement: pure deterministic hash, cross-type winner-take-all */
   let mgx = 0, mgz = 0, md = null;
@@ -5577,6 +5581,217 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       check('lmause: round trip leaves zero console errors/warnings',
         consoleProblems.length === probsM, consoleProblems.slice(probsM).join(' | '));
     }
+  }
+}
+
+/* ================= PHASE 5: LANDMARK HOSPITAL v1 (buildings/places) ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.STADIUM.watching) G.stadiumExit();
+  if (G.THEATER.watching) G.theaterExit();
+  if (G.SLOT.playing) G.slotExit();
+  if (G.PIANO.playing) G.pianoExit();
+  if (G.CIVIC.state) G.civicExit();
+
+  /* static: bespoke merged geometry, zero new IM literals (the shared
+     AMEN_DEF loop builds the one 'hosp' mesh: +1 runtime draw call), zero
+     new runtime lights, zero new keybinds, no unseeded RNG, no em dashes,
+     no external URLs, no TODO text in the block */
+  const lmhospSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK HOSPITAL v1 (buildings/places)'),
+                               html.indexOf('/* ---- instanced meshes: one per type, one draw call each ---- */'));
+  check('lmhosp-static: zero IM literals in the hospital block (shared AMEN_DEF loop builds the one mesh)',
+    (lmhospSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('lmhosp-static: hospital block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(lmhospSrc));
+  check('lmhosp-static: no unseeded RNG in the hospital block', !/Math\.random/.test(lmhospSrc));
+  check('lmhosp-static: no em dashes in the hospital block', !lmhospSrc.includes('—'));
+  check('lmhosp-static: no external URLs in the hospital block', !/https?:\/\//.test(lmhospSrc));
+  check('lmhosp-static: no TODO markers in the hospital block', !/\bTODO\b/.test(lmhospSrc));
+  check('lmhosp-static: hosp residue is checked after all existing amenity types (never displaces them)',
+    html.indexOf("if (h % 41 === 29) return 'amuse';") < html.indexOf("if (h % 47 === 23) return 'hosp';"));
+  check('lmhosp-static: whole-file IM literals pin at 46 (46 = 42 + 4 lmause ride fleets; hosp rides the shared def-loop literal)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('lmhosp-static: Math.random lines pin at 92',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
+  check('lmhosp-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('lmhosp-static: E heals at a live hospital prompt in the keydown chain',
+    html.includes("else if (CIVIC.hintOn) civicEnter(); else if (HOSP.hintOn) hospHeal(); else if (WORSHIP.hintOn) worshipEnter();"));
+  check('lmhosp-static: bus route rebuild excludes hosp in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type, gx, gz });") !== -1);
+  check('lmhosp-static: taxi route rebuild excludes hosp in v1',
+    html.indexOf("if (a && a.type !== 'stad' && a.type !== 'amuse' && a.type !== 'hosp') found.push({ x: a.x, z: a.z, type: a.type });") !== -1);
+  check('lmhosp-static: chip pins below the amusement chip in the top-left stack (no overlap)',
+    html.includes('#hospchip {\n    position: absolute; top: 489px; left: 18px;'));
+  check('lmhosp-static: bike/bc/scooter pad scans exclude hosp in v1 (byte-identical pads)',
+    (html.match(/if \(a && a\.type !== 'hosp'\) found\.push\(a\);/g) || []).length === 3);
+  check('lmhosp-static: ambulance anchor scan excludes hosp in v1',
+    html.includes("if (!a || a.type === 'hosp') continue;"));
+
+  /* seeded placement: pure deterministic hash, own residue, cross-type winner-take-all */
+  let hgx = 0, hgz = 0, hd = null;
+  houter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'hosp' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'hosp') { hgx = gx; hgz = gz; hd = a; break houter; }
+    }
+  check('lmhosp: a seeded hospital chunk exists in the scan window', !!hd, hd ? 'at ' + hgx + ',' + hgz : 'none');
+  if (hd) {
+    const hd2 = G.amenityCenterFor(hgx, hgz);
+    check('lmhosp: amenityCenterFor is deterministic across calls',
+      !!hd2 && hd2.x === hd.x && hd2.z === hd.z && hd2.yaw === hd.yaw && hd2.type === 'hosp');
+    let wtaOk = true;
+    for (let ax = hgx - 1; ax <= hgx + 1; ax++)
+      for (let az = hgz - 1; az <= hgz + 1; az++) {
+        if (ax === hgx && az === hgz) continue;
+        if (G.amenityTypeFor(ax, az) && G.amenityAccepted(ax, az)) wtaOk = false;
+      }
+    check('lmhosp: cross-type winner-take-all holds (no other accepted amenity in the 3x3)', wtaOk);
+    /* measured non-displacement: no hosp chunk would have matched an
+       earlier type (the residue is checked last) */
+    let displaceOk = true, hospCount = 0;
+    for (let gx = -60; gx <= 60; gx++)
+      for (let gz = -60; gz <= 60; gz++) {
+        if (G.amenityTypeFor(gx, gz) !== 'hosp') continue;
+        hospCount++;
+        const h = G.hash2i(gx, gz);
+        if (h % 41 === 20 || h % 15 === 4 || h % 19 === 9 || h % 13 === 11
+            || h % 10 === 6 || h % 37 === 13 || h % 41 === 29) displaceOk = false;
+      }
+    check('lmhosp: hosp never displaces an existing amenity type (checked last)',
+      hospCount > 0 && displaceOk, 'hosp=' + hospCount);
+    check('lmhosp: def is registered (cap 2, glow flag, 35 colliders, entrance gap)',
+      G.AMEN_DEF.hosp && G.AMEN_DEF.hosp.cap === 2 && G.AMEN_DEF.hosp.glow === true
+      && G.AMEN_DEF.hosp.colliders.length === 35 && G.LMHOSP_COL.length === 35
+      && Array.isArray(G.AMEN.active.hosp));
+    check('lmhosp: the entrance gap has no collider (walk-in idiom)',
+      G.LMHOSP_COL.every(c => Math.hypot(c[0] - 0, c[1] - 13) > 2.5));
+
+    /* merged geometry: one mesh, one vertexColors material, per-part colors */
+    const hgeo = G.AMEN_DEF.hosp.mesh.geometry;
+    check('lmhosp: merged geometry carries per-part vertex colors',
+      !!hgeo.attributes.color && hgeo.attributes.color.count === hgeo.attributes.position.count
+      && hgeo.attributes.position.count > 500, 'verts=' + hgeo.attributes.position.count);
+    check('lmhosp: one material with vertexColors on',
+      G.AMEN_DEF.hosp.mesh.material.vertexColors === true);
+    check('lmhosp: window bands carry glow UVs (night emissive targets)',
+      (() => { const uv = hgeo.attributes.uv; let n = 0;
+               for (let i = 0; i < uv.count; i++) if (Math.abs(uv.getX(i) - 0.25) < 1e-6) n++;
+               return n > 100; })());
+    check('lmhosp: window material rides the day/night emissive ramp',
+      G.LMSTAD_FLOOD_MATS[2] === G.AMEN_DEF.hosp.mesh.material
+      && !!G.LMSTAD_FLOOD_MATS[2].emissiveMap);
+
+    /* wall collision: the hedge wall + block block a walker, the entrance
+       gap stays open (rural-building foot idiom) */
+    const def = G.AMEN_DEF.hosp;
+    const c0 = Math.cos(hd.yaw), s0 = Math.sin(hd.yaw);
+    const wx = (ox, oz) => hd.x + ox * c0 + oz * s0;
+    const wz = (ox, oz) => hd.z - ox * s0 + oz * c0;
+    const foot0 = G.BLDG.foot.length;
+    for (const col of def.colliders) G.BLDG.foot.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+    const wc = def.colliders[0];   // hedge-ring wall collider, far from the gate
+    G.player.position.set(wx(wc[0], wc[1]), groundY(wx(wc[0], wc[1]), wz(wc[0], wc[1])), wz(wc[0], wc[1]));
+    G.resolveBldgFoot();
+    const wd = Math.hypot(G.player.position.x - wx(wc[0], wc[1]), G.player.position.z - wz(wc[0], wc[1]));
+    check('lmhosp: the hedge wall blocks a walker (pushed out of the wall)',
+      wd >= wc[2] + 0.45 - 0.01, 'd=' + wd.toFixed(2) + ' min=' + (wc[2] + 0.45).toFixed(2));
+    const gx0 = wx(0, 13), gz0 = wz(0, 13);   // entrance gate center: no collider there
+    G.player.position.set(gx0, groundY(gx0, gz0), gz0);
+    G.resolveBldgFoot();
+    const gd = Math.hypot(G.player.position.x - gx0, G.player.position.z - gz0);
+    check('lmhosp: the entrance gap stays open (walker not pushed)', gd < 0.01, 'd=' + gd.toFixed(3));
+    G.BLDG.foot.length = foot0;
+
+    /* vehicle collision: the car is pushed out of the wall via AMEN.colliders */
+    const am0 = G.AMEN.colliders.length;
+    for (const col of def.colliders) G.AMEN.colliders.push({ x: wx(col[0], col[1]), z: wz(col[0], col[1]), r: col[2] });
+    G.CAR.pos.set(wx(wc[0], wc[1]), 0, wz(wc[0], wc[1]));
+    G.CAR.hitCd = 0; G.CAR.speed = 0; G.CAR.hp = 100; G.CAR.armor = 0;
+    G.carAmenityHit(0.016);
+    const cd = Math.hypot(G.CAR.pos.x - wx(wc[0], wc[1]), G.CAR.pos.z - wz(wc[0], wc[1]));
+    check('lmhosp: the wall blocks light vehicles (pushed out via AMEN.colliders)',
+      cd >= wc[2] + 1.15 - 0.01, 'd=' + cd.toFixed(2));
+    G.AMEN.colliders.length = am0;
+
+    /* the real hospital activates near the player; the lobby pad heals */
+    G.player.position.set(hd.x + 60, groundY(hd.x + 60, hd.z), hd.z);
+    frame(20);   // chunk redistribute + hospTick cadence
+    const ha = G.AMEN.active.hosp.find(a => Math.hypot(a.x - hd.x, a.z - hd.z) < 1);
+    check('lmhosp: the real hospital activates near the player', !!ha);
+    const pad = G.hospPadWorld(ha);
+    G.P.hp = 40; G.updateHpHUD();
+    G.player.position.set(pad.x, groundY(pad.x, pad.z), pad.z);
+    frame(20);
+    check('lmhosp: HEAL prompt shows on the lobby pad',
+      G.HOSP.hintOn === true && G.hosphealEl.style.opacity == 1, 'hint=' + G.HOSP.hintOn);
+    const probsH = consoleProblems.length;
+    const cash0 = G.cash;
+    G.hospHeal();
+    check('lmhosp: E-heal restores full HP for free (cooldown starts)',
+      G.P.hp === 100 && G.cash === cash0, 'hp=' + G.P.hp + ' cash=' + G.cash);
+    /* cooldown: a second heal is refused while on cooldown */
+    G.P.hp = 40; G.updateHpHUD();
+    G.hospHeal();
+    check('lmhosp: the 90-second cooldown blocks a second heal',
+      G.P.hp === 40, 'hp=' + G.P.hp);
+    /* cooldown expiry: the prompt returns and the heal works again */
+    const ha2 = G.AMEN.active.hosp.find(a => Math.hypot(a.x - hd.x, a.z - hd.z) < 1);
+    ha2.healAt = -1000;
+    frame(20);
+    check('lmhosp: the prompt returns after the cooldown', G.HOSP.hintOn === true);
+    G.hospHeal();
+    check('lmhosp: heal works again after the cooldown', G.P.hp === 100);
+    /* E key wiring: the keydown chain heals at a live prompt */
+    const ha3 = G.AMEN.active.hosp.find(a => Math.hypot(a.x - hd.x, a.z - hd.z) < 1);
+    ha3.healAt = -1000;
+    G.P.hp = 40; G.updateHpHUD();
+    frame(20);
+    G.CIVIC.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+    stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+    check('lmhosp: KeyE heals at a live hospital prompt',
+      G.P.hp === 100, 'hp=' + G.P.hp);
+
+    /* HUD chip: shows within 500m with bearing arrow + distance, hidden when far */
+    check('lmhosp: chip shows within range',
+      G.hospChipEl.style.display === 'block', 'display=' + G.hospChipEl.style.display);
+    check('lmhosp: chip reads HOSPITAL <distance>M',
+      /^HOSPITAL \d+M$/.test(G.hospTxtEl.textContent), G.hospTxtEl.textContent);
+    check('lmhosp: chip arrow carries a bearing rotation',
+      /rotate\(-?\d+(\.\d+)?deg\)/.test(G.hospArrEl.style.transform || ''),
+      G.hospArrEl.style.transform);
+    G.player.position.set(hd.x + 1000, groundY(hd.x + 1000, hd.z), hd.z);
+    frame(20);
+    check('lmhosp: chip hides when far',
+      G.hospChipEl.style.display === 'none', 'display=' + G.hospChipEl.style.display);
+
+    /* transit: bus/taxi routes never stop at the hospital in v1 */
+    G.busRebuildRoute(hgx, hgz);
+    check('lmhosp: bus routes never stop at the hospital in v1',
+      G.BUS.route.every(s => s.type !== 'hosp'), 'stops=' + G.BUS.route.length);
+    G.TX.riding = false; G.TX.routeKey = '';
+    G.txRebuild(hgx, hgz);
+    check('lmhosp: taxi routes never stop at the hospital in v1',
+      (G.TX.route || []).every(s => s.type !== 'hosp'), 'stops=' + (G.TX.route || []).length);
+
+    /* night: window bands glow via the shared emissive ramp, zero new lights */
+    G.dayPhase = 0.75;   // midnight
+    frame(5);
+    check('lmhosp: window bands glow at night (shared emissive ramp, no new lights)',
+      G.LMSTAD_FLOOD_MATS[2].emissiveIntensity > 1,
+      G.LMSTAD_FLOOD_MATS.map(m => m.emissiveIntensity.toFixed(2)).join(','));
+    G.dayPhase = 0.25;   // noon
+    frame(5);
+    check('lmhosp: window bands dark by day',
+      G.LMSTAD_FLOOD_MATS[2].emissiveIntensity < 0.01,
+      G.LMSTAD_FLOOD_MATS.map(m => m.emissiveIntensity.toFixed(2)).join(','));
+
+    frame(30);
+    check('lmhosp: round trip leaves zero console errors/warnings',
+      consoleProblems.length === probsH, consoleProblems.slice(probsH).join(' | '));
   }
 }
 
