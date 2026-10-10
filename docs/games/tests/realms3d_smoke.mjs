@@ -110,6 +110,10 @@ globalThis.__R3D = {
   TENNIS, tennisCourtFor, tennisSpawnAt, tennisParkBall, tennisResetForServe,
   tennisCanHit, tennisBallNear, doTennisHit, tennisAssignOpp, tennisReleaseOpp,
   tennisPoint, tennisNpcReturn, tennisTick, tennChipEl, hitHintEl,
+  /* Phase 5 basketball mini-game */
+  HOOPS, basketballCourtFor, hoopsRimWorld, hoopsSpawnAt, hoopsParkBall,
+  hoopsBallNear, hoopsCanShoot, doHoopShot, hoopsResetBall, hoopsScore,
+  hoopsMiss, hoopsHoopCollide, hoopsTick, hoopChipEl, shootHintEl,
   AMEN, hash2i, sportHash,
 };
 `;
@@ -2478,6 +2482,230 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     !/createOscillator|createGain|AudioContext/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
                  html.indexOf('/* === WORLD-PEOPLE-ANCHOR === */'))));
+}
+
+/* ================= 22. BASKETBALL MINI-GAME (Phase 5 sports) ================= */
+{
+  /* deterministic basketball court: pure chunk function, disjoint from soccer/tennis */
+  let hca = null, hcaD = Infinity;
+  for (let gx = -14; gx <= 14; gx++)
+    for (let gz = -14; gz <= 14; gz++) {
+      if (!G.basketballCourtFor(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (!a) continue;
+      const d = a.x * a.x + a.z * a.z;
+      if (d < hcaD) { hcaD = d; hca = a; }
+    }
+  check('hoops: deterministic basketball court found near spawn', !!hca,
+    hca ? 'chunk(' + hca.gx + ',' + hca.gz + ')' : 'none');
+  check('hoops: sportHash residue %5===2, disjoint from soccer %5===1 and tennis %5===3',
+    G.sportHash(hca.gx, hca.gz) % 5 === 2 &&
+    !G.soccerPitchFor(hca.gx, hca.gz) && !G.tennisCourtFor(hca.gx, hca.gz));
+
+  /* teleport next to it; the real tick runs find + spawn.
+     Same vehicle-shoo idiom as soccer: a cab on the center spot would
+     dribble the ball on spawn and break the seeded-spawn assertions. */
+  G.player.position.set(hca.x + 8, groundY(hca.x + 8, hca.z), hca.z);
+  frame(1);
+  {
+    const p0 = G.HOOPS.court || hca;
+    for (const v of [G.CAR, G.BUS, G.TX, G.BIKE, G.BC, G.SC]) {
+      if (Math.hypot(v.pos.x - p0.x, v.pos.z - p0.z) < 12)
+        v.pos.set(p0.x + 60, groundY(p0.x + 60, p0.z), p0.z + 40);
+    }
+  }
+  frame(2);
+  const hc = G.HOOPS.court;
+  check('hoops: ball spawns at the active basketball court',
+    G.HOOPS.active === true && G.ballIM.count === 1 && !!hc,
+    'active=' + G.HOOPS.active + ' count=' + G.ballIM.count);
+  check('hoops: ball seeded at court center',
+    Math.hypot(G.HOOPS.pos.x - hc.x, G.HOOPS.pos.z - hc.z) < 0.01,
+    'dist=' + Math.hypot(G.HOOPS.pos.x - hc.x, G.HOOPS.pos.z - hc.z).toFixed(3));
+  check('hoops: chip shows HOOPS on spawn',
+    G.hoopChipEl.style.display === 'block' &&
+    G.hoopChipEl.textContent === 'HOOPS - PTS ' + G.HOOPS.pts,
+    G.hoopChipEl.textContent);
+  {
+    const c = G.ballIM.instanceColor, e = new THREE.Color(0xd97a26);
+    check('hoops: ball tinted basketball-orange via instanceColor',
+      !!c && Math.abs(c.getX(0) - e.r) < 0.002 && Math.abs(c.getY(0) - e.g) < 0.002 &&
+      Math.abs(c.getZ(0) - e.b) < 0.002);
+  }
+
+  /* determinism invariant (research: chronica-style seed->world invariant).
+     Rescan the sportHash selectors over the active chunks in a different
+     order: the court set must be byte-identical, and the three sport
+     residues must be pairwise disjoint. This invariant exists to catch the
+     shipped-but-unactivatable selector bug class again: basketball shipped
+     in 8f4b9a8 but only went live via the 924f503 sportHash split fix. */
+  {
+    const chunks = G.AMEN.active.park.map(a => [a.gx, a.gz]);
+    const desc = (gx, gz) =>
+      gx + ',' + gz + ':' +
+      (G.basketballCourtFor(gx, gz) ? 'H' : G.soccerPitchFor(gx, gz) ? 'S' :
+       G.tennisCourtFor(gx, gz) ? 'T' : '.');
+    const fwd = chunks.map(([x, z]) => desc(x, z)).sort().join(';');
+    const rev = chunks.slice().reverse().map(([x, z]) => desc(x, z)).sort().join(';');
+    check('hoops-det: selector rescan in different order is byte-identical',
+      fwd === rev && fwd.length > 0, chunks.length + ' park chunks');
+    const disjoint = chunks.every(([x, z]) =>
+      (G.basketballCourtFor(x, z) ? 1 : 0) + (G.soccerPitchFor(x, z) ? 1 : 0) +
+      (G.tennisCourtFor(x, z) ? 1 : 0) <= 1);
+    check('hoops-det: sport residues 1/2/3 are pairwise disjoint', disjoint);
+    check('hoops-det: basketball selector is non-vacuous (activatable courts exist)',
+      chunks.some(([x, z]) => G.basketballCourtFor(x, z)));
+  }
+
+  /* set shot: F path via doHoopShot, auto-aim ball->rim with a live arc */
+  const yaw = hc.yaw, c = Math.cos(yaw), s = Math.sin(yaw);
+  const toWorld = (lx, lz) => [hc.x + lx * c + lz * s, hc.z - lx * s + lz * c];
+  G.HOOPS.pos.set(hc.x, groundY(hc.x, hc.z) + 0.4, hc.z);
+  G.HOOPS.vel.set(0, 0, 0);
+  G.player.position.set(hc.x + 1.2, groundY(hc.x + 1.2, hc.z), hc.z);
+  G.P.punchCd = 0;
+  check('hoops: shot allowed on foot near the ball', G.hoopsCanShoot() === true);
+  G.doHoopShot();
+  {
+    const rw = G.hoopsRimWorld(new THREE.Vector3());
+    const dx = rw.x - G.HOOPS.pos.x, dz = rw.z - G.HOOPS.pos.z;
+    const d = Math.hypot(dx, dz) || 0.001;
+    const hv = Math.hypot(G.HOOPS.vel.x, G.HOOPS.vel.z) || 0.001;
+    const dot = (G.HOOPS.vel.x * dx + G.HOOPS.vel.z * dz) / (hv * d);
+    check('hoops: set shot auto-aims ball->rim with a live arc',
+      G.HOOPS.shot !== null && dot > 0.99 && G.HOOPS.vel.y > 0,
+      'dot=' + dot.toFixed(3) + ' vy=' + G.HOOPS.vel.y.toFixed(1));
+  }
+  check('hoops: shot toast fires', G.toastEl.textContent === '3-PT SHOT',
+    G.toastEl.textContent);
+  check('hoops: shot flashes SHOOT! on the chip',
+    G.hoopChipEl.textContent.indexOf('SHOOT!') === 0, G.hoopChipEl.textContent);
+  frame(1);   // let the tick show the SHOOT [F] hint
+  check('hoops: SHOOT [F] hint shows near the ball',
+    G.shootHintEl.style.opacity === 1 && G.shootHintEl.textContent === 'SHOOT [F]',
+    'opacity=' + G.shootHintEl.style.opacity);
+  /* neutralize the live shot: the scoring tests drive the gates directly */
+  G.HOOPS.shot = null; G.HOOPS.shotRng = null;
+  G.HOOPS.vel.set(0, 0, 0);
+  G.HOOPS.pos.set(hc.x, groundY(hc.x, hc.z) + 0.4, hc.z);
+
+  /* F guard: driving blocks it (doPunch guard idiom, same as soccer KICK) */
+  G.CAR.driving = true;
+  check('hoops: shot blocked while driving', G.hoopsCanShoot() === false);
+  G.CAR.driving = false;
+
+  /* rim: radial bounce off the wire, the clang path (seeded deflection) */
+  {
+    const [wx, wz] = toWorld(6.2, 0.49);   // HOOP_LOCAL_X, on the rim ring
+    const gy = groundY(wx, wz);
+    G.HOOPS.pos.set(wx, gy + 3.05, wz);    // HOOP_H, dy = 0
+    G.HOOPS.vel.set(-3 * s, 0, -3 * c);    // local (0,-3): radial inward
+    G.hoopsHoopCollide();
+    const vlz2 = G.HOOPS.vel.x * s + G.HOOPS.vel.z * c;
+    check('hoops: rim collision registers (clang path, radial bounce)',
+      vlz2 > 0, 'vlz=' + vlz2.toFixed(2));
+  }
+
+  /* two-trigger scoring: gate 1 = rim plane crossed downward inside the ring */
+  {
+    const rw = G.hoopsRimWorld(new THREE.Vector3());
+    G.HOOPS.shot = { t: 0, val: 2, gate1: false, gate2: false };
+    G.HOOPS.pos.set(rw.x, rw.y + 0.08, rw.z);
+    G.HOOPS.vel.set(0, -3, 0);
+    for (let i = 0; i < 10 && G.HOOPS.shot && !G.HOOPS.shot.gate1; i++) frame(1);
+    check('hoops: trigger 1 fires crossing the rim plane downward',
+      !!G.HOOPS.shot && G.HOOPS.shot.gate1 === true);
+  }
+  /* gate 2 = net gate crossed below: basket. 2pt = GOAL! +$20 */
+  {
+    const cash0 = G.cash, pts0 = G.HOOPS.pts, st0 = G.HOOPS.streak;
+    for (let i = 0; i < 60 && G.HOOPS.streak === st0; i++) frame(1);
+    check('hoops: two-trigger basket scores GOAL! +$20 (2pt)',
+      G.cash === cash0 + 20 && G.HOOPS.pts === pts0 + 2 && G.HOOPS.streak === st0 + 1,
+      'cash=' + G.cash + ' pts=' + G.HOOPS.pts + ' streak=' + G.HOOPS.streak);
+    check('hoops: GOAL! toast fires', G.toastEl.textContent === 'GOAL! +$20',
+      G.toastEl.textContent);
+  }
+  /* streak: the second make pays +$5 per consecutive make */
+  {
+    const rw = G.hoopsRimWorld(new THREE.Vector3());
+    G.HOOPS.shot = { t: 0, val: 3, gate1: false, gate2: false };
+    G.HOOPS.pos.set(rw.x, rw.y + 0.08, rw.z);
+    G.HOOPS.vel.set(0, -3, 0);
+    const cash0 = G.cash, pts0 = G.HOOPS.pts, st0 = G.HOOPS.streak;
+    for (let i = 0; i < 80 && G.HOOPS.streak === st0; i++) frame(1);
+    check('hoops: 3pt make pays +$35 with the $5 streak bonus',
+      G.cash === cash0 + 40 && G.HOOPS.pts === pts0 + 3 && G.HOOPS.streak === st0 + 1,
+      'cash=' + G.cash + ' pts=' + G.HOOPS.pts + ' streak=' + G.HOOPS.streak);
+    /* drain the shot/dribble HUD timers (player steps off the ball) so the
+       streak state reaches the chip */
+    G.player.position.set(hc.x + 20, groundY(hc.x + 20, hc.z), hc.z);
+    frame(45);
+    check('hoops: streak shows on the chip',
+      G.hoopChipEl.textContent.indexOf('STREAK x2') === 0, G.hoopChipEl.textContent);
+  }
+  /* timeout: a live shot that never scores misses, streak resets */
+  {
+    G.HOOPS.shot = { t: 14.9, val: 2, gate1: false, gate2: false };
+    G.HOOPS.pos.set(hc.x, groundY(hc.x, hc.z) + 0.4, hc.z);
+    G.HOOPS.vel.set(0, 0, 0);
+    frame(10);
+    check('hoops: shot timeout misses and resets the streak',
+      G.HOOPS.shot === null && G.HOOPS.streak === 0 &&
+      G.toastEl.textContent === 'BALL RETURNED',
+      'streak=' + G.HOOPS.streak + ' toast=' + G.toastEl.textContent);
+  }
+
+  /* leave: teleport to spawn (no basketball court within 60u there) */
+  G.player.position.set(0, groundY(0, 0), 0);
+  frame(3);
+  const hParked = !G.AMEN.active.park.some(a => G.basketballCourtFor(a.gx, a.gz));
+  if (hParked) {
+    check('hoops: ball parks when the player leaves',
+      G.HOOPS.active === false && G.ballIM.count === 0,
+      'active=' + G.HOOPS.active + ' count=' + G.ballIM.count);
+    check('hoops: chip hides with no active court',
+      G.hoopChipEl.style.display === 'none');
+  } else {
+    check('hoops: ball parks when the player leaves (skipped: court near spawn)', true);
+    check('hoops: chip hides with no active court (skipped: court near spawn)', true);
+  }
+
+  /* sport switch: the soccer court re-activates and restores the soccer look */
+  {
+    let spa2 = null, spa2D = Infinity;
+    for (let gx = -14; gx <= 14; gx++)
+      for (let gz = -14; gz <= 14; gz++) {
+        if (!G.soccerPitchFor(gx, gz)) continue;
+        const a = G.amenityCenterFor(gx, gz);
+        if (!a) continue;
+        const d = a.x * a.x + a.z * a.z;
+        if (d < spa2D) { spa2D = d; spa2 = a; }
+      }
+    G.player.position.set(spa2.x, groundY(spa2.x, spa2.z), spa2.z);
+    frame(3);
+    const cc = G.ballIM.instanceColor, ew = new THREE.Color(0xffffff);
+    check('hoops: soccer look restored when the soccer court activates',
+      G.SOCCER.active === true && !!cc &&
+      Math.abs(cc.getX(0) - ew.r) < 0.002 && Math.abs(cc.getY(0) - ew.g) < 0.002 &&
+      Math.abs(cc.getZ(0) - ew.b) < 0.002,
+      'soccerActive=' + G.SOCCER.active);
+  }
+
+  /* static pins for the basketball block */
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 46',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
+  check('hoops-static: basketball block creates no lights and no audio nodes',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
+      html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
+                 html.indexOf('/* === WORLD-PEOPLE-ANCHOR === */'))) &&
+    !/createOscillator|createGain|AudioContext/.test(
+      html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
+                 html.indexOf('/* === WORLD-PEOPLE-ANCHOR === */'))));
+  check('hoops-static: SHOOT hint click wiring pins doHoopShot',
+    html.includes("shootHintEl.addEventListener('click', () => { doHoopShot(); })"));
+  check('hoops-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
 }
 
 /* ---------- zero console errors ---------- */

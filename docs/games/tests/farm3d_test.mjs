@@ -32,7 +32,7 @@ check('farm-static: seeded PRNG only (Math.random lines still 91)',
   'lines=' + (html.match(/^.*Math\.random.*$/gm) || []).length);
 {
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('farm-static: exactly one new IM literal site (45 = 44 + 1 crop mesh)', imCount === 45, 'count=' + imCount);
+  check('farm-static: exactly one new IM literal site (46 = 44 + 1 crop mesh + 1 ball mesh)', imCount === 46, 'count=' + imCount);
 }
 check('farm-static: single renderer.render call site',
   (html.match(/renderer\.render\(/g) || []).length === 1);
