@@ -7501,6 +7501,20 @@ function ballSetLook(hoops) {
   ballIM.setColorAt(0, _ballCol);
   ballIM.instanceColor.needsUpdate = true;
 }
+/* soccerFindPitch: nearest soccer court within activation radius, or null.
+   Restored 2026-10-09 (Lead Dev retry fix): byte-identical semantics to the
+   pre-basketball version (SOCCER_NEAR was 60, HOOP_NEAR is 60); the smoke
+   harness imports this from the module. */
+function soccerFindPitch() {
+  const px = player.position.x, pz = player.position.z;
+  let best = null, bd = HOOP_NEAR * HOOP_NEAR;
+  for (const a of AMEN.active.park) {
+    if (!soccerPitchFor(a.gx, a.gz)) continue;
+    const dx = a.x - px, dz = a.z - pz, d = dx * dx + dz * dz;
+    if (d < bd) { bd = d; best = a; }
+  }
+  return best;
+}
 /* seeded subset of park amenities: pure function of chunk coords,
    deterministic on revisit (same idiom as amenityAccepted). Residue %5===1
    is soccer's; basketball takes %5===2 below, so the two never overlap. */
