@@ -175,6 +175,12 @@ globalThis.__R3D = {
   worshipTick, updateWorshipChip, WORSHIP_HINT_TXT, WORSHIP_ACT_TXT, WORSHIP_FOOT_TXT,
   worshiphintEl, worshipChipEl, worshipbearingEl, worsarrEl, worstxtEl,
   worshipPanelEl, worshipTitleEl, worshipActEl, worshipFootEl, HELP_WORSHIP,
+  /* Phase 5 apartment buildings v1 */
+  APARTMENT, APARTMENT_SALT, APART_BAND, APARTMENT_NAMES, APART_TINTS,
+  APART_LEASE_COST, APART_HEAL_AMT, APART_HINT_LEASE, APART_HINT_ENTER,
+  apartmentFor, apartmentHash, apartmentVariant, apartmentEnter, apartmentExit,
+  apartmentLease, apartmentTick, updateApartmentChip,
+  apthintEl, aptChipEl, aptbearingEl, aptarrEl, apttxtEl, HELP_APARTMENT,
   THEATER_LX, THEATER_LZ,
 };
 `;
@@ -2026,8 +2032,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf5: 46 IM literals after PERF-5 + stadium fleet + amusement fleet; civic fleet rides the shared def-loop literal, 4 runtime building meshes',
-      n === 46 && G.bldgMeshes.length === 5, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf5: 46 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
+      n === 46 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -3792,8 +3798,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
   check('casino-static: whole-file IM literals pin at 46 (48 - PERF-5 consolidation + stadium fleet + amusement fleet: trunks+fol, npcLegs, copGuns, brute->Mesh; civic fleet rides the shared def-loop literal)',
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
-  check('casino-static: 5 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet)',
-    G.bldgMeshes.length === 5);
+  check('casino-static: 6 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet, apartment owns its fleet)',
+    G.bldgMeshes.length === 6);
   check('casino-static: casino def shares the store fleet mesh',
     G.BLDG_DEF.casino.mesh === G.BLDG_DEF.store.mesh);
   check('casino-static: guard coverage (positive chains)',
@@ -3932,7 +3938,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/\|\| THEATER\.watching/g) || []).length >= 28);
   check('theater-static: guard coverage (negated chains, incl. civic/amuse-extended paren form)',
     ((html.match(/&& !THEATER\.watching/g) || []).length
-      + (html.match(/!\(THEATER\.watching \|\| CIVIC\.state(?: \|\| WORSHIP\.state)?(?: \|\| AMUSE\.riding \|\| STADIUM\.watching)?\)/g) || []).length) >= 18);
+      + (html.match(/!\(THEATER\.watching \|\| CIVIC\.state(?: \|\| WORSHIP\.state)?(?: \|\| APARTMENT\.state)?(?: \|\| AMUSE\.riding \|\| STADIUM\.watching)?\)/g) || []).length) >= 18);
   check('theater-static: WATCH hint click wiring pins theaterEnter',
     html.includes("theaterHintEl.addEventListener('click', () => { if (THEATER.hintOn) theaterEnter(); })"));
   check('theater-static: E frees the watcher before the gambler/pianist in the keydown chain',
@@ -4057,8 +4063,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 46);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
-  check('civic-static: 5 runtime building meshes (house, barn, store, civic, worship)',
-    G.bldgMeshes.length === 5);
+  check('civic-static: 6 runtime building meshes (house, barn, store, civic, worship, apartment)',
+    G.bldgMeshes.length === 6);
   check('civic-static: all four civic types share the one civic fleet mesh',
     G.BLDG_DEF.hospital.mesh === G.BLDG_DEF.civic.mesh
     && G.BLDG_DEF.bank.mesh === G.BLDG_DEF.civic.mesh
@@ -4612,6 +4618,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   G.closeShop();
   for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
   if (G.WORSHIP.state) G.worshipExit();
+  if (G.APARTMENT.state) G.apartmentExit();
   if (G.CIVIC.state) G.civicExit();
   if (G.AMUSE.riding) G.amuseExit();
   if (G.STADIUM.watching) G.stadiumExit();
@@ -4811,6 +4818,222 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('worship: exit toast reads ON FOOT', G.toastEl.textContent === 'ON FOOT');
   check('worship: enter/exit round trip leaves zero console errors/warnings',
     consoleProblems.length === probsW0, consoleProblems.slice(probsW0).join(' | '));
+}
+
+/* ================= PHASE 5: APARTMENT BUILDINGS v1 ================= */
+{
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.APARTMENT.state) G.apartmentExit();
+  G.APARTMENT.leased = false; G.APARTMENT.leaseName = '';
+  G.APARTMENT.respawnX = null; G.APARTMENT.respawnZ = null; G.APARTMENT.respawnYaw = 0;
+
+  /* static: apartment fleet rides the shared def-loop literal (+1 runtime
+     draw call, zero new source literals), no lights, no unseeded RNG, no em
+     dashes, no external URLs, no TODO text in the apartment block */
+  const apartSrc = html.slice(html.indexOf('/* ================= PHASE 5: APARTMENT BUILDINGS v1 (buildings/places)'),
+                              html.indexOf('/* ============================== GAME LOOP'));
+  check('apart-static: zero fleet mesh literals in the gameplay block (the fleet rides the shared def loop)',
+    (apartSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('apart-static: apartment block creates no lights',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(apartSrc));
+  check('apart-static: no unseeded RNG in the apartment block', !/Math\.random/.test(apartSrc));
+  check('apart-static: no em dashes in the apartment block', !apartSrc.includes('—'));
+  check('apart-static: no external URLs in the apartment block', !/https?:\/\//.test(apartSrc));
+  check('apart-static: no TODO markers in the apartment block', !/\bTODO\b/.test(apartSrc));
+  check('apart-static: the apartment fleet is a live InstancedMesh (+1 runtime draw call)',
+    G.BLDG_DEF.apartment.mesh.isInstancedMesh === true);
+  check('apart-static: the apartment fleet shares the BLDG_WIN_MATS emissive ramp',
+    G.BLDG_WIN_MATS.includes(G.BLDG_DEF.apartment.mesh.material));
+  check('apart-static: guard coverage (positive chains)',
+    (html.match(/\|\| APARTMENT\.state/g) || []).length >= 40);
+  check('apart-static: guard coverage (negated chains)',
+    (html.match(/&& !APARTMENT\.state/g) || []).length >= 14);
+  check('apart-static: single keydown listener (zero new keybinds)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('apart-static: KeyE exits the tenant and enters on a live hint',
+    html.includes("else if (APARTMENT.state) apartmentExit();")
+    && html.includes("else if (APARTMENT.hintOn) apartmentEnter();"));
+  check('apart-static: mountToggle, vehicleExit, busted and death eject the tenant',
+    html.includes('else if (APARTMENT.state) apartmentExit();   // Phase 5 apartments: E never traps the tenant')
+    && html.includes('else if (TRAIN.riding) trainExit(); else if (APARTMENT.state) apartmentExit(); }')
+    && html.includes('if (APARTMENT.state) apartmentExit();   // Phase 5 apartments: busted out of the unit too')
+    && html.includes('if (APARTMENT.state) apartmentExit();  // ...and no lease while dead either'));
+  check('apart-static: camera chain frames the apartment porch',
+    html.includes('APARTMENT.state ? APARTMENT.camAng :') && html.includes("APARTMENT.state ? 'APARTMENT' :"));
+  check('apart-static: death redeploys at the leased anchor with a guarded spawn fallback',
+    html.includes('APARTMENT.respawnX !== null ? APARTMENT.respawnX : 0')
+    && html.includes('APARTMENT.respawnZ !== null ? APARTMENT.respawnZ : 0'));
+  check('apart-static: lease is session-only (save v3 untouched)',
+    !/APARTMENT\.(leased|respawnX|respawnZ|respawnYaw)/.test(
+      html.slice(html.indexOf('function collectSave()'), html.indexOf('function saveGame()'))));
+
+  /* seeded placement: own salted residue, deterministic, disjoint */
+  const findApartment = () => {
+    for (let gx = -60; gx <= 60; gx++)
+      for (let gz = -60; gz <= 60; gz++) {
+        if (G.apartmentFor(gx, gz) !== 'apartment') continue;
+        const b = G.bldgCenterFor(gx, gz);
+        if (b && b.type === 'apartment') return { gx, gz, b };
+      }
+    return null;
+  };
+  const foundA = findApartment();
+  check('apart: an apartment block places in the scan window', !!foundA,
+    foundA ? foundA.gx + ',' + foundA.gz : 'none');
+  check('apart: own salted hash residue %7===2',
+    !!foundA && G.apartmentHash(foundA.gx, foundA.gz) % 7 === 2);
+  check('apart: salt differs from the worship salt',
+    G.APARTMENT_SALT !== G.WORSHIP_SALT);
+  {
+    const w = foundA;
+    const a = G.apartmentFor(w.gx, w.gz), b = G.apartmentFor(w.gx, w.gz);
+    const p1 = G.bldgCenterFor(w.gx, w.gz), p2 = G.bldgCenterFor(w.gx, w.gz);
+    check('apart: selection + placement are pure functions of chunk coords',
+      a === b && !!p1 && !!p2 && p1.x === p2.x && p1.z === p2.z && p1.type === p2.type && p1.yOff === p2.yOff,
+      a + ' @' + (p1 ? p1.x.toFixed(1) + ',' + p1.z.toFixed(1) : 'null'));
+  }
+  check('apart: variant bits follow the seeded split (floors 3|4, side 0..3, tint 0..3)',
+    !!foundA && [3, 4].includes(foundA.b.floors) && foundA.b.balconySide >= 0 && foundA.b.balconySide <= 3
+    && foundA.b.tintIx >= 0 && foundA.b.tintIx < G.APART_TINTS.length,
+    foundA ? 'floors=' + foundA.b.floors + ' side=' + foundA.b.balconySide + ' tint=' + foundA.b.tintIx : 'none');
+  check('apart: name comes from the 6-name seeded list',
+    !!foundA && G.APARTMENT_NAMES.length === 6 && G.APARTMENT_NAMES.includes(foundA.b.name),
+    foundA ? foundA.b.name : 'none');
+  check('apart: placed instance band matches the seeded variant tag',
+    !!foundA && foundA.b.yOff === -((foundA.b.balconySide * 2 + (foundA.b.floors - 3)) * G.APART_BAND),
+    foundA ? 'yOff=' + foundA.b.yOff : 'none');
+  /* namespace precedence: a chunk where apartmentFor hits keeps the
+     earlier-namespace type (civic > casino > store > worship > apartment >
+     house); apartment never loses to a non-building */
+  {
+    let seen = 0, bad = 0;
+    const earlier = new Set(['church', 'mosque', 'store', 'casino', 'hospital', 'bank', 'hotel', 'school', 'barn']);
+    for (let gx = -60; gx <= 60 && bad === 0; gx++)
+      for (let gz = -60; gz <= 60 && bad === 0; gz++) {
+        if (G.apartmentFor(gx, gz) !== 'apartment') continue;
+        seen++;
+        const t = G.bldgTypeFor(gx, gz);
+        if (t !== 'apartment' && t !== 'house' && !earlier.has(t)) bad++;
+      }
+    check('apart: zero residue overlap vs worship/store/casino/civic over the scan window',
+      seen > 0 && bad === 0, 'seen=' + seen);
+  }
+
+  /* geometry: one fleet, eight Y-bands (2 floor tags x 4 balcony sides) */
+  check('apart: fleet geometry holds all eight Y-bands',
+    (() => {
+      const pos = G.BLDG_DEF.apartment.mesh.geometry.attributes.position;
+      let lo = 1e9, hi = -1e9;
+      for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < lo) lo = y; if (y > hi) hi = y; }
+      return lo < -6900 && hi > 10;
+    })());
+  /* Y-band lift: instance matrices ride the seeded band back to grade */
+  {
+    let liftOk = false, liftDetail = 'no apartment placed';
+    if (foundA) {
+      const ab = foundA.b;
+      G.redistributeBuildings(Math.floor(ab.x / 48), Math.floor(ab.z / 48));   // CHUNK = 48
+      const arr = G.BLDG.active.apartment;
+      liftDetail = 'apartment lost in redistribute';
+      if (arr.length > 0) {
+        const mesh = G.BLDG_DEF.apartment.mesh;
+        const m4 = new THREE.Matrix4();
+        liftOk = true;
+        for (let i = 0; i < arr.length; i++) {
+          const b = arr[i];
+          mesh.getMatrixAt(i, m4);
+          const my = m4.elements[13];
+          const want = b.y + (b.yOff || 0) * (b.sy !== undefined ? b.sy : 1);
+          if (Math.abs(my - want) > 0.01) { liftOk = false; liftDetail = 'slot ' + i + ' y=' + my.toFixed(2) + ' want=' + want.toFixed(2); break; }
+        }
+        if (liftOk) liftDetail = arr.length + ' apartment instances lifted';
+      }
+    }
+    check('apart: instance matrices lift by exactly the seeded Y-band', liftOk, liftDetail);
+  }
+  /* collider: the porch seat sits outside the foot collider, the hint fires
+     inside the hint radius (the civic v1 reachability class) */
+  {
+    const def = G.BLDG_DEF.apartment;
+    const wr = def.colliders[0][2];   // sx=sz=1 for apartments
+    check('apart: porch seat is outside the foot collider, hint radius inside the seat',
+      def.porch.seat > wr && def.porch.hint > wr && def.porch.hint < def.porch.seat + 1,
+      'seat=' + def.porch.seat + ' hint=' + def.porch.hint + ' collider=' + wr);
+  }
+
+  /* mechanics: synthetic apartment at the player (the ticker owns the real
+     redistribute; the seeded selection above proves the real placement) */
+  const cpx = G.player.position.x, cpz = G.player.position.z;
+  const synthApartment = () => {
+    G.BLDG.active.apartment.length = 0;
+    G.BLDG.active.apartment.push({ x: cpx + 3, z: cpz, y: groundY(cpx + 3, cpz), yaw: 0, gx: 0, gz: 0, name: 'MAPLE COURT APARTMENTS', type: 'apartment' });
+    /* stand 6.5u from the new block: inside the 7.5u hint radius, outside
+       the 5.4u foot collider. Synthetic buildings bypass redistributeBuildings,
+       so they add no foot colliders of their own. */
+    G.player.position.set(cpx + 3 + 6.5, groundY(cpx + 9.5, cpz), cpz);
+  };
+  const probsA0 = consoleProblems.length;
+  G.cash = 500; G.P.hp = 40;
+  synthApartment();
+  frame(3);
+  check('apart: LEASE hint shows near the block',
+    G.APARTMENT.hintOn === true && G.apthintEl.style.opacity == 1
+    && G.apthintEl.textContent.indexOf('LEASE') >= 0, G.apthintEl.textContent);
+  G.apartmentEnter();
+  check('apart: enter leases the unit: cash -$100, +50 HP, anchor set, state set',
+    G.APARTMENT.state === 'apartment' && G.APARTMENT.leased === true
+    && G.cash === 400 && G.P.hp === 90
+    && G.APARTMENT.respawnX === cpx + 3 && G.APARTMENT.respawnZ === cpz,
+    'cash=' + G.cash + ' hp=' + G.P.hp);
+  check('apart: chip reads HOME SET - NAME | E EXIT',
+    G.aptChipEl.style.display === 'block'
+    && G.aptChipEl.textContent === 'HOME SET - MAPLE COURT APARTMENTS | E EXIT', G.aptChipEl.textContent);
+  check('apart: lease toast confirms', G.toastEl.textContent === 'HOME SET', G.toastEl.textContent);
+  frame(3);
+  check('apart: the player stays frozen at the porch while inside',
+    Math.abs(G.player.position.x - G.APARTMENT.seatX) < 0.01 && Math.abs(G.player.position.z - G.APARTMENT.seatZ) < 0.01
+    && G.APARTMENT.state === 'apartment');
+
+  /* guards freeze locomotion, combat, melee, emotes while inside */
+  G.doPunch();
+  check('apart: melee is refused while inside', G.P.punchCd <= 0, 'punchCd=' + G.P.punchCd);
+  G.fireEmote('dance');
+  check('apart: emotes are refused while inside', G.EMO.key === null);
+  const fireCdA0 = G.fireCd;
+  G.shoot();
+  check('apart: firing is refused while inside', G.fireCd === fireCdA0);
+
+  /* exit: E (apartmentExit) frees the player, the lease flag chip stays */
+  G.apartmentExit();
+  check('apart: exit frees the player, lease flag chip stays',
+    G.APARTMENT.state === null && G.aptChipEl.style.display === 'block'
+    && G.aptChipEl.textContent === 'HOME SET', G.aptChipEl.textContent);
+  check('apart: exit toast reads ON FOOT', G.toastEl.textContent === 'ON FOOT');
+
+  /* insufficient funds: the door stays shut */
+  G.APARTMENT.leased = false; G.APARTMENT.leaseName = '';
+  G.APARTMENT.respawnX = null; G.APARTMENT.respawnZ = null;
+  G.cash = 50; G.P.hp = 40;
+  synthApartment(); frame(3);
+  G.apartmentEnter();
+  check('apart: insufficient funds refuse the lease, the player stays outside',
+    G.APARTMENT.state === null && G.APARTMENT.leased === false && G.cash === 50
+    && G.toastEl.textContent === 'NOT ENOUGH CASH', G.toastEl.textContent);
+
+  /* death/respawn: the leased anchor wins; the guard falls back to spawn */
+  G.cash = 500; G.P.hp = 40;
+  synthApartment(); frame(3);
+  G.apartmentEnter();   // leases again: anchor = cpx+3, cpz
+  G.apartmentExit();
+  G.P.dead = true; G.P.deadT = 0; G.P.hp = 0;
+  frame(100);   // past the 1.2s redeploy timer
+  check('apart: death redeploys at the leased anchor',
+    G.P.dead === false && Math.abs(G.player.position.x - (cpx + 3)) < 0.01 && Math.abs(G.player.position.z - cpz) < 0.01,
+    G.player.position.x.toFixed(1) + ',' + G.player.position.z.toFixed(1));
+  check('apart: enter/exit round trip leaves zero console errors/warnings',
+    consoleProblems.length === probsA0, consoleProblems.slice(probsA0).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
