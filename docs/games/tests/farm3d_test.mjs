@@ -32,7 +32,7 @@ check('farm-static: seeded PRNG only (Math.random lines 92 = 91 + 1 boat splash 
   'lines=' + (html.match(/^.*Math\.random.*$/gm) || []).length);
 {
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
-  check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh + 1 piano + 1 theater)', imCount === 48, 'count=' + imCount);
+  check('perf4: 48 IM literals after consolidation + 1 piano + 1 theater + 1 civic (50 - wingL/wingR merge - eLegs/eArms/copLegs merge - ballIM to Mesh + 1 piano + 1 theater; civic fleet rides the shared def-loop literal)', imCount === 48, 'count=' + imCount);
 }
 check('farm-static: single renderer.render call site',
   (html.match(/renderer\.render\(/g) || []).length === 1);
