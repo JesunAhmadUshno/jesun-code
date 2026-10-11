@@ -1834,8 +1834,23 @@ const WORLD = 220;   // legacy: landmark zones still use fixed coords near origi
    recycles around the player: far chunks teleport ahead and rebuild their
    heights from terrainHeight(), which is a pure function of world coords, so
    terrain is identical when you revisit. Zero allocation after init: each
-   chunk owns one BufferGeometry whose Y/color attributes are rewritten. */
+   chunk owns two BufferGeometries (the TERRAIN LOD v1 high and low bands)
+   whose Y/color attributes are rewritten in place. */
 const CHUNK = 48, GRID = 7, HALFGRID = 3, CSEG = 16;
+/* --- TERRAIN LOD v1: distance-banded chunk geometry. Chunks at Chebyshev
+   distance LOD_FAR_RING (3) or more from the player chunk build and render
+   from a low geometry (LOD_FAR_SEG 8 segments, 128 tris) instead of the
+   high geometry (CSEG 16 segments, 512 tris). The outer ring is 24 of the
+   49 chunks, so the banding saves 24 * (512 - 128) = 9216 tris of 25088 at
+   spawn (active total 15872). Fog far is 220 and a far chunk sits about
+   96m or more from the player chunk center, past the 90m raycaster range,
+   so the lower resolution is visual only: height, physics and raycast are
+   unaffected because gameplay height comes from the analytic
+   terrainHeight function and chunk meshes are never raycast targets.
+   Bands swap only inside updateTerrainChunks on chunk-border crossings,
+   never per frame, and a swap is always followed by buildChunk in the
+   same synchronous path, so no chunk ever renders unbuilt geometry. --- */
+const LOD_FAR_SEG = 8, LOD_FAR_RING = 3;
 /* --- procedural terrain detail: tileable grayscale grain over the vertex
    colors. Near-white base so the grass/dirt/rock tint survives the multiply;
    every blotch and speck is drawn 9x wrapped so the 256px tile is seamless
@@ -1933,6 +1948,20 @@ function paintTrainBed(c, pos, col) {
     }
   }
 }
+/* TERRAIN LOD v1: pure band rule. Band 0 is near (Chebyshev chunk distance
+   under LOD_FAR_RING), band 1 is far (the outer ring). No allocation, no RNG. */
+function chunkLodBand(cx, cz, pcx, pcz) {
+  return Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz)) < LOD_FAR_RING ? 0 : 1;
+}
+/* Point the chunk active geometry fields (read by buildChunk and
+   paintTrainBed) at the band geometry and swap the mesh to it. Never
+   builds: the caller always follows a swap with buildChunk. */
+function setChunkBand(c, band) {
+  c.band = band;
+  if (band === 1) { c.geo = c.geoLo; c.lx = c.lxLo; c.lz = c.lzLo; }
+  else { c.geo = c.geoHi; c.lx = c.lxHi; c.lz = c.lzHi; }
+  c.mesh.geometry = c.geo;
+}
 const chunkPool = [];
 function buildChunk(c) {
   const geo = c.geo, pos = geo.attributes.position, col = geo.attributes.color;
@@ -1961,12 +1990,22 @@ function buildChunk(c) {
       const lx = new Float32Array(n), lz = new Float32Array(n);
       for (let i = 0; i < n; i++) { lx[i] = p.getX(i); lz[i] = p.getZ(i); }
       geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      const geoLo = new THREE.PlaneGeometry(CHUNK, CHUNK, LOD_FAR_SEG, LOD_FAR_SEG);
+      geoLo.rotateX(-Math.PI / 2);
+      const pLo = geoLo.attributes.position, nLo = pLo.count;
+      const lxLo = new Float32Array(nLo), lzLo = new Float32Array(nLo);
+      for (let i = 0; i < nLo; i++) { lxLo[i] = pLo.getX(i); lzLo[i] = pLo.getZ(i); }
+      geoLo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nLo * 3), 3));
       const mesh = new THREE.Mesh(geo, chunkMat);
       mesh.receiveShadow = true;
       mesh.frustumCulled = true;
       scene.add(mesh);
-      const c = { mesh, geo, lx, lz, cx: gx, cz: gz };
+      const c = { mesh, geo, lx, lz, geoHi: geo, lxHi: lx, lzHi: lz, geoLo, lxLo, lzLo, band: 0, cx: gx, cz: gz };
       chunkPool.push(c);
+      /* the player object is not created yet at this point in the module,
+         so the spawn chunk (0,0) is the band anchor for the first build:
+         far chunks are built low from boot, never built high then swapped */
+      setChunkBand(c, chunkLodBand(gx, gz, 0, 0));
       buildChunk(c);
     }
   }
@@ -1983,7 +2022,10 @@ function updateTerrainChunks() {
     while (nx > pcx + HALFGRID) nx -= GRID;
     while (nz < pcz - HALFGRID) nz += GRID;
     while (nz > pcz + HALFGRID) nz -= GRID;
-    if (nx !== c.cx || nz !== c.cz) { c.cx = nx; c.cz = nz; buildChunk(c); }
+    const moved = nx !== c.cx || nz !== c.cz;
+    if (moved) { c.cx = nx; c.cz = nz; }
+    const band = chunkLodBand(nx, nz, pcx, pcz);
+    if (moved || band !== c.band) { setChunkBand(c, band); buildChunk(c); }
   }
   redistributeFlora(pcx, pcz);
   if (typeof redistributeWildDeer === 'function') redistributeWildDeer(pcx, pcz);
