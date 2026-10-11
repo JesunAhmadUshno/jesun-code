@@ -15488,8 +15488,10 @@ globalThis.__R3D2 = {
     html.includes('SKID MARKS v1'));
   check('skid: header states the extension honest limit (horse still lays no marks yet)',
     htmlNSk.includes('horse still lays no marks yet'));
-  check('skid: header states marks are flat quads at ground+0.03 so steep slopes may clip slightly',
-    htmlNSk.includes('marks are flat quads at ground+0.03 so steep slopes may clip slightly'));
+  check('skid: header states quads conform along their length via the two end heights, with the new lateral and ridge honest limit',
+    htmlNSk.includes('quads conform along their length via the two end heights')
+    && htmlNSk.includes('lateral slope across the track width (at most 0.32m) still uses the end height')
+    && htmlNSk.includes('a sharp ridge inside one 0.9m segment can still clip slightly'));
   check('skid: header states pooled ribbon with exactly one new Mesh and +1 draw call',
     htmlNSk.includes('one pooled ground ribbon') && htmlNSk.includes('Exactly one new Mesh: +1 draw call'));
   check('skid: skid system sits after clearDust and before the TRAUMA SHAKE header',
@@ -15709,11 +15711,11 @@ globalThis.__R3D2 = {
   check('skidmoto: header no longer states the old car-only limit',
     !htmlNSm.includes('car only in v1, other vehicles do not lay marks yet'));
   /* source: writer signature, separate state and the single-track step */
-  check('skidmoto: skidWriteQuad source gains halfW defaulting to 0.14',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){'));
-  check('skidmoto: car skidWriteQuad calls stay unchanged (no halfW argument, default width)',
-    html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y);')
-    && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y);'));
+  check('skidmoto: skidWriteQuad source gains halfW defaulting to 0.14 and prevY defaulting to y',
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+  check('skidmoto: car skidWriteQuad calls carry explicit 0.14 and skidPrevY',
+    html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y, 0.14, skidPrevY);')
+    && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y, 0.14, skidPrevY);'));
   check('skidmoto: source declares the separate single-track state (skid1Prev, skid1Px, skid1Pz, skid1Cx, skid1Cz)',
     html.includes('let skid1Prev = null;')
     && html.includes('let skid1Px = 0, skid1Pz = 0, skid1Cx = 0, skid1Cz = 0;'));
@@ -15733,7 +15735,7 @@ globalThis.__R3D2 = {
     && segStep1Sm.includes('if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;'));
   check('skidmoto: skidStep1 source writes exactly ONE quad with half-width 0.06',
     segStep1Sm.split('skidWriteQuad(').length - 1 === 1
-    && segStep1Sm.includes('skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06);'),
+    && segStep1Sm.includes('skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06, skid1PrevY);'),
     'writes=' + (segStep1Sm.split('skidWriteQuad(').length - 1));
   check('skidmoto: skidStep1 source flags both attributes for update after a write',
     segStep1Sm.includes('skidPosAttr.needsUpdate = true;') && segStep1Sm.includes('skidColAttr.needsUpdate = true;'));
@@ -15934,13 +15936,13 @@ globalThis.__R3D2 = {
   check('skidbike: header no longer states the old honest limit with bicycle',
     !htmlNSb.includes('bus, fire truck, bicycle, scooter and horse still lay no marks yet'));
   /* source: writer signature, separate state and the single-track step */
-  check('skidbike: skidWriteQuad source keeps halfW defaulting to 0.14',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){'));
-  check('skidbike: car skidWriteQuad calls stay unchanged (no halfW argument, default width)',
-    html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y);')
-    && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y);'));
-  check('skidbike: motorcycle skidWriteQuad call stays unchanged (half-width 0.06)',
-    html.includes('skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06);'));
+  check('skidbike: skidWriteQuad source keeps halfW defaulting to 0.14 and prevY defaulting to y',
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+  check('skidbike: car skidWriteQuad calls carry explicit 0.14 and skidPrevY',
+    html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y, 0.14, skidPrevY);')
+    && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y, 0.14, skidPrevY);'));
+  check('skidbike: motorcycle skidWriteQuad call carries half-width 0.06 and skid1PrevY',
+    html.includes('skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06, skid1PrevY);'));
   check('skidbike: source declares the separate single-track state (skid2Prev, skid2Px, skid2Pz, skid2Cx, skid2Cz)',
     html.includes('let skid2Prev = null;')
     && html.includes('let skid2Px = 0, skid2Pz = 0, skid2Cx = 0, skid2Cz = 0;'));
@@ -15960,7 +15962,7 @@ globalThis.__R3D2 = {
     && segStep2Sb.includes('if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;'));
   check('skidbike: skidStep2 source writes exactly ONE quad with half-width 0.04',
     segStep2Sb.split('skidWriteQuad(').length - 1 === 1
-    && segStep2Sb.includes('skidWriteQuad(skid2Px, skid2Pz, rx, rz, lx, lz, y, 0.04);'),
+    && segStep2Sb.includes('skidWriteQuad(skid2Px, skid2Pz, rx, rz, lx, lz, y, 0.04, skid2PrevY);'),
     'writes=' + (segStep2Sb.split('skidWriteQuad(').length - 1));
   check('skidbike: skidStep2 source flags both attributes for update after a write',
     segStep2Sb.includes('skidPosAttr.needsUpdate = true;') && segStep2Sb.includes('skidColAttr.needsUpdate = true;'));
@@ -16183,15 +16185,15 @@ globalThis.__R3D2 = {
   check('skidscoot: header no longer states the old honest limit with scooter',
     !htmlNSs.includes('bus, fire truck, scooter and horse still lay no marks yet'));
   /* source: writer signature, separate state and the single-track step */
-  check('skidscoot: skidWriteQuad source keeps halfW defaulting to 0.14',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){'));
-  check('skidscoot: car skidWriteQuad calls stay unchanged (no halfW argument, default width)',
-    html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y);')
-    && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y);'));
-  check('skidscoot: motorcycle skidWriteQuad call stays unchanged (half-width 0.06)',
-    html.includes('skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06);'));
-  check('skidscoot: bicycle skidWriteQuad call stays unchanged (half-width 0.04)',
-    html.includes('skidWriteQuad(skid2Px, skid2Pz, rx, rz, lx, lz, y, 0.04);'));
+  check('skidscoot: skidWriteQuad source keeps halfW defaulting to 0.14 and prevY defaulting to y',
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+  check('skidscoot: car skidWriteQuad calls carry explicit 0.14 and skidPrevY',
+    html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y, 0.14, skidPrevY);')
+    && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y, 0.14, skidPrevY);'));
+  check('skidscoot: motorcycle skidWriteQuad call carries half-width 0.06 and skid1PrevY',
+    html.includes('skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06, skid1PrevY);'));
+  check('skidscoot: bicycle skidWriteQuad call carries half-width 0.04 and skid2PrevY',
+    html.includes('skidWriteQuad(skid2Px, skid2Pz, rx, rz, lx, lz, y, 0.04, skid2PrevY);'));
   check('skidscoot: source declares the separate single-track state (skid3Prev, skid3Px, skid3Pz, skid3Cx, skid3Cz)',
     html.includes('let skid3Prev = null;')
     && html.includes('let skid3Px = 0, skid3Pz = 0, skid3Cx = 0, skid3Cz = 0;'));
@@ -16211,7 +16213,7 @@ globalThis.__R3D2 = {
     && segStep3Ss.includes('if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;'));
   check('skidscoot: skidStep3 source writes exactly ONE quad with half-width 0.05',
     segStep3Ss.split('skidWriteQuad(').length - 1 === 1
-    && segStep3Ss.includes('skidWriteQuad(skid3Px, skid3Pz, rx, rz, lx, lz, y, 0.05);'),
+    && segStep3Ss.includes('skidWriteQuad(skid3Px, skid3Pz, rx, rz, lx, lz, y, 0.05, skid3PrevY);'),
     'writes=' + (segStep3Ss.split('skidWriteQuad(').length - 1));
   check('skidscoot: skidStep3 source flags both attributes for update after a write',
     segStep3Ss.includes('skidPosAttr.needsUpdate = true;') && segStep3Ss.includes('skidColAttr.needsUpdate = true;'));
@@ -16478,17 +16480,17 @@ globalThis.__R3D2 = {
   check('skidbus: header no longer states the old honest limit with bus and fire truck',
     !htmlNBd.includes('bus, fire truck and horse still lay no marks yet'));
   /* source: writer signature and the unchanged earlier writer calls */
-  check('skidbus: skidWriteQuad source keeps halfW defaulting to 0.14',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){'));
-  check('skidbus: car skidWriteQuad calls stay unchanged (no halfW argument, default width)',
-    html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y);')
-    && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y);'));
-  check('skidbus: motorcycle skidWriteQuad call stays unchanged (half-width 0.06)',
-    html.includes('skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06);'));
-  check('skidbus: bicycle skidWriteQuad call stays unchanged (half-width 0.04)',
-    html.includes('skidWriteQuad(skid2Px, skid2Pz, rx, rz, lx, lz, y, 0.04);'));
-  check('skidbus: scooter skidWriteQuad call stays unchanged (half-width 0.05)',
-    html.includes('skidWriteQuad(skid3Px, skid3Pz, rx, rz, lx, lz, y, 0.05);'));
+  check('skidbus: skidWriteQuad source keeps halfW defaulting to 0.14 and prevY defaulting to y',
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+  check('skidbus: car skidWriteQuad calls carry explicit 0.14 and skidPrevY',
+    html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y, 0.14, skidPrevY);')
+    && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y, 0.14, skidPrevY);'));
+  check('skidbus: motorcycle skidWriteQuad call carries half-width 0.06 and skid1PrevY',
+    html.includes('skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06, skid1PrevY);'));
+  check('skidbus: bicycle skidWriteQuad call carries half-width 0.04 and skid2PrevY',
+    html.includes('skidWriteQuad(skid2Px, skid2Pz, rx, rz, lx, lz, y, 0.04, skid2PrevY);'));
+  check('skidbus: scooter skidWriteQuad call carries half-width 0.05 and skid3PrevY',
+    html.includes('skidWriteQuad(skid3Px, skid3Pz, rx, rz, lx, lz, y, 0.05, skid3PrevY);'));
   /* source: dual-track state and steps for bus (skidStep4) */
   check('skidbus: source declares the bus dual-track state (skid4Prev, skid4PLx, skid4PLz, skid4PRx, skid4PRz, skid4PCx, skid4PCz)',
     html.includes('let skid4Prev = null;')
@@ -16519,9 +16521,9 @@ globalThis.__R3D2 = {
   check('skidbus: skidStep4 source writes exactly TWO quads',
     segStep4Bd.split('skidWriteQuad(').length - 1 === 2,
     'writes=' + (segStep4Bd.split('skidWriteQuad(').length - 1));
-  check('skidbus: skidStep4 source writes the left and right quads with half-width 0.16',
-    segStep4Bd.includes('skidWriteQuad(skid4PLx, skid4PLz, leftX, leftZ, lx, lz, y, 0.16);')
-    && segStep4Bd.includes('skidWriteQuad(skid4PRx, skid4PRz, rightX, rightZ, lx, lz, y, 0.16);'));
+  check('skidbus: skidStep4 source writes the left and right quads with half-width 0.16 and skid4PrevY',
+    segStep4Bd.includes('skidWriteQuad(skid4PLx, skid4PLz, leftX, leftZ, lx, lz, y, 0.16, skid4PrevY);')
+    && segStep4Bd.includes('skidWriteQuad(skid4PRx, skid4PRz, rightX, rightZ, lx, lz, y, 0.16, skid4PrevY);'));
   check('skidbus: skidStep4 source flags both attributes for update after a write',
     segStep4Bd.includes('skidPosAttr.needsUpdate = true;') && segStep4Bd.includes('skidColAttr.needsUpdate = true;'));
   check('skidbus: skidReset4 source is exact (clears only skid4Prev)',
@@ -16544,9 +16546,9 @@ globalThis.__R3D2 = {
   check('skidbus: skidStep5 source writes exactly TWO quads',
     segStep5Bd.split('skidWriteQuad(').length - 1 === 2,
     'writes=' + (segStep5Bd.split('skidWriteQuad(').length - 1));
-  check('skidbus: skidStep5 source writes the left and right quads with half-width 0.15',
-    segStep5Bd.includes('skidWriteQuad(skid5PLx, skid5PLz, leftX, leftZ, lx, lz, y, 0.15);')
-    && segStep5Bd.includes('skidWriteQuad(skid5PRx, skid5PRz, rightX, rightZ, lx, lz, y, 0.15);'));
+  check('skidbus: skidStep5 source writes the left and right quads with half-width 0.15 and skid5PrevY',
+    segStep5Bd.includes('skidWriteQuad(skid5PLx, skid5PLz, leftX, leftZ, lx, lz, y, 0.15, skid5PrevY);')
+    && segStep5Bd.includes('skidWriteQuad(skid5PRx, skid5PRz, rightX, rightZ, lx, lz, y, 0.15, skid5PrevY);'));
   check('skidbus: skidStep5 source flags both attributes for update after a write',
     segStep5Bd.includes('skidPosAttr.needsUpdate = true;') && segStep5Bd.includes('skidColAttr.needsUpdate = true;'));
   check('skidbus: skidReset5 source is exact (clears only skid5Prev)',
