@@ -127,6 +127,7 @@ export function installStubs() {
       return { getChannelData() { return new Float32Array(n); }, duration: n / 44100 };
     }
     createBufferSource() { return audioNode(); }
+    createStereoPanner() { const n = audioNode(); n.pan = audioParam(); return n; }
     resume() { return Promise.resolve(); }
   }
 

@@ -4740,6 +4740,45 @@ function ac() {
   if (AC && AC.state === 'suspended') AC.resume();
   return AC;
 }
+/* --- POSITIONAL STEREO-PAN POOL v1: cheap StereoPanner, not HRTF.
+       Pan is the dot of the normalized source direction with the camera
+       screen-right in XZ; gain falls linearly past PAN_NEAR and sounds
+       at or past PAN_RANGE are culled before any node is created.
+       Screen-right is (-cos(camYaw), sin(camYaw)): at camYaw 0 the camera
+       sits at -Z looking toward +Z, so world +X is screen left.
+       posPan reads player and camYaw only at call time (both are declared
+       later in the file; every caller runs after full module eval, the
+       same closure pattern as the existing systems). --- */
+const PAN_NEAR = 8;
+const PAN_RANGE = 60;
+const _panOut = { pan: 0, gain: 1 };
+function posPan(x, z, out) {
+  const o = out || _panOut;
+  const dx = x - player.position.x, dz = z - player.position.z;
+  const dist = Math.hypot(dx, dz);
+  o.gain = dist <= PAN_NEAR ? 1 : dist >= PAN_RANGE ? 0 : 1 - (dist - PAN_NEAR) / (PAN_RANGE - PAN_NEAR);
+  if (dist < 0.001) o.pan = 0;
+  else {
+    const dot = (dx / dist) * (-Math.cos(camYaw)) + (dz / dist) * Math.sin(camYaw);
+    o.pan = Math.max(-1, Math.min(1, dot));
+  }
+  return o;
+}
+/* Pooled panners, created lazily and reused round-robin. V1 tradeoff:
+   overlapping sounds that share a pooled node take the newest pan. */
+const PAN_POOL = [];
+let PAN_POOL_I = 0;
+function panDest(panValue) {
+  const a = ac(); if (!a) return null;
+  if (typeof a.createStereoPanner !== 'function') return a.destination;
+  if (PAN_POOL.length === 0) {
+    for (let i = 0; i < 4; i++) { const pn = a.createStereoPanner(); pn.connect(a.destination); PAN_POOL.push(pn); }
+  }
+  const node = PAN_POOL[PAN_POOL_I];
+  PAN_POOL_I = (PAN_POOL_I + 1) % PAN_POOL.length;
+  node.pan.value = panValue;
+  return node;
+}
 function sfxShot() {
   const a = ac(); if (!a) return;
   const dur = 0.16, n = Math.floor(a.sampleRate * dur);
@@ -4759,25 +4798,47 @@ function sfxShot() {
   g2.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.14);
   o.connect(g2); g2.connect(a.destination); o.start(); o.stop(a.currentTime + 0.15);
 }
-function sfxBlip(freq, dur, type, vol) {
-  const a = ac(); if (!a) return;
+/* shared blip voice: one synth body for the centered and the
+   positional variant, so the node counts exist exactly once */
+function blipVoice(a, freq, dur, type, vol, dest) {
   const o = a.createOscillator(); o.type = type; o.frequency.value = freq;
   const g = a.createGain();
   g.gain.setValueAtTime(vol, a.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
-  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + dur + 0.02);
+  o.connect(g); g.connect(dest); o.start(); o.stop(a.currentTime + dur + 0.02);
+}
+function sfxBlip(freq, dur, type, vol) {
+  const a = ac(); if (!a) return;
+  blipVoice(a, freq, dur, type, vol, a.destination);
+}
+function sfxBlipAt(freq, dur, type, vol, x, z) {
+  const pp = posPan(x, z, _panOut); if (pp.gain <= 0) return;
+  const panV = pp.pan, gainV = pp.gain;
+  const a = ac(); if (!a) return;
+  blipVoice(a, freq, dur, type, vol * gainV, panDest(panV));
 }
 const sfxHit = () => sfxBlip(1350, 0.07, 'square', 0.18);
 const sfxHurt = () => sfxBlip(95, 0.22, 'sine', 0.6);
-function sfxDie() {
-  const a = ac(); if (!a) return;
+/* shared death voice: one synth body for the centered and the
+   positional variant, so the node counts exist exactly once */
+function dieVoice(a, vol, dest) {
   const o = a.createOscillator(); o.type = 'sawtooth';
   o.frequency.setValueAtTime(320, a.currentTime);
   o.frequency.exponentialRampToValueAtTime(70, a.currentTime + 0.3);
   const g = a.createGain();
-  g.gain.setValueAtTime(0.3, a.currentTime);
+  g.gain.setValueAtTime(vol, a.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.32);
-  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + 0.34);
+  o.connect(g); g.connect(dest); o.start(); o.stop(a.currentTime + 0.34);
+}
+function sfxDie() {
+  const a = ac(); if (!a) return;
+  dieVoice(a, 0.3, a.destination);
+}
+function sfxDieAt(x, z) {
+  const pp = posPan(x, z, _panOut); if (pp.gain <= 0) return;
+  const panV = pp.pan, gainV = pp.gain;
+  const a = ac(); if (!a) return;
+  dieVoice(a, 0.3 * gainV, panDest(panV));
 }
 /* --- procedural WebAudio: punch thud (no files) --- */
 function sfxPunch() {
@@ -4824,8 +4885,9 @@ function sfxPunchConnect(heavy) {
 }
 /* --- enemy audio: telegraph warning chirp, distant enemy gunshot, brute slam (all procedural) --- */
 const sfxTelegraph = () => sfxBlip(520, 0.14, 'square', 0.22);
-function sfxEnemyShot() {
-  const a = ac(); if (!a) return;
+/* shared enemy-shot voice: one synth body for the centered and the
+   positional variant, so the noise loop exists exactly once */
+function enemyShotVoice(a, gainV, dest) {
   const dur = 0.2, n = Math.floor(a.sampleRate * dur);
   const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.5); }
@@ -4833,25 +4895,46 @@ function sfxEnemyShot() {
   const f = a.createBiquadFilter(); f.type = 'lowpass';
   f.frequency.setValueAtTime(1800, a.currentTime);
   f.frequency.exponentialRampToValueAtTime(200, a.currentTime + dur);
-  const g = a.createGain(); g.gain.value = 0.22;   // quieter: the shot is far away
-  s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+  const g = a.createGain(); g.gain.value = gainV;
+  s.connect(f); f.connect(g); g.connect(dest); s.start();
 }
-function sfxSlam() {
+function sfxEnemyShot() {
   const a = ac(); if (!a) return;
+  enemyShotVoice(a, 0.22, a.destination);   // 0.22: quieter, the shot is far away
+}
+function sfxEnemyShotAt(x, z) {
+  const pp = posPan(x, z, _panOut); if (pp.gain <= 0) return;
+  const panV = pp.pan, gainV = pp.gain;
+  const a = ac(); if (!a) return;
+  enemyShotVoice(a, 0.22 * gainV, panDest(panV));
+}
+/* shared slam voice: one synth body for the centered and the
+   positional variant, so the noise loop exists exactly once */
+function slamVoice(a, gainV, dest) {
   const dur = 0.35, n = Math.floor(a.sampleRate * dur);
   const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < n; i++) { const t = i / n; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3); }
   const s = a.createBufferSource(); s.buffer = buf;
   const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 260;
-  const g = a.createGain(); g.gain.value = 0.6;
-  s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+  const g = a.createGain(); g.gain.value = 0.6 * gainV;
+  s.connect(f); f.connect(g); g.connect(dest); s.start();
   const o = a.createOscillator(); o.type = 'sine';
   o.frequency.setValueAtTime(70, a.currentTime);
   o.frequency.exponentialRampToValueAtTime(30, a.currentTime + 0.3);
   const g2 = a.createGain();
-  g2.gain.setValueAtTime(0.5, a.currentTime);
+  g2.gain.setValueAtTime(0.5 * gainV, a.currentTime);
   g2.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.32);
-  o.connect(g2); g2.connect(a.destination); o.start(); o.stop(a.currentTime + 0.34);
+  o.connect(g2); g2.connect(dest); o.start(); o.stop(a.currentTime + 0.34);
+}
+function sfxSlam() {
+  const a = ac(); if (!a) return;
+  slamVoice(a, 1, a.destination);
+}
+function sfxSlamAt(x, z) {
+  const pp = posPan(x, z, _panOut); if (pp.gain <= 0) return;
+  const panV = pp.pan, gainV = pp.gain;
+  const a = ac(); if (!a) return;
+  slamVoice(a, gainV, panDest(panV));
 }
 /* ================= EMOTES (Phase 5) =================
    One-shot emote overlay layers on the procedural skeleton. Per-frame priority
@@ -5570,7 +5653,7 @@ function damageEnemy(e, d) {
     addTrauma(e.type === 'brute' ? 0.30 : e.type === 'shooter' ? 0.22 : 0.18);
     /* enemy variety reward: brutes pay best, shooters mid, rushers base */
     const pay = e.type === 'brute' ? 60 : e.type === 'shooter' ? 35 : 25;
-    kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type, pay);
+    kills++; sfxDieAt(e.group.position.x, e.group.position.z); updateCombatHUD(); missionOnKill(e.type, pay);
     toast('HOSTILE DOWN +$' + pay); addHeat(1);
   } else sfxHit();
   /* DAMAGE NUMBERS v1: one pooled floater per hit, gold on the killing blow */
@@ -5790,7 +5873,7 @@ function enemyShoot(e) {
     ? new THREE.Vector3(player.position.x, player.position.y + 1.3, player.position.z)
     : new THREE.Vector3(e.lastKnown.x, gp.y + 1.0, e.lastKnown.z);
   fireTracer(from, to);
-  sfxEnemyShot();
+  sfxEnemyShotAt(gp.x, gp.z);
   enemyMuzzle.position.set(gp.x, gp.y + 1.6, gp.z);
   enemyMuzzle.intensity = 22;                       // decays in the main loop
   e.poseT = 0.3;                                  // gun-raise recoil pose
@@ -5836,7 +5919,7 @@ function rusherAI(e, dt, now, dist, dx, dz) {
     else { r.spd = e.cfg.chase; r.mvx = nx; r.mvz = nz; }
     if (e.live && dist < 12 && e.attackCd <= 0) {
       e.state = 'dashwind'; e.windT = 0.4;       // 0.4s readable telegraph
-      sfxTelegraph();
+      sfxBlipAt(520, 0.14, 'square', 0.22, gp.x, gp.z);
     }
   }
   return r;
@@ -6058,7 +6141,7 @@ function shooterAI(e, dt, now, dist, dx, dz) {
     if (e.live && e.attackCd <= 0 && dist < 30) {
       e.state = 'aim'; e.windT = 0.6;         // 0.6s readable telegraph
       enemyAimLine.visible = true;
-      sfxTelegraph();
+      sfxBlipAt(520, 0.14, 'square', 0.22, gp.x, gp.z);
     }
   }
   return r;
@@ -6079,7 +6162,7 @@ function bruteAI(e, dt, now, dist, dx, dz) {
     enemyRing.position.set(gp.x, terrainHeight(gp.x, gp.z) + 0.12, gp.z);
     if (e.windT <= 0) {
       hideTelegraph(e);
-      sfxSlam();
+      sfxSlamAt(gp.x, gp.z);
       if (e.live && dist < 2.8) {
         hurtPlayer(25);
         P.vel.x += nx * 14; P.vel.z += nz * 14;  // knockback away from the brute
@@ -6093,7 +6176,7 @@ function bruteAI(e, dt, now, dist, dx, dz) {
     if (e.live && dist < 2.6 && e.attackCd <= 0) {
       e.state = 'slamwind'; e.windT = 0.7;      // 0.7s readable telegraph
       enemyRing.visible = true;
-      sfxTelegraph();
+      sfxBlipAt(520, 0.14, 'square', 0.22, gp.x, gp.z);
     }
   }
   return r;
@@ -6464,7 +6547,7 @@ function damageCop(idx, d) {
     copAimLine.visible = false;
     kills++; updateCombatHUD();
     missionOnKill('cop', 0);
-    sfxDie();
+    sfxDieAt(c.group.position.x, c.group.position.z);
     const before = W.heat;
     addHeat(2);
     if (W.heat === before) toast('COP DOWN');
