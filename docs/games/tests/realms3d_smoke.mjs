@@ -13033,9 +13033,10 @@ globalThis.__R3D2 = {
     && html.includes("sh.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = size * aSize;');"));
   {
     const segSS = html.indexOf('function spawnDust') >= 0 ? html.slice(html.indexOf('function spawnDust'), html.indexOf('function dustTick')) : '';
+    /* superseded by PER-SURFACE DUST SIZE v1: the base line now scales by sizeF */
     check('dustsize: spawnDust source derives base from jit and writes size at base * 0.6',
       segSS.includes('const norm = (jit - 0.88) / 0.24;')
-      && segSS.includes('const sizeBase = 0.75 + norm * 0.5;')
+      && segSS.includes('const sizeBase = (0.75 + norm * 0.5) * sizeF;')
       && segSS.includes('dustSizeBase[slot] = sizeBase;')
       && segSS.includes('dustSize[slot] = sizeBase * 0.6;'));
     check('dustsize: spawnDust source flags the aSize attribute needsUpdate',
@@ -13095,8 +13096,9 @@ globalThis.__R3D2 = {
     const v0S = G.dustPts.geometry.attributes.aSize.version;
     if (grassS) G.spawnDust(grassS.x, 1, grassS.z, 5);
     slotsS = liveS();
+    /* superseded by PER-SURFACE DUST SIZE v1: this spawn is on grass (sizeF 1.15), so the raw 0.75..1.25 range scales to 0.8625..1.4375 */
     check('dustsize: spawn writes base in 0.75..1.25 for every live particle',
-      slotsS.length === 10 && slotsS.every(i => G.dustSizeBase[i] >= 0.75 - 1e-6 && G.dustSizeBase[i] <= 1.25 + 1e-6),
+      slotsS.length === 10 && slotsS.every(i => G.dustSizeBase[i] >= 0.75 * 1.15 - 1e-6 && G.dustSizeBase[i] <= 1.25 * 1.15 + 1e-6),
       'live=' + slotsS.length);
     check('dustsize: spawn writes size == base * 0.6 within 1e-6 for every live particle',
       slotsS.length === 10 && slotsS.every(i => approxS(G.dustSize[i], G.dustSizeBase[i] * 0.6, 1e-6)));
@@ -13301,8 +13303,9 @@ globalThis.__R3D2 = {
       waterRecGr.grow.every(v => approxGr(v, -0.2, 1e-6)), 'grow=' + waterRecGr.grow.join(','));
     check('dustgrow: water spawn keeps birth size at base * 0.6 within 1e-6',
       waterRecGr.size.every((v, k) => approxGr(v, waterRecGr.base[k] * 0.6, 1e-6)));
+    /* superseded by PER-SURFACE DUST SIZE v1: paired bases no longer match exactly; water base is grass base times (0.60 / 1.15) */
     check('dustgrow: paired same-seed water bases match the grass bases exactly',
-      !!grassRecGr && waterRecGr.base.every((v, k) => v === grassRecGr.base[k]));
+      !!grassRecGr && waterRecGr.base.every((v, k) => approxGr(v, grassRecGr.base[k] * (0.60 / 1.15), 1e-6)));
     waterSpawnGr = waterRecGr.size.slice();
     G.dustTick(0.05);
     const liveWaterGr = liveGr();
@@ -13710,7 +13713,8 @@ globalThis.__R3D2 = {
   {
     let grassSizeP = null, rockSizeP = null, pairedBaseP = false;
     if (foundP.grass) { const r = spawnRecP(foundP.grass); G.dustTick(0.05); grassSizeP = r.slots.map(s => G.dustSize[s]); }
-    if (foundP.rock) { const r = spawnRecP(foundP.rock); G.dustTick(0.05); rockSizeP = r.slots.map(s => G.dustSize[s]); pairedBaseP = !!recsP.rock && !!recsP.grass && r.base.every((v, k) => v === recsP.grass.base[k]); }
+    /* superseded by PER-SURFACE DUST SIZE v1: paired bases are no longer equal; rock base is grass base times (0.70 / 1.15) */
+    if (foundP.rock) { const r = spawnRecP(foundP.rock); G.dustTick(0.05); rockSizeP = r.slots.map(s => G.dustSize[s]); pairedBaseP = !!recsP.rock && !!recsP.grass && r.base.every((v, k) => approxP(v, recsP.grass.base[k] * (0.70 / 1.15), 1e-6)); }
     check('dustprof: at the same life fraction rock size grows less than paired grass size',
       !!grassSizeP && !!rockSizeP && pairedBaseP && rockSizeP.every((v, k) => v < grassSizeP[k]),
       'rock=' + (rockSizeP && rockSizeP[0]) + ' grass=' + (grassSizeP && grassSizeP[0]));
@@ -14182,6 +14186,177 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustlaunch: the run leaves zero console errors/warnings',
     consoleProblems.length === probsLa, consoleProblems.slice(probsLa).join(' | '));
+}
+
+
+/* ================= PER-SURFACE DUST SIZE v1 =================
+   Base particle size is now a full per-surface profile table.
+   spawnDust selects sizeF in one if and else-if chain after
+   the rampF chain: grass 1.15, dirt 1 (the old default,
+   behavior byte-equivalent), rock 0.70, gravel 0.85 and
+   water 0.60, with any other surface falling back to 1. The
+   scale applies at the existing size derivation:
+   sizeBase = (0.75 + norm * 0.5) * sizeF, stored in the
+   existing dustSizeBase array, with birth size still
+   scaledBase * 0.6 and birth alpha still 0. No new arrays:
+   the profile is now seven scalars per surface (grow, ramp,
+   grav, drag, radialScale, upScale, sizeScale); the only
+   remaining globals are the material size 0.4, opacity 0.55
+   and sizeAttenuation itself. The dustRand order and count
+   per particle stay exactly four, dustTick already reads
+   dustSizeBase and clearDust still resets it to 1. No new
+   Points, draw calls or nodes. */
+{
+  const probsSz = consoleProblems.length;
+  const approxSz = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveSz = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
+  const linesSz = html.split('\n');
+  const lineHasSz = sub => linesSz.filter(l => l.includes(sub)).length;
+  /* source: header and the full size table in spawnDust */
+  check('dustsurfsize: source carries the PER-SURFACE DUST SIZE v1 header',
+    html.includes('PER-SURFACE DUST SIZE v1'));
+  {
+    const segSSz = html.indexOf('function spawnDust') >= 0 ? html.slice(html.indexOf('function spawnDust'), html.indexOf('function dustTick')) : '';
+    check('dustsurfsize: spawnDust source carries the grass size line (sizeF 1.15)',
+      segSSz.includes("if (surf === 'grass') { sizeF = 1.15; }"));
+    check('dustsurfsize: spawnDust source carries the dirt size line (sizeF 1)',
+      segSSz.includes("else if (surf === 'dirt') { sizeF = 1; }"));
+    check('dustsurfsize: spawnDust source carries the rock size line (sizeF 0.70)',
+      segSSz.includes("else if (surf === 'rock') { sizeF = 0.70; }"));
+    check('dustsurfsize: spawnDust source carries the gravel size line (sizeF 0.85)',
+      segSSz.includes("else if (surf === 'gravel') { sizeF = 0.85; }"));
+    check('dustsurfsize: spawnDust source carries the water size line (sizeF 0.60)',
+      segSSz.includes("else if (surf === 'water') { sizeF = 0.60; }"));
+    check('dustsurfsize: spawnDust source keeps the fallback default (sizeF 1)',
+      segSSz.includes('let sizeF = 1;'));
+    check('dustsurfsize: spawnDust source applies sizeF at the size derivation and keeps birth size at scaled base * 0.6',
+      segSSz.includes('const sizeBase = (0.75 + norm * 0.5) * sizeF;')
+      && segSSz.includes('dustSizeBase[slot] = sizeBase;')
+      && segSSz.includes('dustSize[slot] = sizeBase * 0.6;'));
+    const segTSz = html.indexOf('function dustTick') >= 0 ? html.slice(html.indexOf('function dustTick'), html.indexOf('function clearDust')) : '';
+    const segCSz = html.indexOf('function clearDust') >= 0 ? html.slice(html.indexOf('function clearDust'), html.indexOf('function clearDust') + 500) : '';
+    check('dustsurfsize: dustTick source still reads dustSizeBase and clearDust source still resets it to the neutral 1',
+      segTSz.includes('dustSize[i] = dustSizeBase[i] * growth;')
+      && segCSz.includes('dustSize[i] = 0; dustSizeBase[i] = 1;'));
+  }
+  /* probe one location per surface from the classifier itself */
+  const foundSz = {};
+  for (let x = -360; x <= 360 && Object.keys(foundSz).length < 5; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      const surf = G.surfaceAt(x, z);
+      if ((surf === 'grass' || surf === 'dirt' || surf === 'rock' || surf === 'gravel' || surf === 'water') && !foundSz[surf]) foundSz[surf] = { x, z };
+      if (Object.keys(foundSz).length >= 5) break;
+    }
+  }
+  check('dustsurfsize: probe finds grass, dirt, rock and gravel locations',
+    !!foundSz.grass && !!foundSz.dirt && !!foundSz.rock && !!foundSz.gravel,
+    JSON.stringify(foundSz));
+  check('dustsurfsize: probe finds a water location', !!foundSz.water, JSON.stringify(foundSz.water || null));
+  /* deterministic spawn recorder: same seed, slots in spawn order; paired spawns share the raw dustRand rolls, so per-particle base sizes differ only by sizeF */
+  const spawnRecSz = (loc) => {
+    G.clearDust(); G.dustSeed = 987654321;
+    const head = G.dustHead;
+    G.spawnDust(loc.x, 1, loc.z, 5);
+    const slots = [];
+    for (let n = 0; n < 10; n++) slots.push((head + n) % G.DUST_N);
+    return {
+      slots,
+      base: slots.map(s => G.dustSizeBase[s]),
+      size: slots.map(s => G.dustSize[s]),
+      alpha: slots.map(s => G.dustCol[s * 4 + 3]),
+      live: liveSz().length,
+    };
+  };
+  const profSz = { grass: 1.15, dirt: 1, rock: 0.70, gravel: 0.85, water: 0.60 };
+  const recsSz = {};
+  for (const surf of Object.keys(profSz)) if (foundSz[surf]) recsSz[surf] = spawnRecSz(foundSz[surf]);
+  for (const surf of Object.keys(profSz)) {
+    const rec = recsSz[surf];
+    const dirt = recsSz.dirt;
+    check('dustsurfsize: ' + surf + ' spawn bursts exactly 10 and scales paired dirt base sizes by sizeF ' + profSz[surf] + ' for every live slot',
+      !!rec && !!dirt && rec.live === 10
+      && rec.base.every((v, k) => approxSz(v, dirt.base[k] * profSz[surf], 1e-5)),
+      'live=' + (rec && rec.live) + ' base0=' + (rec && rec.base[0]));
+  }
+  for (const surf of Object.keys(profSz)) {
+    const rec = recsSz[surf];
+    check('dustsurfsize: ' + surf + ' base sizes sit in the scaled raw range ' + (0.75 * profSz[surf]) + '..' + (1.25 * profSz[surf]),
+      !!rec && rec.base.every(v => v >= 0.75 * profSz[surf] - 1e-6 && v <= 1.25 * profSz[surf] + 1e-6),
+      'base0=' + (rec && rec.base[0]));
+  }
+  check('dustsurfsize: dirt raw base range is unchanged (0.75..1.25 pre-growth)',
+    !!recsSz.dirt && recsSz.dirt.base.every(v => v >= 0.75 - 1e-6 && v <= 1.25 + 1e-6),
+    'base0=' + (recsSz.dirt && recsSz.dirt.base[0]));
+  check('dustsurfsize: every surface keeps birth size at scaled base * 0.6 and birth alpha at 0',
+    Object.keys(profSz).every(surf => !!recsSz[surf]
+      && recsSz[surf].size.every((v, k) => approxSz(v, recsSz[surf].base[k] * 0.6, 1e-6))
+      && recsSz[surf].alpha.every(v => v === 0)));
+  /* paired same-seed ordering: grass puffs are the largest, water droplets the smallest */
+  {
+    const gSz = recsSz.grass, wSz = recsSz.water, rSz = recsSz.rock;
+    check('dustsurfsize: paired same-seed grass base exceeds rock base and water base is below rock base on every particle',
+      !!gSz && !!wSz && !!rSz && gSz.base.every((v, k) => v > rSz.base[k] && wSz.base[k] < rSz.base[k]),
+      'grass0=' + (gSz && gSz.base[0]) + ' rock0=' + (rSz && rSz.base[0]) + ' water0=' + (wSz && wSz.base[0]));
+  }
+  /* determinism: same-seed respawn reproduces base and size exactly */
+  if (foundSz.rock) {
+    const r1Sz = spawnRecSz(foundSz.rock);
+    const r2Sz = spawnRecSz(foundSz.rock);
+    check('dustsurfsize: same-seed respawn reproduces base and size exactly',
+      r1Sz.base.length === 10 && r1Sz.base.every((v, i) => v === r2Sz.base[i]) && r1Sz.size.every((v, i) => v === r2Sz.size[i]));
+  }
+  if (foundSz.gravel) {
+    const recTickSz = () => {
+      const r = spawnRecSz(foundSz.gravel);
+      G.dustTick(0.1);
+      return { base: r.base, size: r.slots.map(s => G.dustSize[s]) };
+    };
+    const t1Sz = recTickSz(), t2Sz = recTickSz();
+    check('dustsurfsize: same-seed respawn plus tick reproduces base and size exactly',
+      t1Sz.base.every((v, i) => v === t2Sz.base[i]) && t1Sz.size.every((v, i) => v === t2Sz.size[i]));
+  }
+  /* expiry still zeroes size and alpha and parks the particle */
+  {
+    if (foundSz.grass) spawnRecSz(foundSz.grass);
+    const expSz = liveSz(); const expSlotSz = expSz.length ? expSz[0] : -1;
+    G.dustTick(10);
+    check('dustsurfsize: expiry still zeroes size and alpha and parks y at -999 with nothing live',
+      expSlotSz >= 0 && G.dustSize[expSlotSz] === 0 && G.dustCol[expSlotSz * 4 + 3] === 0 && G.dustPos[expSlotSz * 3 + 1] === -999 && liveSz().length === 0,
+      'slot=' + expSlotSz);
+  }
+  /* clearDust still resets dustSizeBase to the neutral 1 (spawn overwrites it) */
+  {
+    if (foundSz.rock) spawnRecSz(foundSz.rock);
+    G.clearDust();
+    check('dustsurfsize: clearDust resets every dustSizeBase slot to 1 and nothing is live',
+      Array.from(G.dustSizeBase).every(v => v === 1) && liveSz().length === 0,
+      'live=' + liveSz().length);
+  }
+  G.clearDust();
+  /* static pins re-checked: the size table adds zero of everything */
+  check('dustsurfsize-pins: 49 InstancedMesh literals', lineHasSz('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasSz('new THREE.InstancedMesh'));
+  check('dustsurfsize-pins: 92 Math.random lines', lineHasSz('Math.random') === 92,
+    'n=' + lineHasSz('Math.random'));
+  check('dustsurfsize-pins: 72 setTimeout lines', lineHasSz('setTimeout') === 72,
+    'n=' + lineHasSz('setTimeout'));
+  check('dustsurfsize-pins: 6 lights',
+    linesSz.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustsurfsize-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustsurfsize-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustsurfsize-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasSz('new THREE.Points(') === 2, 'n=' + lineHasSz('new THREE.Points('));
+  check('dustsurfsize-pins: no em dashes', !html.includes('\u2014'));
+  check('dustsurfsize-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustsurfsize-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustsurfsize: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSz, consoleProblems.slice(probsSz).join(' | '));
 }
 
 

@@ -5434,7 +5434,35 @@ function squashTick(dt){
        PHYSICS v1 above. New honest limit: the profile is
        now six scalars per surface (grow, ramp, grav, drag,
        radialScale and upScale); point size is still
-       sizeAttenuation-scaled by distance in the material. --- */
+       sizeAttenuation-scaled by distance in the material.
+       PER-SURFACE DUST SIZE v1: base particle size is now
+       a full per-surface profile too, selected in spawnDust
+       by one if and else-if chain in the same style as the
+       rampF chain above, scaling the base size already
+       derived per particle from the jitter roll and writing
+       the existing preallocated dustSizeBase array with no
+       new arrays, no new Points and no new draw calls. The
+       table is: grass sizeF 1.15 (loose leafy dust: larger
+       soft puffs), dirt sizeF 1 (the old default value,
+       behavior byte-equivalent), rock sizeF 0.70 (dense
+       mineral grit: smaller sharp specks), gravel sizeF
+       0.85, and water sizeF 0.60 (small splash droplets).
+       Any other surface string falls back to sizeF 1.
+       Birth size is unchanged in form for every surface:
+       spawnDust still writes dustSize at scaled base * 0.6,
+       birth alpha stays 0, and the dustRand order and
+       count per particle stay exactly four. The dustTick
+       formulas are unchanged: they already read
+       dustSizeBase[i] per particle, and clearDust is
+       unchanged: its reset of dustSizeBase to 1 is the
+       neutral reset and spawn overwrites it. This
+       supersedes the size-stays-global part of the prior
+       limit. New honest limit: the profile is now seven
+       scalars per surface (grow, ramp, grav, drag,
+       radialScale, upScale and sizeScale); the only
+       remaining globals are the material-level size 0.4,
+       opacity 0.55, and sizeAttenuation distance scaling
+       itself (perspective behavior, correct by design). --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -5528,6 +5556,12 @@ function spawnDust(x, y, z, strength){
   else if (surf === 'rock') { rampF = 0.08; }
   else if (surf === 'gravel') { rampF = 0.10; }
   else if (surf === 'water') { rampF = 0.03; }
+  let sizeF = 1;
+  if (surf === 'grass') { sizeF = 1.15; }
+  else if (surf === 'dirt') { sizeF = 1; }
+  else if (surf === 'rock') { sizeF = 0.70; }
+  else if (surf === 'gravel') { sizeF = 0.85; }
+  else if (surf === 'water') { sizeF = 0.60; }
   for (let n = 0; n < count; n++) {
     const slot = dustHead; dustHead = (dustHead + 1) % DUST_N;
     const ang = dustRand() * Math.PI * 2;
@@ -5535,7 +5569,7 @@ function spawnDust(x, y, z, strength){
     const up = 0.6 + dustRand() * 1.0;
     const jit = 0.88 + dustRand() * 0.24;
     const norm = (jit - 0.88) / 0.24;
-    const sizeBase = 0.75 + norm * 0.5;
+    const sizeBase = (0.75 + norm * 0.5) * sizeF;
     dustSizeBase[slot] = sizeBase;
     dustSize[slot] = sizeBase * 0.6;
     dustPos[slot * 3] = x; dustPos[slot * 3 + 1] = y; dustPos[slot * 3 + 2] = z;
