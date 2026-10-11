@@ -570,6 +570,14 @@
   }
   #crowdbar { display: block; height: 5px; background: #3a2a22; margin-top: 4px; }
   #crowdfill { display: block; height: 5px; background: #d8a04a; width: 0%; }
+  /* ---- spawn grace v1 HUD (Phase 5 polish): countdown chip mirrors
+         #loyalchip in the top-left stack (1050px sits below #crowdchip
+         1017px, no overlap). DOM only, zero draw calls. ---- */
+  #gracechip {
+    position: absolute; top: 1050px; left: 18px; color: #d8f2e4; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #3a8a5a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
   #thallhint {
     position: absolute; bottom: 758px; left: 50%; transform: translateX(-50%);
     color: #0c0e0a; background: #e8c8e0; font-size: 13px; letter-spacing: 3px;
@@ -1451,6 +1459,7 @@
   <div id="thallchip"><span id="thallarr">^</span> <span id="thalltxt"></span></div>
   <div id="conchchip"></div>
   <div id="crowdchip"><span id="crowdtxt"></span><span id="crowdbar"><span id="crowdfill"></span></span></div>
+  <div id="gracechip"></div>
   <div id="hospheal"></div>
   <div id="thallhint"></div>
   <div id="tshowhint"></div>
@@ -4554,7 +4563,7 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
    iOS-safe: MeshStandardMaterial only, shared geos/mats, one 64px canvas tex. */
 const player = new THREE.Group();
 const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0,
-            hp: 100, dead: false, deadT: 0, godT: 0, punchT: 0, punchCd: 0, punchHit: false,
+            hp: 100, dead: false, deadT: 0, godT: 0, graceT: 0, punchT: 0, punchCd: 0, punchHit: false,
             punchDur: 0.32, combo: 0, comboWin: 0,       // melee polish: 3-punch chain
             hitstop: 0,                                 // melee polish: world-freeze timer
             shakeT: 0, shakeDur: 0.001, shakeMag: 0 };   // melee polish: camera punch
@@ -4979,6 +4988,7 @@ function doPunch() {
   if (SC.driving) return;     // no melee from the scooter: both hands on the bar
   if (BOAT.driving || HELI.flying || PLANE.flying || TRAIN.riding || SLOT.playing || PIANO.playing || THEATER.watching || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching) return;    // no melee from a vehicle
   if (!playing() || P.dead || P.punchCd > 0) return;
+  graceBreak();   // melee ends spawn grace early
   P.combo = (P.comboWin > 0) ? Math.min(P.combo + 1, 3) : 1;
   P.comboWin = 0.6;
   const heavy = P.combo >= 3;
@@ -5441,6 +5451,7 @@ const jitterPt = new THREE.Vector2();   // per-pellet spread offset, zero alloc
 function shoot() {
   emoteCancel();   // combat layer wins: firing kills the emote instantly
   if (!playing() || P.dead || fireCd > 0 || FT.driving || THEATER.watching || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching) return;
+  graceBreak();   // firing ends spawn grace early
   let w = WEAPONS[curWeapon];
   if (w.ammo <= 0) {   // dry weapon: fall back to the rifle, never soft-lock
     curWeapon = 'rifle'; w = WEAPONS.rifle; updateWeaponHUD();
@@ -5512,8 +5523,45 @@ function shoot() {
   }
 }
 
+/* --- SPAWN GRACE v1 (Phase 5 polish): 5.0s of post-spawn protection, on
+       new-game spawn, post-death redeploy, and SAVE LOADED at the saved
+       position. While graceT > 0, hurtPlayer() gates enemy/NPC damage to
+       zero (AI aggro/chase is unchanged; wanted-heat accumulation is
+       unchanged). The player attacking (shoot, punch) breaks grace early
+       with a sting. Natural expiry plays a soft ping. Session-only: the
+       save schema is untouched. DOM only, zero draw calls. --- */
+const GRACE_S = 5;
+const graceChipEl = document.getElementById('gracechip');
+let graceShownS = -1;   // last whole second painted on the chip (DOM-write throttle)
+function graceHud(force) {
+  const s = Math.max(0, Math.ceil(P.graceT));
+  if (force || s !== graceShownS) {
+    graceShownS = s;
+    graceChipEl.textContent = 'GRACE 0:0' + s;
+    graceChipEl.style.display = P.graceT > 0 ? 'block' : 'none';
+  }
+}
+function graceStart() {
+  P.graceT = GRACE_S; graceHud(true);
+}
+function graceBreak() {   // the player attacked: grace ends early with a sting
+  if (P.graceT > 0) {
+    P.graceT = 0; graceShownS = -1; graceChipEl.style.display = 'none';
+    sfxBlip(880, 0.09, 'square', 0.2);
+  }
+}
+function graceTick(sdt) {   // drained on the main tick; natural expiry plays a soft ping
+  if (P.graceT > 0) {
+    P.graceT -= sdt;
+    if (P.graceT <= 0) {
+      P.graceT = 0; graceShownS = -1; graceChipEl.style.display = 'none';
+      sfxBlip(520, 0.12, 'sine', 0.25);
+    } else graceHud(false);
+  }
+}
+
 function hurtPlayer(d) {
-  if (P.dead || P.godT > 0) return;
+  if (P.dead || P.godT > 0 || P.graceT > 0) return;   // spawn grace: zero incoming damage
   if (shopArmor > 0) {                              // armor soaks damage first, player-only
     const soak = Math.min(shopArmor, d);
     shopArmor -= soak; d -= soak;
@@ -5528,6 +5576,7 @@ function hurtPlayer(d) {
   diffRecordDamage(d);   // dynamic difficulty: rolling damage-taken stat
   updateHpHUD();
   if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; diffRecordDeath();
+    P.graceT = 0; graceChipEl.style.display = 'none';   // spawn grace never survives death
     const lost = Math.floor(cash * 0.15); cash -= lost; updateCashHUD();   // Phase 5 bank: only carried cash is seized; the bank is never touched
     toast('ELIMINATED - $' + lost + ' LOST'); missionOnDeath();
     endHeist('death');   // Phase 5 heist: the take stays in the wallet; the 15% seizure above already punished
@@ -24924,6 +24973,7 @@ function tick() {
   /* --- combat systems --- */
   fireCd -= sdt;
   if (P.godT > 0) P.godT -= sdt;
+  graceTick(sdt);   // spawn grace drain + chip countdown + expiry ping
   if (P.dead) {
     if (CAR.driving) carExit();   // death always ejects: no driving while dead
     if (HORSE.riding) horseExit(); // ...and no riding while dead either
@@ -24950,7 +25000,7 @@ function tick() {
       const az = APARTMENT.respawnZ !== null ? APARTMENT.respawnZ : 0;
       player.position.set(ax, terrainHeight(ax, az), az);
       P.vel.set(0, 0, 0); P.vy = 0;
-      P.hp = 100; P.dead = false; P.godT = 2;
+      P.hp = 100; P.dead = false; P.godT = 2; graceStart();   // redeploy restarts spawn grace fresh
       setHeat(0, true); W.evading = false;   // death always clears the heat
       updateHpHUD(); toast('REDEPLOYED'); closeShop();
       petRejoin();   // Phase 5 wildlife: the pet rejoins at the redeploy point
@@ -25261,6 +25311,7 @@ function applySave(d) {
   player.position.set(d.x, terrainHeight(d.x, d.z), d.z);
   player.rotation.y = Math.PI;
   P.vel.set(0, 0, 0); P.vy = 0; P.hp = d.hp; P.dead = false; P.godT = 0;
+  graceStart();   // SAVE LOADED: fresh spawn grace at the saved position
   petLoadStr(d.pet);   // Phase 5 wildlife: retame the saved pet at its offset
   foodLoadStr(d.food);  // Phase 5 cooking: restore the pantry
   cash = d.cash; kills = d.kills;
@@ -25338,6 +25389,7 @@ function newGame() {
   WEAPONS.smg.owned = false;     WEAPONS.smg.ammo = 120;
   curWeapon = 'rifle';
   P.hp = 100; P.dead = false; P.godT = 0;
+  graceStart();   // NEW GAME: fresh spawn grace at the spawn point
   CAR.hp = 100; CAR.armor = 0; CAR.hitCd = 0; updateCarCondHUD();   // Phase 3
   shopArmor = 0; updateArmorHUD();
   setHeat(0, true); W.evading = false; updateHeatHUD();

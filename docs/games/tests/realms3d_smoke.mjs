@@ -327,6 +327,8 @@ globalThis.__R3D = {
   FF_SPRAY_N, FF_SEEK_R2, FF_INC_R2, FF_SPRAYHIT_R2, FF_CD_S,
   FF_DISPATCH_TOAST_R2, WF_TOAST_R2, WF_CHIP_R2,
   FLORA,
+  /* SPAWN GRACE v1: grace lifecycle + chip (test-only exposure) */
+  GRACE_S, graceStart, graceBreak, graceTick, graceChipEl,
 };
 `;
 writeFileSync(BOOT, src);
@@ -9385,7 +9387,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.P.godT = 9999;
 
   /* death during the heist: ends it, normal 15% wallet seizure, bank untouched */
-  G.P.dead = false; G.P.hp = 100; G.P.godT = 0;
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.P.graceT = 0;   // grace cleared: deterministic unprotected damage
   synthBank('bank');
   frame(3);
   G.civicEnter();
@@ -9693,7 +9695,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.MS.done[0] = false;   // keep the suite's mission state pristine
 
   /* the wage rides in the carried wallet, so death and BUSTED can seize it */
-  G.jobTier = 1; G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.jobTier = 1; G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.P.graceT = 0; G.setHeat(0, true);   // grace cleared: deterministic unprotected damage
   G.cash = 30; G.bankBal = 500; G.MS.doneToday = 1; G.toastEl.textContent = '';
   G.bankDawnPayroll();   // +$30 PAYDAY lands in carried cash: 30 -> 60
   G.hurtPlayer(999);
@@ -10300,6 +10302,75 @@ globalThis.__R3D2 = {
   gl.dispatchEvent({ type: 'webglcontextrestored' });
   check('webgl: the run leaves zero console errors/warnings',
     consoleProblems.length === probsW, consoleProblems.slice(probsW).join(' | '));
+}
+
+/* ================= SPAWN GRACE v1 ================= */
+{
+  const probsG = consoleProblems.length;
+  /* graceStart: 5.0s of protection, chip shows the countdown */
+  G.P.dead = false; G.P.godT = 0; G.P.graceT = 0; G.P.hp = 100;
+  G.graceStart();
+  check('grace: graceStart sets graceT to GRACE_S (5)',
+    G.P.graceT === G.GRACE_S && G.GRACE_S === 5, 'graceT=' + G.P.graceT);
+  check('grace: chip shows GRACE 0:05 while grace is active',
+    G.graceChipEl.style.display === 'block' && G.graceChipEl.textContent === 'GRACE 0:05',
+    'display=' + G.graceChipEl.style.display + ' text=' + G.graceChipEl.textContent);
+  /* the damage choke point: zero incoming damage during grace */
+  const hp0 = G.P.hp;
+  G.hurtPlayer(10);
+  check('grace: hurtPlayer deals zero damage during grace',
+    G.P.hp === hp0 && !G.P.dead, 'hp=' + G.P.hp);
+  /* countdown ticks down on the chip */
+  G.graceTick(1.5);
+  check('grace: chip counts down after 1.5s',
+    G.graceChipEl.textContent === 'GRACE 0:04', G.graceChipEl.textContent);
+  /* break-on-attack: firing ends grace early and re-enables damage */
+  G.fireCd = 0; G.shoot();
+  check('grace: firing breaks grace early',
+    G.P.graceT === 0, 'graceT=' + G.P.graceT);
+  check('grace: chip hides on break-by-attack',
+    G.graceChipEl.style.display === 'none');
+  const hp1 = G.P.hp;
+  G.hurtPlayer(10);
+  check('grace: damage applies again after break',
+    G.P.hp === hp1 - 10, 'hp=' + G.P.hp);
+  G.P.hp = 100;
+  /* break-on-attack: melee ends grace early too */
+  G.graceStart();
+  G.P.punchCd = 0; G.doPunch();
+  check('grace: punching breaks grace early',
+    G.P.graceT === 0, 'graceT=' + G.P.graceT);
+  /* natural expiry re-enables damage */
+  G.graceStart();
+  G.graceTick(5.01);
+  check('grace: expiry clears graceT',
+    G.P.graceT === 0, 'graceT=' + G.P.graceT);
+  check('grace: chip hides on natural expiry',
+    G.graceChipEl.style.display === 'none');
+  const hp2 = G.P.hp;
+  G.hurtPlayer(8);
+  check('grace: damage applies again after expiry',
+    G.P.hp === hp2 - 8, 'hp=' + G.P.hp);
+  G.P.hp = 100;
+  /* death while grace is mid-cycle: the redeploy hook restarts grace fresh */
+  G.graceStart();
+  G.P.dead = true; G.P.deadT = 1.1; G.P.graceT = 3; G.P.hp = 0;
+  frame(15);   // deadT crosses 1.2: REDEPLOYED hook runs
+  check('grace: redeploy revives the player',
+    !G.P.dead && G.P.hp === 100, 'dead=' + G.P.dead + ' hp=' + G.P.hp);
+  check('grace: redeploy restarts grace fresh (no stale graceT)',
+    Math.abs(G.P.graceT - G.GRACE_S) < 0.5, 'graceT=' + G.P.graceT);
+  check('grace: chip shows again after redeploy',
+    G.graceChipEl.style.display === 'block' && G.graceChipEl.textContent === 'GRACE 0:05',
+    G.graceChipEl.textContent);
+  /* newGame restarts grace at the spawn point */
+  G.graceBreak();
+  G.newGame();
+  check('grace: newGame restarts grace at spawn',
+    G.P.graceT === G.GRACE_S && G.graceChipEl.style.display === 'block',
+    'graceT=' + G.P.graceT);
+  check('grace: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsG, consoleProblems.slice(probsG).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
