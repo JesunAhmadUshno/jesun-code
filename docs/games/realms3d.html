@@ -5545,6 +5545,13 @@ function damageEnemy(e, d) {
     window.__lastViolenceAt = performance.now();   // NPCs/animals read this to flee
     window.__lastViolencePos = e.group.position.clone();
     diffRecordKill();
+    /* RANGED HIT-STOP v1: kill-only freeze, scaled by enemy type (brute
+       0.09, shooter 0.06, rusher 0.05), hard cap 0.10. Math.max means it
+       never stacks past the cap and never shortens an active melee freeze
+       (punchConnectFX re-asserts the melee value after a punch kill).
+       Non-killing hits set nothing: per-hit freezes feel laggy. */
+    const hsScaled = e.type === 'brute' ? 0.09 : e.type === 'shooter' ? 0.06 : 0.05;
+    P.hitstop = Math.min(0.10, Math.max(P.hitstop, hsScaled));
     /* enemy variety reward: brutes pay best, shooters mid, rushers base */
     const pay = e.type === 'brute' ? 60 : e.type === 'shooter' ? 35 : 25;
     kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type, pay);
@@ -6376,6 +6383,8 @@ function damageCop(idx, d) {
   c.coverT = 2.5;   // shot at: break for the nearest tree/rock
   if (c.hp <= 0) {
     c.state = 'dead'; c.deadT = 0; c.respawnT = 8;
+    /* RANGED HIT-STOP v1: same kill-only rule as damageEnemy, flat 0.06 */
+    P.hitstop = Math.min(0.10, Math.max(P.hitstop, 0.06));
     c.eyeMat.color.setHex(COP_CFG.eye);
     copAimLine.visible = false;
     kills++; updateCombatHUD();

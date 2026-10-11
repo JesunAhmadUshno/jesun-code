@@ -10472,6 +10472,83 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsD, consoleProblems.slice(probsD).join(' | '));
 }
 
+/* ================= RANGED HIT-STOP v1 ================= */
+{
+  const probsH = consoleProblems.length;
+  const byType = t => G.enemies.find(e => e.type === t);
+  const revive = (e, hp) => {
+    e.state = 'wander'; e.deadT = 0; e.hp = hp;
+    e.group.position.set(G.player.position.x, G.player.position.y, G.player.position.z);
+  };
+  /* (c) non-killing ranged hit: hit-stop is reserved for kills, sets nothing */
+  const eNK = byType('shooter'); revive(eNK, 100);
+  G.P.hitstop = 0;
+  G.damageEnemy(eNK, 5);
+  check('hitstop: non-killing ranged hit leaves P.hitstop at 0',
+    G.P.hitstop === 0 && eNK.state !== 'dead', 'hitstop=' + G.P.hitstop);
+  /* rusher kill: the base scaled value 0.05 */
+  const eR = byType('rusher'); revive(eR, 1);
+  G.P.hitstop = 0;
+  G.damageEnemy(eR, 999);
+  const hsRusher = G.P.hitstop;
+  check('hitstop: rusher kill sets the scaled freeze (0.05)',
+    hsRusher === 0.05 && eR.state === 'dead', 'hitstop=' + hsRusher);
+  /* (a) brute kill: a ranged kill sets P.hitstop > 0 and <= the 0.10 cap */
+  const eBr = byType('brute'); revive(eBr, 1);
+  G.P.hitstop = 0;
+  G.damageEnemy(eBr, 999);
+  const hsBrute = G.P.hitstop;
+  check('hitstop: ranged kill sets P.hitstop > 0 and <= 0.10',
+    hsBrute > 0 && hsBrute <= 0.10 && eBr.state === 'dead', 'hitstop=' + hsBrute);
+  check('hitstop: brute kill sets the top scaled value (0.09)',
+    hsBrute === 0.09, 'hitstop=' + hsBrute);
+  /* (b) brute kill hit-stop beats rusher kill hit-stop */
+  check('hitstop: brute kill hit-stop > rusher kill hit-stop',
+    hsBrute > hsRusher, 'brute=' + hsBrute + ' rusher=' + hsRusher);
+  /* shooter kill: the mid scaled value 0.06 */
+  revive(eNK, 1);
+  G.P.hitstop = 0;
+  G.damageEnemy(eNK, 999);
+  check('hitstop: shooter kill sets the mid scaled value (0.06)',
+    G.P.hitstop === 0.06 && eNK.state === 'dead', 'hitstop=' + G.P.hitstop);
+  /* Math.max semantics: a kill never shortens an active melee freeze */
+  revive(eR, 1);
+  G.P.hitstop = 0.08;
+  G.damageEnemy(eR, 999);
+  check('hitstop: rusher kill never shortens an active 0.08 melee freeze',
+    G.P.hitstop === 0.08, 'hitstop=' + G.P.hitstop);
+  /* hard cap: a brute kill on a full freeze stays at 0.10, never above */
+  revive(eBr, 1);
+  G.P.hitstop = 0.10;
+  G.damageEnemy(eBr, 999);
+  check('hitstop: brute kill respects the 0.10 hard cap',
+    G.P.hitstop === 0.10, 'hitstop=' + G.P.hitstop);
+  /* damageCop: same kill-only rule at a flat 0.06 */
+  const cop = G.cops[0];
+  cop.active = true; cop.state = 'chase'; cop.hp = 100;
+  cop.group.position.set(G.player.position.x, G.player.position.y, G.player.position.z);
+  G.P.hitstop = 0;
+  G.damageCop(cop.idx, 5);
+  check('hitstop: non-killing cop hit leaves P.hitstop at 0',
+    G.P.hitstop === 0 && cop.state !== 'dead', 'hitstop=' + G.P.hitstop);
+  cop.hp = 1;
+  G.damageCop(cop.idx, 999);
+  check('hitstop: cop kill sets the flat freeze (0.06)',
+    G.P.hitstop === 0.06 && cop.state === 'dead', 'hitstop=' + G.P.hitstop);
+  G.P.hitstop = 0;   // leave no freeze behind for the final checks
+  /* (d) static pins still hold: the feature adds zero of each */
+  const linesH = html.split('\n');
+  const lineHasH = sub => linesH.filter(l => l.includes(sub)).length;
+  check('hitstop-pins: 49 InstancedMesh literals', lineHasH('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasH('new THREE.InstancedMesh'));
+  check('hitstop-pins: 92 Math.random lines', lineHasH('Math.random') === 92,
+    'n=' + lineHasH('Math.random'));
+  check('hitstop-pins: 72 setTimeout lines', lineHasH('setTimeout') === 72,
+    'n=' + lineHasH('setTimeout'));
+  check('hitstop: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsH, consoleProblems.slice(probsH).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
