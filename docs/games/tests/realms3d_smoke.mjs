@@ -360,7 +360,7 @@ globalThis.__R3D = {
   skidWriteQuad,
   skidStep1, skidReset1, skidStep2, skidReset2, skidStep3, skidReset3,
   skidStep4, skidReset4, skidStep5, skidReset5, skidStep6, skidReset6,
-  skidPos, skidCol, skidLife, skidLifeMax, skidAlpha, skidGeo, skidMesh,
+  skidPos, skidCol, skidLife, skidLifeMax, skidAlpha, skidPeakV, skidGeo, skidMesh,
   get skidHead() { return skidHead; },
   get skidPrev() { return skidPrev; },
   get skid1Prev() { return skid1Prev; },
@@ -15562,14 +15562,21 @@ globalThis.__R3D2 = {
     check('skid: written quad positions match the wheel maths within tolerance, y = end base plus per-corner lateral delta',
       posOk, 'q0=' + [...G.skidPos.slice(p0, p0 + 12)].join(',') + ' q1=' + [...G.skidPos.slice(p1, p1 + 12)].join(','));
     let colOk = true;
-    const expColsSk = [[0.10, 0.13, 0.05, 0.38], [0.16, 0.11, 0.06, 0.48]];
-    for (let si = 0; si < 2; si++) { const s = [s0, s1][si]; const expSk = expColsSk[si]; for (let v = 0; v < 4; v++) {
+    /* SKID PER-END SURFACE COLOR v1: each quad classifies its two end
+       centres, so the left quad is dirt at its prev end (10.8,18.1) and
+       grass at its curr end (10.8,19.1), and the right quad is grass at
+       its prev end (9.2,18.1) and dirt at its curr end (9.2,19.1). */
+    const expGrassSk = [0.10, 0.13, 0.05, 0.38], expDirtSk = [0.16, 0.11, 0.06, 0.48];
+    const expColsSk = [[expDirtSk, expDirtSk, expGrassSk, expGrassSk], [expGrassSk, expGrassSk, expDirtSk, expDirtSk]];
+    for (let si = 0; si < 2; si++) { const s = [s0, s1][si]; for (let v = 0; v < 4; v++) {
+      const expSk = expColsSk[si][v];
       const c = s * 16 + v * 4;
       if (!approxSk(G.skidCol[c], expSk[0]) || !approxSk(G.skidCol[c + 1], expSk[1]) || !approxSk(G.skidCol[c + 2], expSk[2]) || !approxSk(G.skidCol[c + 3], expSk[3])) colOk = false;
     } }
-    check('skid: written quads carry surface colours on all verts (left centre (10.8,18.6) grass 0.10/0.13/0.05 peak 0.38, right centre (9.2,18.6) dirt 0.16/0.11/0.06 peak 0.48), life SKID_LIFE',
+    check('skid: written quads carry per-end surface colours (left prev end dirt 0.16/0.11/0.06 peak 0.48, curr end grass 0.10/0.13/0.05 peak 0.38; right prev end grass, curr end dirt), life SKID_LIFE',
       colOk && G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE
-      && G.surfaceAt(10.8, 18.6) === 'grass' && G.surfaceAt(9.2, 18.6) === 'dirt');
+      && G.surfaceAt(10.8, 18.1) === 'dirt' && G.surfaceAt(10.8, 19.1) === 'grass'
+      && G.surfaceAt(9.2, 18.1) === 'grass' && G.surfaceAt(9.2, 19.1) === 'dirt');
   }
   /* a step under 0.9m writes nothing */
   const head1Sk = G.skidHead;
@@ -15593,8 +15600,8 @@ globalThis.__R3D2 = {
     const aBefore = G.skidCol[s0 * 16 + 3];
     G.skidTick(7);
     const aMid = G.skidCol[s0 * 16 + 3];
-    check('skid: skidTick fades alpha strictly down (grass peak 0.38 to 0.19 at half life)',
-      approxSk(aBefore, 0.38) && aMid < aBefore && approxSk(aMid, 0.19) && approxSk(G.skidLife[s0], 7),
+    check('skid: skidTick fades alpha strictly down (dirt prev-end peak 0.48 to 0.24 at half life on vert 0)',
+      approxSk(aBefore, 0.48) && aMid < aBefore && approxSk(aMid, 0.24) && approxSk(G.skidLife[s0], 7),
       'before=' + aBefore + ' mid=' + aMid + ' life=' + G.skidLife[s0]);
     G.skidTick(7.1);
     check('skid: skidTick expiry parks y at -999 with alpha 0 and no live quads',
@@ -16697,12 +16704,19 @@ globalThis.__R3D2 = {
     check('skidbus: fire truck track centres sit at lateral +/-0.85 from the rear centre',
       approxBd((G.skidPos[p0] + G.skidPos[p0 + 3]) / 2, 10.85) && approxBd((G.skidPos[p1] + G.skidPos[p1 + 3]) / 2, 9.15));
     let colOk = true;
-    for (const s of [s0, s1]) for (let v = 0; v < 4; v++) {
+    /* SKID PER-END SURFACE COLOR v1: the left quad is grass at its prev
+       end (10.85,16.5) and dirt at its curr end (10.85,17.5); the right
+       quad is grass at both ends (9.15,16.5) and (9.15,17.5). */
+    const rowGBd = [0.10, 0.13, 0.05, 0.38], rowDBd = [0.16, 0.11, 0.06, 0.48];
+    const expFtBd = [[rowGBd, rowGBd, rowDBd, rowDBd], [rowGBd, rowGBd, rowGBd, rowGBd]];
+    [s0, s1].forEach((s, si) => { for (let v = 0; v < 4; v++) {
+      const exp = expFtBd[si][v];
       const c = s * 16 + v * 4;
-      if (!approxBd(G.skidCol[c], 0.10) || !approxBd(G.skidCol[c + 1], 0.13) || !approxBd(G.skidCol[c + 2], 0.05) || !approxBd(G.skidCol[c + 3], 0.38)) colOk = false;
-    }
-    check('skidbus: fire truck quads carry grass RGB 0.10/0.13/0.05 and peak alpha 0.38 on all verts (centres (10.85,17) and (9.15,17) are grass)',
-      colOk && G.surfaceAt(10.85, 17) === 'grass' && G.surfaceAt(9.15, 17) === 'grass');
+      if (!approxBd(G.skidCol[c], exp[0]) || !approxBd(G.skidCol[c + 1], exp[1]) || !approxBd(G.skidCol[c + 2], exp[2]) || !approxBd(G.skidCol[c + 3], exp[3])) colOk = false;
+    } });
+    check('skidbus: fire truck quads carry per-end surface colours (left prev end grass 0.10/0.13/0.05 peak 0.38, curr end dirt 0.16/0.11/0.06 peak 0.48; right quad grass on both ends)',
+      colOk && G.surfaceAt(10.85, 16.5) === 'grass' && G.surfaceAt(10.85, 17.5) === 'dirt'
+      && G.surfaceAt(9.15, 16.5) === 'grass' && G.surfaceAt(9.15, 17.5) === 'grass');
     check('skidbus: fire truck quads life and lifeMax are SKID_LIFE',
       G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE
       && G.skidLifeMax[s0] === G.SKID_LIFE && G.skidLifeMax[s1] === G.SKID_LIFE,
@@ -16964,10 +16978,10 @@ globalThis.__R3D2 = {
   check('skidhorse: header no longer states the old horse no-marks honest limits',
     !htmlNSh.includes('horse still lays no marks yet')
     && !htmlNSh.includes('the horse still lays no marks'));
-  check('skidhorse: header keeps the other honest limits (ridge clip, per-quad centre classification, flat-quad slope clipping)',
+  check('skidhorse: header keeps the other honest limits (ridge clip, per-end classification, flat-quad slope clipping)',
     htmlNSh.includes('a ridge sharper than one split (inside a half segment, ~0.45m) can still clip slightly')
     && !htmlNSh.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
-    && htmlNSh.includes('surface classification stays per-quad centre only')
+    && htmlNSh.includes('surface classification is per-end only')
     && htmlNSh.includes('flat-quad slope clipping limit still applies'));
   /* source: writer signature, separate state and the single-track step */
   check('skidhorse: skidWriteQuad source keeps halfW defaulting to 0.14 and prevY defaulting to y',
@@ -18256,18 +18270,23 @@ globalThis.__R3D2 = {
 }
 
 /* ================= SURFACE-AWARE SKID COLOR v1 =================
-   skidWriteQuad now classifies once per quad via surfaceAt at the
-   quad centre and writes a per-surface colour and peak alpha (rock
+   skidWriteQuad classifies surfaceAt per end (SKID PER-END
+   SURFACE COLOR v1: prev end centre and curr end centre) and
+   writes a per-surface colour and peak alpha per end (rock
    keeps the legacy rubber 0.07 at 0.55, gravel 0.13/0.12/0.10 at
    0.50, dirt 0.16/0.11/0.06 at 0.48, grass 0.10/0.13/0.05 at 0.38,
-   water 0.20/0.22/0.20 at 0.12, fallback legacy). The per-slot peak
-   lives in the preallocated skidAlpha array, skidTick fades from
-   the stored peak, and clearSkid resets skidAlpha to 0.55. Every
+   water 0.20/0.22/0.20 at 0.12, fallback legacy). The per-slot
+   max peak lives in the preallocated skidAlpha array, per-vertex
+   peaks live in skidPeakV, skidTick fades per vertex from
+   skidPeakV, and clearSkid resets skidAlpha to 0.55. Every
    behaviour point below is self-validating: the test scans a grid
-   with G.surfaceAt, asserts surfaceAt(point) is the target surface
-   inside the test, then drives skidStep1 so the written quad centre
-   is exactly that point (heading 0, rear 0.9 behind centre, two
-   inputs 1.0 apart in z centred on the point). */
+   with G.surfaceAt for a point whose two segment ends (point
+   plus/minus 0.5 in z) share the target surface, asserts
+   surfaceAt(point) is the target surface inside the test, then
+   drives skidStep1 so the written segment is centred on that
+   point (heading 0, rear 0.9 behind centre, two inputs 1.0
+   apart in z centred on the point), so a same-surface segment
+   keeps the legacy uniform quad exactly. */
 {
   const probsSSu = consoleProblems.length;
   const linesSSu = html.split('\n');
@@ -18281,8 +18300,8 @@ globalThis.__R3D2 = {
   /* source: header paragraph, table, honest limit and kept sentences */
   check('skidsurf: source carries the SURFACE-AWARE SKID COLOR v1 header paragraph',
     html.includes('SURFACE-AWARE SKID COLOR v1'));
-  check('skidsurf: header states classification once per quad via surfaceAt at the quad centre',
-    htmlNSSu.includes('skidWriteQuad classifies once per quad via surfaceAt at the quad centre'));
+  check('skidsurf: header states classification per end via surfaceAt twice (previous end centre and current end centre)',
+    htmlNSSu.includes('skidWriteQuad classifies surfaceAt twice, once at the previous end centre and once at the current end centre'));
   check('skidsurf: header states the rock, gravel and dirt table rows',
     htmlNSSu.includes('rock 0.07, 0.07, 0.07 at peak 0.55')
     && htmlNSSu.includes('gravel 0.13, 0.12, 0.10 at peak 0.50')
@@ -18291,22 +18310,23 @@ globalThis.__R3D2 = {
     htmlNSSu.includes('grass 0.10, 0.13, 0.05 at peak 0.38')
     && htmlNSSu.includes('water 0.20, 0.22, 0.20 at peak 0.12')
     && htmlNSSu.includes('fallback 0.07, 0.07, 0.07 at peak 0.55'));
-  check('skidsurf: header states skidAlpha stores the per-slot peak and skidTick fades from it',
-    htmlNSSu.includes('skidAlpha stores the per-slot peak and skidTick fades from it'));
+  check('skidsurf: header states skidAlpha stores the per-slot max peak and skidTick fades per vertex from skidPeakV',
+    htmlNSSu.includes('skidAlpha stores the per-slot max peak and skidTick fades per vertex from skidPeakV'));
   check('skidsurf: header states zero new draw calls and zero new Mesh',
     htmlNSSu.includes('Zero new draw calls, zero new Mesh'));
-  check('skidsurf: header states the new honest limit (per-quad centre only, a boundary quad takes one surface)',
-    htmlNSSu.includes('classification is per-quad centre only')
-    && htmlNSSu.includes('quad crossing a surface boundary takes one surface'));
+  check('skidsurf: header states the new honest limit (per-end only, a surface change inside one segment blends linearly)',
+    htmlNSSu.includes('classification is per-end only')
+    && htmlNSSu.includes('a surface change inside one segment blends linearly across the quad instead of snapping at the exact boundary point'));
   check('skidsurf: header keeps the flat-quad slope clipping sentence and replaces the horse no-marks sentence with the v5 horse scuff',
     htmlNSSu.includes('horse now lays a single 0.10-wide rear-hoof scuff ribbon')
     && !htmlNSSu.includes('horse still lays no marks yet')
     && !htmlNSSu.includes('the horse still lays no marks')
     && htmlNSSu.includes('flat-quad slope clipping limit still applies'));
   /* source: writer, tick and clear wiring */
-  check('skidsurf: skidWriteQuad source carries the surfaceAt classification line exactly once',
-    segWriteSSu.split('surfaceAt(').length - 1 === 1
-    && segWriteSSu.includes('const surf = surfaceAt((px + cx) / 2, (pz + cz) / 2);'),
+  check('skidsurf: skidWriteQuad source carries the surfaceAt classification lines exactly twice (prev end and curr end)',
+    segWriteSSu.split('surfaceAt(').length - 1 === 2
+    && segWriteSSu.includes('const surfPrev = surfaceAt(px, pz);')
+    && segWriteSSu.includes('const surfCurr = surfaceAt(cx, cz);'),
     'n=' + (segWriteSSu.split('surfaceAt(').length - 1));
   check('skidsurf: skidWriteQuad source carries the gravel, dirt, grass and water rows plus the legacy default',
     segWriteSSu.includes('let sr = 0.07, sg = 0.07, sb = 0.07, peak = 0.55;')
@@ -18314,13 +18334,15 @@ globalThis.__R3D2 = {
     && segWriteSSu.includes("else if (surf === 'dirt') { sr = 0.16; sg = 0.11; sb = 0.06; peak = 0.48; }")
     && segWriteSSu.includes("else if (surf === 'grass') { sr = 0.10; sg = 0.13; sb = 0.05; peak = 0.38; }")
     && segWriteSSu.includes("else if (surf === 'water') { sr = 0.20; sg = 0.22; sb = 0.20; peak = 0.12; }"));
-  check('skidsurf: skidWriteQuad source writes the colour from sr/sg/sb/peak and stores skidAlpha[slot] as the peak',
+  check('skidsurf: skidWriteQuad source writes the colour per end from sr/sg/sb/peak, stores per-vertex peaks in skidPeakV and skidAlpha[slot] as the max peak',
     segWriteSSu.includes('skidCol[c + v * 4] = sr; skidCol[c + v * 4 + 1] = sg; skidCol[c + v * 4 + 2] = sb; skidCol[c + v * 4 + 3] = peak;')
-    && segWriteSSu.includes('skidAlpha[slot] = peak;'));
+    && segWriteSSu.includes('skidPeakV[slot * 4 + v] = peak;')
+    && segWriteSSu.includes('skidAlpha[slot] = Math.max(skidPeakV[slot * 4], skidPeakV[slot * 4 + 2]);'));
   check('skidsurf: source declares skidAlpha as Float32Array(SKID_N) and fills it with 0.55',
     html.includes('const skidAlpha = new Float32Array(SKID_N); skidAlpha.fill(0.55);'));
-  check('skidsurf: skidTick source fades from the stored peak skidAlpha[i] with no fixed 0.55 peak left',
-    segTickSSu.includes('const a = skidAlpha[i] * Math.max(0, skidLife[i] / SKID_LIFE);')
+  check('skidsurf: skidTick source fades per vertex from the stored per-vertex peak skidPeakV with no fixed 0.55 peak left',
+    segTickSSu.includes('skidCol[c + v * 4 + 3] = skidPeakV[i * 4 + v] * Math.max(0, skidLife[i] / SKID_LIFE);')
+    && !segTickSSu.includes('const a = skidAlpha[i]')
     && !segTickSSu.includes('0.55 * Math.max'));
   check('skidsurf: clearSkid source resets skidAlpha with fill 0.55',
     segClearSSu.includes('skidAlpha.fill(0.55);'));
@@ -18339,7 +18361,9 @@ globalThis.__R3D2 = {
   for (let x = -300; x <= 300 && Object.keys(foundSSu).length < 5; x += 2) {
     for (let z = -300; z <= 300; z += 2) {
       const sf = G.surfaceAt(x, z);
-      if (!foundSSu[sf]) foundSSu[sf] = { x, z };
+      /* SKID PER-END v1: the driven segment ends sit at z plus/minus 0.5,
+         so a same-surface point needs both ends on the target surface too */
+      if (!foundSSu[sf] && G.surfaceAt(x, z - 0.5) === sf && G.surfaceAt(x, z + 0.5) === sf) foundSSu[sf] = { x, z };
       if (Object.keys(foundSSu).length >= 5) break;
     }
   }
@@ -18360,8 +18384,9 @@ globalThis.__R3D2 = {
   for (const surfName of ['rock', 'gravel', 'dirt', 'grass', 'water']) {
     const pt = foundSSu[surfName];
     const exp = TABSSu[surfName];
-    check('skidsurf: self-validating point found for ' + surfName + ' and surfaceAt(point) is ' + surfName,
-      !!pt && G.surfaceAt(pt.x, pt.z) === surfName,
+    check('skidsurf: self-validating point found for ' + surfName + ' and surfaceAt(point) plus both segment ends are ' + surfName,
+      !!pt && G.surfaceAt(pt.x, pt.z) === surfName
+      && G.surfaceAt(pt.x, pt.z - 0.5) === surfName && G.surfaceAt(pt.x, pt.z + 0.5) === surfName,
       pt ? 'pt=' + pt.x + ',' + pt.z + ' surf=' + G.surfaceAt(pt.x, pt.z) : 'none found');
     if (pt) {
       const slot = driveSSu(pt);
@@ -18468,10 +18493,10 @@ globalThis.__R3D2 = {
   check('skidlat: header no longer lists lateral slope as using the end height',
     !htmlNSL.includes('still uses the end height')
     && !htmlNSL.includes('lateral slope across the track width (at most 0.32m)'));
-  check('skidlat: header keeps the remaining honest limits (ridge clip, per-quad centre classification, horse clause removed)',
+  check('skidlat: header keeps the remaining honest limits (ridge clip, per-end classification, horse clause removed)',
     segHeadSL.includes('a ridge sharper than one split (inside a half segment, ~0.45m) can still clip slightly')
     && !segHeadSL.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
-    && segHeadSL.includes('surface classification stays per-quad centre only')
+    && segHeadSL.includes('surface classification is per-end only')
     && !segHeadSL.includes('the horse still lays no marks')
     && !segHeadSL.includes('horse still lays no marks'));
   /* source: writer wiring */
@@ -18706,9 +18731,9 @@ globalThis.__R3D2 = {
   check('skidridge: header states the split reuses the same pooled mesh with zero new draw calls and zero new Mesh',
     segHeadRg.includes('the split reuses the same pooled mesh')
     && segHeadRg.includes('Zero new draw calls, zero new Mesh'));
-  check('skidridge: header carries the new honest limit and keeps surface classification per-quad centre only, with the old ridge limit gone',
+  check('skidridge: header carries the new honest limit and keeps surface classification per-end only, with the old ridge limit gone',
     segHeadRg.includes('a ridge sharper than one split (inside a half segment, ~0.45m) can still clip slightly')
-    && segHeadRg.includes('surface classification stays per-quad centre only')
+    && segHeadRg.includes('surface classification is per-end only')
     && !segHeadRg.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
     && !htmlNRg.includes('a sharp ridge inside one 0.9m segment can still clip slightly'));
   /* source: constants, signature and writer wiring */
@@ -18735,9 +18760,9 @@ globalThis.__R3D2 = {
     && segWriteRg.includes('skidWriteQuad(mx, mz, cx, cz, lx, lz, y, halfW, midY, 1);')
     && segWriteRg.split('skidWriteQuad(').length - 1 === 3,
     'writes=' + (segWriteRg.split('skidWriteQuad(').length - 1));
-  check('skidridge: writer source calls terrainHeight exactly seven times (two centres, one midpoint, four corners) and classifies via surfaceAt exactly once',
+  check('skidridge: writer source calls terrainHeight exactly seven times (two centres, one midpoint, four corners) and classifies via surfaceAt exactly twice (prev end and curr end)',
     segWriteRg.split('terrainHeight(').length - 1 === 7
-    && segWriteRg.split('surfaceAt(').length - 1 === 1,
+    && segWriteRg.split('surfaceAt(').length - 1 === 2,
     'th=' + (segWriteRg.split('terrainHeight(').length - 1) + ' surf=' + (segWriteRg.split('surfaceAt(').length - 1));
   check('skidridge: runtime exposes skidWriteQuad and SKID_RIDGE_T',
     typeof G.skidWriteQuad === 'function' && typeof G.SKID_RIDGE_T === 'number');
@@ -18872,6 +18897,228 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidridge: the run leaves zero console errors/warnings',
     consoleProblems.length === probsRg, consoleProblems.slice(probsRg).join(' | '));
+  G.clearSkid();
+}
+
+/* ================= SKID PER-END SURFACE COLOR v1 =================
+   skidWriteQuad now classifies surfaceAt twice per quad, at the
+   previous end centre (px, pz) and at the current end centre
+   (cx, cz), with the unchanged per-surface table. Vertices 0 and
+   1 carry the prev-end row, vertices 2 and 3 carry the curr-end
+   row, per-vertex peaks live in the preallocated skidPeakV array
+   (SKID_N * 4), skidTick fades each vertex from its own peak,
+   skidAlpha keeps the per-slot max peak, and clearSkid resets
+   skidPeakV to 0.55. Behaviour points are self-validating: the
+   test scans G.surfaceAt plus G.terrainHeight for a short
+   segment whose two ends are different surfaces with different
+   peaks and whose midpoint deviation stays under SKID_RIDGE_T
+   (so the writer cannot split it), then drives G.skidWriteQuad
+   directly and compares every vertex against the table rows
+   recomputed from G.surfaceAt inside the test. */
+{
+  const probsES = consoleProblems.length;
+  const linesES = html.split('\n');
+  const lineHasES = sub => linesES.filter(l => l.includes(sub)).length;
+  const htmlNES = html.replace(/\s+/g, ' ');
+  const approxES = (a, b) => Math.abs(a - b) < 1e-4;
+  const liveES = () => { let n = 0; for (let i = 0; i < G.SKID_N; i++) if (G.skidLife[i] > 0) n++; return n; };
+  const segWriteES = html.indexOf('function skidWriteQuad') >= 0 ? html.slice(html.indexOf('function skidWriteQuad'), html.indexOf('function skidStep4')) : '';
+  const segTickES = html.indexOf('function skidTick') >= 0 ? html.slice(html.indexOf('function skidTick'), html.indexOf('function clearSkid')) : '';
+  const segClearES = html.indexOf('function clearSkid()') >= 0 ? html.slice(html.indexOf('function clearSkid()'), html.indexOf('const TRAUMA_DECAY')) : '';
+  const segHeadES = html.indexOf('SKID PER-END SURFACE COLOR v1') >= 0 ? html.slice(html.indexOf('SKID PER-END SURFACE COLOR v1'), html.indexOf('SKID PER-END SURFACE COLOR v1') + 1800).replace(/\s+/g, ' ') : '';
+  const TABES = {
+    rock: [0.07, 0.07, 0.07, 0.55],
+    gravel: [0.13, 0.12, 0.10, 0.50],
+    dirt: [0.16, 0.11, 0.06, 0.48],
+    grass: [0.10, 0.13, 0.05, 0.38],
+    water: [0.20, 0.22, 0.20, 0.12],
+  };
+  /* source: header paragraph and the in-place honest-limit updates */
+  check('skidendsurf: source carries the SKID PER-END SURFACE COLOR v1 header paragraph',
+    html.includes('SKID PER-END SURFACE COLOR v1'));
+  check('skidendsurf: header states skidWriteQuad classifies surfaceAt twice per quad at the previous end centre (px, pz) and the current end centre (cx, cz)',
+    segHeadES.includes('skidWriteQuad now classifies surfaceAt twice per quad, at the previous end centre (px, pz) and at the current end centre (cx, cz)'));
+  check('skidendsurf: header states the same per-surface table as SURFACE-AWARE SKID COLOR v1 is used',
+    segHeadES.includes('using the same per-surface table as SURFACE-AWARE SKID COLOR v1 above'));
+  check('skidendsurf: header states vertices 0 and 1 get the previous-end colour and peak and vertices 2 and 3 get the current-end colour and peak',
+    segHeadES.includes('Vertices 0 and 1 (the previous end) get the previous-end colour and peak, vertices 2 and 3 (the current end) get the current-end colour and peak'));
+  check('skidendsurf: header states GPU interpolation blends across a boundary-crossing quad',
+    segHeadES.includes('so GPU interpolation blends across a boundary-crossing quad'));
+  check('skidendsurf: header states per-vertex peaks live in the preallocated skidPeakV array (SKID_N * 4) and skidTick fades each vertex from its own peak',
+    segHeadES.includes('Per-vertex peaks live in the preallocated skidPeakV array (SKID_N * 4) and skidTick fades each vertex from its own peak'));
+  check('skidendsurf: header states skidAlpha keeps the per-slot max peak for legacy readers and clearSkid resets skidPeakV to 0.55',
+    segHeadES.includes('skidAlpha keeps the per-slot max peak for legacy readers and clearSkid resets skidPeakV to 0.55'));
+  check('skidendsurf: header states ridge-split depth 1 halves classify their own ends and the shared midpoint yields the same surface on both sides',
+    segHeadES.includes('Ridge-split depth 1 halves classify their own ends the same way: the shared midpoint yields the same surface on both sides'));
+  check('skidendsurf: header states zero new draw calls and zero new Mesh, with the remaining honest limit (per-end only, linear blend instead of a snap at the boundary point)',
+    segHeadES.includes('Zero new draw calls, zero new Mesh')
+    && segHeadES.includes('classification is per-end only, so a surface change inside one segment blends linearly across the quad instead of snapping at the exact boundary point'));
+  check('skidendsurf: the old per-quad centre honest-limit wording is gone from the whole header',
+    !htmlNES.includes('per-quad centre only')
+    && !htmlNES.includes('takes one surface')
+    && !htmlNES.includes('classifies once per quad'));
+  check('skidendsurf: the SURFACE-AWARE paragraph opening was updated in place to the per-end classification sentence',
+    htmlNES.includes('skidWriteQuad classifies surfaceAt twice, once at the previous end centre and once at the current end centre'));
+  check('skidendsurf: source declares skidPeakV as Float32Array(SKID_N * 4) filled with 0.55, right after the skidAlpha declaration',
+    html.includes('const skidPeakV = new Float32Array(SKID_N * 4); skidPeakV.fill(0.55);')
+    && html.indexOf('const skidPeakV = new Float32Array(SKID_N * 4);') > html.indexOf('const skidAlpha = new Float32Array(SKID_N);'));
+  check('skidendsurf: runtime skidPeakV is a Float32Array of length SKID_N * 4',
+    !!G.skidPeakV && G.skidPeakV instanceof Float32Array && G.skidPeakV.length === G.SKID_N * 4,
+    'len=' + (G.skidPeakV && G.skidPeakV.length));
+  /* source: writer, tick and clear wiring */
+  check('skidendsurf: writer source classifies via surfaceAt exactly twice, prev end (px, pz) then curr end (cx, cz)',
+    segWriteES.split('surfaceAt(').length - 1 === 2
+    && segWriteES.includes('const surfPrev = surfaceAt(px, pz);')
+    && segWriteES.includes('const surfCurr = surfaceAt(cx, cz);')
+    && segWriteES.indexOf('const surfPrev = surfaceAt(px, pz);') < segWriteES.indexOf('const surfCurr = surfaceAt(cx, cz);'),
+    'n=' + (segWriteES.split('surfaceAt(').length - 1));
+  check('skidendsurf: writer source loops over the two ends (e 0 prev, e 1 curr) and maps them to vertex pairs via v = e * 2 + k',
+    segWriteES.includes('for (let e = 0; e < 2; e++) {')
+    && segWriteES.includes('const surf = e === 0 ? surfPrev : surfCurr;')
+    && segWriteES.includes('const v = e * 2 + k;'));
+  check('skidendsurf: writer source keeps the unchanged per-surface table (legacy default plus gravel, dirt, grass and water rows)',
+    segWriteES.includes('let sr = 0.07, sg = 0.07, sb = 0.07, peak = 0.55;')
+    && segWriteES.includes("if (surf === 'gravel') { sr = 0.13; sg = 0.12; sb = 0.10; peak = 0.50; }")
+    && segWriteES.includes("else if (surf === 'dirt') { sr = 0.16; sg = 0.11; sb = 0.06; peak = 0.48; }")
+    && segWriteES.includes("else if (surf === 'grass') { sr = 0.10; sg = 0.13; sb = 0.05; peak = 0.38; }")
+    && segWriteES.includes("else if (surf === 'water') { sr = 0.20; sg = 0.22; sb = 0.20; peak = 0.12; }"));
+  check('skidendsurf: writer source writes the per-end colour per vertex and stores the per-vertex peak in skidPeakV',
+    segWriteES.includes('skidCol[c + v * 4] = sr; skidCol[c + v * 4 + 1] = sg; skidCol[c + v * 4 + 2] = sb; skidCol[c + v * 4 + 3] = peak;')
+    && segWriteES.includes('skidPeakV[slot * 4 + v] = peak;'));
+  check('skidendsurf: writer source stores skidAlpha[slot] as the max of the prev-end and curr-end peaks',
+    segWriteES.includes('skidAlpha[slot] = Math.max(skidPeakV[slot * 4], skidPeakV[slot * 4 + 2]);'));
+  check('skidendsurf: skidTick source fades per vertex from skidPeakV with no skidAlpha-based fade left',
+    segTickES.includes('skidCol[c + v * 4 + 3] = skidPeakV[i * 4 + v] * Math.max(0, skidLife[i] / SKID_LIFE);')
+    && !segTickES.includes('skidAlpha[i]'));
+  check('skidendsurf: clearSkid source resets skidPeakV with fill 0.55 right after the skidAlpha fill',
+    segClearES.includes('skidPeakV.fill(0.55);')
+    && segClearES.indexOf('skidAlpha.fill(0.55);') >= 0
+    && segClearES.indexOf('skidPeakV.fill(0.55);') > segClearES.indexOf('skidAlpha.fill(0.55);'));
+  /* behaviour: a boundary-crossing segment found by self-validating scan */
+  let segES = null;
+  for (let x = -80; x <= 80 && !segES; x += 1) {
+    for (let z = -80; z <= 80; z += 1) {
+      const pc = { x, z: z - 0.5 }, cc = { x, z: z + 0.5 };
+      const sp = G.surfaceAt(pc.x, pc.z), sc = G.surfaceAt(cc.x, cc.z);
+      if (sp === sc || !TABES[sp] || !TABES[sc] || TABES[sp][3] === TABES[sc][3]) continue;
+      const dev = Math.abs(G.terrainHeight(x, z) - (G.terrainHeight(pc.x, pc.z) + G.terrainHeight(cc.x, cc.z)) / 2);
+      if (dev > G.SKID_RIDGE_T) continue;
+      segES = { pc, cc, sp, sc };
+      break;
+    }
+  }
+  check('skidendsurf: self-validating scan finds a 1m segment whose ends are different surfaces with different peaks and no ridge split (midpoint deviation at or under SKID_RIDGE_T)',
+    !!segES && segES.sp !== segES.sc && TABES[segES.sp][3] !== TABES[segES.sc][3],
+    segES ? 'prev=' + segES.sp + '@' + segES.pc.x + ',' + segES.pc.z + ' curr=' + segES.sc + '@' + segES.cc.x + ',' + segES.cc.z : 'none found');
+  if (segES) {
+    const rowP = TABES[segES.sp], rowC = TABES[segES.sc];
+    G.clearSkid();
+    const headES = G.skidHead;
+    G.skidWriteQuad(segES.pc.x, segES.pc.z, segES.cc.x, segES.cc.z, 1, 0, 5, 0.14, 2);
+    const slotES = headES, cES = slotES * 16;
+    const vertOkES = (v, row) => approxES(G.skidCol[cES + v * 4], row[0]) && approxES(G.skidCol[cES + v * 4 + 1], row[1])
+      && approxES(G.skidCol[cES + v * 4 + 2], row[2]) && approxES(G.skidCol[cES + v * 4 + 3], row[3]);
+    check('skidendsurf: the boundary segment writes exactly one quad (head advances by 1, 1 live)',
+      liveES() === 1 && G.skidHead === (headES + 1) % G.SKID_N,
+      'live=' + liveES() + ' head=' + G.skidHead + ' from=' + headES);
+    check('skidendsurf: prev verts 0 and 1 carry the prev-end surface row (RGB and peak)',
+      vertOkES(0, rowP) && vertOkES(1, rowP),
+      'v0=' + [...G.skidCol.slice(cES, cES + 4)].join(',') + ' exp=' + rowP.join(','));
+    check('skidendsurf: curr verts 2 and 3 carry the curr-end surface row (RGB and peak)',
+      vertOkES(2, rowC) && vertOkES(3, rowC),
+      'v2=' + [...G.skidCol.slice(cES + 8, cES + 12)].join(',') + ' exp=' + rowC.join(','));
+    check('skidendsurf: the written quad really crosses a boundary (prev-end row differs from curr-end row)',
+      rowP.join(',') !== rowC.join(',')
+      && (Math.abs(G.skidCol[cES] - G.skidCol[cES + 8]) > 1e-4 || Math.abs(G.skidCol[cES + 3] - G.skidCol[cES + 11]) > 1e-4),
+      'prev=' + rowP.join(',') + ' curr=' + rowC.join(','));
+    check('skidendsurf: skidPeakV stores the per-vertex peaks in vertex order (prev, prev, curr, curr)',
+      approxES(G.skidPeakV[slotES * 4], rowP[3]) && approxES(G.skidPeakV[slotES * 4 + 1], rowP[3])
+      && approxES(G.skidPeakV[slotES * 4 + 2], rowC[3]) && approxES(G.skidPeakV[slotES * 4 + 3], rowC[3]),
+      'peakV=' + [...G.skidPeakV.slice(slotES * 4, slotES * 4 + 4)].join(','));
+    check('skidendsurf: skidAlpha[slot] equals the max of the two end peaks',
+      approxES(G.skidAlpha[slotES], Math.max(rowP[3], rowC[3])),
+      'skidAlpha=' + G.skidAlpha[slotES] + ' max=' + Math.max(rowP[3], rowC[3]));
+    check('skidendsurf: the boundary quad carries life and lifeMax SKID_LIFE',
+      G.skidLife[slotES] === G.SKID_LIFE && G.skidLifeMax[slotES] === G.SKID_LIFE,
+      'life=' + G.skidLife[slotES]);
+    G.skidTick(7);
+    check('skidendsurf: skidTick(7) fades the prev verts from the prev peak (half of the prev peak at half life)',
+      approxES(G.skidCol[cES + 3], rowP[3] * 0.5) && approxES(G.skidCol[cES + 7], rowP[3] * 0.5)
+      && approxES(G.skidLife[slotES], 7),
+      'prevA=' + G.skidCol[cES + 3] + ',' + G.skidCol[cES + 7] + ' exp=' + rowP[3] * 0.5);
+    check('skidendsurf: skidTick(7) fades the curr verts from the curr peak (half of the curr peak at half life)',
+      approxES(G.skidCol[cES + 11], rowC[3] * 0.5) && approxES(G.skidCol[cES + 15], rowC[3] * 0.5),
+      'currA=' + G.skidCol[cES + 11] + ',' + G.skidCol[cES + 15] + ' exp=' + rowC[3] * 0.5);
+    check('skidendsurf: the two ends fade independently (post-tick alpha gap equals half the peak gap)',
+      approxES(G.skidCol[cES + 3] - G.skidCol[cES + 11], (rowP[3] - rowC[3]) * 0.5),
+      'gap=' + (G.skidCol[cES + 3] - G.skidCol[cES + 11]) + ' exp=' + (rowP[3] - rowC[3]) * 0.5);
+    const headXES = G.skidHead;
+    G.skidWriteQuad(segES.pc.x, segES.pc.z, segES.cc.x, segES.cc.z, 1, 0, 5, 0.14, 2);
+    G.skidTick(G.SKID_LIFE + 0.1);
+    check('skidendsurf: skidTick expiry still parks a boundary quad at y -999 with alpha 0 and life 0',
+      liveES() === 0 && G.skidLife[headXES] === 0
+      && G.skidPos[headXES * 12 + 1] === -999 && G.skidCol[headXES * 16 + 3] === 0,
+      'live=' + liveES() + ' life=' + G.skidLife[headXES]);
+  } else {
+    check('skidendsurf: the boundary segment writes exactly one quad (head advances by 1, 1 live)', false, 'no segment');
+    check('skidendsurf: prev verts 0 and 1 carry the prev-end surface row (RGB and peak)', false, 'no segment');
+    check('skidendsurf: curr verts 2 and 3 carry the curr-end surface row (RGB and peak)', false, 'no segment');
+    check('skidendsurf: the written quad really crosses a boundary (prev-end row differs from curr-end row)', false, 'no segment');
+    check('skidendsurf: skidPeakV stores the per-vertex peaks in vertex order (prev, prev, curr, curr)', false, 'no segment');
+    check('skidendsurf: skidAlpha[slot] equals the max of the two end peaks', false, 'no segment');
+    check('skidendsurf: the boundary quad carries life and lifeMax SKID_LIFE', false, 'no segment');
+    check('skidendsurf: skidTick(7) fades the prev verts from the prev peak (half of the prev peak at half life)', false, 'no segment');
+    check('skidendsurf: skidTick(7) fades the curr verts from the curr peak (half of the curr peak at half life)', false, 'no segment');
+    check('skidendsurf: the two ends fade independently (post-tick alpha gap equals half the peak gap)', false, 'no segment');
+    check('skidendsurf: skidTick expiry still parks a boundary quad at y -999 with alpha 0 and life 0', false, 'no segment');
+  }
+  /* same-surface segment: byte-identical to the legacy uniform quad */
+  G.clearSkid();
+  const headUES = G.skidHead;
+  G.skidWriteQuad(0, -0.5, 0, 0.5, 1, 0, 4, 0.14, 2);
+  const cUES = headUES * 16;
+  const uniOkES = (row) => { for (let v = 0; v < 4; v++) {
+    if (!approxES(G.skidCol[cUES + v * 4], row[0]) || !approxES(G.skidCol[cUES + v * 4 + 1], row[1])
+      || !approxES(G.skidCol[cUES + v * 4 + 2], row[2]) || !approxES(G.skidCol[cUES + v * 4 + 3], row[3])) return false;
+  } return true; };
+  check('skidendsurf: a same-surface segment (spawn grass at both ends) stays uniform on all four verts',
+    G.surfaceAt(0, -0.5) === 'grass' && G.surfaceAt(0, 0.5) === 'grass'
+    && liveES() === 1 && uniOkES(TABES.grass),
+    'col=' + [...G.skidCol.slice(cUES, cUES + 4)].join(','));
+  check('skidendsurf: the same-surface quad stores 0.38 in every skidPeakV slot and in skidAlpha',
+    [...G.skidPeakV.slice(headUES * 4, headUES * 4 + 4)].every(v => approxES(v, 0.38))
+    && approxES(G.skidAlpha[headUES], 0.38),
+    'peakV=' + [...G.skidPeakV.slice(headUES * 4, headUES * 4 + 4)].join(',') + ' skidAlpha=' + G.skidAlpha[headUES]);
+  G.skidTick(7);
+  check('skidendsurf: the same-surface quad keeps the legacy fade (grass 0.38 peak to 0.19 at half life on all verts)',
+    uniOkES([TABES.grass[0], TABES.grass[1], TABES.grass[2], 0.19]) && approxES(G.skidLife[headUES], 7),
+    'a=' + G.skidCol[cUES + 3] + ',' + G.skidCol[cUES + 15]);
+  /* clear: skidPeakV resets to the neutral 0.55 everywhere */
+  G.clearSkid();
+  check('skidendsurf: clearSkid resets skidPeakV to 0.55 everywhere, skidAlpha to 0.55 and leaves no live quads',
+    Array.from(G.skidPeakV).every(v => approxES(v, 0.55))
+    && Array.from(G.skidAlpha).every(v => approxES(v, 0.55)) && liveES() === 0,
+    'live=' + liveES());
+  /* static pins re-checked: per-end skid colour adds zero of everything pinned */
+  check('skidendsurf-pins: 50 InstancedMesh literals', lineHasES('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasES('new THREE.InstancedMesh'));
+  check('skidendsurf-pins: 92 Math.random lines', lineHasES('Math.random') === 92,
+    'n=' + lineHasES('Math.random'));
+  check('skidendsurf-pins: 72 setTimeout lines', lineHasES('setTimeout') === 72,
+    'n=' + lineHasES('setTimeout'));
+  check('skidendsurf-pins: 6 lights, 18 osc and 32 gain (unchanged)',
+    linesES.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6
+    && (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 32);
+  check('skidendsurf-pins: exactly 2 Points objects and exactly one skid Mesh construction',
+    lineHasES('new THREE.Points(') === 2 && lineHasES('new THREE.Mesh(skidGeo') === 1,
+    'points=' + lineHasES('new THREE.Points(') + ' skidMesh=' + lineHasES('new THREE.Mesh(skidGeo'));
+  check('skidendsurf-pins: no em dashes, no TODO markers, allowed CDN URLs (Phase 1 set)',
+    !html.includes('\u2014') && !/\bTODO\b/.test(html)
+    && (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('skidendsurf: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsES, consoleProblems.slice(probsES).join(' | '));
   G.clearSkid();
 }
 
