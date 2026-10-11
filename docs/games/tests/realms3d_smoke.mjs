@@ -12297,13 +12297,17 @@ globalThis.__R3D2 = {
    arrays (dustGrav and dustDrag, 48 slots, initialized to 1) carry
    the physics per slot. spawnDust derives radialScale, upScale,
    grav and dragF from the surface once per burst: water gets
-   radialScale 0.55, upScale 1.9, grav 1.8, dragF 0.35, and every
-   other surface keeps 1, 1, 1, 1. dustTick applies gravity as
-   3.5 * dustGrav[i] * dt and horizontal drag as
-   1 - 3 * dustDrag[i] * dt. Splash droplets are dense and
-   ballistic (narrow cone, high launch, strong gravity, low drag);
-   dust is light and drag-dominated (wide, floaty). Non-water
-   bursts are unchanged. No new Points, draw calls or nodes. */
+   radialScale 0.55, upScale 1.9, grav 1.8, dragF 0.35, and at
+   this step every other surface kept 1, 1, 1, 1. dustTick
+   applies gravity as 3.5 * dustGrav[i] * dt and horizontal
+   drag as 1 - 3 * dustDrag[i] * dt. Splash droplets are dense
+   and ballistic (narrow cone, high launch, strong gravity, low
+   drag); dust is light and drag-dominated (wide, floaty).
+   The grav and drag values are superseded by PER-SURFACE
+   DUST PHYSICS v1 below (grass 0.85 / 1.15, dirt 1 / 1, rock
+   1.35 / 0.65, gravel 1.20 / 0.80, water unchanged);
+   radialScale and upScale stay water-versus-rest as above.
+   No new Points, draw calls or nodes. */
 {
   const probsW = consoleProblems.length;
   const approxW = (a, b, tol) => Math.abs(a - b) <= tol;
@@ -13581,8 +13585,10 @@ globalThis.__R3D2 = {
    base * 0.6, birth alpha stays 0, the dustRand order and count
    per particle stay exactly four, dustTick formulas are
    unchanged and clearDust still resets 0.8 / 0.15. The profile
-   is two scalars per surface: gravity and drag stay
-   water-versus-rest. No new Points, draw calls or nodes. */
+   at this step was two scalars per surface, with gravity and
+   drag still water-versus-rest; that limit is superseded by
+   PER-SURFACE DUST PHYSICS v1 below (four scalars per
+   surface). No new Points, draw calls or nodes. */
 {
   const probsP = consoleProblems.length;
   const approxP = (a, b, tol) => Math.abs(a - b) <= tol;
