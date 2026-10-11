@@ -2,6 +2,43 @@
 
 Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
+## 2026-10-11
+
+### REALMS Gloom Spitter: first ranged enemy (roadmap item 7) (indie dev loop)
+- New enemy type on depth 2+: the Gloom Spitter, a squat toad that fires a
+  glowing spit glob when it shares a row or column with the player at range
+  2 to 6 with a clear line. Adjacent it melees like every other enemy; out
+  of line it wanders. About 12% of dungeon spawns, carved out of the bat
+  share; never on depth 1.
+- Projectiles are a small entity list (`G["projs"]`, ticked by `tick_projs`):
+  1 tile per 2 ticks, walls eat them, the player takes the damage stored at
+  fire time, max life 8 moves. Cost stays O(enemies + projs) per tick, and
+  the list clears on every floor change.
+- Drawn in every renderer: new two-frame 32px sprite appended to
+  `assets/dark.png` (atlas entries `spitter` and `spitter2`), a 10-box
+  low-poly model in the driver for the 3D view, green bead rects for the
+  globs in top-down and the raycaster first-person view, spark models for
+  the globs in 3D first-person. New `spit` sound through the existing snd
+  channel. Game logic stays 100% Jesun.Code; `deepdelve.jc`/`deepdelve.html`
+  untouched.
+- Driver: `APP_VERSION` bumped to `20261011a` for cache bust.
+- Verified: 13/13 CPython checks green (aligned fire, glob travel and exact
+  stored damage, wall-blocked line of sight, range gate at 2 to 6, diagonal
+  no-fire, adjacent melee with no glob, depth 3 spawn count 40 across 40
+  seeds, zero spitters on depth 1, 400-tick randomized pump across maps,
+  modes and difficulties zero exceptions, 50-tick determinism
+  byte-identical). Node+Pyodide bridge `move_regress` ALL GREEN; FPP
+  dungeon scene build avg 18.4ms/tick, p95 26.0ms/tick (budget 120ms).
+- Live playtest of the pushed page (build 20261011a confirmed served):
+  clean boot, run started on DELVER, 60+ inputs with movement, swing and
+  talk keys all responding, zero errors. Gap, stated plainly: the
+  playtester did not reach the cave mouth in the walk window (dark
+  overworld trees are hard to read at night), so the spitter and the
+  dungeon views were not exercised in the browser this run; they are
+  covered by the CPython unit checks and the Node bridge FPP test above,
+  which drive the exact fire, travel and render paths.
+  Next up: Villager quest log (item 8).
+
 ## 2026-10-10
 
 ### REALMS enemy separation steering (roadmap item 6) (indie dev loop)
