@@ -5772,8 +5772,16 @@ function clearDust(){
        rear-track ribbon from the same pooled mesh (zero new draw calls,
        zero new Mesh), half-width 0.05, gated by hard lean over 0.25
        and speed over 6, rear 0.32 behind centre, grounded only.
-       New honest limit: bus, fire truck and horse still lay no marks
-       yet; flat-quad slope clipping limit still applies. --- */
+       SKID MARKS EXTENSION v4: bus now lays a dual-track ribbon
+       from the same pooled mesh (zero new draw calls, zero new
+       Mesh), rear 4.2, lateral +/-0.9, half-width 0.16, gated
+       player-driving only with |steer| over 0.4 and speed over 8;
+       AI route driving lays nothing. fire truck now lays a
+       dual-track ribbon from the same pooled mesh (zero new draw
+       calls, zero new Mesh), rear 3.5, lateral +/-0.85,
+       half-width 0.15, same steer/speed gates.
+       New honest limit: horse still lays no marks yet;
+       flat-quad slope clipping limit still applies. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
 const skidCol = new Float32Array(SKID_N * 4 * 4);
@@ -5805,6 +5813,10 @@ let skid2Prev = null;
 let skid2Px = 0, skid2Pz = 0, skid2Cx = 0, skid2Cz = 0;
 let skid3Prev = null;
 let skid3Px = 0, skid3Pz = 0, skid3Cx = 0, skid3Cz = 0;
+let skid4Prev = null;
+let skid4PLx = 0, skid4PLz = 0, skid4PRx = 0, skid4PRz = 0, skid4PCx = 0, skid4PCz = 0;
+let skid5Prev = null;
+let skid5PLx = 0, skid5PLz = 0, skid5PRx = 0, skid5PRz = 0, skid5PCx = 0, skid5PCz = 0;
 function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){
   const slot = skidHead; skidHead = (skidHead + 1) % SKID_N;
   const yy = y + 0.03;
@@ -5819,6 +5831,44 @@ function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){
   }
   skidLife[slot] = SKID_LIFE; skidLifeMax[slot] = SKID_LIFE;
 }
+function skidStep4(x, z, heading, y){
+  const fx = Math.sin(heading), fz = Math.cos(heading);
+  const lx = fz, lz = -fx;
+  const rx = x - fx * 4.2, rz = z - fz * 4.2;
+  const leftX = rx + lx * 0.9, leftZ = rz + lz * 0.9;
+  const rightX = rx - lx * 0.9, rightZ = rz - lz * 0.9;
+  if (skid4Prev === null) {
+    skid4PLx = leftX; skid4PLz = leftZ; skid4PRx = rightX; skid4PRz = rightZ; skid4PCx = rx; skid4PCz = rz; skid4Prev = 1;
+    return;
+  }
+  const dx = rx - skid4PCx, dz = rz - skid4PCz;
+  if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;
+  skidWriteQuad(skid4PLx, skid4PLz, leftX, leftZ, lx, lz, y, 0.16);
+  skidWriteQuad(skid4PRx, skid4PRz, rightX, rightZ, lx, lz, y, 0.16);
+  skid4PLx = leftX; skid4PLz = leftZ; skid4PRx = rightX; skid4PRz = rightZ; skid4PCx = rx; skid4PCz = rz;
+  skidPosAttr.needsUpdate = true;
+  skidColAttr.needsUpdate = true;
+}
+function skidReset4(){ skid4Prev = null; }
+function skidStep5(x, z, heading, y){
+  const fx = Math.sin(heading), fz = Math.cos(heading);
+  const lx = fz, lz = -fx;
+  const rx = x - fx * 3.5, rz = z - fz * 3.5;
+  const leftX = rx + lx * 0.85, leftZ = rz + lz * 0.85;
+  const rightX = rx - lx * 0.85, rightZ = rz - lz * 0.85;
+  if (skid5Prev === null) {
+    skid5PLx = leftX; skid5PLz = leftZ; skid5PRx = rightX; skid5PRz = rightZ; skid5PCx = rx; skid5PCz = rz; skid5Prev = 1;
+    return;
+  }
+  const dx = rx - skid5PCx, dz = rz - skid5PCz;
+  if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;
+  skidWriteQuad(skid5PLx, skid5PLz, leftX, leftZ, lx, lz, y, 0.15);
+  skidWriteQuad(skid5PRx, skid5PRz, rightX, rightZ, lx, lz, y, 0.15);
+  skid5PLx = leftX; skid5PLz = leftZ; skid5PRx = rightX; skid5PRz = rightZ; skid5PCx = rx; skid5PCz = rz;
+  skidPosAttr.needsUpdate = true;
+  skidColAttr.needsUpdate = true;
+}
+function skidReset5(){ skid5Prev = null; }
 function skidStep(x, z, heading, y){
   const fx = Math.sin(heading), fz = Math.cos(heading);
   const lx = fz, lz = -fx;
@@ -5915,6 +5965,8 @@ function clearSkid(){
   skid1Prev = null;
   skid2Prev = null;
   skid3Prev = null;
+  skid4Prev = null;
+  skid5Prev = null;
   skidPosAttr.needsUpdate = true;
   skidColAttr.needsUpdate = true;
 }
@@ -19509,7 +19561,7 @@ function busDrivePlayer(sdt) {
 function busUpdate(sdt, now) {
   const pcx = Math.floor(player.position.x / CHUNK), pcz = Math.floor(player.position.z / CHUNK);
   if (pcx !== BUS.anchorCx || pcz !== BUS.anchorCz) busRebuildRoute(pcx, pcz);
-  if (!BUS.active) return;
+  if (!BUS.active) { skidReset4(); return; }
   if (P.dead && (BUS.driving || BUS.riding)) { busExit(); return; }
 
   const n = BUS.route.length;
@@ -19567,6 +19619,7 @@ function busUpdate(sdt, now) {
   } else {
     BUS.dustDist = 0;
   }
+  if (BUS.driving && Math.abs(BUS.steer) > 0.4 && Math.abs(BUS.speed) > 8) skidStep4(BUS.pos.x, BUS.pos.z, BUS.heading, BUS.pos.y); else skidReset4();
 
   // ---- write the two bus instances ----
   _busE.set(0, BUS.heading, 0); _busQ.setFromEuler(_busE);
@@ -20355,6 +20408,7 @@ function ftUpdate(sdt, now) {
       near = dx * dx + dz * dz < FT.boardR2;
     }
     if (near !== FT.hintOn) { FT.hintOn = near; ftHintEl.style.opacity = near ? 1 : 0; }
+    skidReset5();
     return;
   }
   if (P.dead) { ftExit(); return; }   // death always ejects, never soft-locks
@@ -20410,6 +20464,7 @@ function ftUpdate(sdt, now) {
   } else {
     FT.dustDist = 0;
   }
+  if (Math.abs(FT.steer) > 0.4 && Math.abs(FT.speed) > 8) skidStep5(FT.pos.x, FT.pos.z, FT.heading, FT.pos.y); else skidReset5();
 
   // ---- water cannon: hold FIRE to spray (needs water in the tank) ----
   FT.spraying = waterHeld && FT.water > 0;
