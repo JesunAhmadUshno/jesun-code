@@ -2,7 +2,12 @@
    Minimal browser-environment fakes so the extracted realms3d module boots in
    plain Node with real three@0.160.0 but NO renderer and NO network.
    No production code is touched; this module only installs globals before the
-   game module is imported. */
+   game module is imported.
+   WEBGL CONTEXT-LOSS RESILIENCE v1 (test-only): stub elements record their
+   listeners and support dispatchEvent, and every stub GL canvas is exposed
+   via globalThis.__glcanvases ([0] is the harness boot; the DPR-clamp second
+   boot appends its own), so the harness can drive synthetic
+   webglcontextlost/restored events on the real instance without a GPU. */
 
 export function installStubs() {
   const listeners = {};
@@ -27,6 +32,7 @@ export function installStubs() {
 
   function makeEl(id) {
     const cls = new Set();
+    const elListeners = {};
     const el = {
       id: id || '',
       style: {},
@@ -47,8 +53,9 @@ export function installStubs() {
       },
       appendChild() {},
       removeChild() {},
-      addEventListener() {},
-      removeEventListener() {},
+      addEventListener(type, fn) { (elListeners[type] = elListeners[type] || []).push(fn); },
+      removeEventListener(type, fn) { elListeners[type] = (elListeners[type] || []).filter(f => f !== fn); },
+      dispatchEvent(ev) { for (const fn of elListeners[ev && ev.type] || []) fn(ev); return true; },
       getContext() { return ctx2d(); },
       toDataURL() { return 'data:image/png;base64,STUB'; },  // Phase 5 cooking: food icon sheet slice
       requestPointerLock() { return undefined; },
@@ -154,6 +161,12 @@ export function installStubs() {
   class StubRenderer {
     constructor() {
       this.domElement = makeEl('glcanvas');
+      /* WEBGL CONTEXT-LOSS RESILIENCE v1 (test-only): keep every stub canvas
+         so the harness can drive synthetic webglcontextlost/restored events
+         on the real instance without a GPU. __glcanvases[0] is the harness
+         boot; later boots (e.g. the DPR-clamp second boot) append. */
+      (globalThis.__glcanvases = globalThis.__glcanvases || []).push(this.domElement);
+      globalThis.__glcanvas = this.domElement;
       this.shadowMap = {};
       this.outputColorSpace = '';
       this.toneMapping = 0;

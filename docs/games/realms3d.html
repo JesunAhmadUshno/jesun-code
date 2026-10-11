@@ -1610,6 +1610,20 @@ try {
   if (savedCeil >= 1) for (const s of GOV_LADDER) if (s <= savedCeil) GOV_START = s;
 } catch (e) { /* storage unavailable: boot at the top rung */ }
 const renderer = new THREE.WebGLRenderer({ antialias: true });
+/* WEBGL CONTEXT-LOSS RESILIENCE v1: on iPhones under memory or thermal
+   pressure the GPU context can drop mid-session. Without preventDefault()
+   on webglcontextlost the canvas freezes silently until a full page reload;
+   three r160 re-uploads the GPU resources it owns on webglcontextrestored,
+   so the outage is fully recoverable. tick() skips sim+render while
+   webglLost is true so the rAF chain survives the outage and resumes clean. */
+let webglLost = false;
+renderer.domElement.addEventListener('webglcontextlost', e => {
+  e.preventDefault();
+  if (!webglLost) { webglLost = true; toast('GPU paused. Recovering.'); }
+});
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  webglLost = false; toast('GPU recovered.');
+});
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(GOV_START);
 renderer.shadowMap.enabled = true;
@@ -24704,6 +24718,7 @@ function togglePerf() {
 
 function tick() {
   requestAnimationFrame(tick);
+  if (webglLost) return;   // context lost: keep rAF alive, skip sim+render
   const dt = Math.min(clock.getDelta(), 0.05);
   /* --- melee hit-stop: freeze the world sim for a beat on a connect.
          sdt is the world-sim dt (0 while hitstop runs); the frame still renders,
