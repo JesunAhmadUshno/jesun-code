@@ -357,9 +357,11 @@ globalThis.__R3D = {
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   /* SKID MARKS v1: skid pool + helpers + constants (test-only exposure) */
   skidStep, skidTick, skidReset, clearSkid, SKID_N, SKID_LIFE, SKID_MIN_SEG,
+  skidStep1, skidReset1,
   skidPos, skidCol, skidLife, skidLifeMax, skidGeo, skidMesh,
   get skidHead() { return skidHead; },
   get skidPrev() { return skidPrev; },
+  get skid1Prev() { return skid1Prev; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
@@ -15478,8 +15480,8 @@ globalThis.__R3D2 = {
   /* source: header, honest limit and placement after clearDust, before trauma */
   check('skid: source carries the SKID MARKS v1 header',
     html.includes('SKID MARKS v1'));
-  check('skid: header states car only in v1 and other vehicles do not lay marks yet',
-    htmlNSk.includes('car only in v1, other vehicles do not lay marks yet'));
+  check('skid: header states the extension honest limit (bus, fire truck, bicycle, scooter and horse still lay no marks yet)',
+    htmlNSk.includes('bus, fire truck, bicycle, scooter and horse still lay no marks yet'));
   check('skid: header states marks are flat quads at ground+0.03 so steep slopes may clip slightly',
     htmlNSk.includes('marks are flat quads at ground+0.03 so steep slopes may clip slightly'));
   check('skid: header states pooled ribbon with exactly one new Mesh and +1 draw call',
@@ -15657,6 +15659,227 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('skid: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSk, consoleProblems.slice(probsSk).join(' | '));
+}
+
+
+/* ================= SKID MARKS EXTENSION v1: MOTORCYCLE =================
+   The motorcycle lays a single-track skid from the same pooled
+   ribbon as the car: skidStep1 tracks one rear point 0.9 behind
+   the centre along the heading, the first call stores only, a
+   step of at least SKID_MIN_SEG writes exactly ONE quad of
+   half-width 0.06 (0.12 wide, rubber colour, peak alpha 0.55,
+   y = ground+0.03, life SKID_LIFE), a shorter step writes
+   nothing, and skidReset1 / skidReset / clearSkid keep the car
+   and bike prev state independent except that clearSkid clears
+   both. The bike gate is also driven through the real tick:
+   holding throttle plus a turn builds a hard lean above 0.25
+   at speed above 8 and the real bikeUpdate lays live marks. */
+{
+  const probsSm = consoleProblems.length;
+  const linesSm = html.split('\n');
+  const lineHasSm = sub => linesSm.filter(l => l.includes(sub)).length;
+  const htmlNSm = html.replace(/\s+/g, ' ');
+  const approxSm = (a, b) => Math.abs(a - b) < 1e-4;
+  const liveSm = () => { let n = 0; for (let i = 0; i < G.SKID_N; i++) if (G.skidLife[i] > 0) n++; return n; };
+  const segBikeSm = html.indexOf('function bikeUpdate') >= 0 ? html.slice(html.indexOf('function bikeUpdate'), html.indexOf('/* ================= PHASE 5: BICYCLE')) : '';
+  const segStep1Sm = html.indexOf('function skidStep1') >= 0 ? html.slice(html.indexOf('function skidStep1'), html.indexOf('function skidReset()')) : '';
+  const segClearSm = html.indexOf('function clearSkid()') >= 0 ? html.slice(html.indexOf('function clearSkid()'), html.indexOf('const TRAUMA_DECAY')) : '';
+  const gateSm = 'if (Math.abs(BIKE.lean) > 0.25 && Math.abs(BIKE.speed) > 8) skidStep1(BIKE.pos.x, BIKE.pos.z, BIKE.heading, BIKE.pos.y); else skidReset1();';
+  /* source: header extension text and the new honest limit */
+  check('skidmoto: source carries the SKID MARKS EXTENSION v1 header',
+    html.includes('SKID MARKS EXTENSION v1'));
+  check('skidmoto: header states motorcycle now lays a single 0.12-wide rear-track ribbon',
+    htmlNSm.includes('motorcycle now lays a single 0.12-wide rear-track ribbon'));
+  check('skidmoto: header states the ribbon comes from the same pooled mesh with zero new draw calls and zero new Mesh',
+    htmlNSm.includes('from the same pooled mesh (zero new draw calls, zero new Mesh)'));
+  check('skidmoto: header states the gate (hard lean over 0.25, speed over 8, rear 0.9 behind centre)',
+    htmlNSm.includes('gated by hard lean over 0.25 and speed over 8, rear 0.9 behind centre'));
+  check('skidmoto: header states the new honest limit (bus, fire truck, bicycle, scooter and horse still lay no marks yet)',
+    htmlNSm.includes('bus, fire truck, bicycle, scooter and horse still lay no marks yet'));
+  check('skidmoto: header states the flat-quad slope clipping limit still applies',
+    htmlNSm.includes('flat-quad slope clipping limit still applies'));
+  check('skidmoto: header no longer states the old car-only limit',
+    !htmlNSm.includes('car only in v1, other vehicles do not lay marks yet'));
+  /* source: writer signature, separate state and the single-track step */
+  check('skidmoto: skidWriteQuad source gains halfW defaulting to 0.14',
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){'));
+  check('skidmoto: car skidWriteQuad calls stay unchanged (no halfW argument, default width)',
+    html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y);')
+    && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y);'));
+  check('skidmoto: source declares the separate single-track state (skid1Prev, skid1Px, skid1Pz, skid1Cx, skid1Cz)',
+    html.includes('let skid1Prev = null;')
+    && html.includes('let skid1Px = 0, skid1Pz = 0, skid1Cx = 0, skid1Cz = 0;'));
+  check('skidmoto: skidStep1 and skidReset1 are exposed functions and skid1Prev starts null after clearSkid',
+    typeof G.skidStep1 === 'function' && typeof G.skidReset1 === 'function'
+    && (() => { G.clearSkid(); return G.skid1Prev === null; })());
+  check('skidmoto: skidStep1 source computes forward and lateral from the heading',
+    segStep1Sm.includes('const fx = Math.sin(heading), fz = Math.cos(heading);')
+    && segStep1Sm.includes('const lx = fz, lz = -fx;'));
+  check('skidmoto: skidStep1 source puts the rear point 0.9 behind the centre along the heading',
+    segStep1Sm.includes('const rx = x - fx * 0.9, rz = z - fz * 0.9;'));
+  check('skidmoto: skidStep1 source stores only on the first call (prev and centre set, skid1Prev set, return)',
+    segStep1Sm.includes('if (skid1Prev === null) {')
+    && segStep1Sm.includes('skid1Px = rx; skid1Pz = rz; skid1Cx = rx; skid1Cz = rz; skid1Prev = 1;'));
+  check('skidmoto: skidStep1 source gates on SKID_MIN_SEG from the stored centre',
+    segStep1Sm.includes('const dx = rx - skid1Cx, dz = rz - skid1Cz;')
+    && segStep1Sm.includes('if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;'));
+  check('skidmoto: skidStep1 source writes exactly ONE quad with half-width 0.06',
+    segStep1Sm.split('skidWriteQuad(').length - 1 === 1
+    && segStep1Sm.includes('skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06);'),
+    'writes=' + (segStep1Sm.split('skidWriteQuad(').length - 1));
+  check('skidmoto: skidStep1 source flags both attributes for update after a write',
+    segStep1Sm.includes('skidPosAttr.needsUpdate = true;') && segStep1Sm.includes('skidColAttr.needsUpdate = true;'));
+  check('skidmoto: skidReset source is exact and does not touch skid1 state',
+    html.includes('function skidReset(){ skidPrev = null; }'));
+  check('skidmoto: skidReset1 source is exact (clears only skid1Prev)',
+    html.includes('function skidReset1(){ skid1Prev = null; }'));
+  check('skidmoto: clearSkid source clears both prevs',
+    segClearSm.includes('skidPrev = null;') && segClearSm.includes('skid1Prev = null;'));
+  /* source: the bike gate, its comment and its exact placement */
+  check('skidmoto: bikeUpdate source contains the exact gate line',
+    segBikeSm.includes(gateSm));
+  check('skidmoto: bikeUpdate source carries the SKID MARKS EXTENSION v1 comment directly before the gate',
+    segBikeSm.includes('// ---- SKID MARKS EXTENSION v1: single-track skid while hard-leaning ----')
+    && segBikeSm.indexOf('SKID MARKS EXTENSION v1: single-track skid') < segBikeSm.indexOf(gateSm));
+  check('skidmoto: the bike skid gate sits after the tire-dust block',
+    segBikeSm.indexOf('spawnDust(bx,') >= 0
+    && segBikeSm.indexOf('spawnDust(bx,') < segBikeSm.indexOf(gateSm));
+  check('skidmoto: the bike skid gate sits before the engine audio',
+    segBikeSm.indexOf(gateSm) >= 0
+    && segBikeSm.indexOf(gateSm) < segBikeSm.indexOf('engine audio: the car'));
+  check('skidmoto: bikeUpdate carries exactly one skidStep1 call site',
+    segBikeSm.split('skidStep1(').length - 1 === 1, 'n=' + (segBikeSm.split('skidStep1(').length - 1));
+  check('skidmoto: bikeUpdate carries exactly one skidReset1 call site',
+    segBikeSm.split('skidReset1(').length - 1 === 1, 'n=' + (segBikeSm.split('skidReset1(').length - 1));
+  /* direct behaviour: first call store-only, then exactly one quad */
+  G.clearSkid();
+  check('skidmoto: clearSkid leaves no live quads and both prevs null',
+    liveSm() === 0 && G.skidPrev === null && G.skid1Prev === null, 'live=' + liveSm());
+  const head0Sm = G.skidHead;
+  G.skidStep1(10, 20, 0, 5);
+  check('skidmoto: first skidStep1 writes nothing (head unchanged, 0 live)',
+    G.skidHead === head0Sm && liveSm() === 0, 'head ' + head0Sm + ' to ' + G.skidHead + ' live=' + liveSm());
+  check('skidmoto: first skidStep1 sets skid1Prev non-null',
+    G.skid1Prev !== null, 'skid1Prev=' + G.skid1Prev);
+  G.skidStep1(10, 21, 0, 5);
+  check('skidmoto: a step of at least 0.9m writes exactly ONE quad (head advances 1, 1 live)',
+    G.skidHead === (head0Sm + 1) % G.SKID_N && liveSm() === 1,
+    'head=' + G.skidHead + ' live=' + liveSm());
+  {
+    const s0 = head0Sm, p0 = s0 * 12;
+    const expSm = [9.94, 5.03, 19.1, 10.06, 5.03, 19.1, 10.06, 5.03, 20.1, 9.94, 5.03, 20.1];
+    let posOk = true;
+    for (let i = 0; i < 12; i++) { if (!approxSm(G.skidPos[p0 + i], expSm[i])) posOk = false; }
+    check('skidmoto: written quad positions match the single-track maths with half-width 0.06, y = ground+0.03',
+      posOk, 'q=' + [...G.skidPos.slice(p0, p0 + 12)].join(','));
+    check('skidmoto: written quad width is exactly 0.12 (0.06 half-width on each side)',
+      approxSm(G.skidPos[p0 + 3] - G.skidPos[p0], 0.12) && approxSm(G.skidPos[p0 + 6] - G.skidPos[p0 + 9], 0.12),
+      'w0=' + (G.skidPos[p0 + 3] - G.skidPos[p0]) + ' w1=' + (G.skidPos[p0 + 6] - G.skidPos[p0 + 9]));
+    let colOk = true;
+    for (let v = 0; v < 4; v++) {
+      const c = s0 * 16 + v * 4;
+      if (!approxSm(G.skidCol[c], 0.07) || !approxSm(G.skidCol[c + 1], 0.07) || !approxSm(G.skidCol[c + 2], 0.07) || !approxSm(G.skidCol[c + 3], 0.55)) colOk = false;
+    }
+    check('skidmoto: written quad carries rubber RGB 0.07 and peak alpha 0.55 on all verts',
+      colOk);
+    check('skidmoto: written quad life and lifeMax are SKID_LIFE',
+      G.skidLife[s0] === G.SKID_LIFE && G.skidLifeMax[s0] === G.SKID_LIFE,
+      'life=' + G.skidLife[s0] + ' max=' + G.skidLifeMax[s0]);
+  }
+  const head1Sm = G.skidHead;
+  G.skidStep1(10, 21.4, 0, 5);
+  check('skidmoto: a step under 0.9m writes nothing',
+    G.skidHead === head1Sm && liveSm() === 1, 'head=' + G.skidHead + ' live=' + liveSm());
+  G.skidStep1(10, 22, 0, 5);
+  check('skidmoto: a big step after the sub-segment step writes exactly one more quad',
+    G.skidHead === (head1Sm + 1) % G.SKID_N && liveSm() === 2,
+    'head=' + G.skidHead + ' live=' + liveSm());
+  /* reset independence: each reset clears only its own prev */
+  G.skidStep(0, 0, 0, 2);
+  check('skidmoto: setup for reset checks leaves both car and bike prevs set',
+    G.skidPrev !== null && G.skid1Prev !== null, 'car=' + G.skidPrev + ' bike=' + G.skid1Prev);
+  G.skidReset1();
+  check('skidmoto: skidReset1 clears skid1Prev',
+    G.skid1Prev === null);
+  check('skidmoto: skidReset1 does not clear the car skidPrev',
+    G.skidPrev !== null, 'car=' + G.skidPrev);
+  G.skidStep1(30, 30, 0, 2);
+  check('skidmoto: after skidReset1 the next skidStep1 stores only and sets skid1Prev again',
+    G.skidHead === (head1Sm + 1) % G.SKID_N && liveSm() === 2 && G.skid1Prev !== null,
+    'head=' + G.skidHead + ' live=' + liveSm());
+  G.skidReset();
+  check('skidmoto: skidReset clears the car skidPrev',
+    G.skidPrev === null);
+  check('skidmoto: skidReset does not clear skid1Prev',
+    G.skid1Prev !== null, 'bike=' + G.skid1Prev);
+  G.skidStep(0, 0, 0, 2);
+  G.clearSkid();
+  check('skidmoto: clearSkid clears both prevs and all live quads',
+    G.skidPrev === null && G.skid1Prev === null && liveSm() === 0,
+    'car=' + G.skidPrev + ' bike=' + G.skid1Prev + ' live=' + liveSm());
+  /* real tick: a hard-leaning bike lays marks, a non-lean frame resets */
+  {
+    G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false;
+    G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+    G.keys.Space = false; G.keys.ShiftLeft = false; G.keys.ShiftRight = false;
+    G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0;
+    G.CAR.driving = false; G.CAR.speed = 0; G.CAR.dustDist = 0; G.CAR.drifting = false;
+    G.BUS.active = false; G.BUS.driving = false; G.BUS.riding = false; G.BUS.speed = 0; G.BUS.dustDist = 0;
+    G.FT.driving = false; G.FT.speed = 0; G.FT.dustDist = 0;
+    G.BC.driving = false; G.BC.speed = 0; G.BC.dustDist = 0;
+    G.SC.driving = false; G.SC.speed = 0; G.SC.dustDist = 0; G.SC.hopY = 0; G.SC.hopVy = 0;
+    G.HORSE.riding = false; G.HORSE.speed = 0; G.HORSE.dustDist = 0;
+    G.BIKE.driving = true; G.BIKE.activeIdx = 0;
+    G.BIKE.pos.set(0, groundY(0, 0), 0); G.BIKE.heading = 0; G.BIKE.steer = 0; G.BIKE.lean = 0;
+    G.BIKE.hitCd = 10; G.BIKE.wheelieT = 0; G.BIKE.stoppieT = 0;
+    G.BIKE.boostT = 0; G.BIKE.boostCd = 0; G.BIKE.speed = 20; G.BIKE.dustDist = 0;
+    G.player.visible = false;
+    G.clearDust(); G.clearSkid();
+    const headBikeSm = G.skidHead;
+    G.keys.KeyW = true; G.keys.KeyD = true;
+    frame(30);
+    G.keys.KeyW = false; G.keys.KeyD = false;
+    check('skidmoto: hard-leaning bike through the real tick lays live single-track marks',
+      Math.abs(G.BIKE.lean) > 0.25 && Math.abs(G.BIKE.speed) > 8 && liveSm() > 0 && G.skidHead !== headBikeSm,
+      'lean=' + G.BIKE.lean + ' speed=' + G.BIKE.speed + ' live=' + liveSm() + ' head ' + headBikeSm + ' to ' + G.skidHead);
+    check('skidmoto: the real-tick hard-lean run leaves skid1Prev set (gate branch taken)',
+      G.skid1Prev !== null, 'skid1Prev=' + G.skid1Prev);
+    G.BIKE.lean = 0; G.BIKE.steer = 0;
+    frame(1);
+    check('skidmoto: a non-hard-lean bike frame resets skid1Prev via skidReset1',
+      G.skid1Prev === null && Math.abs(G.BIKE.lean) <= 0.25,
+      'skid1Prev=' + G.skid1Prev + ' lean=' + G.BIKE.lean);
+    G.BIKE.driving = false; G.BIKE.speed = 0; G.BIKE.lean = 0; G.BIKE.steer = 0; G.BIKE.dustDist = 0;
+    G.player.visible = true;
+    G.clearSkid(); G.clearDust();
+  }
+  /* static pins re-checked: the extension adds zero of everything pinned */
+  check('skidmoto-pins: 49 InstancedMesh literals', lineHasSm('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasSm('new THREE.InstancedMesh'));
+  check('skidmoto-pins: 92 Math.random lines', lineHasSm('Math.random') === 92,
+    'n=' + lineHasSm('Math.random'));
+  check('skidmoto-pins: 72 setTimeout lines', lineHasSm('setTimeout') === 72,
+    'n=' + lineHasSm('setTimeout'));
+  check('skidmoto-pins: 6 lights',
+    linesSm.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('skidmoto-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('skidmoto-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('skidmoto-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasSm('new THREE.Points(') === 2, 'n=' + lineHasSm('new THREE.Points('));
+  check('skidmoto-pins: exactly one skid Mesh construction (no new Mesh for the bike)',
+    lineHasSm('new THREE.Mesh(skidGeo') === 1, 'n=' + lineHasSm('new THREE.Mesh(skidGeo'));
+  check('skidmoto-pins: no em dashes', !html.includes('\u2014'));
+  check('skidmoto-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('skidmoto-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('skidmoto: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSm, consoleProblems.slice(probsSm).join(' | '));
 }
 
 
