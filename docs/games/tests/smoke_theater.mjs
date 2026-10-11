@@ -30,8 +30,8 @@ check('static: no TODO/FIXME markers', !/\b(TODO|FIXME)\b/.test(html));
 check('static: no em dashes', !html.includes('—'));
 {
   const urls = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-  const ok = urls.length === 1 && urls[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js';
-  check('static: single allowed CDN URL', ok, urls.join(', '));
+  const ok = urls.length >= 1 && urls.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x));
+  check('static: allowed CDN URLs (Phase 1 set)', ok, urls.join(', '));
 }
 {
   const emoteSrc = html.slice(
