@@ -11919,6 +11919,151 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsD, consoleProblems.slice(probsD).join(' | '));
 }
 
+/* ================= DUST EXTENSION v1 =================
+   The LANDING DUST v1 pool also serves two more real events, with no
+   new Points object and no new cadence: takeoff bursts at both jump
+   execution sites (strength 0, exactly 4 particles) and a sprint-step
+   puff inside the existing STEP_LEN footstep branch (gated on sprint,
+   so walking steps stay dust-free). The landing call is unchanged. */
+{
+  const probsX = consoleProblems.length;
+  const liveX = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const countX = (sub) => html.split(sub).length - 1;
+  const setupOnFootX = () => {
+    for (const k in G.keys) G.keys[k] = false;
+    G.touch.jump = false; G.touch.moveX = 0; G.touch.moveY = 0; G.touch.sprint = false;
+    G.P.dead = false; G.P.deadT = 0; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.trauma = 0; G.P.graceT = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0; G.P.grounded = true;
+    G.P.coyoteT = 0; G.P.jumpBufT = 0; G.P.prevJump = false;
+    G.P.punchCd = 0; G.P.punchT = 0; G.P.combo = 0; G.P.comboWin = 0;
+    G.P.squash = 0; G.player.scale.set(1, 1, 1);
+    G.P.stepDist = 0; G.P.stepAlt = 0; G.P.stepCount = 0;
+    G.player.rotation.y = 0;
+    G.player.position.set(0, groundY(0, 0), 0);
+    G.clearDust();
+    return groundY(0, 0);
+  };
+  const setupAirborneX = (height, vy) => {
+    const gy = setupOnFootX();
+    G.P.grounded = false; G.P.vy = vy; G.P.coyoteT = 0;
+    G.player.position.y = gy + height;
+    return gy;
+  };
+  /* source strings: both takeoff sites, the unchanged landing call, the gated sprint step */
+  check('dustx: takeoff spawnDust(..., 0) call occurs exactly twice in the source',
+    countX('spawnDust(player.position.x, groundY + 0.1, player.position.z, 0)') === 2,
+    'n=' + countX('spawnDust(player.position.x, groundY + 0.1, player.position.z, 0)'));
+  check('dustx: both takeoff sites append the burst after squashImpulse(0.22) in the jump braces',
+    countX('squashImpulse(0.22); spawnDust(player.position.x, groundY + 0.1, player.position.z, 0); }') === 2,
+    'n=' + countX('squashImpulse(0.22); spawnDust(player.position.x, groundY + 0.1, player.position.z, 0); }'));
+  check('dustx: the landing call string is unchanged and occurs exactly once',
+    countX('spawnDust(player.position.x, groundY + 0.1, player.position.z, Math.abs(fallVy))') === 1,
+    'n=' + countX('spawnDust(player.position.x, groundY + 0.1, player.position.z, Math.abs(fallVy))'));
+  check('dustx: sprint-step spawn string occurs exactly once',
+    countX('if (sprint) spawnDust(player.position.x, player.position.y + 0.1, player.position.z, 0);') === 1,
+    'n=' + countX('if (sprint) spawnDust(player.position.x, player.position.y + 0.1, player.position.z, 0);'));
+  {
+    const stepIdxX = html.indexOf('if (P.stepDist >= STEP_LEN)');
+    const stepSegX = stepIdxX >= 0 ? html.slice(stepIdxX, stepIdxX + 400) : '';
+    check('dustx: sprint-step spawn sits inside the step branch, after sfxStep, gated by if (sprint)',
+      stepIdxX >= 0 && stepSegX.includes('sfxStep(')
+      && stepSegX.indexOf('sfxStep(') < stepSegX.indexOf('if (sprint) spawnDust(')
+      && stepSegX.includes('P.stepCount++;'),
+      'seg=' + stepSegX.slice(0, 120));
+  }
+  check('dustx: header comment notes the pool now also serves takeoff and sprint steps',
+    html.includes('DUST EXTENSION v1: the same pool also serves takeoff bursts and')
+    && html.includes('sprint-step puffs'));
+  check('dustx: strength 0 bursts are the only new spawns (3 strength-0 spawnDust sites total)',
+    countX('player.position.z, 0)') === 3, 'n=' + countX('player.position.z, 0)'));
+  /* behavior: a grounded jump via the real tick leaves live takeoff dust */
+  {
+    setupOnFootX();
+    G.keys.Space = true; frame(1); G.keys.Space = false;
+    check('dustx: grounded jump via the tick path is airborne after one frame',
+      G.P.grounded === false, 'grounded=' + G.P.grounded + ' vy=' + G.P.vy);
+    check('dustx: grounded jump leaves live dust (exactly 4, the strength 0 burst)',
+      liveX() === 4, 'live=' + liveX());
+  }
+  /* behavior: a buffered re-jump on landing fires landing + takeoff dust together */
+  {
+    setupAirborneX(0.35, -3);
+    G.keys.Space = true; frame(1); G.keys.Space = false;
+    let firedX = false;
+    for (let i = 0; i < 10 && !firedX; i++) { frame(1); if (G.P.vy === G.JUMP_V && !G.P.grounded) firedX = true; }
+    check('dustx: buffered re-jump fires on the landing frame via the tick path',
+      firedX && G.P.jumpBufT === 0, 'vy=' + G.P.vy + ' grounded=' + G.P.grounded);
+    check('dustx: buffered re-jump frame leaves landing + takeoff dust (live well above one burst)',
+      firedX && liveX() >= 8, 'live=' + liveX());
+  }
+  /* behavior: sprinting on foot leaves dust at step frames and steps increment */
+  {
+    setupOnFootX();
+    G.keys.KeyW = true; G.keys.ShiftLeft = true;
+    let dustAtStepX = false;
+    for (let i = 0; i < 120; i++) {
+      const beforeX = G.P.stepCount; frame(1);
+      if (G.P.stepCount > beforeX && liveX() > 0) dustAtStepX = true;
+    }
+    G.keys.KeyW = false; G.keys.ShiftLeft = false;
+    check('dustx: sprinting on foot increments P.stepCount',
+      G.P.stepCount >= 2, 'steps=' + G.P.stepCount);
+    check('dustx: sprinting on foot leaves live dust at a step frame',
+      dustAtStepX, 'steps=' + G.P.stepCount + ' live=' + liveX());
+  }
+  /* behavior: walking the same way fires steps but leaves NO dust on any frame */
+  {
+    setupOnFootX();
+    G.keys.KeyW = true;
+    let walkDustSeenX = false;
+    for (let i = 0; i < 120; i++) { frame(1); if (liveX() > 0) walkDustSeenX = true; }
+    G.keys.KeyW = false;
+    check('dustx: walking on foot increments P.stepCount',
+      G.P.stepCount >= 2, 'steps=' + G.P.stepCount);
+    check('dustx: walking on foot leaves NO dust on any frame',
+      walkDustSeenX === false, 'steps=' + G.P.stepCount + ' live=' + liveX());
+  }
+  /* behavior: standing still (and sprint held with no movement) spawns none */
+  {
+    setupOnFootX(); frame(30);
+    check('dustx: standing still spawns no dust and no steps',
+      G.P.grounded === true && liveX() === 0 && G.P.stepCount === 0,
+      'live=' + liveX() + ' steps=' + G.P.stepCount);
+    setupOnFootX();
+    G.keys.ShiftLeft = true; frame(30); G.keys.ShiftLeft = false;
+    check('dustx: sprint held while stationary spawns no dust and no steps',
+      liveX() === 0 && G.P.stepCount === 0, 'live=' + liveX() + ' steps=' + G.P.stepCount);
+  }
+  /* cleanup: back on foot, alive, no dust, no god mode left */
+  setupOnFootX(); G.P.godT = 0; frame(1);
+  /* static pins still hold exactly: the extension adds zero of everything */
+  const linesX = html.split('\n');
+  const lineHasX = sub => linesX.filter(l => l.includes(sub)).length;
+  check('dustx-pins: 49 InstancedMesh literals', lineHasX('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasX('new THREE.InstancedMesh'));
+  check('dustx-pins: 92 Math.random lines', lineHasX('Math.random') === 92,
+    'n=' + lineHasX('Math.random'));
+  check('dustx-pins: 72 setTimeout lines', lineHasX('setTimeout') === 72,
+    'n=' + lineHasX('setTimeout'));
+  check('dustx-pins: 6 lights',
+    linesX.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustx-pins: 18 osc, 32 gain (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 32,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length
+    + ' gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustx-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasX('new THREE.Points(') === 2, 'n=' + lineHasX('new THREE.Points('));
+  check('dustx-pins: no em dashes', !html.includes('—'));
+  check('dustx-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustx-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustx: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsX, consoleProblems.slice(probsX).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
