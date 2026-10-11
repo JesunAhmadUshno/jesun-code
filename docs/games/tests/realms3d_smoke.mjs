@@ -12070,7 +12070,7 @@ globalThis.__R3D2 = {
 
 /* ================= SURFACE-AWARE DUST COLOR v1 =================
    The LANDING DUST v1 pool now carries a preallocated per-particle
-   color buffer (dustCol, 144 floats) bound as the geometry color
+   color buffer (dustCol, 192 floats) bound as the geometry color
    attribute. The material uses vertexColors with a white base color,
    so each burst shows the palette of the surface under the spawn
    point: spawnDust calls surfaceAt(x, z) once per burst and writes
@@ -12097,7 +12097,7 @@ globalThis.__R3D2 = {
     const base = PALC[surf];
     for (const i of slots) {
       for (let c = 0; c < 3; c++) {
-        const v = G.dustCol[i * 3 + c];
+        const v = G.dustCol[i * 4 + c];
         if (v < base[c] * 0.88 - 1e-4 || v > Math.min(1, base[c] * 1.12) + 1e-4) return false;
         if (v > 1 || v < 0) return false;
       }
@@ -12107,7 +12107,7 @@ globalThis.__R3D2 = {
   const meanColC = () => {
     const slots = liveColC();
     const m = [0, 0, 0];
-    for (const i of slots) for (let c = 0; c < 3; c++) m[c] += G.dustCol[i * 3 + c];
+    for (const i of slots) for (let c = 0; c < 3; c++) m[c] += G.dustCol[i * 4 + c];
     if (slots.length) for (let c = 0; c < 3; c++) m[c] /= slots.length;
     return m;
   };
@@ -12127,13 +12127,13 @@ globalThis.__R3D2 = {
   }
   check('dustcol: surfaceAt is exposed to the harness as a function',
     typeof G.surfaceAt === 'function');
-  check('dustcol: dustCol is a preallocated Float32Array of 144 (48 slots x 3)',
-    !!G.dustCol && G.dustCol instanceof Float32Array && G.dustCol.length === 144,
+  check('dustcol: dustCol is a preallocated Float32Array of 192 (48 slots x 4)',
+    !!G.dustCol && G.dustCol instanceof Float32Array && G.dustCol.length === 192,
     'len=' + (G.dustCol && G.dustCol.length));
-  check('dustcol: geometry color attribute shares the dustCol array (itemSize 3, count 48)',
+  check('dustcol: geometry color attribute shares the dustCol array (itemSize 4, count 48)',
     !!G.dustPts.geometry.attributes.color
     && G.dustPts.geometry.attributes.color.array === G.dustCol
-    && G.dustPts.geometry.attributes.color.itemSize === 3
+    && G.dustPts.geometry.attributes.color.itemSize === 4
     && G.dustPts.geometry.attributes.color.count === 48);
   check('dustcol: material vertexColors is true',
     G.dustPts.material.vertexColors === true);
@@ -12145,7 +12145,7 @@ globalThis.__R3D2 = {
     && G.dustPts.material.transparent === true && G.dustPts.material.depthWrite === false
     && !!G.dustPts.material.map);
   check('dustcol: source declares dustCol, the color attribute and vertexColors',
-    html.includes('const dustCol = new Float32Array(DUST_N * 3);')
+    html.includes('const dustCol = new Float32Array(DUST_N * 4);')
     && html.includes("dustGeo.setAttribute('color', dustColAttr);")
     && html.includes('vertexColors: true')
     && html.includes('SURFACE-AWARE DUST COLOR v1'));
@@ -12214,7 +12214,7 @@ globalThis.__R3D2 = {
   if (foundC.grass) {
     const segColC = (head, count) => {
       const out = [];
-      for (let n = 0; n < count; n++) { const sl = (head + n) % G.DUST_N; out.push(G.dustCol[sl * 3], G.dustCol[sl * 3 + 1], G.dustCol[sl * 3 + 2]); }
+      for (let n = 0; n < count; n++) { const sl = (head + n) % G.DUST_N; out.push(G.dustCol[sl * 4], G.dustCol[sl * 4 + 1], G.dustCol[sl * 4 + 2]); }
       return out;
     };
     G.clearDust(); G.dustSeed = 987654321;
@@ -12252,8 +12252,8 @@ globalThis.__R3D2 = {
     check('dustcol: clearDust still clears every live particle and parks all slots',
       preClearC > 0 && liveColC().length === 0 && parkedC,
       'pre=' + preClearC + ' live=' + liveColC().length);
-    check('dustcol: clearDust leaves the shared color buffer intact (same array, length 144)',
-      G.dustPts.geometry.attributes.color.array === G.dustCol && G.dustCol.length === 144);
+    check('dustcol: clearDust leaves the shared color buffer intact (same array, length 192)',
+      G.dustPts.geometry.attributes.color.array === G.dustCol && G.dustCol.length === 192);
   }
   /* tick expiry still works with colors attached */
   {
@@ -12642,6 +12642,178 @@ globalThis.__R3D2 = {
   check('dustlife: the run leaves zero console errors/warnings',
     consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
 }
+
+/* ================= PER-PARTICLE DUST FADE v1 =================
+   The pooled dust color buffer is now 4-component (dustCol,
+   192 floats, attribute itemSize 4), so three r160 turns on
+   USE_COLOR_ALPHA and each particle carries its own alpha.
+   spawnDust writes alpha 1; dustTick writes alpha as the
+   remaining life fraction (dustLife / dustLifeMax) each tick
+   and 0 on expiry; clearDust resets every alpha to 0. Final
+   on-screen alpha is the global opacity 0.55 times the
+   per-particle alpha. Size still stays global. No new Points,
+   draw calls or nodes. */
+{
+  const probsF = consoleProblems.length;
+  const approxF = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveF = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
+  const linesF = html.split('\n');
+  const lineHasF = sub => linesF.filter(l => l.includes(sub)).length;
+  /* source: header, declarations and the three alpha write sites */
+  check('dustfade: source carries the PER-PARTICLE DUST FADE v1 header',
+    html.includes('PER-PARTICLE DUST FADE v1'));
+  check('dustfade: source declares the 4-component color buffer',
+    html.includes('const dustCol = new Float32Array(DUST_N * 4);'));
+  check('dustfade: source declares the color attribute with itemSize 4',
+    html.includes('const dustColAttr = new THREE.BufferAttribute(dustCol, 4);'));
+  {
+    const segStartF = html.indexOf('function spawnDust');
+    const segF = segStartF >= 0 ? html.slice(segStartF, html.indexOf('function dustTick')) : '';
+    check('dustfade: spawnDust source writes RGB at stride 4',
+      segF.includes('dustCol[slot * 4] = Math.min(1, pr * jit);')
+      && segF.includes('dustCol[slot * 4 + 1] = Math.min(1, pg * jit);')
+      && segF.includes('dustCol[slot * 4 + 2] = Math.min(1, pb * jit);'));
+    check('dustfade: spawnDust source writes alpha 1 at spawn',
+      segF.includes('dustCol[slot * 4 + 3] = 1;'));
+  }
+  {
+    const segStartT = html.indexOf('function dustTick');
+    const segT = segStartT >= 0 ? html.slice(segStartT, html.indexOf('function clearDust')) : '';
+    check('dustfade: dustTick source writes alpha as the remaining life fraction',
+      segT.includes('dustCol[i * 4 + 3] = Math.max(0, dustLife[i] / dustLifeMax[i]);'));
+    check('dustfade: dustTick source zeroes alpha on expiry and flags the color attribute',
+      segT.includes('dustCol[i * 4 + 3] = 0;')
+      && segT.includes('dustColAttr.needsUpdate = true;'));
+  }
+  {
+    const segStartC = html.indexOf('function clearDust');
+    const segCl = segStartC >= 0 ? html.slice(segStartC, segStartC + 400) : '';
+    check('dustfade: clearDust source resets every alpha slot to 0',
+      segCl.includes('dustCol[i * 4 + 3] = 0;'));
+  }
+  /* buffer shape and the unchanged material */
+  check('dustfade: dustCol length is 192 (48 x 4)',
+    !!G.dustCol && G.dustCol.length === 192, 'len=' + (G.dustCol && G.dustCol.length));
+  check('dustfade: geometry color attribute itemSize is 4 and count is 48',
+    !!G.dustPts.geometry.attributes.color
+    && G.dustPts.geometry.attributes.color.itemSize === 4
+    && G.dustPts.geometry.attributes.color.count === 48);
+  check('dustfade: material unchanged (vertexColors, white, size 0.4, opacity 0.55, transparent, depthWrite false, map)',
+    G.dustPts.material.vertexColors === true && G.dustPts.material.color.getHex() === 0xffffff
+    && G.dustPts.material.size === 0.4 && Math.abs(G.dustPts.material.opacity - 0.55) < 1e-9
+    && G.dustPts.material.transparent === true && G.dustPts.material.depthWrite === false
+    && !!G.dustPts.material.map);
+  /* probe a grass location for the palette and spawn checks */
+  let grassF = null;
+  for (let x = -360; x <= 360 && !grassF; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      if (G.surfaceAt(x, z) === 'grass') { grassF = { x, z }; break; }
+    }
+  }
+  /* alpha is exactly 1 right after spawn, RGB stays in the grass palette */
+  let slotsF = [];
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    const headF = G.dustHead;
+    if (grassF) G.spawnDust(grassF.x, 1, grassF.z, 5);
+    slotsF = liveF();
+    check('dustfade: alpha is exactly 1 for every live particle right after spawn',
+      slotsF.length === 10 && slotsF.every(i => G.dustCol[i * 4 + 3] === 1),
+      'live=' + slotsF.length + ' head=' + headF);
+    const palG = [0.52, 0.60, 0.34];
+    check('dustfade: grass spawn RGB values stay in the unchanged palette jitter range',
+      slotsF.length === 10 && slotsF.every(i => {
+        for (let c = 0; c < 3; c++) {
+          const v = G.dustCol[i * 4 + c];
+          if (v < palG[c] * 0.88 - 1e-4 || v > Math.min(1, palG[c] * 1.12) + 1e-4) return false;
+        }
+        return true;
+      }));
+  }
+  /* after a tick alpha tracks the life fraction and drops below 1 */
+  let alphaAfterTick1 = null;
+  {
+    const vBeforeF = G.dustPts.geometry.attributes.color.version;
+    G.dustTick(0.1);
+    const liveAfter = liveF();
+    check('dustfade: after dustTick(0.1) every live alpha approx dustLife/dustLifeMax within 1e-5',
+      liveAfter.length > 0 && liveAfter.every(i => approxF(G.dustCol[i * 4 + 3], G.dustLife[i] / G.dustLifeMax[i], 1e-5)),
+      'live=' + liveAfter.length);
+    check('dustfade: after dustTick(0.1) every live alpha is strictly less than 1',
+      liveAfter.length > 0 && liveAfter.every(i => G.dustCol[i * 4 + 3] < 1));
+    check('dustfade: dustTick flags the color attribute needsUpdate (version increments)',
+      G.dustPts.geometry.attributes.color.version > vBeforeF,
+      'v=' + vBeforeF + '->' + G.dustPts.geometry.attributes.color.version);
+    alphaAfterTick1 = slotsF.map(i => G.dustCol[i * 4 + 3]);
+  }
+  /* alpha never rises across a second tick (expired slots read 0) */
+  {
+    G.dustTick(0.1);
+    check('dustfade: alpha is non-increasing across two successive ticks',
+      !!alphaAfterTick1 && slotsF.every((slot, k) => G.dustCol[slot * 4 + 3] <= alphaAfterTick1[k] + 1e-6),
+      'a1=' + (alphaAfterTick1 && alphaAfterTick1.map(v => v.toFixed(3)).join(',')));
+  }
+  /* expiry zeroes alpha and parks the particle */
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    if (grassF) G.spawnDust(grassF.x, 1, grassF.z, 5);
+    const expSlots = liveF();
+    const expSlot = expSlots.length ? expSlots[0] : -1;
+    G.dustTick(10);
+    check('dustfade: a particle expiring gets alpha 0 and parked y -999',
+      expSlot >= 0 && G.dustCol[expSlot * 4 + 3] === 0 && G.dustPos[expSlot * 3 + 1] === -999 && liveF().length === 0,
+      'slot=' + expSlot);
+  }
+  /* clearDust zeroes every alpha and leaves nothing live */
+  {
+    if (grassF) G.spawnDust(grassF.x, 1, grassF.z, 5);
+    G.clearDust();
+    check('dustfade: after clearDust all alphas are 0',
+      Array.from({ length: G.DUST_N }, (_, i) => G.dustCol[i * 4 + 3]).every(v => v === 0));
+    check('dustfade: after clearDust nothing is live',
+      liveF().length === 0, 'live=' + liveF().length);
+  }
+  /* determinism: same seed respawn reproduces RGB and alpha exactly */
+  {
+    const recF = () => {
+      G.clearDust(); G.dustSeed = 987654321;
+      const h = G.dustHead;
+      if (grassF) G.spawnDust(grassF.x, 1, grassF.z, 5);
+      const out = [];
+      for (let n = 0; n < 10; n++) { const s = (h + n) % G.DUST_N; out.push(G.dustCol[s * 4], G.dustCol[s * 4 + 1], G.dustCol[s * 4 + 2], G.dustCol[s * 4 + 3]); }
+      return out;
+    };
+    const r1F = recF(), r2F = recF();
+    check('dustfade: same-seed respawn reproduces RGB and alpha exactly',
+      r1F.length === 40 && r1F.every((v, i) => v === r2F[i]));
+  }
+  G.clearDust();
+  /* static pins still hold exactly: the fade adds zero of everything */
+  check('dustfade-pins: 49 InstancedMesh literals', lineHasF('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasF('new THREE.InstancedMesh'));
+  check('dustfade-pins: 92 Math.random lines', lineHasF('Math.random') === 92,
+    'n=' + lineHasF('Math.random'));
+  check('dustfade-pins: 72 setTimeout lines', lineHasF('setTimeout') === 72,
+    'n=' + lineHasF('setTimeout'));
+  check('dustfade-pins: 6 lights',
+    linesF.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustfade-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustfade-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustfade-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasF('new THREE.Points(') === 2, 'n=' + lineHasF('new THREE.Points('));
+  check('dustfade-pins: no em dashes', !html.includes('\u2014'));
+  check('dustfade-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustfade-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustfade: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsF, consoleProblems.slice(probsF).join(' | '));
+}
+
 
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
