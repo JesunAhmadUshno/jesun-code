@@ -5339,7 +5339,22 @@ function squashTick(dt){
        limit: growth is per-surface only for water versus all
        other surfaces (grass, dirt, rock and gravel still share
        the dust curve), and size is still sizeAttenuation-scaled
-       by distance in the material. --- */
+       by distance in the material.
+       PER-SURFACE DUST FADE-IN v1: the fade-in ramp is now
+       per-surface. One more preallocated array (dustRamp, 48
+       slots, filled 0.15 at declaration) carries each particle
+       fade-in fraction, written by spawnDust and reset to 0.15
+       by clearDust, with no allocation in spawn or tick. Water
+       splash droplets are already-formed liquid, so water
+       writes rampF 0.03 and a water particle reaches full
+       fade-in after the first 3 percent of its life. Loose
+       dust puffs form gradually, so every other surface keeps
+       rampF 0.15 and dustTick inRamp = Math.min(1, (1 - fRem)
+       / dustRamp[i]) is byte-equivalent to the old fixed 0.15
+       curve for non-water. Birth alpha is unchanged at 0.
+       New honest limit: fade-in is per-surface only for water
+       versus all other surfaces (grass, dirt, rock and gravel
+       still share the 0.15 dust ramp). --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -5351,10 +5366,12 @@ const dustLifeMax = new Float32Array(DUST_N);
 const dustSize = new Float32Array(DUST_N);
 const dustSizeBase = new Float32Array(DUST_N);
 const dustGrow = new Float32Array(DUST_N);
+const dustRamp = new Float32Array(DUST_N);
 dustGrav.fill(1); dustDrag.fill(1);
 dustLifeMax.fill(DUST_LIFE);
 dustSizeBase.fill(1);
 dustGrow.fill(0.8);
+dustRamp.fill(0.15);
 let dustHead = 0;
 let dustSeed = 987654321;
 for (let i = 0; i < DUST_N; i++) dustPos[i * 3 + 1] = -999;
@@ -5399,6 +5416,8 @@ function spawnDust(x, y, z, strength){
   if (surf === 'water') { radialScale = 0.55; upScale = 1.9; grav = 1.8; dragF = 0.35; }
   let growF = 0.8;
   if (surf === 'water') { growF = -0.2; }
+  let rampF = 0.15;
+  if (surf === 'water') { rampF = 0.03; }
   for (let n = 0; n < count; n++) {
     const slot = dustHead; dustHead = (dustHead + 1) % DUST_N;
     const ang = dustRand() * Math.PI * 2;
@@ -5415,6 +5434,7 @@ function spawnDust(x, y, z, strength){
     dustVel[slot * 3 + 2] = Math.sin(ang) * radial * radialScale;
     dustGrav[slot] = grav; dustDrag[slot] = dragF;
     dustGrow[slot] = growF;
+    dustRamp[slot] = rampF;
     dustCol[slot * 4] = Math.min(1, pr * jit);
     dustCol[slot * 4 + 1] = Math.min(1, pg * jit);
     dustCol[slot * 4 + 2] = Math.min(1, pb * jit);
@@ -5438,7 +5458,7 @@ function dustTick(dt){
     const fRem = Math.max(0, dustLife[i] / dustLifeMax[i]);
     const growth = 0.6 + dustGrow[i] * (1 - fRem);
     dustSize[i] = dustSizeBase[i] * growth;
-    const inRamp = Math.min(1, (1 - fRem) / 0.15);
+    const inRamp = Math.min(1, (1 - fRem) / dustRamp[i]);
     dustCol[i * 4 + 3] = inRamp * fRem * fRem * (3 - 2 * fRem);
     dustPos[i * 3] += dustVel[i * 3] * dt;
     dustPos[i * 3 + 1] += dustVel[i * 3 + 1] * dt;
@@ -5451,7 +5471,7 @@ function dustTick(dt){
   if (changed) { dustPosAttr.needsUpdate = true; dustColAttr.needsUpdate = true; dustSizeAttr.needsUpdate = true; }
 }
 function clearDust(){
-  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; dustLifeMax[i] = DUST_LIFE; dustCol[i * 4 + 3] = 0; dustSize[i] = 0; dustSizeBase[i] = 1; dustGrow[i] = 0.8; }
+  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; dustLifeMax[i] = DUST_LIFE; dustCol[i * 4 + 3] = 0; dustSize[i] = 0; dustSizeBase[i] = 1; dustGrow[i] = 0.8; dustRamp[i] = 0.15; }
   dustPosAttr.needsUpdate = true;
   dustColAttr.needsUpdate = true;
   dustSizeAttr.needsUpdate = true;
