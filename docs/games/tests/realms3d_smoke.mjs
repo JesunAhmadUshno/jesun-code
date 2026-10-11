@@ -15063,8 +15063,8 @@ globalThis.__R3D2 = {
     htmlNV2.includes('The per-surface profile applies automatically to all four, because spawnDust classifies the spawn point with surfaceAt'));
   check('vehdustx2: header states the scooter airborne limit (hop emits nothing and resets)',
     htmlNV2.includes('only while SC.hopY is at or below 0 (an airborne hop emits nothing and resets the accumulator)'));
-  check('vehdustx2: header states the honest limit at that step (ground vehicles and horse emit, helicopter, plane and train do not; the boat joins in BOAT SPRAY v1)',
-    htmlNV2.includes('New honest limit at that step: all ground vehicles and the horse now emit; the helicopter, plane and train do not emit dust (air and rail by design, no dust surface under them)'));
+  check('vehdustx2: header states the honest limit at that step (ground vehicles and horse emit, plane and train do not; heli downwash shipped separately in HELI DOWNWASH DUST v1; the boat joins in BOAT SPRAY v1)',
+    htmlNV2.includes('New honest limit at that step: all ground vehicles and the horse now emit; the plane and train do not emit dust (air and rail by design, no dust surface under them); helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below'));
   /* source: BIKE tuning/runtime fields, scoped to the BIKE object */
   check('vehdustx2: BIKE tuning source carries dustLen 4',
     segBikeObjV2.includes('dustLen: 4,'));
@@ -17466,6 +17466,279 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('bowspray: the run leaves zero console errors/warnings',
     consoleProblems.length === probsBow, consoleProblems.slice(probsBow).join(' | '));
+}
+
+/* ================= HELI DOWNWASH DUST v1 =================
+   The flying helicopter now washes the pooled dust down at
+   low altitude: zero new draw calls, Points, arrays or
+   nodes. The trigger sits in heliUpdate in the flying path
+   only, after the heliPose and player-glue block and before
+   the rotor audio: heliAlt (HELI.pos.y minus floorY) gates
+   at 8 or under, HELI.dustDist accumulates the horizontal
+   travel (the hypotenuse of speed and strafe) plus a hover
+   term of 5 per second at altitude 2 or under, and one
+   spawnDust puff fires every HELI.dustLen metres (3) at
+   the ground point directly under the helicopter (the max
+   of terrainHeight and WATER_Y, plus 0.15) with strength
+   7 at altitude 2 or under, 5 at altitude 5 or under and
+   3 above that up to the gate. Above the gate the
+   accumulator resets to 0. heliEnter and heliExit reset
+   the accumulator. The per-surface profile applies
+   automatically because spawnDust classifies the spawn
+   point with surfaceAt. Honest limit: downwash is a pooled
+   puff at the ground point under the rotor, not a radial
+   foam or brownout sheet, and it shares the 48-slot dust
+   ring with every other emitter; the plane and train
+   still do not emit. The harness CAN fly the helicopter
+   here (HELI, heliEnter and heliExit are exposed and
+   heliUpdate runs in the real tick), so the behavior
+   checks run the real heliUpdate via the real tick. */
+{
+  const probsHeliDust = consoleProblems.length;
+  const liveHeliDust = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const linesHeliDust = html.split('\n');
+  const lineHasHeliDust = sub => linesHeliDust.filter(l => l.includes(sub)).length;
+  const htmlNHeliDust = html.replace(/\s+/g, ' ');
+  const segHeliUpd = html.indexOf('function heliUpdate') >= 0
+    ? html.slice(html.indexOf('function heliUpdate'), html.indexOf('worldTickers.push(heliUpdate)')) : '';
+  const segHeliObj = html.indexOf('const HELI = {') >= 0
+    ? html.slice(html.indexOf('const HELI = {'), html.indexOf('const HELI_SCAN')) : '';
+  const segHeliEnter = html.indexOf('function heliEnter()') >= 0
+    ? html.slice(html.indexOf('function heliEnter()'), html.indexOf('function heliExit()')) : '';
+  const segHeliExit = html.indexOf('function heliExit()') >= 0
+    ? html.slice(html.indexOf('function heliExit()'), html.indexOf('function heliUpdate')) : '';
+  /* source: dust header HELI DOWNWASH DUST v1 paragraph */
+  check('helidust: source carries the HELI DOWNWASH DUST v1 header in the dust header',
+    html.includes('HELI DOWNWASH DUST v1: the flying helicopter now'));
+  check('helidust: dust header states downwash reuses the pool at zero new draw calls',
+    htmlNHeliDust.includes('reuses this same pooled dust for rotor downwash too, so downwash costs zero new draw calls, zero new Points and zero new arrays'));
+  check('helidust: dust header states the trigger sits in the flying path after the pose and glue block and before the rotor audio',
+    htmlNHeliDust.includes('The trigger sits in heliUpdate in the flying path only, after the heliPose and player-glue block and before the rotor audio block'));
+  check('helidust: dust header states the altitude gate at 8 or under above the floor',
+    htmlNHeliDust.includes('it gates on the altitude above the floor (HELI.pos.y minus floorY) at 8 or under'));
+  check('helidust: dust header states the hover term of 5 per second at altitude 2 or under',
+    htmlNHeliDust.includes('plus a hover term of 5 per second at altitude 2 or under'));
+  check('helidust: dust header states one puff every HELI.dustLen metres (3) at the ground point under the heli with strength 7, 5 and 3 by altitude band',
+    htmlNHeliDust.includes('fires one puff every HELI.dustLen metres (3) at the ground point directly under the helicopter (the max of terrainHeight and WATER_Y, plus 0.15) with strength 7 at altitude 2 or under, 5 at altitude 5 or under, and 3 above that up to the gate'));
+  check('helidust: dust header states the accumulator resets above the gate',
+    htmlNHeliDust.includes('Above the gate the accumulator resets to 0'));
+  check('helidust: dust header states the per-surface profile applies automatically via spawnDust and surfaceAt',
+    htmlNHeliDust.includes('HELI DOWNWASH DUST v1: the flying helicopter now reuses this same pooled dust for rotor downwash too')
+    && htmlNHeliDust.includes('applies automatically, because spawnDust classifies the spawn point with surfaceAt. heliEnter and heliExit both reset the accumulator'));
+  check('helidust: dust header states heliEnter and heliExit reset the accumulator',
+    htmlNHeliDust.includes('heliEnter and heliExit both reset the accumulator'));
+  check('helidust: dust header states the new honest limit (pooled puff under the rotor, not a radial sheet, shared 48-slot ring, plane and train still do not emit)',
+    htmlNHeliDust.includes('New honest limit: downwash is a pooled puff at the ground point under the rotor, not a radial foam or brownout sheet, and it shares the 48-slot dust ring with every other emitter; the plane and train still do not emit (air cruise and rail by design)'));
+  check('helidust: the stale honest limits are updated in place (extension v2 and boat spray now list only plane and train, with heli downwash shipped separately)',
+    htmlNHeliDust.includes('horse now emit; the plane and train do not emit dust (air and rail by design, no dust surface under them); helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below')
+    && htmlNHeliDust.includes('stern remains as built here. The plane and train still do not emit; helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below')
+    && !htmlNHeliDust.includes('the helicopter, plane and train do not emit')
+    && !htmlNHeliDust.includes('The helicopter, plane and train still do not emit'));
+  /* source: HELI tuning/runtime fields, scoped to the HELI object */
+  check('helidust: HELI tuning source carries dustLen 3',
+    segHeliObj.includes('dustLen: 3,'));
+  check('helidust: HELI runtime source carries dustDist 0',
+    segHeliObj.includes('dustDist: 0,'));
+  G.HELI.dustDist = 0;   // normalize any drift from earlier sections before the starts-at-0 check
+  check('helidust: runtime HELI.dustLen is exactly 3',
+    G.HELI.dustLen === 3, 'dustLen=' + G.HELI.dustLen);
+  check('helidust: runtime HELI.dustDist starts at 0 (the downwash accumulator field)',
+    G.HELI.dustDist === 0, 'dustDist=' + G.HELI.dustDist);
+  /* source: the exact downwash block inside heliUpdate */
+  check('helidust: heliUpdate source carries the downwash comment',
+    segHeliUpd.includes('// ---- downwash dust: low altitude only, pooled dust (HELI DOWNWASH DUST v1) ----'));
+  check('helidust: heliUpdate source computes heliAlt from HELI.pos.y minus floorY',
+    segHeliUpd.includes('const heliAlt = HELI.pos.y - floorY;'));
+  check('helidust: heliUpdate source gates on heliAlt at or below 8',
+    segHeliUpd.includes('if (heliAlt <= 8) {'));
+  check('helidust: heliUpdate source accumulates dustDist by horizontal travel plus the hover term',
+    segHeliUpd.includes('HELI.dustDist += Math.hypot(HELI.speed, HELI.strafe) * sdt + (heliAlt <= 2 ? 5 * sdt : 0);'));
+  check('helidust: heliUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segHeliUpd.includes('if (HELI.dustDist >= HELI.dustLen) {')
+    && segHeliUpd.includes('HELI.dustDist -= HELI.dustLen;'));
+  check('helidust: heliUpdate source computes the ground point under the heli as max of terrainHeight and WATER_Y',
+    segHeliUpd.includes('const gx = HELI.pos.x, gz = HELI.pos.z, gy = Math.max(terrainHeight(gx, gz), WATER_Y);'));
+  check('helidust: heliUpdate source spawns at the ground point plus 0.15 with strength 7, 5 or 3 by altitude band',
+    segHeliUpd.includes('spawnDust(gx, gy + 0.15, gz, heliAlt <= 2 ? 7 : (heliAlt <= 5 ? 5 : 3));'));
+  check('helidust: heliUpdate source resets dustDist to 0 in the above-gate branch',
+    segHeliUpd.includes('} else { HELI.dustDist = 0; }'));
+  check('helidust: heliUpdate carries exactly one spawnDust call (the downwash puff)',
+    (segHeliUpd.split('spawnDust(').length - 1) === 1,
+    'n=' + (segHeliUpd.split('spawnDust(').length - 1));
+  check('helidust: the downwash block sits after the pose and player-glue block and before the rotor audio block',
+    segHeliUpd.indexOf('heliPose(HELI.activeIdx') >= 0
+    && segHeliUpd.indexOf('heliPose(HELI.activeIdx') < segHeliUpd.indexOf('downwash dust: low altitude only')
+    && segHeliUpd.indexOf('player.rotation.y = HELI.heading;') < segHeliUpd.indexOf('downwash dust: low altitude only')
+    && segHeliUpd.indexOf('spawnDust(gx,') < segHeliUpd.indexOf('rotor audio: gain rides the load'));
+  check('helidust: the parked early-return path carries no spawnDust call (flying path only)',
+    !segHeliUpd.slice(0, segHeliUpd.indexOf('if (P.dead)')).includes('spawnDust('));
+  check('helidust: heliEnter source resets dustDist alongside the other state resets',
+    segHeliEnter.includes('HELI.dustDist = 0;'));
+  check('helidust: heliExit source resets dustDist alongside the other state resets',
+    segHeliExit.includes('HELI.dustDist = 0;'));
+  /* behavior: board a parked helicopter through the real entry path */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.P.hitstop = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  let padChunkDust = null;
+  for (let gx = -12; gx <= 12 && !padChunkDust; gx++)
+    for (let gz = -12; gz <= 12 && !padChunkDust; gz++) {
+      const d = G.helipadFor(gx, gz);
+      if (d) padChunkDust = { gx, gz, d };
+    }
+  check('helidust: seeded helipads exist in the world', !!padChunkDust,
+    padChunkDust ? 'chunk ' + padChunkDust.gx + ',' + padChunkDust.gz : 'none in -12..12');
+  const hcxDust = (padChunkDust.gx + 0.5) * 48, hczDust = (padChunkDust.gz + 0.5) * 48;
+  G.player.position.set(hcxDust, groundY(hcxDust, hczDust), hczDust);
+  frame(3);
+  const sDust = G.HELI.slots.find(s => s.placed);
+  check('helidust: a parked helicopter is placed at the pad', !!sDust,
+    'placed=' + G.HELI.slots.filter(s => s.placed).length);
+  G.player.position.set(sDust.x, sDust.y + 1, sDust.z);
+  frame(2);
+  check('helidust: BOARD hint appears near the parked helicopter',
+    G.HELI.hintOn === true && G.HELI.nearIdx >= 0, 'hintOn=' + G.HELI.hintOn);
+  G.HELI.dustDist = 2.2;   // sentinel: boarding must clear the accumulator
+  G.heliEnter();
+  check('helidust: boarding enters the flying state and heliEnter resets dustDist to 0',
+    G.HELI.flying === true && G.player.visible === false && G.HELI.dustDist === 0,
+    'flying=' + G.HELI.flying + ' dustDist=' + G.HELI.dustDist);
+  /* grass arena: the ground point under the helicopter classifies as
+     grass, so the flight checks cannot classify as water or gravel */
+  let arenaDust = null;
+  for (let x = -180; x <= 180 && !arenaDust; x += 3)
+    for (let z = -180; z <= 180 && !arenaDust; z += 3) {
+      if (G.surfaceAt(x, z) !== 'grass') continue;
+      arenaDust = [x, z];
+    }
+  check('helidust: a grass arena exists for the flight checks', !!arenaDust,
+    arenaDust ? 'at ' + arenaDust[0] + ',' + arenaDust[1] : 'none in -180..180');
+  const floorDust = (x, z) => Math.max(G.terrainHeight(x, z), -0.55) + G.HELI.skidH;   // -0.55 is WATER_Y
+  const setupHeliDust = (alt, speed, strafe, dustDist) => {
+    G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false;
+    G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+    G.keys.Space = false; G.keys.KeyC = false; G.keys.ShiftLeft = false; G.keys.ShiftRight = false;
+    G.P.hitstop = 0; G.camYaw = 0;
+    G.HELI.pos.set(arenaDust[0], floorDust(arenaDust[0], arenaDust[1]) + alt, arenaDust[1]);
+    G.HELI.heading = 0; G.HELI.speed = speed; G.HELI.strafe = strafe; G.HELI.vy = 0;
+    G.HELI.pitch = 0; G.HELI.pitchVel = 0; G.HELI.roll = 0; G.HELI.rollVel = 0;
+    G.HELI.grounded = false; G.HELI.tdT = 0; G.HELI.dustDist = dustDist;
+    G.player.position.set(G.HELI.pos.x, G.HELI.pos.y, G.HELI.pos.z);
+    G.clearDust();
+  };
+  const nearGroundDust = () => {
+    const gxD = G.HELI.pos.x, gzD = G.HELI.pos.z;
+    const gyD = Math.max(G.terrainHeight(gxD, gzD), -0.55) + 0.15;   // -0.55 is WATER_Y
+    let n = 0;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] > 0 && Math.hypot(G.dustPos[i * 3] - gxD, G.dustPos[i * 3 + 2] - gzD) < 0.6
+        && Math.abs(G.dustPos[i * 3 + 1] - gyD) < 0.6) n++;
+    }
+    return n;
+  };
+  /* hover accumulation below the threshold: the hover term alone
+     accrues dustDist at altitude 1, and nothing spawns yet */
+  setupHeliDust(1, 0, 0, 0);
+  frame(1);
+  check('helidust: one low hover frame below the threshold accumulates dustDist via the hover term and spawns nothing',
+    G.HELI.dustDist > 0.03 && G.HELI.dustDist < G.HELI.dustLen && liveHeliDust() === 0,
+    'dustDist=' + G.HELI.dustDist + ' live=' + liveHeliDust());
+  /* low hover across the threshold: a stationary hover at altitude 1
+     still washes dust, spawning the strength 7 burst (12 particles)
+     at the ground point directly under the helicopter */
+  setupHeliDust(1, 0, 0, G.HELI.dustLen - 0.05);
+  frame(1);
+  check('helidust: low hover across the threshold spawns live downwash (strength 7 burst of 12)',
+    liveHeliDust() === 12, 'live=' + liveHeliDust());
+  check('helidust: hover downwash spawns at the ground point under the heli (max of terrain and water, 0.15 up)',
+    nearGroundDust() === liveHeliDust() && liveHeliDust() > 0, 'near=' + nearGroundDust() + ' live=' + liveHeliDust());
+  check('helidust: after the hover puff the accumulator keeps only the remainder under dustLen',
+    G.HELI.dustDist >= 0 && G.HELI.dustDist < G.HELI.dustLen, 'dustDist=' + G.HELI.dustDist);
+  /* ground profile: the hover burst at the grass arena carries the
+     grass profile on every live slot */
+  setupHeliDust(1, 0, 0, G.HELI.dustLen - 0.05);
+  frame(1);
+  {
+    const surfDust = G.surfaceAt(G.HELI.pos.x, G.HELI.pos.z);
+    check('helidust: the ground point under the hovering heli classifies as grass',
+      surfDust === 'grass', 'surf=' + surfDust);
+    let profOk = liveHeliDust() > 0;
+    const approxDust = (a, b) => Math.abs(a - b) < 1e-6;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] <= 0) continue;
+      if (!approxDust(G.dustGrav[i], 0.85) || !approxDust(G.dustDrag[i], 1.15) || !approxDust(G.dustGrow[i], 0.95)
+        || !approxDust(G.dustRamp[i], 0.20) || !approxDust(G.dustAlpha[i], 0.75)) profOk = false;
+      if (!(G.dustSizeBase[i] >= 0.8625 - 1e-6 && G.dustSizeBase[i] <= 1.4375 + 1e-6)) profOk = false;
+    }
+    check('helidust: hover downwash carries the ground surface profile on every slot (grass grav 0.85, drag 1.15, grow 0.95, ramp 0.20, alpha 0.75, size scale 1.15)',
+      profOk, 'live=' + liveHeliDust());
+  }
+  /* altitude 4 under way: no hover term, travel alone crosses the
+     threshold and fires the middle strength 5 burst (10 particles) */
+  setupHeliDust(4, 20, 0, G.HELI.dustLen - 0.1);
+  frame(1);
+  check('helidust: flight at altitude 4 spawns the strength 5 burst of 10',
+    liveHeliDust() === 10, 'live=' + liveHeliDust());
+  check('helidust: altitude 4 downwash spawns at the ground point under the heli',
+    nearGroundDust() === liveHeliDust() && liveHeliDust() > 0, 'near=' + nearGroundDust() + ' live=' + liveHeliDust());
+  /* mid altitude between 5 and 8: same travel, lower strength 3
+     burst (8 particles) */
+  setupHeliDust(6.5, 20, 0, G.HELI.dustLen - 0.1);
+  frame(1);
+  check('helidust: flight at mid altitude 6.5 spawns the lower strength 3 burst of 8',
+    liveHeliDust() === 8, 'live=' + liveHeliDust());
+  check('helidust: mid altitude downwash spawns at the ground point under the heli',
+    nearGroundDust() === liveHeliDust() && liveHeliDust() > 0, 'near=' + nearGroundDust() + ' live=' + liveHeliDust());
+  check('helidust: after the mid altitude puff the accumulator keeps only the remainder under dustLen',
+    G.HELI.dustDist >= 0 && G.HELI.dustDist < G.HELI.dustLen, 'dustDist=' + G.HELI.dustDist);
+  /* above the gate: fast flight at altitude 12 washes nothing and
+     the accumulator resets to 0 */
+  setupHeliDust(12, 20, 0, 2.9);
+  frame(3);
+  check('helidust: flight above the gate (altitude 12) spawns nothing and dustDist stays 0',
+    liveHeliDust() === 0 && G.HELI.dustDist === 0, 'live=' + liveHeliDust() + ' dustDist=' + G.HELI.dustDist);
+  /* exit: heliExit clears the accumulator with the other resets */
+  G.HELI.dustDist = 2.2;
+  G.heliExit();
+  check('helidust: heliExit resets dustDist to 0 and restores the player',
+    G.HELI.flying === false && G.HELI.dustDist === 0 && G.player.visible === true,
+    'flying=' + G.HELI.flying + ' dustDist=' + G.HELI.dustDist);
+  /* parked: the early-return path never runs the downwash block, so
+     a parked helicopter spawns nothing and leaves dustDist untouched */
+  G.HELI.dustDist = 1.5;
+  G.clearDust();
+  frame(3);
+  check('helidust: parked (not flying) spawns nothing and leaves dustDist untouched',
+    liveHeliDust() === 0 && G.HELI.dustDist === 1.5, 'live=' + liveHeliDust() + ' dustDist=' + G.HELI.dustDist);
+  /* cleanup: leave the accumulator at 0 and the pool empty */
+  G.HELI.dustDist = 0; G.HELI.speed = 0; G.HELI.strafe = 0;
+  G.clearDust();
+  check('helidust: cleanup leaves dustDist at 0, no live dust and the player restored',
+    G.HELI.dustDist === 0 && liveHeliDust() === 0 && G.HELI.flying === false && G.player.visible === true,
+    'dustDist=' + G.HELI.dustDist + ' live=' + liveHeliDust() + ' flying=' + G.HELI.flying);
+  /* static pins re-checked: heli downwash adds zero of everything */
+  check('helidust-pins: 49 InstancedMesh literals', lineHasHeliDust('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasHeliDust('new THREE.InstancedMesh'));
+  check('helidust-pins: 92 Math.random lines', lineHasHeliDust('Math.random') === 92,
+    'n=' + lineHasHeliDust('Math.random'));
+  check('helidust-pins: 72 setTimeout lines', lineHasHeliDust('setTimeout') === 72,
+    'n=' + lineHasHeliDust('setTimeout'));
+  check('helidust-pins: 6 lights',
+    linesHeliDust.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('helidust-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('helidust-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('helidust-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasHeliDust('new THREE.Points(') === 2, 'n=' + lineHasHeliDust('new THREE.Points('));
+  check('helidust-pins: no em dashes', !html.includes('\u2014'));
+  check('helidust-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('helidust-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('helidust: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsHeliDust, consoleProblems.slice(probsHeliDust).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
