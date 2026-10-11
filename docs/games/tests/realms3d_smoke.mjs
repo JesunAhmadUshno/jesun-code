@@ -352,7 +352,7 @@ globalThis.__R3D = {
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
   spawnDust, dustTick, clearDust, DUST_N, DUST_LIFE,
   dustPos, dustVel, dustLife, dustCol, dustGrav, dustDrag, dustLifeMax, dustPts,
-  dustSize, dustSizeBase,
+  dustSize, dustSizeBase, dustGrow,
   get dustHead() { return dustHead; },
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
@@ -13030,7 +13030,7 @@ globalThis.__R3D2 = {
       segSS.includes('dustSizeAttr.needsUpdate = true;'));
     const segTS = html.indexOf('function dustTick') >= 0 ? html.slice(html.indexOf('function dustTick'), html.indexOf('function clearDust')) : '';
     check('dustsize: dustTick source grows size from base with the 0.6 to 1.4 growth curve',
-      segTS.includes('const growth = 0.6 + 0.8 * (1 - fRem);')
+      segTS.includes('const growth = 0.6 + dustGrow[i] * (1 - fRem);')
       && segTS.includes('dustSize[i] = dustSizeBase[i] * growth;'));
     check('dustsize: dustTick source zeroes size on expiry and flags the aSize attribute',
       segTS.includes('dustSize[i] = 0;')
@@ -13178,6 +13178,189 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustsize: the run leaves zero console errors/warnings',
     consoleProblems.length === probsS, consoleProblems.slice(probsS).join(' | '));
+}
+
+
+/* ================= PER-SURFACE DUST GROWTH v1 =================
+   The growth curve is now per-surface. One more preallocated
+   array (dustGrow, 48 slots, filled 0.8) carries each particle
+   growth factor. spawnDust writes growF 0.8 for every surface
+   except water, where growF is -0.2, on a new line after the
+   existing dustGrav/dustDrag write, with birth size unchanged
+   (base * 0.6) and the dustRand order and count unchanged.
+   dustTick grows size with growth = 0.6 + dustGrow[i] *
+   (1 - fRem): non-water is byte-equivalent to the old curve
+   (0.6 to 1.4 times base), water shrinks from 0.6 times base
+   at birth to 0.4 times base at death. clearDust resets every
+   dustGrow slot to 0.8. No new Points, draw calls or nodes. */
+{
+  const probsGr = consoleProblems.length;
+  const approxGr = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveGr = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
+  const linesGr = html.split('\n');
+  const lineHasGr = sub => linesGr.filter(l => l.includes(sub)).length;
+  /* source: header, declaration, fill and the new spawn/tick/clear lines */
+  check('dustgrow: source carries the PER-SURFACE DUST GROWTH v1 header',
+    html.includes('PER-SURFACE DUST GROWTH v1'));
+  check('dustgrow: source declares dustGrow as Float32Array(DUST_N)',
+    html.includes('const dustGrow = new Float32Array(DUST_N);'));
+  check('dustgrow: source initializes dustGrow to 0.8 at declaration time',
+    html.includes('dustGrow.fill(0.8);'));
+  {
+    const segSGr = html.indexOf('function spawnDust') >= 0 ? html.slice(html.indexOf('function spawnDust'), html.indexOf('function dustTick')) : '';
+    check('dustgrow: spawnDust source carries the default growF line',
+      segSGr.includes('let growF = 0.8;'));
+    check('dustgrow: spawnDust source carries the exact water growF line',
+      segSGr.includes("if (surf === 'water') { growF = -0.2; }"));
+    check('dustgrow: spawnDust source writes dustGrow per slot after the grav/drag write',
+      segSGr.includes('dustGrav[slot] = grav; dustDrag[slot] = dragF;')
+      && segSGr.includes('dustGrow[slot] = growF;'));
+    check('dustgrow: spawnDust source keeps birth size at base * 0.6',
+      segSGr.includes('dustSize[slot] = sizeBase * 0.6;'));
+    const segTGr = html.indexOf('function dustTick') >= 0 ? html.slice(html.indexOf('function dustTick'), html.indexOf('function clearDust')) : '';
+    check('dustgrow: dustTick source grows size with the per-surface dustGrow curve',
+      segTGr.includes('const growth = 0.6 + dustGrow[i] * (1 - fRem);')
+      && segTGr.includes('dustSize[i] = dustSizeBase[i] * growth;'));
+    const segCGr = html.indexOf('function clearDust') >= 0 ? html.slice(html.indexOf('function clearDust'), html.indexOf('function clearDust') + 500) : '';
+    check('dustgrow: clearDust source resets dustGrow to 0.8 after the size reset',
+      segCGr.includes('dustSize[i] = 0; dustSizeBase[i] = 1; dustGrow[i] = 0.8;'));
+  }
+  /* buffer shape and boot fill (clearDust restores the boot value on every slot) */
+  check('dustgrow: dustGrow is a preallocated Float32Array of 48',
+    !!G.dustGrow && G.dustGrow instanceof Float32Array && G.dustGrow.length === 48,
+    'len=' + (G.dustGrow && G.dustGrow.length));
+  G.clearDust();
+  check('dustgrow: dustGrow is filled 0.8 at boot (every slot 0.8 after clearDust)',
+    Array.from(G.dustGrow).every(v => approxGr(v, 0.8, 1e-6)));
+  /* probe grass and water locations from the classifier itself */
+  const foundGr = {};
+  for (let x = -360; x <= 360 && Object.keys(foundGr).length < 2; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      const surf = G.surfaceAt(x, z);
+      if ((surf === 'grass' || surf === 'water') && !foundGr[surf]) foundGr[surf] = { x, z };
+      if (foundGr.grass && foundGr.water) break;
+    }
+  }
+  check('dustgrow: probe finds a grass location', !!foundGr.grass, JSON.stringify(foundGr.grass || null));
+  check('dustgrow: probe finds a water location', !!foundGr.water, JSON.stringify(foundGr.water || null));
+  /* deterministic spawn recorder: same seed, slots in spawn order */
+  const spawnRecGr = (loc) => {
+    G.clearDust(); G.dustSeed = 987654321;
+    const head = G.dustHead;
+    G.spawnDust(loc.x, 1, loc.z, 5);
+    const slots = [];
+    for (let n = 0; n < 10; n++) slots.push((head + n) % G.DUST_N);
+    return {
+      slots,
+      grow: slots.map(s => G.dustGrow[s]),
+      base: slots.map(s => G.dustSizeBase[s]),
+      size: slots.map(s => G.dustSize[s]),
+      live: liveGr().length,
+    };
+  };
+  let grassRecGr = null, waterRecGr = null;
+  let grassAfterGr = null, waterAfterGr = null, waterSpawnGr = null;
+  if (foundGr.grass) {
+    grassRecGr = spawnRecGr(foundGr.grass);
+    check('dustgrow: grass spawn bursts exactly 10 at strength 5',
+      grassRecGr.live === 10 && grassRecGr.grow.length === 10, 'live=' + grassRecGr.live);
+    check('dustgrow: grass spawn writes grow 0.8 for every live slot',
+      grassRecGr.grow.every(v => approxGr(v, 0.8, 1e-6)), 'grow=' + grassRecGr.grow.join(','));
+    check('dustgrow: grass spawn keeps birth size at base * 0.6 within 1e-6',
+      grassRecGr.size.every((v, k) => approxGr(v, grassRecGr.base[k] * 0.6, 1e-6)));
+    const spawnSizeGr = grassRecGr.size.slice();
+    G.dustTick(0.05);
+    const liveAfterGr = liveGr();
+    grassAfterGr = grassRecGr.slots.map(s => G.dustSize[s]);
+    check('dustgrow: after a tick every live grass size is larger than at spawn',
+      liveAfterGr.length > 0 && grassRecGr.slots.every((s, k) => G.dustLife[s] <= 0 || G.dustSize[s] > spawnSizeGr[k]),
+      'live=' + liveAfterGr.length);
+    check('dustgrow: after a tick grass size matches base * (0.6 + 0.8 * (1 - fRem)) within 1e-5',
+      liveAfterGr.length > 0 && liveAfterGr.every(i => {
+        const fRemGr = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
+        return approxGr(G.dustSize[i], G.dustSizeBase[i] * (0.6 + 0.8 * (1 - fRemGr)), 1e-5);
+      }));
+  }
+  if (foundGr.water) {
+    waterRecGr = spawnRecGr(foundGr.water);
+    check('dustgrow: water spawn bursts exactly 10 at strength 5',
+      waterRecGr.live === 10 && waterRecGr.grow.length === 10, 'live=' + waterRecGr.live);
+    check('dustgrow: water spawn writes grow -0.2 for every live slot',
+      waterRecGr.grow.every(v => approxGr(v, -0.2, 1e-6)), 'grow=' + waterRecGr.grow.join(','));
+    check('dustgrow: water spawn keeps birth size at base * 0.6 within 1e-6',
+      waterRecGr.size.every((v, k) => approxGr(v, waterRecGr.base[k] * 0.6, 1e-6)));
+    check('dustgrow: paired same-seed water bases match the grass bases exactly',
+      !!grassRecGr && waterRecGr.base.every((v, k) => v === grassRecGr.base[k]));
+    waterSpawnGr = waterRecGr.size.slice();
+    G.dustTick(0.05);
+    const liveWaterGr = liveGr();
+    waterAfterGr = waterRecGr.slots.map(s => G.dustSize[s]);
+    check('dustgrow: after a tick water size matches base * (0.6 - 0.2 * (1 - fRem)) within 1e-5',
+      liveWaterGr.length > 0 && liveWaterGr.every(i => {
+        const fRemGr = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
+        return approxGr(G.dustSize[i], G.dustSizeBase[i] * (0.6 - 0.2 * (1 - fRemGr)), 1e-5);
+      }));
+    check('dustgrow: after a tick every live water size shrinks relative to its birth size',
+      liveWaterGr.length > 0 && !!waterSpawnGr && waterRecGr.slots.every((s, k) => G.dustLife[s] <= 0 || G.dustSize[s] < waterSpawnGr[k]),
+      'live=' + liveWaterGr.length);
+    check('dustgrow: after a tick water sizes are smaller than their grass counterparts',
+      !!grassAfterGr && !!waterAfterGr && waterAfterGr.every((v, k) => v < grassAfterGr[k]),
+      'water=' + (waterAfterGr && waterAfterGr[0]) + ' grass=' + (grassAfterGr && grassAfterGr[0]));
+  }
+  /* determinism: same-seed respawn reproduces grow and size exactly */
+  if (foundGr.water) {
+    const r1Gr = spawnRecGr(foundGr.water);
+    const r2Gr = spawnRecGr(foundGr.water);
+    check('dustgrow: same-seed respawn reproduces grow exactly',
+      r1Gr.grow.length === 10 && r1Gr.grow.every((v, i) => v === r2Gr.grow[i]));
+    check('dustgrow: same-seed respawn reproduces grow and size exactly',
+      r1Gr.size.every((v, i) => v === r2Gr.size[i]) && r1Gr.base.every((v, i) => v === r2Gr.base[i]));
+  }
+  /* expiry still zeroes size */
+  {
+    if (foundGr.grass) spawnRecGr(foundGr.grass);
+    const expGr = liveGr(); const expSlotGr = expGr.length ? expGr[0] : -1;
+    G.dustTick(10);
+    check('dustgrow: expiry still zeroes size and parks y at -999 with nothing live',
+      expSlotGr >= 0 && G.dustSize[expSlotGr] === 0 && G.dustPos[expSlotGr * 3 + 1] === -999 && liveGr().length === 0,
+      'slot=' + expSlotGr);
+    check('dustgrow: after expiry every size slot is 0',
+      Array.from(G.dustSize).every(v => v === 0));
+  }
+  /* clearDust resets every dustGrow slot to 0.8 */
+  {
+    if (foundGr.water) spawnRecGr(foundGr.water);
+    G.clearDust();
+    check('dustgrow: clearDust resets every dustGrow slot to 0.8',
+      Array.from(G.dustGrow).every(v => approxGr(v, 0.8, 1e-6)));
+    check('dustgrow: after clearDust nothing is live',
+      liveGr().length === 0, 'live=' + liveGr().length);
+  }
+  G.clearDust();
+  /* static pins re-checked: the growth feature adds zero of everything */
+  check('dustgrow-pins: 49 InstancedMesh literals', lineHasGr('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasGr('new THREE.InstancedMesh'));
+  check('dustgrow-pins: 92 Math.random lines', lineHasGr('Math.random') === 92,
+    'n=' + lineHasGr('Math.random'));
+  check('dustgrow-pins: 72 setTimeout lines', lineHasGr('setTimeout') === 72,
+    'n=' + lineHasGr('setTimeout'));
+  check('dustgrow-pins: 6 lights',
+    linesGr.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustgrow-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustgrow-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustgrow-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasGr('new THREE.Points(') === 2, 'n=' + lineHasGr('new THREE.Points('));
+  check('dustgrow-pins: no em dashes', !html.includes('\u2014'));
+  check('dustgrow-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustgrow-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustgrow: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsGr, consoleProblems.slice(probsGr).join(' | '));
 }
 
 

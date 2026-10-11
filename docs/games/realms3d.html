@@ -5320,9 +5320,26 @@ function squashTick(dt){
        at birth to 1.4 times its base at death, expiry zeroes the
        size, and clearDust zeroes size and resets base to 1. This
        supersedes the earlier size-stays-global honest limit
-       above. New honest limit: the growth curve is uniform
-       across surfaces (not per-surface), and point size is still
-       sizeAttenuation-scaled by distance in the material. --- */
+       above.
+       PER-SURFACE DUST GROWTH v1: the growth curve is now
+       per-surface. One more preallocated array (dustGrow, 48
+       slots, filled 0.8 at declaration) carries each particle
+       growth factor, written by spawnDust and reset to 0.8 by
+       clearDust, with no allocation in spawn or tick. Dust puffs
+       expand as they dissipate: every non-water surface keeps
+       growF 0.8, so dustTick growth = 0.6 + dustGrow[i] *
+       (1 - fRem) is byte-equivalent to the old 0.6 + 0.8 *
+       (1 - fRem) curve and still grows from 0.6 times base at
+       birth to 1.4 times base at death. Water splash droplets
+       are dense and should not expand, so water writes
+       growF -0.2 and a water particle shrinks slightly as it
+       falls, from 0.6 times base at birth to 0.4 times base at
+       death. Birth size is unchanged for every surface:
+       spawnDust still writes dustSize at base * 0.6. New honest
+       limit: growth is per-surface only for water versus all
+       other surfaces (grass, dirt, rock and gravel still share
+       the dust curve), and size is still sizeAttenuation-scaled
+       by distance in the material. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -5333,9 +5350,11 @@ const dustDrag = new Float32Array(DUST_N);
 const dustLifeMax = new Float32Array(DUST_N);
 const dustSize = new Float32Array(DUST_N);
 const dustSizeBase = new Float32Array(DUST_N);
+const dustGrow = new Float32Array(DUST_N);
 dustGrav.fill(1); dustDrag.fill(1);
 dustLifeMax.fill(DUST_LIFE);
 dustSizeBase.fill(1);
+dustGrow.fill(0.8);
 let dustHead = 0;
 let dustSeed = 987654321;
 for (let i = 0; i < DUST_N; i++) dustPos[i * 3 + 1] = -999;
@@ -5378,6 +5397,8 @@ function spawnDust(x, y, z, strength){
   else if (surf === 'water') { pr = 0.62; pg = 0.79; pb = 0.90; }
   let radialScale = 1, upScale = 1, grav = 1, dragF = 1;
   if (surf === 'water') { radialScale = 0.55; upScale = 1.9; grav = 1.8; dragF = 0.35; }
+  let growF = 0.8;
+  if (surf === 'water') { growF = -0.2; }
   for (let n = 0; n < count; n++) {
     const slot = dustHead; dustHead = (dustHead + 1) % DUST_N;
     const ang = dustRand() * Math.PI * 2;
@@ -5393,6 +5414,7 @@ function spawnDust(x, y, z, strength){
     dustVel[slot * 3 + 1] = up * upScale;
     dustVel[slot * 3 + 2] = Math.sin(ang) * radial * radialScale;
     dustGrav[slot] = grav; dustDrag[slot] = dragF;
+    dustGrow[slot] = growF;
     dustCol[slot * 4] = Math.min(1, pr * jit);
     dustCol[slot * 4 + 1] = Math.min(1, pg * jit);
     dustCol[slot * 4 + 2] = Math.min(1, pb * jit);
@@ -5414,7 +5436,7 @@ function dustTick(dt){
       dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustCol[i * 4 + 3] = 0; dustSize[i] = 0; changed = true; continue;
     }
     const fRem = Math.max(0, dustLife[i] / dustLifeMax[i]);
-    const growth = 0.6 + 0.8 * (1 - fRem);
+    const growth = 0.6 + dustGrow[i] * (1 - fRem);
     dustSize[i] = dustSizeBase[i] * growth;
     const inRamp = Math.min(1, (1 - fRem) / 0.15);
     dustCol[i * 4 + 3] = inRamp * fRem * fRem * (3 - 2 * fRem);
@@ -5429,7 +5451,7 @@ function dustTick(dt){
   if (changed) { dustPosAttr.needsUpdate = true; dustColAttr.needsUpdate = true; dustSizeAttr.needsUpdate = true; }
 }
 function clearDust(){
-  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; dustLifeMax[i] = DUST_LIFE; dustCol[i * 4 + 3] = 0; dustSize[i] = 0; dustSizeBase[i] = 1; }
+  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; dustLifeMax[i] = DUST_LIFE; dustCol[i * 4 + 3] = 0; dustSize[i] = 0; dustSizeBase[i] = 1; dustGrow[i] = 0.8; }
   dustPosAttr.needsUpdate = true;
   dustColAttr.needsUpdate = true;
   dustSizeAttr.needsUpdate = true;
