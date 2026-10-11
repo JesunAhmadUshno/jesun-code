@@ -152,6 +152,14 @@ globalThis.__R3D = {
   theaterHintEl, theaterChipEl, HELP_THEATER,
   THEATER_N, THEATER_SCAN, T_INST, THEATER_BAR_LEN, THEATER_SETS, THEATER_POSES,
   THEATER_LX, THEATER_LZ,
+  /* Phase 5 landmark theater hall + THEATER AUDIENCE v1 */
+  THEATERHALL, theaterHallEnter, theaterHallExit, theaterWatchShow, theaterHallTick,
+  THEATER_SHOWS, THEATER_ROOM_Y, THEATER_ENCORE_TIP, THEATER_SHOW_DUR_S,
+  theaterHallMesh, theaterHallScreen, theaterHallDoorWorld, theaterShowFor,
+  audIM, theaudHash, theaudTick, theaudCheer, theaudSettle, theaudTintAll,
+  THAUD_N, THAUD_ROWS, THAUD_COLS,
+  thallhintEl, tshowhintEl, crowdChipEl, crowdtxtEl, crowdfillEl,
+  amenityTypeFor, amenityAccepted, AMEN,
 };
 `;
 writeFileSync(BOOT, src);
@@ -672,7 +680,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 48 IM literals (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 48, 'count=' + imCount);
+  check('perf6: 49 IM literals (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 49, 'count=' + imCount);
   check('wildlife: AMESH holds 28 instanced-mesh sites (24 + v5 lion/panda/tiger/penguin bodies)',
     Object.keys(G.AMESH).length === 28, 'sites=' + Object.keys(G.AMESH).length);
   globalThis.__renderCount = 0; frame(30);
@@ -1142,7 +1150,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 46 IM literals after PERF-5 consolidation (bike section)',
-    imCount2 === 48, 'count=' + imCount2);
+    imCount2 === 49, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1243,7 +1251,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 46 IM literals after PERF-5 consolidation (bicycle section)',
-    imCount3 === 48, 'count=' + imCount3);
+    imCount3 === 49, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1345,7 +1353,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 46 IM literals after PERF-5 consolidation (scooter section)',
-    imCount4 === 48, 'count=' + imCount4);
+    imCount4 === 49, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1662,7 +1670,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
     check('perf6: 46 IM literals after PERF-5 consolidation (wildlife5 section)',
-      imCount5 === 48, 'count=' + imCount5);
+      imCount5 === 49, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2017,7 +2025,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
     check('perf6: 46 IM literals after PERF-5 consolidation, 6 runtime building meshes',
-      n === 48 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+      n === 49 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2161,8 +2169,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('food-static: InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2391,8 +2399,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('farmv1-static: InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2763,8 +2771,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -2983,8 +2991,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -3781,7 +3789,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
   check('casino-static: whole-file IM literals pin at 42 (theater adds the one fleet mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   /* AUDIT 2026-10-10 (TEST-MAINT-1): the old pin of 3 runtime meshes predates the
      civic/worship/apartment building fleets. 13 defs, 7 shared riders
      (casino->store, hospital/bank/hotel/school->civic, church/mosque->worship)
@@ -3919,7 +3927,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
   check('theater-static: whole-file IM literals pin at 42 (47 + 1 theater)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (18 osc, 31 gain: music reuses sfxBlip; poker sting schedules on the audio clock: +1 osc, +1 gain)',
@@ -4031,6 +4039,184 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     && Math.hypot(G.player.position.x - tslot.x, G.player.position.z - tslot.z) > 1.0);
   check('theater: watch/exit round trip leaves zero console errors/warnings',
     consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
+}
+
+
+/* ================= 12. THEATER AUDIENCE v1 (reactive screening-room crowd) ================= */
+{
+  const probs0 = consoleProblems.length;
+  /* cleanup: leave any ride/watch state from earlier sections */
+  G.P.godT = 0; G.P.dead = false; G.P.hp = 100;
+  if (G.THEATERHALL.inHall) G.theaterHallExit();
+  if (G.THEATER.watching) G.theaterExit();
+  if (G.CAR.driving) G.carExit();
+  G.closeShop();
+
+  /* static: exactly one new IM literal in the audience block, zero new RNG/timers/lights/nodes */
+  const audSrc = html.slice(html.indexOf('/* ================= THEATER AUDIENCE v1'),
+                            html.indexOf('/* ================= THEATER CONCESSIONS v1'));
+  check('aud-static: exactly one IM literal in the audience block',
+    (audSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
+  check('aud-static: no unseeded RNG in the audience block', !/Math\.random/.test(audSrc));
+  check('aud-static: no timers in the audience block (tick loop only)', !/setTimeout/.test(audSrc));
+  check('aud-static: no new lights in the audience block',
+    !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(audSrc));
+  check('aud-static: no new audio nodes in the audience block (sfxBlip idiom only)',
+    !/createOscillator|createGain|AudioContext/.test(audSrc));
+  check('aud-static: no em dashes / TODO / external URLs in the audience block',
+    !audSrc.includes('—') && !/\bTODO\b/.test(audSrc) && !/https?:\/\//.test(audSrc));
+  check('aud-static: #crowdchip owns a free top-left slot (1017px, single owner)',
+    (html.match(/top: 1017px; left: 18px/g) || []).length === 1 && html.includes('#crowdchip {'));
+  check('aud-static: whole-file IM literals pin at 49 (48 + 1 audience fleet)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('aud-static: Math.random lines pin at 92 (zero new RNG)',
+    (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
+
+  /* the fleet: 24 instances, parented to the cached room (caches free) */
+  check('aud: the audience is one 24-instance InstancedMesh',
+    G.audIM instanceof THREE.InstancedMesh && G.audIM.count === 24 && G.audIM.count === G.THAUD_N);
+  check('aud: the fleet is parented to the cached room (hidden with it, zero net draws while cached)',
+    G.audIM.parent === G.theaterHallMesh && G.theaterHallMesh.visible === false);
+  check('aud: per-instance clothing tints are allocated', !!G.audIM.instanceColor);
+  check('aud: the figure geometry is one merged torso+head (position+color attrs)',
+    !!G.audIM.geometry.attributes.position && !!G.audIM.geometry.attributes.color
+    && G.audIM.geometry.attributes.position.count > 100);
+
+  /* drive the real hall: find a seeded landmark theater, walk to the door, ENTER */
+  let td = null;
+  touter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'theater' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'theater') { td = a; break touter; }
+    }
+  check('aud: a seeded landmark theater exists for the drive', !!td);
+  const enterHall = () => {
+    G.player.position.set(td.x + 60, groundY(td.x + 60, td.z), td.z);
+    frame(20);   // chunk redistribute + door scan cadence
+    const ta = G.AMEN.active.theater.find(a => Math.hypot(a.x - td.x, a.z - td.z) < 1);
+    if (!ta) return false;
+    const d = G.theaterHallDoorWorld(ta);
+    G.player.position.set(d.x, groundY(d.x, d.z), d.z);
+    frame(20);
+    G.closeShop(); G.theaterHallEnter();
+    return G.THEATERHALL.inHall === true;
+  };
+  if (td) {
+    /* ENTER: the crowd chip shows, the audience sits settled and quiet pre-show */
+    check('aud: ENTER seats the player in the cached room', enterHall() === true);
+    frame(10);
+    check('aud: the crowd chip shows the QUIET mood pre-show',
+      G.crowdChipEl.style.display === 'block' && G.THEATERHALL.mood === 'QUIET'
+      && G.crowdtxtEl.textContent === 'AUDIENCE QUIET', G.crowdtxtEl.textContent);
+    check('aud: the applause meter starts at zero',
+      G.THEATERHALL.appl === 0 && G.crowdfillEl.style.width === '0%');
+
+    /* WATCH: the show runs on the tick; the hint names the forfeit */
+    G.cash = 100; G.P.hp = 50; G.updateHpHUD();
+    const show0 = G.THEATERHALL.show;
+    G.theaterWatchShow();
+    const dur0 = show0.hours * G.THEATER_SHOW_DUR_S;
+    check('aud: WATCH starts the timed show run (' + show0.name + ', ' + dur0 + 's)',
+      G.THEATERHALL.showing === true && G.THEATERHALL.showDur === dur0 && G.THEATERHALL.showT === 0
+      && G.THEATERHALL.audSeed !== 0, 'dur=' + G.THEATERHALL.showDur);
+    check('aud: the exit hint names the mid-show forfeit',
+      /NO ENCORE/.test(G.tshowhintEl.textContent), G.tshowhintEl.textContent);
+    G.theaterHallExit();
+
+    /* per-show beats: cover all three shows across visits (the pick rotates deterministically) */
+    const covered = {};
+    const meanAbsY = () => {
+      const m4 = new THREE.Matrix4(); let sy = 0;
+      for (let i = 0; i < 24; i++) { G.audIM.getMatrixAt(i, m4); sy += Math.abs(m4.elements[13]); }
+      return sy / 24;
+    };
+    let guard = 0;
+    while (Object.keys(covered).length < 3 && guard++ < 6) {
+      if (!enterHall()) break;
+      G.cash = 100; G.P.hp = 50; G.updateHpHUD();
+      const sh = G.THEATERHALL.show, idx = G.THEATERHALL.showIdx;
+      G.theaterWatchShow();
+      const dur = G.THEATERHALL.showDur, seed = G.THEATERHALL.audSeed;
+      const j0 = (G.theaudHash(seed, 11) % 7) / 100;
+      if (idx === 0 && !covered[0]) {
+        covered[0] = 1;
+        G.THEATERHALL.showT = (0.22 + j0) * dur + 1.0;   // inside laugh burst 1
+        frame(20);
+        check('aud: COMEDY laugh burst reads CHUCKLING',
+          G.THEATERHALL.mood === 'CHUCKLING' && G.crowdtxtEl.textContent === 'AUDIENCE CHUCKLING',
+          G.crowdtxtEl.textContent);
+        check('aud: the laugh-bob visibly bounces the crowd', meanAbsY() > 0.005,
+          'meanY=' + meanAbsY().toFixed(4));
+      } else if (idx === 1 && !covered[1]) {
+        covered[1] = 1;
+        G.THEATERHALL.showT = (0.30 + j0) * dur + 0.9;   // inside gasp 1
+        frame(20);
+        check('aud: ACTION gasp beat reads GASPING', G.THEATERHALL.mood === 'GASPING', G.THEATERHALL.mood);
+        G.THEATERHALL.showT = 0.90 * dur;   // finale: stand + cheer
+        frame(30);
+        check('aud: ACTION finale reads CHEERING', G.THEATERHALL.mood === 'CHEERING', G.THEATERHALL.mood);
+        check('aud: the finale stand lifts the crowd', meanAbsY() > 0.1,
+          'meanY=' + meanAbsY().toFixed(3));
+      } else if (idx === 2 && !covered[2]) {
+        covered[2] = 1;
+        G.THEATERHALL.showT = 0.5 * dur;   // mid-show sway
+        frame(20);
+        check('aud: CONCERT mid-show sways (CHUCKLING or CHEERING)',
+          G.THEATERHALL.mood === 'CHUCKLING' || G.THEATERHALL.mood === 'CHEERING', G.THEATERHALL.mood);
+        G.THEATERHALL.showT = 0.95 * dur;   // applause ripple
+        frame(20);
+        check('aud: the end-of-show applause reads CHEERING with a live meter',
+          G.THEATERHALL.mood === 'CHEERING' && G.THEATERHALL.appl > 50, 'appl=' + G.THEATERHALL.appl);
+      }
+      /* seed determinism: the same inputs recompute the same seed */
+      check('aud: the crowd seed is deterministic for ' + sh.name,
+        G.theaudHash(G.hash2i(idx + 1, G.THEATERHALL.visits), 0x5EED) === seed);
+      G.theaterHallExit();   // mid-show exit: forfeits (covered in the dedicated forfeit test below)
+    }
+    check('aud: all three shows drove their beats', Object.keys(covered).length === 3, JSON.stringify(covered));
+
+    /* STAY-FOR-ENCORE: a full watch through the real tick earns the tip */
+    check('aud: re-entry works after the beat tour', enterHall() === true);
+    G.cash = 100;
+    G.theaterWatchShow();
+    const cashPre = G.cash, durE = G.THEATERHALL.showDur;
+    G.THEATERHALL.showT = durE - 0.4;   // fast-forward: the tick crosses the end
+    frame(40);
+    check('aud: the full watch earns the ENCORE TIP (+$10)',
+      G.THEATERHALL.tipped === true && G.THEATERHALL.showing === false
+      && G.cash === cashPre + G.THEATER_ENCORE_TIP, 'cash=' + G.cash);
+    check('aud: the encore toast names the tip', /ENCORE TIP/.test(G.toastEl.textContent), G.toastEl.textContent);
+    G.theaterHallExit();   // post-show exit: tipped, so no forfeit
+
+    /* leaving mid-show forfeits the tip */
+    check('aud: re-entry works for the forfeit drive', enterHall() === true);
+    G.cash = 100;
+    G.theaterWatchShow();
+    const cashMid = G.cash;
+    frame(10);
+    G.theaterHallExit();
+    check('aud: leaving mid-show forfeits the encore tip',
+      G.THEATERHALL.tipped === false && G.THEATERHALL.showing === false && G.cash === cashMid,
+      'cash=' + G.cash);
+    check('aud: the forfeit toast is named', /NO ENCORE/.test(G.toastEl.textContent), G.toastEl.textContent);
+    check('aud: exit hides the crowd chip and re-caches the room',
+      G.crowdChipEl.style.display === 'none' && G.theaterHallMesh.visible === false);
+
+    /* death ejects: the crowd tears down with the hall */
+    check('aud: re-entry works for the death drive', enterHall() === true);
+    G.cash = 100;
+    G.theaterWatchShow();
+    frame(10);
+    G.P.dead = true;
+    frame(3);
+    G.P.dead = false; G.P.hp = 100;
+    check('aud: death ejects and tears down the crowd',
+      G.THEATERHALL.inHall === false && G.THEATERHALL.showing === false
+      && G.crowdChipEl.style.display === 'none' && G.theaterHallMesh.visible === false);
+    check('aud: the audience drive leaves zero console errors/warnings',
+      consoleProblems.length === probs0, consoleProblems.slice(probs0).join(' | '));
+  }
 }
 
 

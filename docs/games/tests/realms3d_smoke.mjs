@@ -896,7 +896,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 48 IM literals (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 48, 'count=' + imCount);
+  check('perf6: 49 IM literals (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 49, 'count=' + imCount);
 
   /* PERF-6 merge regression: slot maps, Y-band lifts, identity colors */
   {
@@ -1399,7 +1399,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 48 IM literals (bike section)',
-    imCount2 === 48, 'count=' + imCount2);
+    imCount2 === 49, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1500,7 +1500,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 48 IM literals (bicycle section)',
-    imCount3 === 48, 'count=' + imCount3);
+    imCount3 === 49, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1602,7 +1602,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 48 IM literals (scooter section)',
-    imCount4 === 48, 'count=' + imCount4);
+    imCount4 === 49, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1919,7 +1919,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
     check('perf6: 48 IM literals (wildlife5 section)',
-      imCount5 === 48, 'count=' + imCount5);
+      imCount5 === 49, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2267,8 +2267,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 48 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
-      n === 48 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf6: 49 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
+      n === 49 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2412,8 +2412,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('food-static: InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2642,8 +2642,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('farmv1-static: InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -3014,8 +3014,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -3234,8 +3234,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -4032,7 +4032,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
   check('casino-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('casino-static: 6 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet, apartment owns its fleet)',
     G.bldgMeshes.length === 6);
   check('casino-static: casino def shares the store fleet mesh',
@@ -4161,7 +4161,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
   check('theater-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (18 osc, 31 gain: music reuses sfxBlip; poker sting schedules on the audio clock: +1 osc, +1 gain)',
@@ -4295,7 +4295,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('civic-static: no external URLs in the civic block', !/https?:\/\//.test(civicSrc));
   check('civic-static: no TODO markers in the civic block', !/\bTODO\b/.test(civicSrc));
   check('civic-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
   check('civic-static: 6 runtime building meshes (house, barn, store, civic, worship, apartment)',
@@ -4572,7 +4572,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('stadium-static: no external URLs in the stadium block', !/https?:\/\//.test(stadiumSrc));
   check('stadium-static: no TODO markers in the stadium block', !/\bTODO\b/.test(stadiumSrc));
   check('stadium-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('stadium-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('stadium-static: audio nodes pin unchanged (18 osc, 31 gain: cheer reuses sfxBlip; poker sting: +1 osc, +1 gain)',
@@ -4717,7 +4717,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('amuse-static: no external URLs in the amusement block', !/https?:\/\//.test(amuseSrc));
   check('amuse-static: no TODO markers in the amusement block', !/\bTODO\b/.test(amuseSrc));
   check('amuse-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: amuse rides the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('amuse-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('amuse-static: audio nodes pin unchanged (18 osc, 31 gain: chimes reuse sfxBlip; poker sting: +1 osc, +1 gain)',
@@ -5408,7 +5408,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmstad-static: stad residue is checked after all existing amenity types (never displaces them)',
     html.indexOf("if (h % 10 === 6) return 'park';") < html.indexOf("if (h % 37 === 13) return 'stad';"));
   check('lmstad-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; stad rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('lmstad-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmstad-static: single keydown listener (zero new keybinds)',
@@ -5537,12 +5537,13 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   if (G.PIANO.playing) G.pianoExit();
   if (G.CIVIC.state) G.civicExit();
 
-  /* static: exactly 4 new IM literals (wheel, cabins, carousel, train fleets),
-     no lights, no unseeded RNG, no em dashes, no external URLs, no TODO text */
+  /* static: 4 new IM literals in the park block itself (wheel, cabins, carousel, train fleets;
+     the slice to the shared end marker also spans the theater block, which now owns the one
+     audience fleet), no lights, no unseeded RNG, no em dashes, no external URLs, no TODO text */
   const lmauseSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK AMUSEMENT PARK v1 (buildings/places)'),
                                html.indexOf('/* ---- instanced meshes: one per type'));
-  check('lmause-static: exactly 4 IM literals in the park block (wheel, cabins, carousel, train fleets)',
-    (lmauseSrc.split('new THREE.InstancedMesh').length - 1) === 4);
+  check('lmause-static: 5 IM literals in the slice (4 park fleets + 1 theater audience fleet: the shared end marker extends past the theater block)',
+    (lmauseSrc.split('new THREE.InstancedMesh').length - 1) === 5);
   check('lmause-static: park block creates no lights',
     lmauseSrc.indexOf('PointLight') === -1 && lmauseSrc.indexOf('SpotLight') === -1
     && lmauseSrc.indexOf('DirectionalLight') === -1 && lmauseSrc.indexOf('HemisphereLight') === -1
@@ -5553,8 +5554,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmause-static: no TODO markers in the park block', lmauseSrc.indexOf('TODO') === -1);
   check('lmause-static: amuse residue is checked after stad (never displaces existing types)',
     html.indexOf("if (h % 37 === 13) return 'stad';") < html.indexOf("if (h % 41 === 29) return 'amuse';"));
-  check('lmause-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 46 + 1 fire truck v1; 46 = 42 + 4 ride fleets)',
-    (html.split('new THREE.InstancedMesh').length - 1) === 48);
+  check('lmause-static: whole-file IM literals pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 46 + 1 fire truck v1; 46 = 42 + 4 ride fleets)',
+    (html.split('new THREE.InstancedMesh').length - 1) === 49);
   check('lmause-static: Math.random lines pin at 92',
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
   check('lmause-static: single keydown listener (zero new keybinds)',
@@ -5767,14 +5768,15 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   if (G.PIANO.playing) G.pianoExit();
   if (G.CIVIC.state) G.civicExit();
 
-  /* static: bespoke merged geometry, zero new IM literals (the shared
-     AMEN_DEF loop builds the one 'hosp' mesh: +1 runtime draw call), zero
+  /* static: bespoke merged geometry, zero IM literals in the hospital block itself (the shared
+     AMEN_DEF loop builds the one 'hosp' mesh: +1 runtime draw call; the slice to the shared
+     end marker also spans the theater block, which now owns the one audience fleet), zero
      new runtime lights, zero new keybinds, no unseeded RNG, no em dashes,
      no external URLs, no TODO text in the block */
   const lmhospSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK HOSPITAL v1 (buildings/places)'),
                                html.indexOf('/* ---- instanced meshes: one per type, one draw call each ---- */'));
-  check('lmhosp-static: zero IM literals in the hospital block (shared AMEN_DEF loop builds the one mesh)',
-    (lmhospSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('lmhosp-static: 1 IM literal in the slice (the theater audience fleet: the shared end marker extends past the theater block)',
+    (lmhospSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
   check('lmhosp-static: hospital block creates no lights',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(lmhospSrc));
   check('lmhosp-static: no unseeded RNG in the hospital block', !/Math\.random/.test(lmhospSrc));
@@ -5784,7 +5786,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmhosp-static: hosp residue is checked after all existing amenity types (never displaces them)',
     html.indexOf("if (h % 41 === 29) return 'amuse';") < html.indexOf("if (h % 47 === 23) return 'hosp';"));
   check('lmhosp-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; hosp rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('lmhosp-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmhosp-static: single keydown listener (zero new keybinds)',
@@ -5988,8 +5990,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
      no external URLs, no TODO text in the block */
   const lmthSrc = html.slice(html.indexOf('/* ================= PHASE 5: LANDMARK THEATER v1 (buildings/places)'),
                              html.indexOf('/* ---- instanced meshes: one per type, one draw call each ---- */'));
-  check('lmth-static: zero IM literals in the theater block (shared AMEN_DEF loop builds the one mesh)',
-    (lmthSrc.match(/new THREE\.InstancedMesh/g) || []).length === 0);
+  check('lmth-static: exactly one IM literal in the theater block (THEATER AUDIENCE v1: the 24-instance crowd fleet, parented to the cached room; the shared AMEN_DEF loop still builds the one landmark mesh)',
+    (lmthSrc.match(/new THREE\.InstancedMesh/g) || []).length === 1);
   check('lmth-static: theater block creates no lights',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(lmthSrc));
   check('lmth-static: no unseeded RNG in the theater block', !/Math\.random/.test(lmthSrc));
@@ -5998,8 +6000,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmth-static: no TODO markers in the theater block', !/\bTODO\b/.test(lmthSrc));
   check('lmth-static: theater residue is checked after hosp (never displaces existing types)',
     html.indexOf("if (h % 47 === 23) return 'hosp';") < html.indexOf("if (h % 53 === 31) return 'theater';"));
-  check('lmth-static: whole-file IM literals pin at 48 (theater rides the shared def-loop literal; room is plain Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('lmth-static: whole-file IM literals pin at 49 (49 = 48 + 1 theater audience fleet; room is plain Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('lmth-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmth-static: single keydown listener (zero new keybinds)',
@@ -6352,7 +6354,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmcs-static: casino residue is checked after theater (never displaces existing types)',
     html.indexOf("if (h % 53 === 31) return 'theater';") < html.indexOf("if (h % 61 === 37) return 'casino';"));
   check('lmcs-static: whole-file IM literals pin at 48 (casino rides the shared def-loop literal; hall is plain Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('lmcs-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmcs-static: single keydown listener (zero new keybinds)',
@@ -6678,7 +6680,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bj-static: no external URLs in the blackjack block', !/https?:\/\//.test(bjSrc));
   check('bj-static: no TODO markers in the blackjack block', !/\bTODO\b/.test(bjSrc));
   check('bj-static: whole-file InstancedMesh literals still pin at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('bj-static: Math.random lines still pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('bj-static: single keydown listener (Q rides the existing one)',
@@ -6886,7 +6888,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('roul-static: no external URLs in the roulette block', !/https?:\/\//.test(roulSrc));
   check('roul-static: no TODO markers in the roulette block', !/\bTODO\b/.test(roulSrc));
   check('roul-static: whole-file InstancedMesh literals still pin at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('roul-static: Math.random lines still pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('roul-static: single renderer.render call site',
@@ -7093,7 +7095,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('dice: the dice block holds zero Math.random lines (seeded idiom only)',
     diceSrc.length > 5000 && !/Math\.random/.test(diceSrc), diceSrc.length + ' chars');
   check('dice: the dice block adds zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('dice: #dicechip owns the next free top-left slot (786px, no overlap)',
     (html.match(/top: 786px; left: 18px/g) || []).length === 1);
   check('dice: no placeholder or em dash text in the dice block',
@@ -7308,7 +7310,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('poker: the poker block holds zero Math.random lines (seeded idiom only)',
     pokerSrc.length > 8000 && !/Math\.random/.test(pokerSrc), pokerSrc.length + ' chars');
   check('poker: the poker block adds zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('poker: #pokerchip owns the next free top-left slot (819px, no overlap)',
     (html.match(/top: 819px; left: 18px/g) || []).length === 1);
   check('poker: no placeholder or em dash text in the poker block',
@@ -7556,7 +7558,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bacc: the baccarat block holds zero Math.random lines (seeded idiom only)',
     baccSrc.length > 8000 && !/Math\.random/.test(baccSrc), baccSrc.length + ' chars');
   check('bacc: the baccarat block adds zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('bacc: #baccchip owns the next free top-left slot (852px, no overlap)',
     (html.match(/top: 852px; left: 18px/g) || []).length === 1);
   check('bacc: no placeholder or em dash text in the baccarat block',
@@ -7843,7 +7845,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('keno: the keno block holds zero Math.random lines (seeded idiom only)',
     kenoSrc.length > 8000 && !/Math\.random/.test(kenoSrc), kenoSrc.length + ' chars');
   check('keno: the keno block adds zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('keno: #kenochip owns the next free top-left slot (885px, no overlap)',
     (html.match(/top: 885px; left: 18px/g) || []).length === 1);
   check('keno: no placeholder or em dash text in the keno block',
@@ -8486,7 +8488,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmfirest-static: no external URLs in the fire station block', !/https?:\/\//.test(lmfsSrc));
   check('lmfirest-static: no TODO markers in the fire station block', !/\bTODO\b/.test(lmfsSrc));
   check('lmfirest-static: whole-file IM literals pin at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('lmfirest-static: 92 Math.random lines pin holds',
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
   check('lmfirest-static: single keydown listener (zero new keybinds)',
@@ -8793,7 +8795,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       && G.FROZEN_STATICS.includes(d.mesh) && !('meshes' in d));
   }
   check('perf7-cb: whole-file InstancedMesh literal pin still 48 (one amenIM constructor)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
 
   /* find a chunk with at least one active landmark site, and one with none */
   let lmChunk = null;
@@ -8904,7 +8906,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('firecrew-static: no external URLs in the fire-crew block', !/https?:\/\//.test(ffSrc));
   check('firecrew-static: no markers in the fire-crew block', !/\bTODO\b/.test(ffSrc));
   check('firecrew-static: whole-file IM literals pin at 48 (47 + 1 fire-crew helmet fleet)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('firecrew-static: 92 Math.random lines pin holds',
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
 
@@ -9263,7 +9265,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('heist-static: zero new Math.random lines in the heist code',
     !/Math\.random/.test(html.slice(html.indexOf('Phase 5 bank heist: rob the bank'), html.indexOf('queueMicrotask(() => worldTickers.push(heistTick))'))));
   check('heist-static: InstancedMesh literal sites stay at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('heist-static: #heistchip element exists in the HUD',
     html.includes('<div id="heistchip"></div>'));
 
@@ -9915,7 +9917,7 @@ globalThis.__R3D2 = {
   check('conch-static: no external URLs in the concession block', !/https?:\/\//.test(conchSrc));
   check('conch-static: no new renderer.render in the concession block', !/renderer\.render\(/.test(conchSrc));
   check('conch-static: whole-file InstancedMesh literal sites pin at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('conch-static: Math.random lines pin at 92',
     html.split('\n').filter(l => l.includes('Math.random')).length === 92);
   check('conch-static: light count pins at 6 (zero new lights)',
@@ -10066,7 +10068,7 @@ globalThis.__R3D2 = {
   check('loyal: the hi-roller block holds zero Math.random lines (the honest shoe is reused)',
     hiSrc.length > 1500 && !/Math\.random/.test(hiSrc), hiSrc.length + ' chars');
   check('loyal: the new blocks add zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('loyal: #hirollchip owns 951px and #loyalchip owns 984px (no overlap)',
     (html.match(/top: 951px; left: 18px/g) || []).length === 1
     && (html.match(/top: 984px; left: 18px/g) || []).length === 1);
