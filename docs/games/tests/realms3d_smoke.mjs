@@ -10258,6 +10258,50 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
 }
 
+/* ================= WEBGL CONTEXT-LOSS RESILIENCE v1 ================= */
+{
+  const probsW = consoleProblems.length;
+  /* __glcanvases[0] is the harness boot's canvas; the DPR-clamp second boot
+     appended its own canvas later, so index 0 stays the live instance. */
+  const gl = globalThis.__glcanvases[0];
+  check('webgl: the harness boot exposes a dispatchable GL canvas',
+    !!gl && typeof gl.dispatchEvent === 'function');
+
+  /* --- synthetic context loss: the handler must preventDefault (the restore
+         contract per the WebGL spec) and toast the recovering message --- */
+  let pdCalled = false;
+  gl.dispatchEvent({ type: 'webglcontextlost', preventDefault() { pdCalled = true; } });
+  check('webgl: contextlost calls preventDefault (restorable, no permanent freeze)', pdCalled);
+  check('webgl: contextlost toasts the recovering message',
+    G.toastEl.textContent === 'GPU paused. Recovering.', G.toastEl.textContent);
+
+  /* --- while the context is lost, tick() keeps the rAF chain alive but
+         skips sim and render --- */
+  globalThis.__renderCount = 0;
+  frame(5);
+  check('webgl: zero renders while the context is lost (5 ticks)',
+    globalThis.__renderCount === 0, 'renders=' + globalThis.__renderCount);
+
+  /* --- restore: the toast names the recovery and the tick re-arms --- */
+  gl.dispatchEvent({ type: 'webglcontextrestored' });
+  check('webgl: contextrestored toasts the recovered message',
+    G.toastEl.textContent === 'GPU recovered.', G.toastEl.textContent);
+  globalThis.__renderCount = 0;
+  frame(5);
+  check('webgl: the tick renders again after restore (5 ticks)',
+    globalThis.__renderCount === 5, 'renders=' + globalThis.__renderCount);
+
+  /* --- idempotent: a second loss during an outage does not re-toast --- */
+  gl.dispatchEvent({ type: 'webglcontextlost', preventDefault() {} });
+  G.toastEl.textContent = 'SENTINEL';
+  gl.dispatchEvent({ type: 'webglcontextlost', preventDefault() {} });
+  check('webgl: repeat loss during an outage does not re-toast', G.toastEl.textContent === 'SENTINEL',
+    G.toastEl.textContent);
+  gl.dispatchEvent({ type: 'webglcontextrestored' });
+  check('webgl: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsW, consoleProblems.slice(probsW).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
