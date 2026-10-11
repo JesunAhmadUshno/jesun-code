@@ -356,7 +356,7 @@ globalThis.__R3D = {
   get dustHead() { return dustHead; },
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   /* SKID MARKS v1: skid pool + helpers + constants (test-only exposure) */
-  skidStep, skidTick, skidReset, clearSkid, SKID_N, SKID_LIFE, SKID_MIN_SEG,
+  skidStep, skidTick, skidReset, clearSkid, SKID_N, SKID_LIFE, SKID_MIN_SEG, SKID_RIDGE_T,
   skidWriteQuad,
   skidStep1, skidReset1, skidStep2, skidReset2, skidStep3, skidReset3,
   skidStep4, skidReset4, skidStep5, skidReset5, skidStep6, skidReset6,
@@ -15495,7 +15495,8 @@ globalThis.__R3D2 = {
   check('skid: header states quads conform along their length via the two end heights and across their width via SKID LATERAL CONFORM v1, with the ridge honest limit kept',
     htmlNSk.includes('quads conform along their length via the two end heights and across their width via SKID LATERAL CONFORM v1')
     && !htmlNSk.includes('still uses the end height')
-    && htmlNSk.includes('a sharp ridge inside one 0.9m segment can still clip slightly'));
+    && htmlNSk.includes('a ridge sharper than one split (inside a half segment, ~0.45m) can still clip slightly')
+    && !htmlNSk.includes('a sharp ridge inside one 0.9m segment can still clip slightly'));
   check('skid: header states pooled ribbon with exactly one new Mesh and +1 draw call',
     htmlNSk.includes('one pooled ground ribbon') && htmlNSk.includes('Exactly one new Mesh: +1 draw call'));
   check('skid: skid system sits after clearDust and before the TRAUMA SHAKE header',
@@ -15722,7 +15723,7 @@ globalThis.__R3D2 = {
     !htmlNSm.includes('car only in v1, other vehicles do not lay marks yet'));
   /* source: writer signature, separate state and the single-track step */
   check('skidmoto: skidWriteQuad source gains halfW defaulting to 0.14 and prevY defaulting to y',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth = 0){'));
   check('skidmoto: car skidWriteQuad calls carry explicit 0.14 and skidPrevY',
     html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y, 0.14, skidPrevY);')
     && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y, 0.14, skidPrevY);'));
@@ -15951,7 +15952,7 @@ globalThis.__R3D2 = {
     !htmlNSb.includes('bus, fire truck, bicycle, scooter and horse still lay no marks yet'));
   /* source: writer signature, separate state and the single-track step */
   check('skidbike: skidWriteQuad source keeps halfW defaulting to 0.14 and prevY defaulting to y',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth = 0){'));
   check('skidbike: car skidWriteQuad calls carry explicit 0.14 and skidPrevY',
     html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y, 0.14, skidPrevY);')
     && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y, 0.14, skidPrevY);'));
@@ -16204,7 +16205,7 @@ globalThis.__R3D2 = {
     !htmlNSs.includes('bus, fire truck, scooter and horse still lay no marks yet'));
   /* source: writer signature, separate state and the single-track step */
   check('skidscoot: skidWriteQuad source keeps halfW defaulting to 0.14 and prevY defaulting to y',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth = 0){'));
   check('skidscoot: car skidWriteQuad calls carry explicit 0.14 and skidPrevY',
     html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y, 0.14, skidPrevY);')
     && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y, 0.14, skidPrevY);'));
@@ -16503,7 +16504,7 @@ globalThis.__R3D2 = {
     !htmlNBd.includes('bus, fire truck and horse still lay no marks yet'));
   /* source: writer signature and the unchanged earlier writer calls */
   check('skidbus: skidWriteQuad source keeps halfW defaulting to 0.14 and prevY defaulting to y',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth = 0){'));
   check('skidbus: car skidWriteQuad calls carry explicit 0.14 and skidPrevY',
     html.includes('skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y, 0.14, skidPrevY);')
     && html.includes('skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y, 0.14, skidPrevY);'));
@@ -16964,12 +16965,13 @@ globalThis.__R3D2 = {
     !htmlNSh.includes('horse still lays no marks yet')
     && !htmlNSh.includes('the horse still lays no marks'));
   check('skidhorse: header keeps the other honest limits (ridge clip, per-quad centre classification, flat-quad slope clipping)',
-    htmlNSh.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
+    htmlNSh.includes('a ridge sharper than one split (inside a half segment, ~0.45m) can still clip slightly')
+    && !htmlNSh.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
     && htmlNSh.includes('surface classification stays per-quad centre only')
     && htmlNSh.includes('flat-quad slope clipping limit still applies'));
   /* source: writer signature, separate state and the single-track step */
   check('skidhorse: skidWriteQuad source keeps halfW defaulting to 0.14 and prevY defaulting to y',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth = 0){'));
   check('skidhorse: source declares the separate single-track state (skid6Prev, skid6PrevY, skid6Px, skid6Pz, skid6Cx, skid6Cz)',
     html.includes('let skid6Prev = null;')
     && html.includes('let skid6PrevY = 0;')
@@ -18467,22 +18469,23 @@ globalThis.__R3D2 = {
     !htmlNSL.includes('still uses the end height')
     && !htmlNSL.includes('lateral slope across the track width (at most 0.32m)'));
   check('skidlat: header keeps the remaining honest limits (ridge clip, per-quad centre classification, horse clause removed)',
-    segHeadSL.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
+    segHeadSL.includes('a ridge sharper than one split (inside a half segment, ~0.45m) can still clip slightly')
+    && !segHeadSL.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
     && segHeadSL.includes('surface classification stays per-quad centre only')
     && !segHeadSL.includes('the horse still lays no marks')
     && !segHeadSL.includes('horse still lays no marks'));
   /* source: writer wiring */
-  check('skidlat: skidWriteQuad signature is unchanged (halfW defaults to 0.14, prevY defaults to y)',
-    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+  check('skidlat: skidWriteQuad signature carries halfW defaulting to 0.14, prevY defaulting to y and depth defaulting to 0 (ridge split)',
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth = 0){'));
   check('skidlat: writer source computes the two end-centre heights pcH and ccH from terrainHeight',
     segWriteSL.includes('const pcH = terrainHeight(px, pz);')
     && segWriteSL.includes('const ccH = terrainHeight(cx, cz);'));
-  check('skidlat: writer source computes the four centre-relative corner deltas and calls terrainHeight exactly six times',
+  check('skidlat: writer source computes the four centre-relative corner deltas and calls terrainHeight exactly seven times (six lateral plus one ridge midpoint)',
     segWriteSL.includes('const dPL = terrainHeight(px - lx * halfW, pz - lz * halfW) - pcH;')
     && segWriteSL.includes('const dPR = terrainHeight(px + lx * halfW, pz + lz * halfW) - pcH;')
     && segWriteSL.includes('const dCR = terrainHeight(cx + lx * halfW, cz + lz * halfW) - ccH;')
     && segWriteSL.includes('const dCL = terrainHeight(cx - lx * halfW, cz - lz * halfW) - ccH;')
-    && segWriteSL.split('terrainHeight(').length - 1 === 6,
+    && segWriteSL.split('terrainHeight(').length - 1 === 7,
     'n=' + (segWriteSL.split('terrainHeight(').length - 1));
   check('skidlat: writer source writes prev corners at py plus prev deltas and curr corners at yy plus curr deltas in vertex order',
     segWriteSL.includes('skidPos[p + 1] = py + dPL;')
@@ -18656,6 +18659,219 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidlat: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSL, consoleProblems.slice(probsSL).join(' | '));
+  G.clearSkid();
+}
+
+/* ================= SKID RIDGE SPLIT v1 =================
+   skidWriteQuad now samples the segment midpoint before
+   writing: pcH and ccH are the end-centre terrain heights,
+   midH is terrainHeight at the midpoint and expected is
+   their mean. When depth is 0 and the absolute gap between
+   midH and expected exceeds SKID_RIDGE_T (0.12), the writer
+   splits at the midpoint with midY corrected by the gap and
+   writes two depth 1 half quads instead of one quad; depth 1
+   never splits again. Flat ground writes exactly as before.
+   Behaviour points are self-validating like skidlat: the
+   flat point sits inside the spawn flatten radius where
+   terrainHeight is exactly 0, and the ridge points are found
+   by scanning G.terrainHeight for a long segment whose
+   midpoint deviation exceeds the threshold by a margin,
+   then the written corners are compared against values
+   recomputed from G.terrainHeight inside the test. */
+{
+  const probsRg = consoleProblems.length;
+  const linesRg = html.split('\n');
+  const lineHasRg = sub => linesRg.filter(l => l.includes(sub)).length;
+  const htmlNRg = html.replace(/\s+/g, ' ');
+  const approxRg = (a, b) => Math.abs(a - b) < 1e-3;
+  const approxTightRg = (a, b) => Math.abs(a - b) < 1e-4;
+  const liveRg = () => { let n = 0; for (let i = 0; i < G.SKID_N; i++) if (G.skidLife[i] > 0) n++; return n; };
+  const segWriteRg = html.indexOf('function skidWriteQuad') >= 0 ? html.slice(html.indexOf('function skidWriteQuad'), html.indexOf('function skidStep4')) : '';
+  const segHeadRg = html.indexOf('SKID RIDGE SPLIT v1') >= 0 ? html.slice(html.indexOf('SKID RIDGE SPLIT v1'), html.indexOf('SKID RIDGE SPLIT v1') + 1800).replace(/\s+/g, ' ') : '';
+  const TH = (x, z) => G.terrainHeight(x, z);
+  /* source: header paragraph, threshold and honest limits */
+  check('skidridge: source carries the SKID RIDGE SPLIT v1 header paragraph',
+    html.includes('SKID RIDGE SPLIT v1'));
+  check('skidridge: header states skidWriteQuad samples the segment midpoint before writing and computes pcH, ccH, mx, mz, midH and expected',
+    segHeadRg.includes('skidWriteQuad now samples the segment midpoint before writing')
+    && segHeadRg.includes('It computes pcH and ccH, then mx and mz at the segment midpoint, midH as terrainHeight at the midpoint and expected as the mean of pcH and ccH'));
+  check('skidridge: header states the depth 0 threshold rule (absolute gap between midH and expected exceeds SKID_RIDGE_T 0.12)',
+    segHeadRg.includes('If depth is 0 and the absolute gap between midH and expected exceeds SKID_RIDGE_T (0.12)'));
+  check('skidridge: header states midY is (prevY + y) / 2 + (midH - expected) and the split writes two half quads via depth 1 calls',
+    segHeadRg.includes('midY is (prevY + y) / 2 + (midH - expected)')
+    && segHeadRg.includes('it writes two half quads via depth 1 calls, prev to mid at midY and mid to current at y'));
+  check('skidridge: header states depth 1 writes never split again and flat ground at or under the threshold writes exactly as before',
+    segHeadRg.includes('Depth 1 writes never split again')
+    && segHeadRg.includes('flat ground at or under the threshold writes exactly as before'));
+  check('skidridge: header states the split reuses the same pooled mesh with zero new draw calls and zero new Mesh',
+    segHeadRg.includes('the split reuses the same pooled mesh')
+    && segHeadRg.includes('Zero new draw calls, zero new Mesh'));
+  check('skidridge: header carries the new honest limit and keeps surface classification per-quad centre only, with the old ridge limit gone',
+    segHeadRg.includes('a ridge sharper than one split (inside a half segment, ~0.45m) can still clip slightly')
+    && segHeadRg.includes('surface classification stays per-quad centre only')
+    && !segHeadRg.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
+    && !htmlNRg.includes('a sharp ridge inside one 0.9m segment can still clip slightly'));
+  /* source: constants, signature and writer wiring */
+  check('skidridge: source carries SKID_RIDGE_T as 0.12 near the skid constants',
+    html.includes('const SKID_RIDGE_T = 0.12;')
+    && html.indexOf('const SKID_RIDGE_T = 0.12;') > html.indexOf('const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;'));
+  check('skidridge: runtime SKID_RIDGE_T is 0.12 and SKID_RIDGE_T exists',
+    G.SKID_RIDGE_T === 0.12, 'T=' + G.SKID_RIDGE_T);
+  check('skidridge: skidWriteQuad signature carries halfW defaulting to 0.14, prevY defaulting to y and depth defaulting to 0',
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth = 0){'));
+  check('skidridge: writer source computes pcH and ccH, then the midpoint, midH and expected before any slot write',
+    segWriteRg.includes('const pcH = terrainHeight(px, pz);')
+    && segWriteRg.includes('const ccH = terrainHeight(cx, cz);')
+    && segWriteRg.includes('const mx = (px + cx) / 2, mz = (pz + cz) / 2;')
+    && segWriteRg.includes('const midH = terrainHeight(mx, mz);')
+    && segWriteRg.includes('const expected = (pcH + ccH) / 2;')
+    && segWriteRg.indexOf('const pcH = terrainHeight(px, pz);') < segWriteRg.indexOf('const slot = skidHead;'));
+  check('skidridge: writer source gates the split on depth 0 and the SKID_RIDGE_T threshold',
+    segWriteRg.includes('if (depth === 0) {')
+    && segWriteRg.includes('if (Math.abs(midH - expected) > SKID_RIDGE_T) {'));
+  check('skidridge: writer source computes midY with the midpoint correction and recurses exactly twice at depth 1, then returns',
+    segWriteRg.includes('const midY = (prevY + y) / 2 + (midH - expected);')
+    && segWriteRg.includes('skidWriteQuad(px, pz, mx, mz, lx, lz, midY, halfW, prevY, 1);')
+    && segWriteRg.includes('skidWriteQuad(mx, mz, cx, cz, lx, lz, y, halfW, midY, 1);')
+    && segWriteRg.split('skidWriteQuad(').length - 1 === 3,
+    'writes=' + (segWriteRg.split('skidWriteQuad(').length - 1));
+  check('skidridge: writer source calls terrainHeight exactly seven times (two centres, one midpoint, four corners) and classifies via surfaceAt exactly once',
+    segWriteRg.split('terrainHeight(').length - 1 === 7
+    && segWriteRg.split('surfaceAt(').length - 1 === 1,
+    'th=' + (segWriteRg.split('terrainHeight(').length - 1) + ' surf=' + (segWriteRg.split('surfaceAt(').length - 1));
+  check('skidridge: runtime exposes skidWriteQuad and SKID_RIDGE_T',
+    typeof G.skidWriteQuad === 'function' && typeof G.SKID_RIDGE_T === 'number');
+  /* flat ground: spawn flatten radius, terrainHeight exactly 0, no split */
+  check('skidridge: flat precondition holds (terrainHeight is 0 at the flat segment ends, midpoint and corners)',
+    TH(0, -0.5) === 0 && TH(0, 0.5) === 0 && TH(0, 0) === 0
+    && TH(-0.14, -0.5) === 0 && TH(0.14, 0.5) === 0);
+  G.clearSkid();
+  const headFRg = G.skidHead;
+  G.skidWriteQuad(0, -0.5, 0, 0.5, 1, 0, 4, 0.14, 2);
+  const pFRg = headFRg * 12;
+  check('skidridge: flat ground writes exactly 1 quad (skidHead advances by 1, 1 live)',
+    liveRg() === 1 && G.skidHead === (headFRg + 1) % G.SKID_N,
+    'live=' + liveRg() + ' head=' + G.skidHead);
+  check('skidridge: flat quad keeps the legacy corner heights exactly (prev pair at prevY+0.03, curr pair at y+0.03)',
+    approxTightRg(G.skidPos[pFRg + 1], 2.03) && approxTightRg(G.skidPos[pFRg + 4], 2.03)
+    && approxTightRg(G.skidPos[pFRg + 7], 4.03) && approxTightRg(G.skidPos[pFRg + 10], 4.03),
+    'y=' + [G.skidPos[pFRg + 1], G.skidPos[pFRg + 4], G.skidPos[pFRg + 7], G.skidPos[pFRg + 10]].join(','));
+  /* ridge ground: self-validating scan for a 10m segment along z */
+  let ptRg = null, pcRg = null, ccRg = null, midRg = null, devRg = 0;
+  for (let x = -80; x <= 80 && !ptRg; x += 1) {
+    for (let z = -80; z <= 80; z += 1) {
+      const pc = { x, z: z - 5 }, cc = { x, z: z + 5 }, md = { x, z };
+      const dv = TH(md.x, md.z) - (TH(pc.x, pc.z) + TH(cc.x, cc.z)) / 2;
+      if (Math.abs(dv) > 0.20) { ptRg = { x, z }; pcRg = pc; ccRg = cc; midRg = md; devRg = dv; break; }
+    }
+  }
+  check('skidridge: self-validating scan finds a 10m ridge segment whose midpoint deviation exceeds 0.20 (margin over SKID_RIDGE_T)',
+    !!ptRg && Math.abs(devRg) > 0.20 && Math.abs(devRg) > G.SKID_RIDGE_T,
+    ptRg ? 'pt=' + ptRg.x + ',' + ptRg.z + ' dev=' + devRg : 'none found');
+  if (ptRg) {
+    const pcH = TH(pcRg.x, pcRg.z), ccH = TH(ccRg.x, ccRg.z), midH = TH(midRg.x, midRg.z);
+    const expected = (pcH + ccH) / 2;
+    const midYExp = (2 + 5) / 2 + (midH - expected);
+    G.clearSkid();
+    const headRRg = G.skidHead;
+    G.skidWriteQuad(pcRg.x, pcRg.z, ccRg.x, ccRg.z, 1, 0, 5, 0.14, 2);
+    const s0 = headRRg, s1 = (headRRg + 1) % G.SKID_N;
+    const p0 = s0 * 12, p1 = s1 * 12;
+    check('skidridge: a synthetic ridge segment writes exactly 2 quads (head advances by 2, 2 live)',
+      liveRg() === 2 && G.skidHead === (headRRg + 2) % G.SKID_N,
+      'live=' + liveRg() + ' head=' + G.skidHead + ' from=' + headRRg);
+    check('skidridge: split quads meet at the midpoint in X/Z (first current corners equal second prev corners at the midpoint plus/minus halfW)',
+      approxTightRg(G.skidPos[p0 + 6], midRg.x + 0.14) && approxTightRg(G.skidPos[p0 + 8], midRg.z)
+      && approxTightRg(G.skidPos[p0 + 9], midRg.x - 0.14) && approxTightRg(G.skidPos[p0 + 11], midRg.z)
+      && approxTightRg(G.skidPos[p1], midRg.x - 0.14) && approxTightRg(G.skidPos[p1 + 2], midRg.z)
+      && approxTightRg(G.skidPos[p1 + 3], midRg.x + 0.14) && approxTightRg(G.skidPos[p1 + 5], midRg.z)
+      && approxTightRg(G.skidPos[p0 + 6], G.skidPos[p1 + 3]) && approxTightRg(G.skidPos[p0 + 9], G.skidPos[p1]),
+      'mid=' + midRg.x + ',' + midRg.z);
+    const eMidR = midYExp + 0.03 + (TH(midRg.x + 0.14, midRg.z) - midH);
+    const eMidL = midYExp + 0.03 + (TH(midRg.x - 0.14, midRg.z) - midH);
+    check('skidridge: split quads meet at the midpoint in Y and the midpoint height follows the midH correction (midY formula plus per-corner lateral delta)',
+      approxRg(G.skidPos[p0 + 7], eMidR) && approxRg(G.skidPos[p0 + 10], eMidL)
+      && approxRg(G.skidPos[p1 + 1], eMidL) && approxRg(G.skidPos[p1 + 4], eMidR)
+      && approxTightRg(G.skidPos[p0 + 7], G.skidPos[p1 + 4]) && approxTightRg(G.skidPos[p0 + 10], G.skidPos[p1 + 1]),
+      'got=' + [G.skidPos[p0 + 7], G.skidPos[p0 + 10], G.skidPos[p1 + 1], G.skidPos[p1 + 4]].join(',')
+      + ' exp=' + eMidR + ',' + eMidL + ' midY=' + midYExp);
+    check('skidridge: split outer ends keep the legacy end bases plus their own centre-relative lateral deltas',
+      approxRg(G.skidPos[p0 + 1], 2.03 + (TH(pcRg.x - 0.14, pcRg.z) - pcH))
+      && approxRg(G.skidPos[p0 + 4], 2.03 + (TH(pcRg.x + 0.14, pcRg.z) - pcH))
+      && approxRg(G.skidPos[p1 + 7], 5.03 + (TH(ccRg.x + 0.14, ccRg.z) - ccH))
+      && approxRg(G.skidPos[p1 + 10], 5.03 + (TH(ccRg.x - 0.14, ccRg.z) - ccH)),
+      'prev=' + G.skidPos[p0 + 1] + ',' + G.skidPos[p0 + 4] + ' curr=' + G.skidPos[p1 + 7] + ',' + G.skidPos[p1 + 10]);
+    check('skidridge: split quads carry life SKID_LIFE on both slots',
+      G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE
+      && G.skidLifeMax[s0] === G.SKID_LIFE && G.skidLifeMax[s1] === G.SKID_LIFE,
+      'life=' + G.skidLife[s0] + ',' + G.skidLife[s1]);
+  } else {
+    check('skidridge: a synthetic ridge segment writes exactly 2 quads (head advances by 2, 2 live)', false, 'no point');
+    check('skidridge: split quads meet at the midpoint in X/Z (first current corners equal second prev corners at the midpoint plus/minus halfW)', false, 'no point');
+    check('skidridge: split quads meet at the midpoint in Y and the midpoint height follows the midH correction (midY formula plus per-corner lateral delta)', false, 'no point');
+    check('skidridge: split outer ends keep the legacy end bases plus their own centre-relative lateral deltas', false, 'no point');
+    check('skidridge: split quads carry life SKID_LIFE on both slots', false, 'no point');
+  }
+  /* depth guard: a 30m segment where a half still exceeds the threshold would split again without the guard */
+  let gRg = null, gPc = null, gCc = null, gDev = 0, gHalf = 0;
+  for (let x = -80; x <= 80 && !gRg; x += 1) {
+    for (let z = -80; z <= 80; z += 1) {
+      const pc = { x, z: z - 15 }, cc = { x, z: z + 15 }, md = { x, z };
+      const pcH = TH(pc.x, pc.z), ccH = TH(cc.x, cc.z), midH = TH(md.x, md.z);
+      const dv = midH - (pcH + ccH) / 2;
+      const q1 = { x, z: z - 7.5 }, q3 = { x, z: z + 7.5 };
+      const d1 = TH(q1.x, q1.z) - (pcH + midH) / 2;
+      const d2 = TH(q3.x, q3.z) - (midH + ccH) / 2;
+      if (Math.abs(dv) > 0.18 && (Math.abs(d1) > 0.13 || Math.abs(d2) > 0.13)) {
+        gRg = { x, z }; gPc = pc; gCc = cc; gDev = dv; gHalf = Math.max(Math.abs(d1), Math.abs(d2)); break;
+      }
+    }
+  }
+  check('skidridge: self-validating scan finds a guard segment (whole deviation over 0.18 and a half deviation over 0.13, so an unguarded writer would split again)',
+    !!gRg && Math.abs(gDev) > G.SKID_RIDGE_T && gHalf > G.SKID_RIDGE_T,
+    gRg ? 'pt=' + gRg.x + ',' + gRg.z + ' dev=' + gDev + ' half=' + gHalf : 'none found');
+  if (gRg) {
+    G.clearSkid();
+    const headGRg = G.skidHead;
+    G.skidWriteQuad(gPc.x, gPc.z, gCc.x, gCc.z, 1, 0, 5, 0.14, 2);
+    check('skidridge: depth guard prevents recursive quad explosion (guard segment still writes exactly 2 quads, not more)',
+      liveRg() === 2 && G.skidHead === (headGRg + 2) % G.SKID_N,
+      'live=' + liveRg() + ' head=' + G.skidHead + ' from=' + headGRg);
+  } else {
+    check('skidridge: depth guard prevents recursive quad explosion (guard segment still writes exactly 2 quads, not more)', false, 'no point');
+  }
+  /* cleanup: clearSkid still clears split writes */
+  G.clearSkid();
+  check('skidridge: clearSkid still clears (no live quads, all prev null, parked at -999, skidAlpha reset to 0.55)',
+    liveRg() === 0 && G.skidPrev === null && G.skid1Prev === null && G.skid4Prev === null && G.skid5Prev === null && G.skid6Prev === null
+    && G.skidPos[1] === -999 && Array.from(G.skidAlpha).every(v => approxTightRg(v, 0.55)),
+    'live=' + liveRg());
+  /* static pins re-checked: ridge split adds zero of everything pinned */
+  check('skidridge-pins: 50 InstancedMesh literals', lineHasRg('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRg('new THREE.InstancedMesh'));
+  check('skidridge-pins: 92 Math.random lines', lineHasRg('Math.random') === 92,
+    'n=' + lineHasRg('Math.random'));
+  check('skidridge-pins: 72 setTimeout lines', lineHasRg('setTimeout') === 72,
+    'n=' + lineHasRg('setTimeout'));
+  check('skidridge-pins: 6 lights',
+    linesRg.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('skidridge-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('skidridge-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('skidridge-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasRg('new THREE.Points(') === 2, 'n=' + lineHasRg('new THREE.Points('));
+  check('skidridge-pins: exactly one skid Mesh construction (no new Mesh for the split)',
+    lineHasRg('new THREE.Mesh(skidGeo') === 1, 'n=' + lineHasRg('new THREE.Mesh(skidGeo'));
+  check('skidridge-pins: no em dashes', !html.includes('\u2014'));
+  check('skidridge-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('skidridge-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('skidridge: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRg, consoleProblems.slice(probsRg).join(' | '));
   G.clearSkid();
 }
 
