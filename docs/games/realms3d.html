@@ -5865,10 +5865,10 @@ function clearDust(){
        SKID_LIFE seconds in skidTick and are cleared by clearSkid on a
        new game only, so marks outlive the driver briefly on death.
        Honest limit: quads conform along their length via the
-       two end heights. New honest limit: lateral slope across
-       the track width (at most 0.32m) still uses the end
-       height, and a sharp ridge inside one 0.9m segment can
-       still clip slightly.
+       two end heights and across their width via SKID
+       LATERAL CONFORM v1 below. Remaining honest limit: a
+       sharp ridge inside one 0.9m segment can still clip
+       slightly.
        SKID MARKS EXTENSION v1: motorcycle now lays a single 0.12-wide
        rear-track ribbon from the same pooled mesh (zero new draw calls,
        zero new Mesh), gated by hard lean over 0.25 and speed over 8,
@@ -5909,7 +5909,22 @@ function clearDust(){
        slopes with the ground along its length. Each stepper
        stores its previous-step height in its own PrevY
        variable and passes it on the next write. Zero new
-       draw calls. --- */
+       draw calls.
+       SKID LATERAL CONFORM v1: skidWriteQuad now adds a
+       centre-relative per-corner height delta inside the
+       writer only. Each corner Y is its end base (prevY +
+       0.03 at the previous end, y + 0.03 at the current
+       end) plus terrainHeight at that corner minus
+       terrainHeight at its own end centre, so the previous
+       end uses the previous centre as its reference and
+       the current end uses the current centre. The quad
+       now tilts across its width on a lateral slope, and
+       on flat ground every delta is zero so the legacy
+       heights are kept exactly. Zero new draw calls, zero
+       new Mesh. Remaining honest limits: a sharp ridge
+       inside one 0.9m segment can still clip slightly,
+       surface classification stays per-quad centre only,
+       and the horse still lays no marks. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
 const skidCol = new Float32Array(SKID_N * 4 * 4);
@@ -5957,10 +5972,16 @@ function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){
   const yy = y + 0.03;
   const py = prevY + 0.03;
   const p = slot * 4 * 3;
-  skidPos[p] = px - lx * halfW; skidPos[p + 1] = py; skidPos[p + 2] = pz - lz * halfW;
-  skidPos[p + 3] = px + lx * halfW; skidPos[p + 4] = py; skidPos[p + 5] = pz + lz * halfW;
-  skidPos[p + 6] = cx + lx * halfW; skidPos[p + 7] = yy; skidPos[p + 8] = cz + lz * halfW;
-  skidPos[p + 9] = cx - lx * halfW; skidPos[p + 10] = yy; skidPos[p + 11] = cz - lz * halfW;
+  const pcH = terrainHeight(px, pz);
+  const ccH = terrainHeight(cx, cz);
+  const dPL = terrainHeight(px - lx * halfW, pz - lz * halfW) - pcH;
+  const dPR = terrainHeight(px + lx * halfW, pz + lz * halfW) - pcH;
+  const dCR = terrainHeight(cx + lx * halfW, cz + lz * halfW) - ccH;
+  const dCL = terrainHeight(cx - lx * halfW, cz - lz * halfW) - ccH;
+  skidPos[p] = px - lx * halfW; skidPos[p + 1] = py + dPL; skidPos[p + 2] = pz - lz * halfW;
+  skidPos[p + 3] = px + lx * halfW; skidPos[p + 4] = py + dPR; skidPos[p + 5] = pz + lz * halfW;
+  skidPos[p + 6] = cx + lx * halfW; skidPos[p + 7] = yy + dCR; skidPos[p + 8] = cz + lz * halfW;
+  skidPos[p + 9] = cx - lx * halfW; skidPos[p + 10] = yy + dCL; skidPos[p + 11] = cz - lz * halfW;
   const surf = surfaceAt((px + cx) / 2, (pz + cz) / 2);
   let sr = 0.07, sg = 0.07, sb = 0.07, peak = 0.55;
   if (surf === 'gravel') { sr = 0.13; sg = 0.12; sb = 0.10; peak = 0.50; }
