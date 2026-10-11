@@ -5489,7 +5489,30 @@ function squashTick(dt){
        and sizeAttenuation perspective scaling itself
        (material opacity 0.55 remains as a global ceiling
        multiplier that the per-particle alpha scales
-       under). --- */
+       under).
+       VEHICLE DUST v1: the drivable car now reuses this
+       same pooled dust, so tire dust costs zero new draw
+       calls, zero new Points and zero new arrays. The
+       trigger is distance-driven in the same idiom as
+       footsteps (STEP_LEN): carUpdate accumulates the
+       distance travelled in CAR.dustDist and fires one
+       puff every CAR.dustLen metres (4.5), but only
+       above a speed gate of 6; at or below the gate the
+       accumulator resets to 0, so a parked or crawling
+       car stays clean. Each puff spawns at the rear
+       axle, 1.9 behind the car centre along the velocity
+       angle and 0.15 above the car origin, with strength
+       7 while drifting and 3 while cruising, so a slide
+       kicks up a visibly larger burst than plain driving.
+       The per-surface profile applies automatically,
+       because spawnDust classifies the spawn point with
+       surfaceAt: a car on grass, dirt, rock, gravel or
+       water gets that surface color, launch, physics,
+       size and alpha peak with no vehicle-side table.
+       Honest limit: the car only in v1. The bus, bike,
+       bicycle, scooter, fire truck and horse do not emit
+       tire or hoof dust yet, and no new accumulator is
+       added for any other vehicle. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -18210,9 +18233,10 @@ const CAR = {
   camDist: 9.6, camH: 3.0,               // chase cam distance / height
   fovDrive: 70, fovWalk: 62,             // wider FOV while driving
   wheelR: 0.42, parkX: 9, parkZ: 7,       // wheel radius, parking spot near spawn
+  dustLen: 4.5,                          // metres travelled per tire-dust puff
   // ---- runtime state (not tuning) ----
   driving: false, speed: 0, heading: 0, slip: 0,
-  steer: 0, charge: 0, drifting: false, velAng: 0,
+  steer: 0, charge: 0, drifting: false, velAng: 0, dustDist: 0,
   pos: new THREE.Vector3(), hudT: 0, hintOn: false,
   hp: 100, armor: 0, hitCd: 0, repT: 0, wreckT: 0,   // Phase 3: hull damage + armor
 };
@@ -18452,6 +18476,19 @@ function carUpdate(sdt, now) {
   //      rain, camera follow all keep tracking player.position) ----
   player.position.copy(CAR.pos);
   player.rotation.y = CAR.heading;
+
+  // ---- tire dust: distance-driven puffs off the rear axle (VEHICLE DUST v1) ----
+  const carSpd = Math.abs(CAR.speed);
+  if (carSpd > 6) {
+    CAR.dustDist += carSpd * sdt;
+    if (CAR.dustDist >= CAR.dustLen) {
+      CAR.dustDist -= CAR.dustLen;
+      const bx = CAR.pos.x - Math.sin(CAR.velAng) * 1.9, bz = CAR.pos.z - Math.cos(CAR.velAng) * 1.9;
+      spawnDust(bx, CAR.pos.y + 0.15, bz, CAR.drifting ? 7 : 3);
+    }
+  } else {
+    CAR.dustDist = 0;
+  }
 
   // ---- engine audio: oscillator stack pitched to RPM, quiet by design ----
   if (engGain) {

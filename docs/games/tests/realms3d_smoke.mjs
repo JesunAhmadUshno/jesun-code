@@ -14570,6 +14570,175 @@ globalThis.__R3D2 = {
 }
 
 
+/* ================= VEHICLE DUST v1 =================
+   The drivable car reuses the pooled landing dust for tire
+   dust: zero new draw calls, Points, arrays or nodes. The
+   trigger is distance-driven in the STEP_LEN idiom:
+   carUpdate accumulates CAR.dustDist while the car speed is
+   above the gate of 6 and fires one spawnDust puff every
+   CAR.dustLen metres (4.5) at the rear axle (1.9 behind the
+   centre along the velocity angle, 0.15 above the origin),
+   strength 7 while drifting and 3 while cruising. At or
+   below the gate the accumulator resets to 0. The
+   per-surface profile applies automatically because
+   spawnDust classifies the spawn point with surfaceAt.
+   Honest limit: the car only in v1; the bus, bike, bicycle,
+   scooter, fire truck and horse do not emit yet, and no new
+   accumulator is added for any other vehicle. The harness
+   CAN drive the car here (CAR, keys and tick are exposed),
+   so the behavior checks below run the real carUpdate via
+   the real tick, not just source shapes. */
+{
+  const probsVd = consoleProblems.length;
+  const liveVd = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const linesVd = html.split('\n');
+  const lineHasVd = sub => linesVd.filter(l => l.includes(sub)).length;
+  const segCarVd = html.indexOf('function carUpdate') >= 0 ? html.slice(html.indexOf('function carUpdate'), html.indexOf('worldTickers.push(carUpdate)')) : '';
+  /* source: header and the CAR tuning/runtime fields */
+  check('vehicledust: source carries the VEHICLE DUST v1 header',
+    html.includes('VEHICLE DUST v1: the drivable car now reuses this'));
+  check('vehicledust: header states the honest limit (car only in v1, no accumulator for other vehicles)',
+    html.includes('Honest limit: the car only in v1')
+    && html.includes('no new accumulator is'));
+  check('vehicledust: CAR tuning source carries dustLen 4.5',
+    html.includes('dustLen: 4.5,'));
+  check('vehicledust: CAR runtime source carries dustDist 0',
+    html.includes('dustDist: 0,'));
+  check('vehicledust: runtime CAR.dustLen is exactly 4.5',
+    G.CAR.dustLen === 4.5, 'dustLen=' + G.CAR.dustLen);
+  check('vehicledust: runtime CAR.dustDist is a number (the reused accumulator field)',
+    typeof G.CAR.dustDist === 'number', 'dustDist=' + G.CAR.dustDist);
+  /* source: the exact tire-dust block inside carUpdate */
+  check('vehicledust: carUpdate source derives carSpd from Math.abs(CAR.speed)',
+    segCarVd.includes('const carSpd = Math.abs(CAR.speed);'));
+  check('vehicledust: carUpdate source gates on carSpd above 6',
+    segCarVd.includes('if (carSpd > 6) {'));
+  check('vehicledust: carUpdate source accumulates dustDist by carSpd times sdt',
+    segCarVd.includes('CAR.dustDist += carSpd * sdt;'));
+  check('vehicledust: carUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segCarVd.includes('if (CAR.dustDist >= CAR.dustLen) {')
+    && segCarVd.includes('CAR.dustDist -= CAR.dustLen;'));
+  check('vehicledust: carUpdate source computes the rear-axle point 1.9 behind along velAng',
+    segCarVd.includes('const bx = CAR.pos.x - Math.sin(CAR.velAng) * 1.9, bz = CAR.pos.z - Math.cos(CAR.velAng) * 1.9;'));
+  check('vehicledust: carUpdate source spawns at rear point plus 0.15 with drift 7 versus cruise 3',
+    segCarVd.includes('spawnDust(bx, CAR.pos.y + 0.15, bz, CAR.drifting ? 7 : 3);'));
+  check('vehicledust: carUpdate source resets dustDist to 0 in the slow branch',
+    segCarVd.includes('CAR.dustDist = 0;'));
+  check('vehicledust: the tire-dust spawn is the only spawnDust call inside carUpdate',
+    (segCarVd.split('spawnDust(').length - 1) === 1,
+    'n=' + (segCarVd.split('spawnDust(').length - 1));
+  check('vehicledust: the spawn call site sits after the player glue copy and before the engine audio block',
+    segCarVd.indexOf('player.position.copy(CAR.pos);') >= 0
+    && segCarVd.indexOf('player.position.copy(CAR.pos);') < segCarVd.indexOf('spawnDust(bx,')
+    && segCarVd.indexOf('spawnDust(bx,') < segCarVd.indexOf('engine audio: oscillator stack pitched to RPM'));
+  /* behavior: drive the real car through the real tick */
+  const setupCarVd = (speed, wantDrift) => {
+    G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false;
+    G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+    G.keys.Space = !!wantDrift;
+    G.CAR.hp = 100; G.CAR.armor = 0; G.CAR.hitCd = 0;
+    G.CAR.pos.set(G.CAR.parkX, G.terrainHeight(G.CAR.parkX, G.CAR.parkZ), G.CAR.parkZ);
+    G.CAR.heading = Math.PI * 0.75; G.CAR.velAng = G.CAR.heading;
+    G.CAR.steer = 0; G.CAR.slip = 0; G.CAR.charge = wantDrift ? 2 : 0; G.CAR.drifting = false;
+    G.CAR.speed = speed; G.CAR.dustDist = 0;
+    G.CAR.driving = true; G.player.visible = false;
+    G.clearDust();
+  };
+  /* fast cruise: one frame across the threshold spawns the strength 3 burst (8 particles) at the rear axle */
+  setupCarVd(20, false);
+  G.CAR.dustDist = 4.4;
+  frame(1);
+  check('vehicledust: fast cruise across the threshold spawns live dust (strength 3 burst of 8)',
+    liveVd() === 8, 'live=' + liveVd());
+  {
+    const bxVd = G.CAR.pos.x - Math.sin(G.CAR.velAng) * 1.9;
+    const bzVd = G.CAR.pos.z - Math.cos(G.CAR.velAng) * 1.9;
+    let nearVd = 0;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] > 0 && Math.hypot(G.dustPos[i * 3] - bxVd, G.dustPos[i * 3 + 2] - bzVd) < 0.6
+        && Math.abs(G.dustPos[i * 3 + 1] - (G.CAR.pos.y + 0.15)) < 0.6) nearVd++;
+    }
+    check('vehicledust: cruise puffs spawn at the rear axle point (1.9 behind, 0.15 up)',
+      nearVd === liveVd() && nearVd > 0, 'near=' + nearVd + ' live=' + liveVd());
+  }
+  check('vehicledust: after the puff the accumulator keeps only the remainder under dustLen',
+    G.CAR.dustDist >= 0 && G.CAR.dustDist < G.CAR.dustLen, 'dustDist=' + G.CAR.dustDist);
+  /* accumulation below the threshold: distance accrues, nothing spawns yet */
+  setupCarVd(20, false);
+  frame(1);
+  check('vehicledust: one fast frame below the threshold accumulates dustDist and spawns nothing',
+    G.CAR.dustDist > 0.2 && G.CAR.dustDist < G.CAR.dustLen && liveVd() === 0,
+    'dustDist=' + G.CAR.dustDist + ' live=' + liveVd());
+  /* sustained fast cruise: repeated puffs advance the pool head */
+  setupCarVd(20, false);
+  {
+    const headVd = G.dustHead;
+    for (let i = 0; i < 30; i++) { G.CAR.speed = 20; frame(1); }
+    check('vehicledust: sustained fast cruise fires repeated puffs (pool head advances, dust is live)',
+      G.dustHead !== headVd && liveVd() > 0, 'head ' + headVd + ' to ' + G.dustHead + ' live=' + liveVd());
+  }
+  /* slow and at rest: no dust, and the accumulator resets to 0 */
+  setupCarVd(3, false);
+  G.CAR.dustDist = 2.5;
+  frame(3);
+  check('vehicledust: driving slow (speed 3, at or below the gate) spawns no dust and resets dustDist',
+    liveVd() === 0 && G.CAR.dustDist === 0, 'live=' + liveVd() + ' dustDist=' + G.CAR.dustDist);
+  setupCarVd(0, false);
+  G.CAR.dustDist = 1.5;
+  frame(2);
+  check('vehicledust: at rest spawns no dust and resets dustDist',
+    liveVd() === 0 && G.CAR.dustDist === 0, 'live=' + liveVd() + ' dustDist=' + G.CAR.dustDist);
+  /* drifting at the same speed kicks up the larger strength 7 burst (12 particles) */
+  setupCarVd(20, true);
+  G.CAR.dustDist = 4.4;
+  frame(1);
+  const driftLiveVd = liveVd();
+  check('vehicledust: drifting is live during the fast drift frame',
+    G.CAR.drifting === true, 'drifting=' + G.CAR.drifting);
+  check('vehicledust: drifting spawns the strength 7 burst (12 particles), larger than the cruise burst of 8',
+    driftLiveVd === 12, 'live=' + driftLiveVd);
+  /* spawnDust equivalence: the exact strengths the car passes map to the same burst sizes directly */
+  G.clearDust(); G.spawnDust(G.CAR.pos.x, G.CAR.pos.y + 0.15, G.CAR.pos.z, 3);
+  check('vehicledust: direct spawnDust at cruise strength 3 bursts exactly 8 (car equivalence)',
+    liveVd() === 8, 'live=' + liveVd());
+  G.clearDust(); G.spawnDust(G.CAR.pos.x, G.CAR.pos.y + 0.15, G.CAR.pos.z, 7);
+  check('vehicledust: direct spawnDust at drift strength 7 bursts exactly 12 (car equivalence)',
+    liveVd() === 12, 'live=' + liveVd());
+  /* cleanup: park the car and leave the pool empty */
+  G.keys.Space = false;
+  G.CAR.driving = false; G.CAR.speed = 0; G.CAR.dustDist = 0; G.CAR.charge = 0; G.CAR.drifting = false;
+  G.player.visible = true;
+  G.clearDust();
+  check('vehicledust: cleanup leaves dustDist at 0 and no live dust',
+    G.CAR.dustDist === 0 && liveVd() === 0, 'dustDist=' + G.CAR.dustDist + ' live=' + liveVd());
+  /* static pins re-checked: vehicle dust adds zero of everything */
+  check('vehicledust-pins: 49 InstancedMesh literals', lineHasVd('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasVd('new THREE.InstancedMesh'));
+  check('vehicledust-pins: 92 Math.random lines', lineHasVd('Math.random') === 92,
+    'n=' + lineHasVd('Math.random'));
+  check('vehicledust-pins: 72 setTimeout lines', lineHasVd('setTimeout') === 72,
+    'n=' + lineHasVd('setTimeout'));
+  check('vehicledust-pins: 6 lights',
+    linesVd.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('vehicledust-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('vehicledust-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('vehicledust-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasVd('new THREE.Points(') === 2, 'n=' + lineHasVd('new THREE.Points('));
+  check('vehicledust-pins: no em dashes', !html.includes('\u2014'));
+  check('vehicledust-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('vehicledust-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('vehicledust: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsVd, consoleProblems.slice(probsVd).join(' | '));
+}
+
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
