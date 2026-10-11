@@ -359,7 +359,7 @@ globalThis.__R3D = {
   skidStep, skidTick, skidReset, clearSkid, SKID_N, SKID_LIFE, SKID_MIN_SEG,
   skidStep1, skidReset1, skidStep2, skidReset2, skidStep3, skidReset3,
   skidStep4, skidReset4, skidStep5, skidReset5,
-  skidPos, skidCol, skidLife, skidLifeMax, skidGeo, skidMesh,
+  skidPos, skidCol, skidLife, skidLifeMax, skidAlpha, skidGeo, skidMesh,
   get skidHead() { return skidHead; },
   get skidPrev() { return skidPrev; },
   get skid1Prev() { return skid1Prev; },
@@ -15551,12 +15551,14 @@ globalThis.__R3D2 = {
     check('skid: written quad positions match the wheel maths within tolerance, y = ground+0.03',
       posOk, 'q0=' + [...G.skidPos.slice(p0, p0 + 12)].join(',') + ' q1=' + [...G.skidPos.slice(p1, p1 + 12)].join(','));
     let colOk = true;
-    for (const s of [s0, s1]) for (let v = 0; v < 4; v++) {
+    const expColsSk = [[0.10, 0.13, 0.05, 0.38], [0.16, 0.11, 0.06, 0.48]];
+    for (let si = 0; si < 2; si++) { const s = [s0, s1][si]; const expSk = expColsSk[si]; for (let v = 0; v < 4; v++) {
       const c = s * 16 + v * 4;
-      if (!approxSk(G.skidCol[c], 0.07) || !approxSk(G.skidCol[c + 1], 0.07) || !approxSk(G.skidCol[c + 2], 0.07) || !approxSk(G.skidCol[c + 3], 0.55)) colOk = false;
-    }
-    check('skid: written quads carry rubber RGB 0.07 and peak alpha 0.55 on all verts, life SKID_LIFE',
-      colOk && G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE);
+      if (!approxSk(G.skidCol[c], expSk[0]) || !approxSk(G.skidCol[c + 1], expSk[1]) || !approxSk(G.skidCol[c + 2], expSk[2]) || !approxSk(G.skidCol[c + 3], expSk[3])) colOk = false;
+    } }
+    check('skid: written quads carry surface colours on all verts (left centre (10.8,18.6) grass 0.10/0.13/0.05 peak 0.38, right centre (9.2,18.6) dirt 0.16/0.11/0.06 peak 0.48), life SKID_LIFE',
+      colOk && G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE
+      && G.surfaceAt(10.8, 18.6) === 'grass' && G.surfaceAt(9.2, 18.6) === 'dirt');
   }
   /* a step under 0.9m writes nothing */
   const head1Sk = G.skidHead;
@@ -15580,8 +15582,8 @@ globalThis.__R3D2 = {
     const aBefore = G.skidCol[s0 * 16 + 3];
     G.skidTick(7);
     const aMid = G.skidCol[s0 * 16 + 3];
-    check('skid: skidTick fades alpha strictly down (0.55 to 0.275 at half life)',
-      approxSk(aBefore, 0.55) && aMid < aBefore && approxSk(aMid, 0.275) && approxSk(G.skidLife[s0], 7),
+    check('skid: skidTick fades alpha strictly down (grass peak 0.38 to 0.19 at half life)',
+      approxSk(aBefore, 0.38) && aMid < aBefore && approxSk(aMid, 0.19) && approxSk(G.skidLife[s0], 7),
       'before=' + aBefore + ' mid=' + aMid + ' life=' + G.skidLife[s0]);
     G.skidTick(7.1);
     check('skid: skidTick expiry parks y at -999 with alpha 0 and no live quads',
@@ -15785,10 +15787,10 @@ globalThis.__R3D2 = {
     let colOk = true;
     for (let v = 0; v < 4; v++) {
       const c = s0 * 16 + v * 4;
-      if (!approxSm(G.skidCol[c], 0.07) || !approxSm(G.skidCol[c + 1], 0.07) || !approxSm(G.skidCol[c + 2], 0.07) || !approxSm(G.skidCol[c + 3], 0.55)) colOk = false;
+      if (!approxSm(G.skidCol[c], 0.10) || !approxSm(G.skidCol[c + 1], 0.13) || !approxSm(G.skidCol[c + 2], 0.05) || !approxSm(G.skidCol[c + 3], 0.38)) colOk = false;
     }
-    check('skidmoto: written quad carries rubber RGB 0.07 and peak alpha 0.55 on all verts',
-      colOk);
+    check('skidmoto: written quad carries grass RGB 0.10/0.13/0.05 and peak alpha 0.38 on all verts (centre (10,19.6) is grass)',
+      colOk && G.surfaceAt(10, 19.6) === 'grass');
     check('skidmoto: written quad life and lifeMax are SKID_LIFE',
       G.skidLife[s0] === G.SKID_LIFE && G.skidLifeMax[s0] === G.SKID_LIFE,
       'life=' + G.skidLife[s0] + ' max=' + G.skidLifeMax[s0]);
@@ -16015,10 +16017,10 @@ globalThis.__R3D2 = {
     let colOk = true;
     for (let v = 0; v < 4; v++) {
       const c = s0 * 16 + v * 4;
-      if (!approxSb(G.skidCol[c], 0.07) || !approxSb(G.skidCol[c + 1], 0.07) || !approxSb(G.skidCol[c + 2], 0.07) || !approxSb(G.skidCol[c + 3], 0.55)) colOk = false;
+      if (!approxSb(G.skidCol[c], 0.10) || !approxSb(G.skidCol[c + 1], 0.13) || !approxSb(G.skidCol[c + 2], 0.05) || !approxSb(G.skidCol[c + 3], 0.38)) colOk = false;
     }
-    check('skidbike: written quad carries rubber RGB 0.07 and peak alpha 0.55 on all verts',
-      colOk);
+    check('skidbike: written quad carries grass RGB 0.10/0.13/0.05 and peak alpha 0.38 on all verts (centre (10,19.84) is grass)',
+      colOk && G.surfaceAt(10, 19.84) === 'grass');
     check('skidbike: written quad life and lifeMax are SKID_LIFE',
       G.skidLife[s0] === G.SKID_LIFE && G.skidLifeMax[s0] === G.SKID_LIFE,
       'life=' + G.skidLife[s0] + ' max=' + G.skidLifeMax[s0]);
@@ -16272,10 +16274,10 @@ globalThis.__R3D2 = {
     let colOk = true;
     for (let v = 0; v < 4; v++) {
       const c = s0 * 16 + v * 4;
-      if (!approxSs(G.skidCol[c], 0.07) || !approxSs(G.skidCol[c + 1], 0.07) || !approxSs(G.skidCol[c + 2], 0.07) || !approxSs(G.skidCol[c + 3], 0.55)) colOk = false;
+      if (!approxSs(G.skidCol[c], 0.10) || !approxSs(G.skidCol[c + 1], 0.13) || !approxSs(G.skidCol[c + 2], 0.05) || !approxSs(G.skidCol[c + 3], 0.38)) colOk = false;
     }
-    check('skidscoot: written quad carries rubber RGB 0.07 and peak alpha 0.55 on all verts',
-      colOk);
+    check('skidscoot: written quad carries grass RGB 0.10/0.13/0.05 and peak alpha 0.38 on all verts (centre (10,20.18) is grass)',
+      colOk && G.surfaceAt(10, 20.18) === 'grass');
     check('skidscoot: written quad life and lifeMax are SKID_LIFE',
       G.skidLife[s0] === G.SKID_LIFE && G.skidLifeMax[s0] === G.SKID_LIFE,
       'life=' + G.skidLife[s0] + ' max=' + G.skidLifeMax[s0]);
@@ -16621,10 +16623,10 @@ globalThis.__R3D2 = {
     let colOk = true;
     for (const s of [s0, s1]) for (let v = 0; v < 4; v++) {
       const c = s * 16 + v * 4;
-      if (!approxBd(G.skidCol[c], 0.07) || !approxBd(G.skidCol[c + 1], 0.07) || !approxBd(G.skidCol[c + 2], 0.07) || !approxBd(G.skidCol[c + 3], 0.55)) colOk = false;
+      if (!approxBd(G.skidCol[c], 0.10) || !approxBd(G.skidCol[c + 1], 0.13) || !approxBd(G.skidCol[c + 2], 0.05) || !approxBd(G.skidCol[c + 3], 0.38)) colOk = false;
     }
-    check('skidbus: bus quads carry rubber RGB 0.07 and peak alpha 0.55 on all verts',
-      colOk);
+    check('skidbus: bus quads carry grass RGB 0.10/0.13/0.05 and peak alpha 0.38 on all verts (centres (10.9,16.3) and (9.1,16.3) are grass)',
+      colOk && G.surfaceAt(10.9, 16.3) === 'grass' && G.surfaceAt(9.1, 16.3) === 'grass');
     check('skidbus: bus quads life and lifeMax are SKID_LIFE',
       G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE
       && G.skidLifeMax[s0] === G.SKID_LIFE && G.skidLifeMax[s1] === G.SKID_LIFE,
@@ -16668,10 +16670,10 @@ globalThis.__R3D2 = {
     let colOk = true;
     for (const s of [s0, s1]) for (let v = 0; v < 4; v++) {
       const c = s * 16 + v * 4;
-      if (!approxBd(G.skidCol[c], 0.07) || !approxBd(G.skidCol[c + 1], 0.07) || !approxBd(G.skidCol[c + 2], 0.07) || !approxBd(G.skidCol[c + 3], 0.55)) colOk = false;
+      if (!approxBd(G.skidCol[c], 0.10) || !approxBd(G.skidCol[c + 1], 0.13) || !approxBd(G.skidCol[c + 2], 0.05) || !approxBd(G.skidCol[c + 3], 0.38)) colOk = false;
     }
-    check('skidbus: fire truck quads carry rubber RGB 0.07 and peak alpha 0.55 on all verts',
-      colOk);
+    check('skidbus: fire truck quads carry grass RGB 0.10/0.13/0.05 and peak alpha 0.38 on all verts (centres (10.85,17) and (9.15,17) are grass)',
+      colOk && G.surfaceAt(10.85, 17) === 'grass' && G.surfaceAt(9.15, 17) === 'grass');
     check('skidbus: fire truck quads life and lifeMax are SKID_LIFE',
       G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE
       && G.skidLifeMax[s0] === G.SKID_LIFE && G.skidLifeMax[s1] === G.SKID_LIFE,
@@ -18023,6 +18025,175 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('planedust: the run leaves zero console errors/warnings',
     consoleProblems.length === probsPlaneDust, consoleProblems.slice(probsPlaneDust).join(' | '));
+}
+
+/* ================= SURFACE-AWARE SKID COLOR v1 =================
+   skidWriteQuad now classifies once per quad via surfaceAt at the
+   quad centre and writes a per-surface colour and peak alpha (rock
+   keeps the legacy rubber 0.07 at 0.55, gravel 0.13/0.12/0.10 at
+   0.50, dirt 0.16/0.11/0.06 at 0.48, grass 0.10/0.13/0.05 at 0.38,
+   water 0.20/0.22/0.20 at 0.12, fallback legacy). The per-slot peak
+   lives in the preallocated skidAlpha array, skidTick fades from
+   the stored peak, and clearSkid resets skidAlpha to 0.55. Every
+   behaviour point below is self-validating: the test scans a grid
+   with G.surfaceAt, asserts surfaceAt(point) is the target surface
+   inside the test, then drives skidStep1 so the written quad centre
+   is exactly that point (heading 0, rear 0.9 behind centre, two
+   inputs 1.0 apart in z centred on the point). */
+{
+  const probsSSu = consoleProblems.length;
+  const linesSSu = html.split('\n');
+  const lineHasSSu = sub => linesSSu.filter(l => l.includes(sub)).length;
+  const htmlNSSu = html.replace(/\s+/g, ' ');
+  const approxSSu = (a, b) => Math.abs(a - b) < 1e-4;
+  const liveSSu = () => { let n = 0; for (let i = 0; i < G.SKID_N; i++) if (G.skidLife[i] > 0) n++; return n; };
+  const segWriteSSu = html.indexOf('function skidWriteQuad') >= 0 ? html.slice(html.indexOf('function skidWriteQuad'), html.indexOf('function skidStep4')) : '';
+  const segTickSSu = html.indexOf('function skidTick') >= 0 ? html.slice(html.indexOf('function skidTick'), html.indexOf('function clearSkid')) : '';
+  const segClearSSu = html.indexOf('function clearSkid()') >= 0 ? html.slice(html.indexOf('function clearSkid()'), html.indexOf('const TRAUMA_DECAY')) : '';
+  /* source: header paragraph, table, honest limit and kept sentences */
+  check('skidsurf: source carries the SURFACE-AWARE SKID COLOR v1 header paragraph',
+    html.includes('SURFACE-AWARE SKID COLOR v1'));
+  check('skidsurf: header states classification once per quad via surfaceAt at the quad centre',
+    htmlNSSu.includes('skidWriteQuad classifies once per quad via surfaceAt at the quad centre'));
+  check('skidsurf: header states the rock, gravel and dirt table rows',
+    htmlNSSu.includes('rock 0.07, 0.07, 0.07 at peak 0.55')
+    && htmlNSSu.includes('gravel 0.13, 0.12, 0.10 at peak 0.50')
+    && htmlNSSu.includes('dirt 0.16, 0.11, 0.06 at peak 0.48'));
+  check('skidsurf: header states the grass, water and fallback table rows',
+    htmlNSSu.includes('grass 0.10, 0.13, 0.05 at peak 0.38')
+    && htmlNSSu.includes('water 0.20, 0.22, 0.20 at peak 0.12')
+    && htmlNSSu.includes('fallback 0.07, 0.07, 0.07 at peak 0.55'));
+  check('skidsurf: header states skidAlpha stores the per-slot peak and skidTick fades from it',
+    htmlNSSu.includes('skidAlpha stores the per-slot peak and skidTick fades from it'));
+  check('skidsurf: header states zero new draw calls and zero new Mesh',
+    htmlNSSu.includes('Zero new draw calls, zero new Mesh'));
+  check('skidsurf: header states the new honest limit (per-quad centre only, a boundary quad takes one surface)',
+    htmlNSSu.includes('classification is per-quad centre only')
+    && htmlNSSu.includes('quad crossing a surface boundary takes one surface'));
+  check('skidsurf: header keeps the horse and flat-quad slope clipping sentences',
+    htmlNSSu.includes('horse still lays no marks yet')
+    && htmlNSSu.includes('flat-quad slope clipping limit still applies'));
+  /* source: writer, tick and clear wiring */
+  check('skidsurf: skidWriteQuad source carries the surfaceAt classification line exactly once',
+    segWriteSSu.split('surfaceAt(').length - 1 === 1
+    && segWriteSSu.includes('const surf = surfaceAt((px + cx) / 2, (pz + cz) / 2);'),
+    'n=' + (segWriteSSu.split('surfaceAt(').length - 1));
+  check('skidsurf: skidWriteQuad source carries the gravel, dirt, grass and water rows plus the legacy default',
+    segWriteSSu.includes('let sr = 0.07, sg = 0.07, sb = 0.07, peak = 0.55;')
+    && segWriteSSu.includes("if (surf === 'gravel') { sr = 0.13; sg = 0.12; sb = 0.10; peak = 0.50; }")
+    && segWriteSSu.includes("else if (surf === 'dirt') { sr = 0.16; sg = 0.11; sb = 0.06; peak = 0.48; }")
+    && segWriteSSu.includes("else if (surf === 'grass') { sr = 0.10; sg = 0.13; sb = 0.05; peak = 0.38; }")
+    && segWriteSSu.includes("else if (surf === 'water') { sr = 0.20; sg = 0.22; sb = 0.20; peak = 0.12; }"));
+  check('skidsurf: skidWriteQuad source writes the colour from sr/sg/sb/peak and stores skidAlpha[slot] as the peak',
+    segWriteSSu.includes('skidCol[c + v * 4] = sr; skidCol[c + v * 4 + 1] = sg; skidCol[c + v * 4 + 2] = sb; skidCol[c + v * 4 + 3] = peak;')
+    && segWriteSSu.includes('skidAlpha[slot] = peak;'));
+  check('skidsurf: source declares skidAlpha as Float32Array(SKID_N) and fills it with 0.55',
+    html.includes('const skidAlpha = new Float32Array(SKID_N); skidAlpha.fill(0.55);'));
+  check('skidsurf: skidTick source fades from the stored peak skidAlpha[i] with no fixed 0.55 peak left',
+    segTickSSu.includes('const a = skidAlpha[i] * Math.max(0, skidLife[i] / SKID_LIFE);')
+    && !segTickSSu.includes('0.55 * Math.max'));
+  check('skidsurf: clearSkid source resets skidAlpha with fill 0.55',
+    segClearSSu.includes('skidAlpha.fill(0.55);'));
+  check('skidsurf: runtime skidAlpha is a Float32Array of length SKID_N',
+    !!G.skidAlpha && G.skidAlpha instanceof Float32Array && G.skidAlpha.length === G.SKID_N,
+    'len=' + (G.skidAlpha && G.skidAlpha.length));
+  /* behaviour: one self-validating point per surface */
+  const TABSSu = {
+    rock: [0.07, 0.07, 0.07, 0.55],
+    gravel: [0.13, 0.12, 0.10, 0.50],
+    dirt: [0.16, 0.11, 0.06, 0.48],
+    grass: [0.10, 0.13, 0.05, 0.38],
+    water: [0.20, 0.22, 0.20, 0.12],
+  };
+  const foundSSu = {};
+  for (let x = -300; x <= 300 && Object.keys(foundSSu).length < 5; x += 2) {
+    for (let z = -300; z <= 300; z += 2) {
+      const sf = G.surfaceAt(x, z);
+      if (!foundSSu[sf]) foundSSu[sf] = { x, z };
+      if (Object.keys(foundSSu).length >= 5) break;
+    }
+  }
+  const driveSSu = (pt) => {
+    G.clearSkid();
+    const head = G.skidHead;
+    G.skidStep1(pt.x, pt.z + 0.4, 0, 5);
+    G.skidStep1(pt.x, pt.z + 1.4, 0, 5);
+    return head;
+  };
+  const colOkSSu = (slot, exp) => {
+    for (let v = 0; v < 4; v++) {
+      const c = slot * 16 + v * 4;
+      if (!approxSSu(G.skidCol[c], exp[0]) || !approxSSu(G.skidCol[c + 1], exp[1]) || !approxSSu(G.skidCol[c + 2], exp[2]) || !approxSSu(G.skidCol[c + 3], exp[3])) return false;
+    }
+    return true;
+  };
+  for (const surfName of ['rock', 'gravel', 'dirt', 'grass', 'water']) {
+    const pt = foundSSu[surfName];
+    const exp = TABSSu[surfName];
+    check('skidsurf: self-validating point found for ' + surfName + ' and surfaceAt(point) is ' + surfName,
+      !!pt && G.surfaceAt(pt.x, pt.z) === surfName,
+      pt ? 'pt=' + pt.x + ',' + pt.z + ' surf=' + G.surfaceAt(pt.x, pt.z) : 'none found');
+    if (pt) {
+      const slot = driveSSu(pt);
+      check('skidsurf: skidStep1 across the ' + surfName + ' point writes exactly one quad with the table RGB and peak alpha on all verts',
+        liveSSu() === 1 && colOkSSu(slot, exp),
+        'live=' + liveSSu() + ' col=' + [...G.skidCol.slice(slot * 16, slot * 16 + 4)].join(','));
+      check('skidsurf: the ' + surfName + ' quad stores its peak in skidAlpha[slot]',
+        approxSSu(G.skidAlpha[slot], exp[3]),
+        'skidAlpha=' + G.skidAlpha[slot] + ' peak=' + exp[3]);
+    } else {
+      check('skidsurf: skidStep1 across the ' + surfName + ' point writes exactly one quad with the table RGB and peak alpha on all verts', false, 'no point');
+      check('skidsurf: the ' + surfName + ' quad stores its peak in skidAlpha[slot]', false, 'no point');
+    }
+  }
+  /* fade: rock keeps the legacy fade, grass fades from its lower peak */
+  if (foundSSu.rock) {
+    const slotR = driveSSu(foundSSu.rock);
+    const aBeforeR = G.skidCol[slotR * 16 + 3];
+    G.skidTick(7);
+    check('skidsurf: rock quad reproduces legacy values exactly (0.07 RGB, 0.55 peak) and skidTick(7) fades it to 0.275 at half life',
+      approxSSu(aBeforeR, 0.55) && approxSSu(G.skidAlpha[slotR], 0.55)
+      && approxSSu(G.skidCol[slotR * 16 + 3], 0.275) && approxSSu(G.skidLife[slotR], 7),
+      'before=' + aBeforeR + ' mid=' + G.skidCol[slotR * 16 + 3] + ' skidAlpha=' + G.skidAlpha[slotR]);
+  } else check('skidsurf: rock quad reproduces legacy values exactly (0.07 RGB, 0.55 peak) and skidTick(7) fades it to 0.275 at half life', false, 'no rock point');
+  if (foundSSu.grass) {
+    const slotG = driveSSu(foundSSu.grass);
+    const aBeforeG = G.skidCol[slotG * 16 + 3];
+    G.skidTick(7);
+    check('skidsurf: grass quad after skidTick(7) fades to 0.19 (0.38 peak at half life)',
+      approxSSu(aBeforeG, 0.38) && approxSSu(G.skidCol[slotG * 16 + 3], 0.19) && approxSSu(G.skidLife[slotG], 7),
+      'before=' + aBeforeG + ' mid=' + G.skidCol[slotG * 16 + 3]);
+  } else check('skidsurf: grass quad after skidTick(7) fades to 0.19 (0.38 peak at half life)', false, 'no grass point');
+  /* clear: skidAlpha resets to the neutral 0.55 everywhere, nothing live */
+  G.clearSkid();
+  check('skidsurf: clearSkid resets skidAlpha to 0.55 everywhere and leaves no live quads',
+    Array.from(G.skidAlpha).every(v => approxSSu(v, 0.55)) && liveSSu() === 0,
+    'live=' + liveSSu());
+  /* static pins re-checked: surface-aware skid colour adds zero of everything pinned */
+  check('skidsurf-pins: 49 InstancedMesh literals', lineHasSSu('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasSSu('new THREE.InstancedMesh'));
+  check('skidsurf-pins: 92 Math.random lines', lineHasSSu('Math.random') === 92,
+    'n=' + lineHasSSu('Math.random'));
+  check('skidsurf-pins: 72 setTimeout lines', lineHasSSu('setTimeout') === 72,
+    'n=' + lineHasSSu('setTimeout'));
+  check('skidsurf-pins: 6 lights',
+    linesSSu.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('skidsurf-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('skidsurf-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('skidsurf-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasSSu('new THREE.Points(') === 2, 'n=' + lineHasSSu('new THREE.Points('));
+  check('skidsurf-pins: no em dashes', !html.includes('\u2014'));
+  check('skidsurf-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('skidsurf-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('skidsurf: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSSu, consoleProblems.slice(probsSSu).join(' | '));
+  G.clearSkid();
 }
 
 /* ---------- zero console errors ---------- */
