@@ -5583,6 +5583,55 @@ raycaster.far = 90;
 const screenCenter = new THREE.Vector2(0, 0);
 const tmpV2 = new THREE.Vector3(), tmpEnd = new THREE.Vector3();
 const jitterPt = new THREE.Vector2();   // per-pellet spread offset, zero alloc
+/* --- BULLET MAGNETISM + AIM FRICTION v1: aim forgiveness, distinct from
+       random spread. Magnetism bends a single-pellet shot toward the
+       closest valid target when the aim point already sits inside a small
+       activation cone (console shooters use about 3 degrees), so a near
+       miss becomes a hit while a wild shot stays wild. Friction is the
+       companion: look speed scales down while the crosshair is near a
+       target, so the player does not overshoot on mouse or touch. Both
+       scan the same torso aim point (group position + 1.2 on Y) and share
+       one range. Zero allocation per call: module temps only. --- */
+const MAG_CONE = 0.045;        // magnetism activation cone, rad (about 2.6 deg)
+const MAG_RANGE = 90;          // matches the ray.at(90) fallback range below
+const FRICTION_CONE = 0.10;    // wider cone: the slow-down starts earlier
+const FRICTION_FACTOR = 0.55;  // look-speed scale inside the friction cone
+const _magAim = new THREE.Vector3(), _magDir = new THREE.Vector3();
+const _magBend = new THREE.Vector3(), _fricFwd = new THREE.Vector3();
+/* best target inside `cone` of `dir` from `origin`: true when one exists;
+   when outDir is given it receives the normalized direction to its torso */
+function aimTargetDir(origin, dir, cone, outDir) {
+  let best = cone, found = false;
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i];
+    if (e.state === 'dead') continue;
+    _magAim.copy(e.group.position); _magAim.y += 1.2;
+    _magDir.subVectors(_magAim, origin);
+    const d = _magDir.length();
+    if (d > MAG_RANGE || d < 0.001) continue;
+    _magDir.divideScalar(d);
+    const ang = dir.angleTo(_magDir);
+    if (ang <= best) { best = ang; found = true; if (outDir) outDir.copy(_magDir); }
+  }
+  for (let i = 0; i < cops.length; i++) {
+    const c = cops[i];
+    if (!c.active || c.state === 'dead') continue;
+    _magAim.copy(c.group.position); _magAim.y += 1.2;
+    _magDir.subVectors(_magAim, origin);
+    const d = _magDir.length();
+    if (d > MAG_RANGE || d < 0.001) continue;
+    _magDir.divideScalar(d);
+    const ang = dir.angleTo(_magDir);
+    if (ang <= best) { best = ang; found = true; if (outDir) outDir.copy(_magDir); }
+  }
+  return found;
+}
+/* look-speed scale for the look handlers: FRICTION_FACTOR while any valid
+   target sits inside the friction cone of the camera forward, else exactly 1 */
+function aimFriction() {
+  camera.getWorldDirection(_fricFwd);
+  return aimTargetDir(camera.position, _fricFwd, FRICTION_CONE, null) ? FRICTION_FACTOR : 1;
+}
 function shoot() {
   emoteCancel();   // combat layer wins: firing kills the emote instantly
   if (!playing() || P.dead || fireCd > 0 || FT.driving || THEATER.watching || CIVIC.state || WORSHIP.state || APARTMENT.state || AMUSE.riding || STADIUM.watching) return;
@@ -5603,6 +5652,14 @@ function shoot() {
                                    (Math.random() * 2 - 1) * w.spread);
     else jitterPt.set(0, 0);
     raycaster.setFromCamera(jitterPt, camera);
+    /* BULLET MAGNETISM v1: single-pellet weapons only. The shotgun is
+       excluded: its 6-pellet spread is its own forgiveness. The bend runs
+       before every intersect call below, so all existing occlusion logic
+       (a nearer building still wins) sees the bent ray unchanged. */
+    if (w.pellets === 1
+        && aimTargetDir(raycaster.ray.origin, raycaster.ray.direction, MAG_CONE, _magBend)) {
+      raycaster.ray.direction.copy(_magBend);   // full bend to torso center
+    }
     const hits = raycaster.intersectObjects(enemyMeshes, false);
     /* enemy hits: instanced meshes, first living enemy along the ray wins */
     let eHit = null;
@@ -15024,8 +15081,9 @@ document.addEventListener('pointerlockchange', () => {
 });
 addEventListener('mousemove', e => {
   if (document.pointerLockElement !== renderer.domElement) return;
-  camYaw -= e.movementX * 0.0022;
-  camPitch -= e.movementY * 0.0022;
+  const fr = aimFriction();   // AIM FRICTION v1: slower look near a target
+  camYaw -= e.movementX * 0.0022 * fr;
+  camPitch -= e.movementY * 0.0022 * fr;
   camPitch = Math.max(-0.5, Math.min(1.05, camPitch));   // don't flip under ground
 });
 
@@ -15078,8 +15136,9 @@ if (IS_TOUCH) {
         if (Math.hypot(nx, ny) < 0.15) { touch.moveX = 0; touch.moveY = 0; }  // deadzone
         else { touch.moveX = nx; touch.moveY = ny; }
       } else if (t.identifier === touch.lookId) {
-        camYaw -= (t.clientX - touch.lookX) * 0.0048;
-        camPitch -= (t.clientY - touch.lookY) * 0.0048;
+        const fr = aimFriction();   // AIM FRICTION v1: slower look near a target
+        camYaw -= (t.clientX - touch.lookX) * 0.0048 * fr;
+        camPitch -= (t.clientY - touch.lookY) * 0.0048 * fr;
         camPitch = Math.max(-0.5, Math.min(1.05, camPitch));
         touch.lookX = t.clientX; touch.lookY = t.clientY;
       }

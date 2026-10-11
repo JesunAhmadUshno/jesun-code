@@ -337,6 +337,8 @@ globalThis.__R3D = {
   COYOTE_T, JUMP_BUF_T, JUMP_V, GRAV, touch,
   /* TRAUMA SHAKE v1: trauma helpers + constants (test-only exposure) */
   addTrauma, toggleTrauma, traumaNoise, TRAUMA_DECAY, TRAUMA_MAX_OFF,
+  /* BULLET MAGNETISM + AIM FRICTION v1: constants + helpers (test-only exposure) */
+  MAG_CONE, MAG_RANGE, FRICTION_CONE, FRICTION_FACTOR, aimFriction, aimTargetDir,
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
 `;
@@ -10851,6 +10853,235 @@ globalThis.__R3D2 = {
   check('trauma-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('trauma: the run leaves zero console errors/warnings',
     consoleProblems.length === probsT, consoleProblems.slice(probsT).join(' | '));
+}
+
+/* ================= BULLET MAGNETISM + AIM FRICTION v1 =================
+   Magnetism bends a single-pellet shot to the torso of the closest valid
+   target when the aim point is already inside MAG_CONE of the shot ray;
+   the shotgun is excluded (its spread is its own forgiveness) and the
+   bend runs before the existing intersect/occlusion path, so a nearer
+   building still blocks. Friction scales look speed by FRICTION_FACTOR
+   while a valid target sits inside FRICTION_CONE of the camera forward,
+   and is exactly 1 with no valid target. */
+{
+  const probsM = consoleProblems.length;
+  /* shooter: upright pose (a rusher leans into dash poses, which moves the
+     real torso off the geometric aim point) and a wide torso */
+  const target = G.enemies.find(e => e.type === 'shooter');
+  const parkAllM = () => {
+    for (const e of G.enemies) e.state = 'dead';
+    for (const c of G.cops) c.active = false;
+    G.setHeat(0, true);
+  };
+  const settleM = (sx, sz) => {
+    G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.P.graceT = 0;
+    G.player.position.set(sx || 0, groundY(sx || 0, sz || 0), sz || 0);
+    /* late in the suite the camera can sit hundreds of units away (a
+       landmark room cam); frame until it reconverges AND stops moving,
+       so position/direction captures below stay valid across probes */
+    const prevCamM = G.camera.position.clone();
+    for (let i = 0; i < 600; i++) {
+      frame(1);
+      if (G.camera.position.distanceTo(prevCamM) < 0.005) break;
+      prevCamM.copy(G.camera.position);
+    }
+    frame(3);
+    parkAllM();   // state-only: posed dead bodies never block a living hit
+  };
+  /* constants exact */
+  check('magnetism: constants are MAG_CONE 0.045, MAG_RANGE 90, FRICTION_CONE 0.10, FRICTION_FACTOR 0.55',
+    G.MAG_CONE === 0.045 && G.MAG_RANGE === 90 && G.FRICTION_CONE === 0.10 && G.FRICTION_FACTOR === 0.55,
+    'cone=' + G.MAG_CONE + ' range=' + G.MAG_RANGE + ' fcone=' + G.FRICTION_CONE + ' ff=' + G.FRICTION_FACTOR);
+  /* friction: no valid target in cone -> exactly 1 */
+  settleM();
+  check('friction: returns 1 with no living target', G.aimFriction() === 1,
+    'f=' + G.aimFriction());
+  /* friction geometry is read off the settled camera, no frames after placement */
+  let camPosM = G.camera.position.clone();
+  let camDirM = G.camera.getWorldDirection(new THREE.Vector3());
+  const recaptureM = () => {
+    camPosM = G.camera.position.clone();
+    camDirM = G.camera.getWorldDirection(new THREE.Vector3());
+    perpM.crossVectors(camDirM, new THREE.Vector3(0, 1, 0)).normalize();
+  };
+  const aimAtM = (dist, out) => out.copy(camPosM).addScaledVector(camDirM, dist);
+  const placeAimM = (ent, dist) => {
+    const p = aimAtM(dist, new THREE.Vector3());
+    ent.group.position.set(p.x, p.y - 1.2, p.z);   // torso aim point lands on the forward ray
+  };
+  /* friction: live enemy dead ahead within range -> 0.55 */
+  target.state = 'wander'; target.hp = 100; placeAimM(target, 10);
+  check('friction: returns 0.55 with a live target dead ahead within range',
+    G.aimFriction() === 0.55, 'f=' + G.aimFriction());
+  /* friction: the same target dead -> 1 */
+  target.state = 'dead';
+  check('friction: returns 1 for a dead target dead ahead', G.aimFriction() === 1,
+    'f=' + G.aimFriction());
+  /* friction: live but out of range -> 1 */
+  target.state = 'wander'; placeAimM(target, 95);
+  check('friction: returns 1 for a live target beyond MAG_RANGE', G.aimFriction() === 1,
+    'f=' + G.aimFriction());
+  /* friction: live but behind the camera -> 1 */
+  placeAimM(target, -10);
+  check('friction: returns 1 for a live target behind the camera', G.aimFriction() === 1,
+    'f=' + G.aimFriction());
+  /* friction: an active living cop dead ahead also engages it */
+  target.state = 'dead';
+  const copM = G.cops[0];
+  copM.active = true; copM.state = 'chase'; copM.hp = 100; placeAimM(copM, 10);
+  check('friction: returns 0.55 with an active living cop dead ahead',
+    G.aimFriction() === 0.55, 'f=' + G.aimFriction());
+  copM.active = false;
+  check('friction: returns 1 again once the cop is inactive', G.aimFriction() === 1,
+    'f=' + G.aimFriction());
+  /* look handlers carry the friction scale on both input paths */
+  check('friction: mouse look multiplies by the friction factor',
+    html.includes('e.movementX * 0.0022 * fr') && html.includes('e.movementY * 0.0022 * fr'));
+  check('friction: touch look multiplies by the friction factor',
+    html.includes('(t.clientX - touch.lookX) * 0.0048 * fr')
+    && html.includes('(t.clientY - touch.lookY) * 0.0048 * fr'));
+  /* --- shot placement probe: find a spot where the exact center ray
+     misses the target, the aim point sits at a chosen angle off the ray,
+     and no building blocks the bent ray. Mirrors the tracer section. --- */
+  const rcM = new THREE.Raycaster(); rcM.far = 90;
+  const centerM = new THREE.Vector2(0, 0);
+  const perpM = new THREE.Vector3().crossVectors(camDirM, new THREE.Vector3(0, 1, 0)).normalize();
+  const probeM = (wantInCone) => {
+    const gp = target.group.position;
+    const aim = new THREE.Vector3(gp.x, gp.y + 1.2, gp.z);
+    const toAim = aim.clone().sub(camPosM);
+    const dist = toAim.length();
+    const ang = camDirM.angleTo(toAim.clone().divideScalar(dist));
+    rcM.setFromCamera(centerM, G.camera);
+    const hits = rcM.intersectObjects(G.enemyMeshes, false);
+    const first = hits.map(h => h.object.userData.enemyOf[h.instanceId === undefined ? 0 : h.instanceId])
+      .find(ee => ee && ee.state !== 'dead');
+    if (first === target) return false;   // exact ray already hits: not a near miss
+    if (wantInCone && !(ang > 0.005 && ang <= G.MAG_CONE)) return false;
+    if (!wantInCone && !(ang > G.MAG_CONE)) return false;
+    rcM.set(camPosM, toAim.clone().divideScalar(dist));
+    const bHits = rcM.intersectObjects(G.bldgMeshes, false);
+    if (bHits.length && bHits[0].distance < dist) return false;   // building in the way
+    if (wantInCone) {
+      /* the bent ray is exactly this ray: it must strike the target first */
+      const bh = rcM.intersectObjects(G.enemyMeshes, false);
+      const bFirst = bh.map(h => h.object.userData.enemyOf[h.instanceId === undefined ? 0 : h.instanceId])
+        .find(ee => ee && ee.state !== 'dead');
+      if (bFirst !== target) return false;
+    }
+    return true;
+  };
+  /* in-cone candidates are generated from the CURRENT camera, never
+     fixed: the group Y is pinned to the terrain, so the aim point
+     (terrain + 1.2) only sits near the descending camera ray where the
+     terrain falls away under it. Scan distances for a small vertical
+     mismatch and let the lateral offset carry the cone angle. The
+     lateral offset must clear the shooter's arm span (0.44). */
+  const genCombosM = () => {
+    const out = [];
+    for (let D = 11; D <= 22; D += 1) {
+      const px = camPosM.x + camDirM.x * D, pz = camPosM.z + camDirM.z * D;
+      const vd = (groundY(px, pz) + 1.2) - (camPosM.y + camDirM.y * D);
+      if (Math.abs(vd) > 0.24) continue;
+      for (const L of [0.46, 0.48, 0.50, 0.52]) {
+        const ang = Math.atan2(Math.hypot(L, vd), D);
+        if (ang > 0.018 && ang <= 0.0445) out.push([D, L]);
+      }
+    }
+    return out;
+  };
+  const placeShotM = (wantInCone, combos) => {
+    for (const [D, L] of combos) {
+      const p = camPosM.clone().addScaledVector(camDirM, D).addScaledVector(perpM, L);
+      target.group.position.set(p.x, groundY(p.x, p.z), p.z);
+      target.state = 'wander'; target.hp = 100;
+      frame(2);   // re-pose instanced matrices (the enemy may drift a little)
+      if (probeM(wantInCone)) return true;
+    }
+    return false;
+  };
+  /* stage search: at spawn the ray only meets torso height at D about 8,
+     where an arm-clearing offset already exceeds the cone. Find player
+     spots (pure terrain math + the measured camera offset) where the
+     ray stays at torso height out to D 11+, then settle there for real. */
+  const offM = camPosM.clone().sub(G.player.position);
+  const stageCandsM = [];
+  for (let sx = -80; sx <= 80 && stageCandsM.length < 3; sx += 4) {
+    for (let sz = -80; sz <= 80 && stageCandsM.length < 3; sz += 4) {
+      const cam = new THREE.Vector3(sx + offM.x, groundY(sx, sz) + offM.y, sz + offM.z);
+      for (let D = 12; D <= 20; D += 1) {
+        const vd = (groundY(cam.x + camDirM.x * D, cam.z + camDirM.z * D) + 1.2)
+          - (cam.y + camDirM.y * D);
+        if (Math.abs(vd) <= 0.24) { stageCandsM.push([sx, sz]); break; }
+      }
+    }
+  }
+  check('magnetism: stage search found a downhill stage for in-cone geometry',
+    stageCandsM.length > 0, 'cands=' + stageCandsM.length);
+  /* magnetism: a shot just inside the cone now hits and damages */
+  let inConeOk = false;
+  for (const [sx, sz] of stageCandsM) {
+    settleM(sx, sz); recaptureM();
+    const combos = genCombosM();
+    if (combos.length && placeShotM(true, combos)) { inConeOk = true; break; }
+  }
+  check('magnetism: near-miss placement found (exact ray misses, aim inside cone)', inConeOk);
+  target.hp = 100; G.curWeapon = 'rifle'; G.fireCd = 0;
+  const hpIn0 = target.hp;
+  if (inConeOk) G.shoot();
+  check('magnetism: shot aimed just inside MAG_CONE hits and damages the enemy',
+    inConeOk && target.hp === hpIn0 - G.WEAPONS.rifle.dmg,
+    'hp ' + hpIn0 + ' -> ' + target.hp);
+  /* magnetism: a shot outside the cone still misses */
+  const outConeOk = placeShotM(false, [[12, 1.30], [10, 1.20], [14, 1.50], [12, 1.10]]);
+  check('magnetism: outside-cone placement found (exact ray misses, aim outside cone)', outConeOk);
+  target.hp = 100; G.fireCd = 0;
+  const hpOut0 = target.hp;
+  if (outConeOk) G.shoot();
+  check('magnetism: shot aimed outside MAG_CONE still misses',
+    outConeOk && target.hp === hpOut0, 'hp ' + hpOut0 + ' -> ' + target.hp);
+  /* shotgun: no bend. Spread is zeroed deterministically (Math.random
+     pinned to 0.5, the existing bus-section idiom) so every pellet rides
+     the exact center ray, which the probe verified misses. */
+  const sgOk = inConeOk && placeShotM(true, genCombosM());
+  check('magnetism: shotgun near-miss placement found', sgOk);
+  target.hp = 100; G.WEAPONS.shotgun.owned = true; G.WEAPONS.shotgun.ammo = 24;
+  G.curWeapon = 'shotgun'; G.fireCd = 0;
+  const hpSg0 = target.hp;
+  const origRandomM = Math.random;
+  Math.random = () => 0.5;
+  try { if (sgOk) G.shoot(); } finally { Math.random = origRandomM; }
+  check('magnetism: shotgun shot gets no magnetism bend and still misses',
+    sgOk && target.hp === hpSg0, 'hp ' + hpSg0 + ' -> ' + target.hp);
+  G.curWeapon = 'rifle'; G.fireCd = 0;
+  /* occlusion: the harness cannot place a procedural building on the ray,
+     so this is a code pin instead (stated in the cycle report): the bend
+     must run before the building intersect, and the nearer-building-wins
+     comparison must still gate the enemy hit in the shoot source. */
+  const shootSrcM = html.slice(html.indexOf('function shoot()'), html.indexOf('/* --- SPAWN GRACE'));
+  check('magnetism: bend runs before the building intersect in shoot() (occlusion code pin)',
+    shootSrcM.indexOf('aimTargetDir(raycaster.ray.origin') >= 0
+    && shootSrcM.indexOf('aimTargetDir(raycaster.ray.origin') < shootSrcM.indexOf('intersectObjects(bldgMeshes')
+    && shootSrcM.includes('bHit.distance < eHit.distance'),
+    'bendAt=' + shootSrcM.indexOf('aimTargetDir(raycaster.ray.origin')
+    + ' bldgAt=' + shootSrcM.indexOf('intersectObjects(bldgMeshes'));
+  /* cleanup: no live targets, no god mode left behind */
+  parkAllM(); G.P.godT = 0; G.P.hp = 100; G.P.dead = false; frame(1);
+  /* static pins still hold: the feature adds zero of each */
+  const linesM = html.split('\n');
+  const lineHasM = sub => linesM.filter(l => l.includes(sub)).length;
+  check('magnetism-pins: 49 InstancedMesh literals', lineHasM('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasM('new THREE.InstancedMesh'));
+  check('magnetism-pins: 92 Math.random lines', lineHasM('Math.random') === 92,
+    'n=' + lineHasM('Math.random'));
+  check('magnetism-pins: 72 setTimeout lines', lineHasM('setTimeout') === 72,
+    'n=' + lineHasM('setTimeout'));
+  check('magnetism-pins: 6 lights',
+    linesM.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('magnetism-pins: no em dashes', !html.includes('—'));
+  check('magnetism-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('magnetism: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsM, consoleProblems.slice(probsM).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
