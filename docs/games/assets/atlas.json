@@ -271,5 +271,19 @@
   "sy": 0,
   "sw": 32,
   "sh": 32
+ },
+ "spitter": {
+  "file": "dark.png",
+  "sx": 544,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
+ },
+ "spitter2": {
+  "file": "dark.png",
+  "sx": 576,
+  "sy": 0,
+  "sw": 32,
+  "sh": 32
  }
 }
