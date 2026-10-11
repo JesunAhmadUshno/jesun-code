@@ -5748,6 +5748,107 @@ function clearDust(){
   dustSizeAttr.needsUpdate = true;
 }
 
+/* --- SKID MARKS v1: one pooled ground ribbon laid by the drivable car
+       while it drifts. Preallocated ring buffer (SKID_N quads, no
+       allocation in step or tick), dead quads parked at y = -999.
+       Exactly one new Mesh: +1 draw call. Each quad is a flat segment
+       between the previous and current rear wheel positions, written
+       only after the rear centre has travelled SKID_MIN_SEG metres,
+       with a 4-component color buffer (itemSize 4) so three r160
+       vertexAlphas gives per-quad alpha like dust. Marks fade over
+       SKID_LIFE seconds in skidTick and are cleared by clearSkid on a
+       new game only, so marks outlive the driver briefly on death.
+       Honest limit: car only in v1, other vehicles do not lay marks
+       yet; marks are flat quads at ground+0.03 so steep slopes may
+       clip slightly. --- */
+const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
+const skidPos = new Float32Array(SKID_N * 4 * 3);
+const skidCol = new Float32Array(SKID_N * 4 * 4);
+const skidLife = new Float32Array(SKID_N);
+const skidLifeMax = new Float32Array(SKID_N);
+skidLifeMax.fill(SKID_LIFE);
+for (let i = 0; i < SKID_N * 4; i++) skidPos[i * 3 + 1] = -999;
+const skidIdx = new Uint32Array(SKID_N * 6);
+for (let q = 0; q < SKID_N; q++) {
+  const v = q * 4, o = q * 6;
+  skidIdx[o] = v; skidIdx[o + 1] = v + 1; skidIdx[o + 2] = v + 2;
+  skidIdx[o + 3] = v; skidIdx[o + 4] = v + 2; skidIdx[o + 5] = v + 3;
+}
+const skidGeo = new THREE.BufferGeometry();
+const skidPosAttr = new THREE.BufferAttribute(skidPos, 3);
+const skidColAttr = new THREE.BufferAttribute(skidCol, 4);
+skidGeo.setAttribute('position', skidPosAttr);
+skidGeo.setAttribute('color', skidColAttr);
+skidGeo.setIndex(new THREE.BufferAttribute(skidIdx, 1));
+const skidMesh = new THREE.Mesh(skidGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+skidMesh.frustumCulled = false;
+scene.add(skidMesh);
+let skidHead = 0;
+let skidPrev = null;
+let skidPLx = 0, skidPLz = 0, skidPRx = 0, skidPRz = 0, skidPCx = 0, skidPCz = 0;
+function skidWriteQuad(px, pz, cx, cz, lx, lz, y){
+  const slot = skidHead; skidHead = (skidHead + 1) % SKID_N;
+  const yy = y + 0.03;
+  const p = slot * 4 * 3;
+  skidPos[p] = px - lx * 0.14; skidPos[p + 1] = yy; skidPos[p + 2] = pz - lz * 0.14;
+  skidPos[p + 3] = px + lx * 0.14; skidPos[p + 4] = yy; skidPos[p + 5] = pz + lz * 0.14;
+  skidPos[p + 6] = cx + lx * 0.14; skidPos[p + 7] = yy; skidPos[p + 8] = cz + lz * 0.14;
+  skidPos[p + 9] = cx - lx * 0.14; skidPos[p + 10] = yy; skidPos[p + 11] = cz - lz * 0.14;
+  const c = slot * 4 * 4;
+  for (let v = 0; v < 4; v++) {
+    skidCol[c + v * 4] = 0.07; skidCol[c + v * 4 + 1] = 0.07; skidCol[c + v * 4 + 2] = 0.07; skidCol[c + v * 4 + 3] = 0.55;
+  }
+  skidLife[slot] = SKID_LIFE; skidLifeMax[slot] = SKID_LIFE;
+}
+function skidStep(x, z, heading, y){
+  const fx = Math.sin(heading), fz = Math.cos(heading);
+  const lx = fz, lz = -fx;
+  const rx = x - fx * 1.9, rz = z - fz * 1.9;
+  const leftX = rx + lx * 0.8, leftZ = rz + lz * 0.8;
+  const rightX = rx - lx * 0.8, rightZ = rz - lz * 0.8;
+  if (skidPrev === null) {
+    skidPLx = leftX; skidPLz = leftZ; skidPRx = rightX; skidPRz = rightZ; skidPCx = rx; skidPCz = rz; skidPrev = 1;
+    return;
+  }
+  const dx = rx - skidPCx, dz = rz - skidPCz;
+  if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;
+  skidWriteQuad(skidPLx, skidPLz, leftX, leftZ, lx, lz, y);
+  skidWriteQuad(skidPRx, skidPRz, rightX, rightZ, lx, lz, y);
+  skidPLx = leftX; skidPLz = leftZ; skidPRx = rightX; skidPRz = rightZ; skidPCx = rx; skidPCz = rz;
+  skidPosAttr.needsUpdate = true;
+  skidColAttr.needsUpdate = true;
+}
+function skidReset(){ skidPrev = null; }
+function skidTick(dt){
+  let colChanged = false, posChanged = false;
+  for (let i = 0; i < SKID_N; i++) {
+    if (skidLife[i] <= 0) continue;
+    skidLife[i] -= dt;
+    if (skidLife[i] <= 0) {
+      skidLife[i] = 0;
+      const p = i * 4 * 3, c = i * 4 * 4;
+      for (let v = 0; v < 4; v++) { skidPos[p + v * 3 + 1] = -999; skidCol[c + v * 4 + 3] = 0; }
+      colChanged = true; posChanged = true; continue;
+    }
+    const a = 0.55 * Math.max(0, skidLife[i] / SKID_LIFE);
+    const c = i * 4 * 4;
+    for (let v = 0; v < 4; v++) skidCol[c + v * 4 + 3] = a;
+    colChanged = true;
+  }
+  if (colChanged) skidColAttr.needsUpdate = true;
+  if (posChanged) skidPosAttr.needsUpdate = true;
+}
+function clearSkid(){
+  for (let i = 0; i < SKID_N; i++) {
+    skidLife[i] = 0; skidLifeMax[i] = SKID_LIFE;
+    const p = i * 4 * 3, c = i * 4 * 4;
+    for (let v = 0; v < 4; v++) { skidPos[p + v * 3 + 1] = -999; skidCol[c + v * 4 + 3] = 0; }
+  }
+  skidPrev = null;
+  skidPosAttr.needsUpdate = true;
+  skidColAttr.needsUpdate = true;
+}
+
 /* --- TRAUMA SHAKE v1: one 0..1 trauma accumulator (Vlambeer / Eiserloh
        lineage). Shake intensity is trauma squared, so small hits stay
        subtle and big hits slam; the offset is smooth deterministic noise,
@@ -18557,6 +18658,9 @@ function carUpdate(sdt, now) {
   } else {
     CAR.dustDist = 0;
   }
+  // ---- skid marks: pooled ribbon while drifting (SKID MARKS v1) ----
+  if (CAR.drifting && Math.abs(CAR.speed) > CAR.driftMin) skidStep(CAR.pos.x, CAR.pos.z, CAR.heading, CAR.pos.y);
+  else skidReset();
 
   // ---- engine audio: oscillator stack pitched to RPM, quiet by design ----
   if (engGain) {
@@ -25872,6 +25976,7 @@ function tick() {
   emoteTick(sdt);
   squashTick(sdt);   /* SQUASH-AND-STRETCH v1: decay the deformation impulse (sdt, so hit-stop freezes it) */
   dustTick(sdt);   /* LANDING DUST v1: advance the pooled dust burst (sdt, so hit-stop freezes it) */
+  skidTick(sdt);   /* SKID MARKS v1: fade the pooled skid ribbon (sdt, so hit-stop freezes it) */
   /* --- punch animation: arm extends fast, retracts; the 3rd hit (hook)
          swings visibly bigger with an arc across the body --- */
   if (P.punchCd > 0) P.punchCd -= sdt;
@@ -26399,7 +26504,7 @@ function loadSave() {
 function newGame() {
   if (!playing()) return;
   emoteCancel(); dmgNumRecycleAll();   // new game: no strays from the old run
-  P.squash = 0; player.scale.set(1, 1, 1); clearDust();   // SQUASH-AND-STRETCH v1: a new game starts undeformed; LANDING DUST v1: and dust-free
+  P.squash = 0; player.scale.set(1, 1, 1); clearDust(); clearSkid();   // SQUASH-AND-STRETCH v1: a new game starts undeformed; LANDING DUST v1: and dust-free; SKID MARKS v1: and skid-free
   try {
     localStorage.removeItem(SAVE_KEY);
     localStorage.removeItem(SAVE_JOURNAL);

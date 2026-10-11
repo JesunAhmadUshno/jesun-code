@@ -355,6 +355,11 @@ globalThis.__R3D = {
   dustSize, dustSizeBase, dustGrow, dustRamp, dustAlpha,
   get dustHead() { return dustHead; },
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
+  /* SKID MARKS v1: skid pool + helpers + constants (test-only exposure) */
+  skidStep, skidTick, skidReset, clearSkid, SKID_N, SKID_LIFE, SKID_MIN_SEG,
+  skidPos, skidCol, skidLife, skidLifeMax, skidGeo, skidMesh,
+  get skidHead() { return skidHead; },
+  get skidPrev() { return skidPrev; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
@@ -15444,6 +15449,214 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('vehdustx2: the run leaves zero console errors/warnings',
     consoleProblems.length === probsV2, consoleProblems.slice(probsV2).join(' | '));
+}
+
+
+/* ================= SKID MARKS v1 =================
+   One pooled ground ribbon laid by the drivable car while it
+   drifts. Direct skidStep calls drive the pool here with a
+   heading of 0, so forward is (0, 1), lateral is (1, 0), the
+   rear centre is 1.9 behind the input centre, the left wheel
+   is rear plus 0.8 lateral and the right wheel is rear minus
+   0.8 lateral. First step only stores the previous points,
+   a step of at least SKID_MIN_SEG metres writes exactly two
+   quads (one per rear wheel, width 0.28, at ground plus
+   0.03, rubber colour, peak alpha 0.55), a shorter step
+   writes nothing, skidReset makes the next step store only,
+   skidTick fades alpha down over SKID_LIFE and parks expired
+   quads at y -999, and clearSkid resets the whole pool. The
+   car integration is also driven through the real tick. */
+{
+  const probsSk = consoleProblems.length;
+  const linesSk = html.split('\n');
+  const lineHasSk = sub => linesSk.filter(l => l.includes(sub)).length;
+  const htmlNSk = html.replace(/\s+/g, ' ');
+  const approxSk = (a, b) => Math.abs(a - b) < 1e-4;
+  const liveSk = () => { let n = 0; for (let i = 0; i < G.SKID_N; i++) if (G.skidLife[i] > 0) n++; return n; };
+  const segCarSk = html.indexOf('function carUpdate') >= 0 ? html.slice(html.indexOf('function carUpdate'), html.indexOf('worldTickers.push(carUpdate);')) : '';
+  const segNewSk = html.indexOf('function newGame()') >= 0 ? html.slice(html.indexOf('function newGame()'), html.indexOf('function newGame()') + 600) : '';
+  /* source: header, honest limit and placement after clearDust, before trauma */
+  check('skid: source carries the SKID MARKS v1 header',
+    html.includes('SKID MARKS v1'));
+  check('skid: header states car only in v1 and other vehicles do not lay marks yet',
+    htmlNSk.includes('car only in v1, other vehicles do not lay marks yet'));
+  check('skid: header states marks are flat quads at ground+0.03 so steep slopes may clip slightly',
+    htmlNSk.includes('marks are flat quads at ground+0.03 so steep slopes may clip slightly'));
+  check('skid: header states pooled ribbon with exactly one new Mesh and +1 draw call',
+    htmlNSk.includes('one pooled ground ribbon') && htmlNSk.includes('Exactly one new Mesh: +1 draw call'));
+  check('skid: skid system sits after clearDust and before the TRAUMA SHAKE header',
+    html.indexOf('function clearDust()') >= 0
+    && html.indexOf('function clearDust()') < html.indexOf('SKID MARKS v1')
+    && html.indexOf('SKID MARKS v1') < html.indexOf('const TRAUMA_DECAY'));
+  /* source and runtime: constants */
+  check('skid: source carries SKID_N 256, SKID_LIFE 14 and SKID_MIN_SEG 0.9',
+    html.includes('const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;'));
+  check('skid: runtime SKID_N is 256, SKID_LIFE is 14 and SKID_MIN_SEG is 0.9',
+    G.SKID_N === 256 && G.SKID_LIFE === 14 && G.SKID_MIN_SEG === 0.9,
+    'N=' + G.SKID_N + ' LIFE=' + G.SKID_LIFE + ' MIN=' + G.SKID_MIN_SEG);
+  /* preallocated arrays, index and the single mesh */
+  check('skid: skidPos has SKID_N*4*3 entries, skidCol SKID_N*4*4, skidLife and skidLifeMax SKID_N',
+    G.skidPos.length === G.SKID_N * 4 * 3 && G.skidCol.length === G.SKID_N * 4 * 4
+    && G.skidLife.length === G.SKID_N && G.skidLifeMax.length === G.SKID_N,
+    'pos=' + G.skidPos.length + ' col=' + G.skidCol.length + ' life=' + G.skidLife.length);
+  check('skid: skidLifeMax is filled with SKID_LIFE',
+    G.skidLifeMax.every(v => v === G.SKID_LIFE));
+  check('skid: index length is SKID_N*6 with per-quad (0,1,2, 0,2,3) offsets',
+    G.skidGeo.index.count === G.SKID_N * 6
+    && [...G.skidGeo.index.array.slice(0, 6)].join(',') === '0,1,2,0,2,3'
+    && [...G.skidGeo.index.array.slice(6, 12)].join(',') === '4,5,6,4,6,7'
+    && [...G.skidGeo.index.array.slice(G.SKID_N * 6 - 6)].join(',') === '1020,1021,1022,1020,1022,1023',
+    'indexCount=' + G.skidGeo.index.count);
+  check('skid: geometry position itemSize 3 and color itemSize 4 (vertexAlphas)',
+    G.skidGeo.getAttribute('position').itemSize === 3 && G.skidGeo.getAttribute('color').itemSize === 4);
+  check('skid: the one mesh is frustumCulled false with the specified material',
+    G.skidMesh.frustumCulled === false
+    && G.skidMesh.material.vertexColors === true && G.skidMesh.material.transparent === true
+    && G.skidMesh.material.depthWrite === false && G.skidMesh.material.polygonOffset === true
+    && G.skidMesh.material.polygonOffsetFactor === -2 && G.skidMesh.material.polygonOffsetUnits === -2);
+  check('skid: source carries exactly one skid Mesh construction',
+    lineHasSk('new THREE.Mesh(skidGeo') === 1, 'n=' + lineHasSk('new THREE.Mesh(skidGeo'));
+  /* clear state */
+  G.clearSkid();
+  check('skid: clearSkid leaves no live quads, prev null, all parked and alpha 0',
+    liveSk() === 0 && G.skidPrev === null
+    && G.skidPos[1] === -999 && G.skidPos[(G.SKID_N * 4 - 1) * 3 + 1] === -999
+    && G.skidCol[3] === 0 && G.skidCol[(G.SKID_N * 4 - 1) * 4 + 3] === 0);
+  /* first step writes nothing and sets prev */
+  const head0Sk = G.skidHead;
+  G.skidStep(10, 20, 0, 5);
+  check('skid: first skidStep writes nothing and sets prev',
+    G.skidHead === head0Sk && liveSk() === 0 && G.skidPrev !== null,
+    'head ' + head0Sk + ' to ' + G.skidHead + ' live=' + liveSk() + ' prev=' + G.skidPrev);
+  /* a step of 1.0m writes exactly two quads matching the wheel maths */
+  G.skidStep(10, 21, 0, 5);
+  check('skid: a step of at least 0.9m writes exactly 2 quads (head advances 2, 2 live)',
+    G.skidHead === (head0Sk + 2) % G.SKID_N && liveSk() === 2,
+    'head=' + G.skidHead + ' live=' + liveSk());
+  {
+    const s0 = head0Sk, s1 = (head0Sk + 1) % G.SKID_N;
+    const p0 = s0 * 12, p1 = s1 * 12;
+    const exp0 = [10.66, 5.03, 18.1, 10.94, 5.03, 18.1, 10.94, 5.03, 19.1, 10.66, 5.03, 19.1];
+    const exp1 = [9.06, 5.03, 18.1, 9.34, 5.03, 18.1, 9.34, 5.03, 19.1, 9.06, 5.03, 19.1];
+    let posOk = true;
+    for (let i = 0; i < 12; i++) { if (!approxSk(G.skidPos[p0 + i], exp0[i]) || !approxSk(G.skidPos[p1 + i], exp1[i])) posOk = false; }
+    check('skid: written quad positions match the wheel maths within tolerance, y = ground+0.03',
+      posOk, 'q0=' + [...G.skidPos.slice(p0, p0 + 12)].join(',') + ' q1=' + [...G.skidPos.slice(p1, p1 + 12)].join(','));
+    let colOk = true;
+    for (const s of [s0, s1]) for (let v = 0; v < 4; v++) {
+      const c = s * 16 + v * 4;
+      if (!approxSk(G.skidCol[c], 0.07) || !approxSk(G.skidCol[c + 1], 0.07) || !approxSk(G.skidCol[c + 2], 0.07) || !approxSk(G.skidCol[c + 3], 0.55)) colOk = false;
+    }
+    check('skid: written quads carry rubber RGB 0.07 and peak alpha 0.55 on all verts, life SKID_LIFE',
+      colOk && G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE);
+  }
+  /* a step under 0.9m writes nothing */
+  const head1Sk = G.skidHead;
+  G.skidStep(10, 21.4, 0, 5);
+  check('skid: a step under 0.9m writes nothing',
+    G.skidHead === head1Sk && liveSk() === 2, 'head=' + G.skidHead + ' live=' + liveSk());
+  /* skidReset then step writes nothing again, then a big step resumes */
+  G.skidReset();
+  check('skid: skidReset clears prev', G.skidPrev === null);
+  G.skidStep(10, 22.5, 0, 5);
+  check('skid: after skidReset the next step writes nothing again and sets prev',
+    G.skidHead === head1Sk && liveSk() === 2 && G.skidPrev !== null,
+    'head=' + G.skidHead + ' live=' + liveSk());
+  G.skidStep(10, 23.5, 0, 5);
+  check('skid: a big step after the reset store writes 2 more quads',
+    G.skidHead === (head1Sk + 2) % G.SKID_N && liveSk() === 4,
+    'head=' + G.skidHead + ' live=' + liveSk());
+  /* skidTick fades alpha strictly down, then expiry parks */
+  {
+    const s0 = head0Sk;
+    const aBefore = G.skidCol[s0 * 16 + 3];
+    G.skidTick(7);
+    const aMid = G.skidCol[s0 * 16 + 3];
+    check('skid: skidTick fades alpha strictly down (0.55 to 0.275 at half life)',
+      approxSk(aBefore, 0.55) && aMid < aBefore && approxSk(aMid, 0.275) && approxSk(G.skidLife[s0], 7),
+      'before=' + aBefore + ' mid=' + aMid + ' life=' + G.skidLife[s0]);
+    G.skidTick(7.1);
+    check('skid: skidTick expiry parks y at -999 with alpha 0 and no live quads',
+      liveSk() === 0 && G.skidCol[s0 * 16 + 3] === 0
+      && G.skidPos[s0 * 12 + 1] === -999 && G.skidPos[s0 * 12 + 4] === -999
+      && G.skidPos[s0 * 12 + 7] === -999 && G.skidPos[s0 * 12 + 10] === -999,
+      'live=' + liveSk() + ' alpha=' + G.skidCol[s0 * 16 + 3] + ' y=' + G.skidPos[s0 * 12 + 1]);
+  }
+  /* clearSkid resets all after a fresh write */
+  G.clearSkid(); G.skidStep(0, 0, 0, 2); G.skidStep(0, 1, 0, 2);
+  const liveBeforeClearSk = liveSk();
+  G.clearSkid();
+  check('skid: clearSkid resets all (live 2 to 0, prev null, parked, alpha 0)',
+    liveBeforeClearSk === 2 && liveSk() === 0 && G.skidPrev === null
+    && G.skidPos[1] === -999 && G.skidCol[3] === 0,
+    'before=' + liveBeforeClearSk + ' live=' + liveSk());
+  /* source: car gate, tick call and newGame call */
+  check('skid: carUpdate source contains the skidStep gate with CAR.drifting and driftMin',
+    segCarSk.includes('if (CAR.drifting && Math.abs(CAR.speed) > CAR.driftMin) skidStep(CAR.pos.x, CAR.pos.z, CAR.heading, CAR.pos.y);'));
+  check('skid: carUpdate source contains the else skidReset branch',
+    segCarSk.includes('else skidReset();'));
+  check('skid: the car skid gate sits after the tire-dust block and before the engine audio',
+    segCarSk.indexOf('spawnDust(bx,') >= 0
+    && segCarSk.indexOf('spawnDust(bx,') < segCarSk.indexOf('skidStep(CAR.pos.x')
+    && segCarSk.indexOf('skidStep(CAR.pos.x') < segCarSk.indexOf('engine audio: oscillator stack pitched to RPM'));
+  check('skid: tick() source calls skidTick(sdt) right after dustTick(sdt)',
+    html.indexOf('skidTick(sdt);') > html.indexOf('dustTick(sdt);')
+    && html.indexOf('skidTick(sdt);') - html.indexOf('dustTick(sdt);') < 200,
+    'dustAt=' + html.indexOf('dustTick(sdt);') + ' skidAt=' + html.indexOf('skidTick(sdt);'));
+  check('skid: newGame source calls clearSkid next to clearDust',
+    segNewSk.includes('clearDust(); clearSkid();'));
+  /* behavior: the real car through the real tick lays marks while drifting */
+  {
+    G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false;
+    G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+    G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.BUS.active = false; G.BUS.driving = false; G.BUS.riding = false;
+    G.CAR.hp = 100; G.CAR.armor = 0; G.CAR.hitCd = 10;
+    G.CAR.pos.set(G.CAR.parkX, G.terrainHeight(G.CAR.parkX, G.CAR.parkZ), G.CAR.parkZ);
+    G.CAR.heading = 0; G.CAR.velAng = 0; G.CAR.steer = 0; G.CAR.slip = 0;
+    G.CAR.charge = 2; G.CAR.drifting = false; G.CAR.speed = 20; G.CAR.dustDist = 0;
+    G.CAR.driving = true; G.player.visible = false;
+    G.keys.Space = true;
+    G.clearDust(); G.clearSkid();
+    const headCarSk = G.skidHead;
+    frame(6);
+    check('skid: drifting car through the real tick lays live skid marks',
+      G.CAR.drifting === true && liveSk() > 0 && G.skidHead !== headCarSk,
+      'drifting=' + G.CAR.drifting + ' live=' + liveSk() + ' head ' + headCarSk + ' to ' + G.skidHead);
+    G.keys.Space = false; G.CAR.charge = 0;
+    frame(1);
+    check('skid: a non-drifting car frame resets prev via skidReset',
+      G.skidPrev === null, 'prev=' + G.skidPrev + ' drifting=' + G.CAR.drifting);
+    G.CAR.driving = false; G.CAR.speed = 0; G.CAR.dustDist = 0; G.CAR.drifting = false;
+    G.player.visible = true;
+    G.clearSkid(); G.clearDust();
+  }
+  /* static pins re-checked: skid adds exactly one Mesh and nothing pinned */
+  check('skid-pins: 49 InstancedMesh literals', lineHasSk('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasSk('new THREE.InstancedMesh'));
+  check('skid-pins: 92 Math.random lines', lineHasSk('Math.random') === 92,
+    'n=' + lineHasSk('Math.random'));
+  check('skid-pins: 72 setTimeout lines', lineHasSk('setTimeout') === 72,
+    'n=' + lineHasSk('setTimeout'));
+  check('skid-pins: 6 lights',
+    linesSk.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('skid-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('skid-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('skid-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasSk('new THREE.Points(') === 2, 'n=' + lineHasSk('new THREE.Points('));
+  check('skid-pins: zero new InstancedMesh literals for skid (still 49 total)',
+    lineHasSk('new THREE.InstancedMesh') === 49);
+  check('skid-pins: no em dashes', !html.includes('\u2014'));
+  check('skid-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('skid-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('skid: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSk, consoleProblems.slice(probsSk).join(' | '));
 }
 
 
