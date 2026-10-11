@@ -329,6 +329,10 @@ globalThis.__R3D = {
   FLORA,
   /* SPAWN GRACE v1: grace lifecycle + chip (test-only exposure) */
   GRACE_S, graceStart, graceBreak, graceTick, graceChipEl,
+  /* DAMAGE NUMBERS v1: pooled DOM floaters (test-only exposure) */
+  dmgNums, dmgNumSpawn, dmgNumTick, dmgNumRecycleAll, toggleDmgNums, damageCop,
+  DMGNUM_N, DMGNUM_LIFE, DMGNUM_MERGE_S,
+  get dmgNumOn() { return dmgNumOn; }, set dmgNumOn(v) { dmgNumOn = v; },
 };
 `;
 writeFileSync(BOOT, src);
@@ -10371,6 +10375,101 @@ globalThis.__R3D2 = {
     'graceT=' + G.P.graceT);
   check('grace: the run leaves zero console errors/warnings',
     consoleProblems.length === probsG, consoleProblems.slice(probsG).join(' | '));
+}
+
+/* ================= DAMAGE NUMBERS v1 ================= */
+{
+  const probsD = consoleProblems.length;
+  const aliveDmg = () => G.dmgNums.filter(s => s.alive).length;
+  /* pool: 24 pre-created divs, idle at boot */
+  check('dmgnum: pool holds 24 pre-created slots', G.dmgNums.length === 24 && G.DMGNUM_N === 24,
+    'n=' + G.dmgNums.length);
+  check('dmgnum: pool starts idle', aliveDmg() === 0);
+  check('dmgnum: toggle defaults ON', G.dmgNumOn === true);
+  /* spawn on damageEnemy: one div, white for a dealt hit.
+     The follow camera lerps each tick and the stub renderer never updates
+     world matrices (the real renderer does inside render()), so settle the
+     camera on the player and mirror the matrix update before projecting. */
+  G.P.godT = 9999;
+  frame(30);
+  G.P.godT = 0;
+  G.camera.updateMatrixWorld();
+  G.dmgNumRecycleAll();
+  const eA = G.enemies.find(e => e.state !== 'dead');
+  eA.hp = 100;   // test setup: survive the two sub-lethal hits below
+  eA.group.position.set(G.player.position.x, G.player.position.y, G.player.position.z);
+  G.camera.updateMatrixWorld();
+  G.P.hp = 100; G.P.graceT = 0; G.P.godT = 0;
+  const hpA = eA.hp;
+  G.damageEnemy(eA, 5);
+  check('dmgnum: damageEnemy spawns one floater', aliveDmg() === 1, 'alive=' + aliveDmg());
+  const sA = G.dmgNums.find(s => s.alive);
+  check('dmgnum: dealt hit shows the damage value in white',
+    sA && sA.el.textContent === '5' && sA.el.style.color === '#ffffff',
+    'text=' + (sA && sA.el.textContent) + ' color=' + (sA && sA.el.style.color));
+  check('dmgnum: enemy still took the real damage', eA.hp === hpA - 5, 'hp=' + eA.hp);
+  /* merge stacking: a second hit on the same target merges, no new div */
+  G.damageEnemy(eA, 7);
+  check('dmgnum: same-target hit merges (still one div)', aliveDmg() === 1, 'alive=' + aliveDmg());
+  const sM = G.dmgNums.find(s => s.alive);
+  check('dmgnum: merged number accumulates the total (5+7=12)', sM && sM.el.textContent === '12',
+    'text=' + (sM && sM.el.textContent));
+  check('dmgnum: merge refreshes the life clock', sM && sM.age < 0.1, 'age=' + (sM && sM.age));
+  /* expiry: the floater recycles after its 0.7s life */
+  G.dmgNumTick(G.DMGNUM_LIFE + 0.05);
+  check('dmgnum: floater recycles after its life', aliveDmg() === 0, 'alive=' + aliveDmg());
+  /* killing blow shows gold */
+  const eB = G.enemies.find(e => e.state !== 'dead' && e !== eA);
+  if (eB) {
+    eB.group.position.set(G.player.position.x, G.player.position.y, G.player.position.z);
+    G.damageEnemy(eB, 9999);
+    const sK = G.dmgNums.find(s => s.alive);
+    check('dmgnum: killing blow shows gold', !!sK && sK.el.style.color === '#ffd24a',
+      'color=' + (sK && sK.el.style.color));
+    check('dmgnum: the enemy actually died', eB.state === 'dead');
+  } else {
+    check('dmgnum: killing blow shows gold', false, 'no second live enemy available');
+  }
+  G.dmgNumRecycleAll();
+  /* hurtPlayer: one red floater per taken hit */
+  const hp0 = G.P.hp;
+  G.hurtPlayer(10);
+  const sT = G.dmgNums.find(s => s.alive);
+  check('dmgnum: hurtPlayer spawns one red floater',
+    aliveDmg() === 1 && !!sT && sT.el.style.color === '#ff6b5e' && sT.el.textContent === '10',
+    'alive=' + aliveDmg());
+  check('dmgnum: player still took the real damage', G.P.hp === hp0 - 10, 'hp=' + G.P.hp);
+  /* death-eject: the death teardown recycles all actives */
+  G.hurtPlayer(9999);
+  check('dmgnum: death recycles all actives', aliveDmg() === 0 && G.P.dead, 'alive=' + aliveDmg());
+  G.P.deadT = 1.1; G.P.dead = true;   // let the redeploy hook run
+  frame(15);
+  check('dmgnum: redeploy hook revives the player', !G.P.dead && G.P.hp === 100);
+  /* toggle: OFF suppresses spawns, ON restores them */
+  G.toggleDmgNums();
+  check('dmgnum: toggle flips OFF', G.dmgNumOn === false);
+  const eC = G.enemies.find(e => e.state !== 'dead');
+  if (eC) {
+    eC.group.position.set(G.player.position.x, G.player.position.y, G.player.position.z);
+    G.damageEnemy(eC, 4);
+  }
+  check('dmgnum: no spawns while OFF', aliveDmg() === 0, 'alive=' + aliveDmg());
+  G.toggleDmgNums();
+  check('dmgnum: toggle flips back ON', G.dmgNumOn === true);
+  G.dmgNumRecycleAll();
+  /* pins: the feature adds zero draw calls / lights / RNG / timers / assets */
+  const lines = html.split('\n');
+  const lineHas = sub => lines.filter(l => l.includes(sub)).length;
+  check('pins: 49 InstancedMesh literals', lineHas('new THREE.InstancedMesh') === 49,
+    'n=' + lineHas('new THREE.InstancedMesh'));
+  check('pins: 92 Math.random lines', lineHas('Math.random') === 92, 'n=' + lineHas('Math.random'));
+  check('pins: 72 setTimeout lines', lineHas('setTimeout') === 72, 'n=' + lineHas('setTimeout'));
+  check('pins: 6 lights',
+    lines.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('pins: no em dashes', !html.includes('—'));
+  check('pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dmgnum: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsD, consoleProblems.slice(probsD).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
