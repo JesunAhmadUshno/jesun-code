@@ -5763,9 +5763,13 @@ function clearDust(){
        SKID MARKS EXTENSION v1: motorcycle now lays a single 0.12-wide
        rear-track ribbon from the same pooled mesh (zero new draw calls,
        zero new Mesh), gated by hard lean over 0.25 and speed over 8,
-       rear 0.9 behind centre. New honest limit: bus, fire truck,
-       bicycle, scooter and horse still lay no marks yet; flat-quad
-       slope clipping limit still applies. --- */
+       rear 0.9 behind centre.
+       SKID MARKS EXTENSION v2: bicycle now lays a single 0.08-wide
+       rear-track ribbon from the same pooled mesh (zero new draw calls,
+       zero new Mesh), half-width 0.04, gated by hard lean over 0.20
+       and speed over 6, rear 0.66 behind centre. New honest limit:
+       bus, fire truck, scooter and horse still lay no marks yet;
+       flat-quad slope clipping limit still applies. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
 const skidCol = new Float32Array(SKID_N * 4 * 4);
@@ -5793,6 +5797,8 @@ let skidPrev = null;
 let skidPLx = 0, skidPLz = 0, skidPRx = 0, skidPRz = 0, skidPCx = 0, skidPCz = 0;
 let skid1Prev = null;
 let skid1Px = 0, skid1Pz = 0, skid1Cx = 0, skid1Cz = 0;
+let skid2Prev = null;
+let skid2Px = 0, skid2Pz = 0, skid2Cx = 0, skid2Cz = 0;
 function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){
   const slot = skidHead; skidHead = (skidHead + 1) % SKID_N;
   const yy = y + 0.03;
@@ -5842,6 +5848,22 @@ function skidStep1(x, z, heading, y){
 }
 function skidReset(){ skidPrev = null; }
 function skidReset1(){ skid1Prev = null; }
+function skidStep2(x, z, heading, y){
+  const fx = Math.sin(heading), fz = Math.cos(heading);
+  const lx = fz, lz = -fx;
+  const rx = x - fx * 0.66, rz = z - fz * 0.66;
+  if (skid2Prev === null) {
+    skid2Px = rx; skid2Pz = rz; skid2Cx = rx; skid2Cz = rz; skid2Prev = 1;
+    return;
+  }
+  const dx = rx - skid2Cx, dz = rz - skid2Cz;
+  if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;
+  skidWriteQuad(skid2Px, skid2Pz, rx, rz, lx, lz, y, 0.04);
+  skid2Px = rx; skid2Pz = rz; skid2Cx = rx; skid2Cz = rz;
+  skidPosAttr.needsUpdate = true;
+  skidColAttr.needsUpdate = true;
+}
+function skidReset2(){ skid2Prev = null; }
 function skidTick(dt){
   let colChanged = false, posChanged = false;
   for (let i = 0; i < SKID_N; i++) {
@@ -5869,6 +5891,7 @@ function clearSkid(){
   }
   skidPrev = null;
   skid1Prev = null;
+  skid2Prev = null;
   skidPosAttr.needsUpdate = true;
   skidColAttr.needsUpdate = true;
 }
@@ -21146,6 +21169,9 @@ function bcUpdate(sdt) {
   } else {
     BC.dustDist = 0;
   }
+
+  // ---- SKID MARKS EXTENSION v2: single-track skid while hard-leaning ----
+  if (Math.abs(BC.lean) > 0.20 && Math.abs(BC.speed) > 6) skidStep2(BC.pos.x, BC.pos.z, BC.heading, BC.pos.y); else skidReset2();
 
   // ---- no engine on a bicycle: fade the shared engine gain out ----
   if (engGain) engGain.gain.value *= 0.9;
