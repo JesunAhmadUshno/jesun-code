@@ -5512,7 +5512,31 @@ function squashTick(dt){
        Honest limit: the car only in v1. The bus, bike,
        bicycle, scooter, fire truck and horse do not emit
        tire or hoof dust yet, and no new accumulator is
-       added for any other vehicle. --- */
+       added for any other vehicle.
+       VEHICLE DUST EXTENSION v1: the bus and the fire
+       truck now reuse this same pooled dust too, so
+       their tire dust also costs zero new draw calls,
+       zero new Points and zero new arrays. The bus
+       trigger sits in busUpdate after the AI and
+       player driving paths converge, so one block
+       covers both AI driving and player driving or
+       riding: it accumulates BUS.dustDist above the
+       same speed gate of 6 and fires one puff every
+       BUS.dustLen metres (6) at the rear axle, 4.2
+       behind the bus centre along its heading and
+       0.15 above the bus origin, with strength 5.
+       The fire truck trigger sits in ftUpdate in the
+       driving path only (a parked truck returns
+       early): it accumulates FT.dustDist above the
+       gate of 6 and fires one puff every FT.dustLen
+       metres (5) at the rear, 3.5 behind the truck
+       centre along its heading and 0.15 above the
+       truck origin, with strength 5. The per-surface
+       profile applies automatically to both, because
+       spawnDust classifies the spawn point with
+       surfaceAt. New honest limit: the bike, bicycle,
+       scooter and horse still do not emit tire or
+       hoof dust yet. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -18879,9 +18903,10 @@ const BUS = {
   steerLow: 0.5, steerHigh: 0.18, steerSm: 7,
   camDist: 12, camH: 3.8, fovDrive: 68,
   seats: 10, boardR2: 3.5 * 3.5, fare: 2,
+  dustLen: 6,                            // metres travelled per tire-dust puff
   // ---- runtime (not tuning) ----
   active: false, driving: false, riding: false,
-  pos: new THREE.Vector3(), heading: 0, speed: 0, steer: 0,
+  pos: new THREE.Vector3(), heading: 0, speed: 0, steer: 0, dustDist: 0,
   route: [], routeNo: 0, routeKey: '', stopIdx: 0, dwellT: 0, dwellServed: false,
   passengers: 0, boarded: [], hintOn: false, hudT: 0,
   anchorCx: 1e9, anchorCz: 1e9, announced: -1,
@@ -19297,6 +19322,19 @@ function busUpdate(sdt, now) {
 
   // ---- the rider/driver is glued to the bus (sun, enemies, camera follow) ----
   if (BUS.driving || BUS.riding) { player.position.copy(BUS.pos); player.rotation.y = BUS.heading; }
+
+  // ---- tire dust: distance-driven puffs off the rear axle (VEHICLE DUST EXTENSION v1) ----
+  const busSpd = Math.abs(BUS.speed);
+  if (busSpd > 6) {
+    BUS.dustDist += busSpd * sdt;
+    if (BUS.dustDist >= BUS.dustLen) {
+      BUS.dustDist -= BUS.dustLen;
+      const bx = BUS.pos.x - Math.sin(BUS.heading) * 4.2, bz = BUS.pos.z - Math.cos(BUS.heading) * 4.2;
+      spawnDust(bx, BUS.pos.y + 0.15, bz, 5);
+    }
+  } else {
+    BUS.dustDist = 0;
+  }
 
   // ---- write the two bus instances ----
   _busE.set(0, BUS.heading, 0); _busQ.setFromEuler(_busE);
@@ -19919,10 +19957,11 @@ const FT = {
   topSpeed: 17, reverseSpeed: 7, accel: 11, reverseAccel: 7, brake: 22,
   coast: 5, drag: 0.014, steerLow: 0.6, steerHigh: 0.2, steerSm: 8,
   camDist: 11.5, camH: 3.8, fovDrive: 68, boardR2: 4.5 * 4.5,
+  dustLen: 5,                            // metres travelled per tire-dust puff
   // ---- runtime state (not tuning) ----
   driving: false, placed: false, spraying: false,
   water: 100, hp: 100,   // Phase 5 fire station: cannon tank + hull, refilled at the bay
-  pos: new THREE.Vector3(), heading: 0, speed: 0, steer: 0,
+  pos: new THREE.Vector3(), heading: 0, speed: 0, steer: 0, dustDist: 0,
   anchorCx: 1e9, anchorCz: 1e9, routeKey: '',
   hintOn: false, hudT: 0, sprayT: 0, beaconT: 0,
 };
@@ -20126,6 +20165,19 @@ function ftUpdate(sdt, now) {
   if (ftPoseD) ftBodyIM.instanceMatrix.needsUpdate = true;
   player.position.copy(FT.pos); player.rotation.y = FT.heading;
   spdNumEl.textContent = Math.round(Math.abs(FT.speed) * 3.6);
+
+  // ---- tire dust: distance-driven puffs off the rear axle (VEHICLE DUST EXTENSION v1) ----
+  const ftSpd = Math.abs(FT.speed);
+  if (ftSpd > 6) {
+    FT.dustDist += ftSpd * sdt;
+    if (FT.dustDist >= FT.dustLen) {
+      FT.dustDist -= FT.dustLen;
+      const bx = FT.pos.x - Math.sin(FT.heading) * 3.5, bz = FT.pos.z - Math.cos(FT.heading) * 3.5;
+      spawnDust(bx, FT.pos.y + 0.15, bz, 5);
+    }
+  } else {
+    FT.dustDist = 0;
+  }
 
   // ---- water cannon: hold FIRE to spray (needs water in the tank) ----
   FT.spraying = waterHeld && FT.water > 0;

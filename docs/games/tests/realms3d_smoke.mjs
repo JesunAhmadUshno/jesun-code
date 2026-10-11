@@ -14739,6 +14739,263 @@ globalThis.__R3D2 = {
 }
 
 
+/* ================= VEHICLE DUST EXTENSION v1 =================
+   The pooled dust now serves two more vehicles in the exact
+   car idiom. The bus: one block in busUpdate, placed after
+   the AI and player driving paths converge and after the
+   rider glue copy, before the bus instance write, so AI
+   driving and player driving or riding both emit: distance
+   driven accumulates in BUS.dustDist above the speed gate
+   of 6 and fires one spawnDust puff every BUS.dustLen
+   metres (6) at the rear axle (4.2 behind the centre along
+   the heading, 0.15 above the origin), strength 5. The fire
+   truck: one block in ftUpdate in the driving path only,
+   after the player copy and before the water cannon, so a
+   parked truck (which returns early) stays clean:
+   FT.dustDist above the gate of 6, one puff every
+   FT.dustLen metres (5) at the rear (3.5 behind along the
+   heading, 0.15 up), strength 5. Strength 5 bursts exactly
+   10 particles in spawnDust. Zero new draw calls, Points,
+   arrays or nodes. Honest limit: the bike, bicycle, scooter
+   and horse still do not emit tire or hoof dust yet. The
+   harness CAN drive both vehicles here (BUS, FT, busUpdate
+   and ftUpdate are exposed, and both tickers run in the
+   real tick), so the behavior checks run the real updates
+   via the real tick, not just source shapes. */
+{
+  const probsVx = consoleProblems.length;
+  const liveVx = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const linesVx = html.split('\n');
+  const lineHasVx = sub => linesVx.filter(l => l.includes(sub)).length;
+  const segBusVx = html.indexOf('function busUpdate') >= 0 ? html.slice(html.indexOf('function busUpdate'), html.indexOf('worldTickers.push(busUpdate)')) : '';
+  const segFtVx = html.indexOf('function ftUpdate') >= 0 ? html.slice(html.indexOf('function ftUpdate'), html.indexOf('worldTickers.push(ftUpdate)')) : '';
+  const segBusObjVx = html.indexOf('const BUS = {') >= 0 ? html.slice(html.indexOf('const BUS = {'), html.indexOf('const BUS_TYPE_LBL')) : '';
+  const segFtObjVx = html.indexOf('const FT = {') >= 0 ? html.slice(html.indexOf('const FT = {'), html.indexOf('function ftRebuild')) : '';
+  /* source: extension header and the new honest limit */
+  check('vehdustx: source carries the VEHICLE DUST EXTENSION v1 header',
+    html.includes('VEHICLE DUST EXTENSION v1: the bus and the fire'));
+  check('vehdustx: header states the new honest limit (bike, bicycle, scooter and horse still do not emit)',
+    html.includes('New honest limit: the bike, bicycle,')
+    && html.includes('scooter and horse still do not emit tire or'));
+  check('vehdustx: header states the extension reuses the pool at zero new draw calls',
+    html.includes('their tire dust also costs zero new draw calls,'));
+  /* source: BUS and FT tuning/runtime fields, scoped to their objects */
+  check('vehdustx: BUS tuning source carries dustLen 6',
+    segBusObjVx.includes('dustLen: 6,'));
+  check('vehdustx: BUS runtime source carries dustDist 0',
+    segBusObjVx.includes('dustDist: 0,'));
+  check('vehdustx: FT tuning source carries dustLen 5',
+    segFtObjVx.includes('dustLen: 5,'));
+  check('vehdustx: FT runtime source carries dustDist 0',
+    segFtObjVx.includes('dustDist: 0,'));
+  check('vehdustx: runtime BUS.dustLen is exactly 6',
+    G.BUS.dustLen === 6, 'dustLen=' + G.BUS.dustLen);
+  check('vehdustx: runtime BUS.dustDist is a number (the accumulator field)',
+    typeof G.BUS.dustDist === 'number', 'dustDist=' + G.BUS.dustDist);
+  check('vehdustx: runtime FT.dustLen is exactly 5',
+    G.FT.dustLen === 5, 'dustLen=' + G.FT.dustLen);
+  check('vehdustx: runtime FT.dustDist is a number (the accumulator field)',
+    typeof G.FT.dustDist === 'number', 'dustDist=' + G.FT.dustDist);
+  /* source: the exact tire-dust block inside busUpdate */
+  check('vehdustx: busUpdate source derives busSpd from Math.abs(BUS.speed)',
+    segBusVx.includes('const busSpd = Math.abs(BUS.speed);'));
+  check('vehdustx: busUpdate source gates on busSpd above 6',
+    segBusVx.includes('if (busSpd > 6) {'));
+  check('vehdustx: busUpdate source accumulates BUS.dustDist by busSpd times sdt',
+    segBusVx.includes('BUS.dustDist += busSpd * sdt;'));
+  check('vehdustx: busUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segBusVx.includes('if (BUS.dustDist >= BUS.dustLen) {')
+    && segBusVx.includes('BUS.dustDist -= BUS.dustLen;'));
+  check('vehdustx: busUpdate source computes the rear-axle point 4.2 behind along the heading',
+    segBusVx.includes('const bx = BUS.pos.x - Math.sin(BUS.heading) * 4.2, bz = BUS.pos.z - Math.cos(BUS.heading) * 4.2;'));
+  check('vehdustx: busUpdate source spawns at the rear point plus 0.15 with constant strength 5',
+    segBusVx.includes('spawnDust(bx, BUS.pos.y + 0.15, bz, 5);'));
+  check('vehdustx: busUpdate source resets BUS.dustDist to 0 in the slow branch',
+    segBusVx.includes('BUS.dustDist = 0;'));
+  check('vehdustx: the bus tire-dust spawn is the only spawnDust call inside busUpdate',
+    (segBusVx.split('spawnDust(').length - 1) === 1,
+    'n=' + (segBusVx.split('spawnDust(').length - 1));
+  check('vehdustx: the bus spawn call site sits after the rider glue line and before the bus instance write',
+    segBusVx.indexOf('if (BUS.driving || BUS.riding) { player.position.copy(BUS.pos); player.rotation.y = BUS.heading; }') >= 0
+    && segBusVx.indexOf('if (BUS.driving || BUS.riding) { player.position.copy(BUS.pos); player.rotation.y = BUS.heading; }') < segBusVx.indexOf('spawnDust(bx,')
+    && segBusVx.indexOf('spawnDust(bx,') < segBusVx.indexOf('write the two bus instances'));
+  /* source: the exact tire-dust block inside ftUpdate */
+  check('vehdustx: ftUpdate source derives ftSpd from Math.abs(FT.speed)',
+    segFtVx.includes('const ftSpd = Math.abs(FT.speed);'));
+  check('vehdustx: ftUpdate source gates on ftSpd above 6',
+    segFtVx.includes('if (ftSpd > 6) {'));
+  check('vehdustx: ftUpdate source accumulates FT.dustDist by ftSpd times sdt',
+    segFtVx.includes('FT.dustDist += ftSpd * sdt;'));
+  check('vehdustx: ftUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segFtVx.includes('if (FT.dustDist >= FT.dustLen) {')
+    && segFtVx.includes('FT.dustDist -= FT.dustLen;'));
+  check('vehdustx: ftUpdate source computes the rear point 3.5 behind along the heading',
+    segFtVx.includes('const bx = FT.pos.x - Math.sin(FT.heading) * 3.5, bz = FT.pos.z - Math.cos(FT.heading) * 3.5;'));
+  check('vehdustx: ftUpdate source spawns at the rear point plus 0.15 with constant strength 5',
+    segFtVx.includes('spawnDust(bx, FT.pos.y + 0.15, bz, 5);'));
+  check('vehdustx: ftUpdate source resets FT.dustDist to 0 in the slow branch',
+    segFtVx.includes('FT.dustDist = 0;'));
+  check('vehdustx: the truck tire-dust spawn is the only spawnDust call inside ftUpdate',
+    (segFtVx.split('spawnDust(').length - 1) === 1,
+    'n=' + (segFtVx.split('spawnDust(').length - 1));
+  check('vehdustx: the truck spawn call site sits after the player copy and before the water cannon block',
+    segFtVx.indexOf('player.position.copy(FT.pos); player.rotation.y = FT.heading;') >= 0
+    && segFtVx.indexOf('player.position.copy(FT.pos); player.rotation.y = FT.heading;') < segFtVx.indexOf('spawnDust(bx,')
+    && segFtVx.indexOf('spawnDust(bx,') < segFtVx.indexOf('water cannon: hold FIRE to spray'));
+  /* behavior: drive the real bus and truck through the real tick */
+  const resetKeysVx = () => {
+    G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false;
+    G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+    G.keys.Space = false;
+  };
+  const setupBusVx = (speed, dustDist) => {
+    resetKeysVx();
+    G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0;
+    G.CAR.driving = false; G.CAR.speed = 0; G.CAR.dustDist = 0;
+    G.FT.driving = false; G.FT.speed = 0; G.FT.dustDist = 0; G.waterHeld = false;
+    G.BUS.driving = false; G.BUS.riding = false; G.BUS.speed = 0; G.BUS.dustDist = 0;
+    G.BUS.dwellT = G.BUS.dwell; G.BUS.dwellServed = true;
+    G.player.position.set(0, groundY(0, 0), 0); G.player.visible = true;
+    frame(2);   // settle: busRebuildRoute activates the route at anchor chunk (0,0)
+    G.BUS.driving = true; G.BUS.riding = false;
+    G.BUS.steer = 0; G.BUS.dwellT = 0; G.BUS.dwellServed = false;
+    G.BUS.speed = speed; G.BUS.dustDist = dustDist;
+    G.player.visible = false;
+    G.clearDust();
+  };
+  const nearRearVx = (veh, off) => {
+    const bx = veh.pos.x - Math.sin(veh.heading) * off;
+    const bz = veh.pos.z - Math.cos(veh.heading) * off;
+    let near = 0;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] > 0 && Math.hypot(G.dustPos[i * 3] - bx, G.dustPos[i * 3 + 2] - bz) < 0.6
+        && Math.abs(G.dustPos[i * 3 + 1] - (veh.pos.y + 0.15)) < 0.6) near++;
+    }
+    return near;
+  };
+  /* player-driven bus, fast: one frame across the threshold spawns the strength 5 burst (10 particles) */
+  setupBusVx(12, 5.9);
+  const headBusVx = G.dustHead;
+  frame(1);
+  check('vehdustx: player-driven bus cruising above the gate spawns live dust (strength 5 burst of 10)',
+    liveVx() === 10, 'live=' + liveVx());
+  check('vehdustx: bus puffs spawn at the rear axle point (4.2 behind, 0.15 up)',
+    nearRearVx(G.BUS, 4.2) === liveVx() && liveVx() > 0, 'near=' + nearRearVx(G.BUS, 4.2) + ' live=' + liveVx());
+  check('vehdustx: the bus puff advances the pool head by exactly the burst count',
+    G.dustHead === (headBusVx + 10) % G.DUST_N, 'head ' + headBusVx + ' to ' + G.dustHead);
+  check('vehdustx: after the bus puff the accumulator keeps only the remainder under dustLen',
+    G.BUS.dustDist >= 0 && G.BUS.dustDist < G.BUS.dustLen, 'dustDist=' + G.BUS.dustDist);
+  /* accumulation below the threshold: distance accrues, nothing spawns yet */
+  setupBusVx(12, 0);
+  frame(1);
+  check('vehdustx: one fast bus frame below the threshold accumulates dustDist and spawns nothing',
+    G.BUS.dustDist > 0.1 && G.BUS.dustDist < G.BUS.dustLen && liveVx() === 0,
+    'dustDist=' + G.BUS.dustDist + ' live=' + liveVx());
+  /* slow and at rest: no dust, and the accumulator resets to 0 */
+  setupBusVx(3, 2.5);
+  frame(3);
+  check('vehdustx: bus driving slow (speed 3, at or below the gate) spawns no dust and resets dustDist',
+    liveVx() === 0 && G.BUS.dustDist === 0, 'live=' + liveVx() + ' dustDist=' + G.BUS.dustDist);
+  setupBusVx(0, 1.5);
+  frame(2);
+  check('vehdustx: bus at rest spawns no dust and resets dustDist',
+    liveVx() === 0 && G.BUS.dustDist === 0, 'live=' + liveVx() + ' dustDist=' + G.BUS.dustDist);
+  /* AI-driven bus: the same block fires after the AI path converges in busUpdate */
+  setupBusVx(9, 5.95);
+  G.BUS.driving = false; G.BUS.riding = false; G.BUS.speed = 9; G.BUS.dustDist = 5.95;
+  G.BUS.dwellT = 0; G.BUS.dwellServed = false;
+  {
+    let farVx = 0, farDVx = -1;
+    for (let i = 0; i < G.BUS.route.length; i++) {
+      const s = G.BUS.route[i];
+      const d = (s.x - G.BUS.pos.x) * (s.x - G.BUS.pos.x) + (s.z - G.BUS.pos.z) * (s.z - G.BUS.pos.z);
+      if (d > farDVx) { farDVx = d; farVx = i; }
+    }
+    G.BUS.stopIdx = farVx; G.BUS.announced = farVx;
+  }
+  G.player.position.set(0, groundY(0, 0), 0); G.player.visible = true;
+  G.P.vel.set(0, 0, 0); G.P.vy = 0;
+  G.clearDust();
+  const headAiVx = G.dustHead;
+  frame(1);
+  check('vehdustx: AI-driven bus cruising above the gate spawns live dust and advances the pool head',
+    liveVx() === 10 && G.dustHead === (headAiVx + 10) % G.DUST_N,
+    'live=' + liveVx() + ' head ' + headAiVx + ' to ' + G.dustHead);
+  check('vehdustx: AI bus puffs spawn at the rear axle point (4.2 behind, 0.15 up)',
+    nearRearVx(G.BUS, 4.2) === liveVx() && liveVx() > 0, 'near=' + nearRearVx(G.BUS, 4.2) + ' live=' + liveVx());
+  /* fire truck: player-driven only, parked trucks return early in ftUpdate */
+  const setupFtVx = (speed, dustDist) => {
+    resetKeysVx();
+    G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0;
+    G.CAR.driving = false; G.CAR.speed = 0; G.CAR.dustDist = 0;
+    G.BUS.driving = false; G.BUS.riding = false; G.BUS.speed = 0; G.BUS.dustDist = 0; G.BUS.active = false;
+    G.BUS.anchorCx = 0; G.BUS.anchorCz = 0; G.BUS.routeKey = '0,0';
+    G.FT.placed = true; G.FT.driving = true; G.FT.spraying = false; G.waterHeld = false;
+    G.FT.pos.set(3, groundY(3, 0), 0); G.FT.heading = 0; G.FT.steer = 0;
+    G.FT.anchorCx = 0; G.FT.anchorCz = 0; G.FT.routeKey = '0,0';
+    G.FT.water = 100; G.FT.hp = 100;
+    G.FT.speed = speed; G.FT.dustDist = dustDist;
+    G.player.position.set(3, groundY(3, 0), 0); G.player.visible = false;
+    G.clearDust();
+  };
+  setupFtVx(12, 4.9);
+  const headFtVx = G.dustHead;
+  frame(1);
+  check('vehdustx: fire truck driving above the gate spawns live dust (strength 5 burst of 10)',
+    liveVx() === 10, 'live=' + liveVx());
+  check('vehdustx: truck puffs spawn at the rear point (3.5 behind, 0.15 up)',
+    nearRearVx(G.FT, 3.5) === liveVx() && liveVx() > 0, 'near=' + nearRearVx(G.FT, 3.5) + ' live=' + liveVx());
+  check('vehdustx: the truck puff advances the pool head and keeps only the remainder under dustLen',
+    G.dustHead === (headFtVx + 10) % G.DUST_N && G.FT.dustDist >= 0 && G.FT.dustDist < G.FT.dustLen,
+    'head ' + headFtVx + ' to ' + G.dustHead + ' dustDist=' + G.FT.dustDist);
+  /* parked: ftUpdate returns early, so nothing emits and the accumulator is untouched */
+  setupFtVx(12, 2);
+  G.FT.driving = false; G.FT.speed = 0;
+  G.player.visible = true;
+  frame(2);
+  check('vehdustx: parked fire truck emits nothing and leaves dustDist untouched',
+    liveVx() === 0 && G.FT.dustDist === 2, 'live=' + liveVx() + ' dustDist=' + G.FT.dustDist);
+  /* spawnDust equivalence: the exact strength both vehicles pass bursts the same directly */
+  G.clearDust(); G.spawnDust(G.FT.pos.x, G.FT.pos.y + 0.15, G.FT.pos.z, 5);
+  check('vehdustx: direct spawnDust at strength 5 bursts exactly 10 (bus and truck equivalence)',
+    liveVx() === 10, 'live=' + liveVx());
+  /* cleanup: park both vehicles and leave the pool empty */
+  G.BUS.driving = false; G.BUS.riding = false; G.BUS.speed = 0; G.BUS.dustDist = 0; G.BUS.active = true;
+  G.FT.driving = false; G.FT.speed = 0; G.FT.dustDist = 0; G.waterHeld = false;
+  G.player.visible = true;
+  G.clearDust();
+  check('vehdustx: cleanup leaves both accumulators at 0 and no live dust',
+    G.BUS.dustDist === 0 && G.FT.dustDist === 0 && liveVx() === 0,
+    'bus=' + G.BUS.dustDist + ' ft=' + G.FT.dustDist + ' live=' + liveVx());
+  /* static pins re-checked: the extension adds zero of everything */
+  check('vehdustx-pins: 49 InstancedMesh literals', lineHasVx('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasVx('new THREE.InstancedMesh'));
+  check('vehdustx-pins: 92 Math.random lines', lineHasVx('Math.random') === 92,
+    'n=' + lineHasVx('Math.random'));
+  check('vehdustx-pins: 72 setTimeout lines', lineHasVx('setTimeout') === 72,
+    'n=' + lineHasVx('setTimeout'));
+  check('vehdustx-pins: 6 lights',
+    linesVx.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('vehdustx-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('vehdustx-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('vehdustx-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasVx('new THREE.Points(') === 2, 'n=' + lineHasVx('new THREE.Points('));
+  check('vehdustx-pins: no em dashes', !html.includes('\u2014'));
+  check('vehdustx-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('vehdustx-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('vehdustx: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsVx, consoleProblems.slice(probsVx).join(' | '));
+}
+
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
