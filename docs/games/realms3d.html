@@ -1927,6 +1927,38 @@ const hemi = new THREE.HemisphereLight(0x9db4dd, 0x2a3220, 1.2);  // sky/ground 
 scene.add(freezeStatic(hemi));   // PERF-7: fill light never moves (intensity ramped only)
 DNF.hemi = hemi;   // colors driven by the day/night cycle
 
+/* ==================== PHASE 1 LOOK: IMAGE-BASED LIGHTING ====================
+   Ported from the Phase 1 build (core/lighting.js). The sky dome, prefiltered
+   into scene.environment, so glass, metal, water and wet asphalt reflect the
+   actual sky and every MeshStandardMaterial gets directional ambient instead
+   of a flat fill. The dome is repainted by the day/night cycle (paintSky);
+   updateEnvironment() re-prefilters it on a cadence from dayNightTick.
+   Real-GPU only: the headless stub renderer has no isWebGLRenderer flag, so
+   the whole block stays inert there, and any runtime failure disables it
+   permanently instead of spamming retries. */
+const ENV_EVERY_SEC = ((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 8) <= 4 ? 3 : 1.5;
+let pmrem = null, envScene = null, envRT = null, envBroken = false;
+if (renderer.isWebGLRenderer) {
+  try {
+    pmrem = new THREE.PMREMGenerator(renderer);
+    envScene = new THREE.Scene();
+  } catch (e) { envBroken = true; }
+} else envBroken = true;
+function updateEnvironment() {
+  if (envBroken || !pmrem || !DNF.skyMesh) return;
+  try {
+    if (envScene.children.length === 0) {
+      const m = new THREE.Mesh(DNF.skyMesh.geometry, DNF.skyMesh.material);   // shares the live sky texture
+      m.frustumCulled = false;
+      envScene.add(m);
+    }
+    const rt = pmrem.fromScene(envScene, 0, 1, 3000);
+    scene.environment = rt.texture;
+    if (envRT) envRT.dispose();
+    envRT = rt;
+  } catch (e) { envBroken = true; }
+}
+
 /* ================================ TERRAIN ================================= */
 /* One noise function drives both the mesh and the walk height. */
 function terrainHeight(x, z) {
@@ -18383,6 +18415,7 @@ function paintSky() {
 const todIcon = document.getElementById('todicon');
 const todTime = document.getElementById('todtime');
 let skyAcc = 0, lastMins = -1;
+let envAcc = 1e9;   // PHASE 1 LOOK: first dayNightTick builds the IBL env immediately
 
 function dayNightTick(dt, now) {
   dayPhase = (dayPhase + dt / DAY_LEN) % 1;
@@ -18457,6 +18490,9 @@ function dayNightTick(dt, now) {
   /* sky gradient repaint, throttled to ~1Hz: no per-frame canvas work */
   skyAcc += dt;
   if (skyAcc >= 1) { skyAcc = 0; paintSky(); }
+  /* PHASE 1 LOOK: re-prefilter the sky into scene.environment on cadence */
+  envAcc += dt;
+  if (envAcc >= ENV_EVERY_SEC) { envAcc = 0; updateEnvironment(); }
 
   /* HUD clock: 06:00 dawn, 12:00 noon, 18:00 dusk, 00:00 midnight */
   const mins = Math.floor(((dayPhase * 24 + 6) % 24) * 60);
