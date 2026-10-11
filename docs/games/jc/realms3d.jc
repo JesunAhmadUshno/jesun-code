@@ -1,0 +1,684 @@
+note REALMS 3D, Jesun.Code edition: the full game brain in pure Jesun.Code.
+note No bring in, no import, no show. The driver pumps seed_game, press, tick.
+note Display list commands go to OUT["dl"]; HUD and messages to OUT.
+note The host (realms3d-jc.html) renders the list with Three.js and holds the
+note GPU look (fog, shadows, tone). Every rule of the world lives here.
+note
+note LANGUAGE NOTES: Jesun.Code has no trig, so this program uses a fixed
+note 72-entry sine table (5 degree steps) and squared distances (no roots).
+note One tick is 1/30 second. The host fixed-steps the pump at 30 Hz.
+note World: chunk size 48, height grid step 6 (9 by 9), water level -0.55.
+
+G is a new table
+OUT is a new table
+
+note Sine table, sin of 0 to 355 degrees in 5 degree steps.
+ST is [0.0, 0.0872, 0.1736, 0.2588, 0.342, 0.4226, 0.5, 0.5736, 0.6428, 0.7071, 0.766, 0.8192, 0.866, 0.9063, 0.9397, 0.9659, 0.9848, 0.9962, 1.0, 0.9962, 0.9848, 0.9659, 0.9397, 0.9063, 0.866, 0.8192, 0.766, 0.7071, 0.6428, 0.5736, 0.5, 0.4226, 0.342, 0.2588, 0.1736, 0.0872, 0.0, -0.0872, -0.1736, -0.2588, -0.342, -0.4226, -0.5, -0.5736, -0.6428, -0.7071, -0.766, -0.8192, -0.866, -0.9063, -0.9397, -0.9659, -0.9848, -0.9962, -1.0, -0.9962, -0.9848, -0.9659, -0.9397, -0.9063, -0.866, -0.8192, -0.766, -0.7071, -0.6428, -0.5736, -0.5, -0.4226, -0.342, -0.2588, -0.1736, -0.0872]
+
+to rnd with n
+    note Park-Miller LCG. n must be a positive whole number.
+    G["seed"] is (G["seed"] * 16807) % 2147483647
+    give back G["seed"] % n
+
+to idiv with a and b
+    note Whole-number division for non-negative a and positive b.
+    q is 0
+    r is a
+    repeat while r is greater than b - 1
+        r is r - b
+        q is q + 1
+    give back q
+
+to ipart with v
+    note Whole-number part of a non-negative float.
+    q is 0
+    r is v
+    repeat while r is greater than 32
+        r is r - 32
+        q is q + 32
+    repeat while r is greater than 1
+        r is r - 1
+        q is q + 1
+    if r is 1 then
+        q is q + 1
+    give back q
+
+to flr with v
+    note Floor of any float, using ipart on the absolute value.
+    if v is greater than -0.0001 then
+        if v is less than 0 then
+            give back 0
+        give back ipart with v
+    q is ipart with (0 - v)
+    r is (0 - v) - q
+    if r is greater than 0.0001 then
+        give back 0 - q - 1
+    give back 0 - q
+
+to clamp with v and lo and hi
+    if v is less than lo then
+        give back lo
+    if v is greater than hi then
+        give back hi
+    give back v
+
+to absv with v
+    if v is less than 0 then
+        give back 0 - v
+    give back v
+
+to sint with deg
+    note Sine of a whole-number degree value, from the fixed table.
+    d is deg % 360
+    if d is less than 0 then
+        d is d + 360
+    give back ST[idiv with d and 5]
+
+to cost with deg
+    give back sint with (deg + 90)
+
+to hashg with cx and cz
+    note Deterministic 0..1 hash of a grid cell. Same on every machine.
+    note Small multipliers on purpose: big-int products cost real ticks.
+    n is (cx * 31153 + cz * 40503 + G["seed0"] * 17477) % 65521
+    n is (n * 1103 + 12345) % 65521
+    give back n / 65521
+
+to vnoise with x and z
+    note Smooth value noise, cell size 24. Two calls per height sample.
+    gx is x / 24
+    gz is z / 24
+    cx is flr with gx
+    cz is flr with gz
+    fx is gx - cx
+    fz is gz - cz
+    sx is fx * fx * (3 - 2 * fx)
+    sz is fz * fz * (3 - 2 * fz)
+    h00 is hashg with cx and cz
+    h10 is hashg with (cx + 1) and cz
+    h01 is hashg with cx and (cz + 1)
+    h11 is hashg with (cx + 1) and (cz + 1)
+    top is h00 + (h10 - h00) * sx
+    bot is h01 + (h11 - h01) * sx
+    give back top + (bot - top) * sz
+
+to theight with x and z
+    note Terrain height at world x, z. Flattened near spawn (origin).
+    note One smooth noise octave plus one raw hash detail term: a second
+    note smooth octave doubled the chunk build cost for little gain.
+    n1 is vnoise with x and z
+    cellx is flr with (x / 6)
+    cellz is flr with (z / 6)
+    det is hashg with cellx and cellz
+    h is (n1 - 0.5) * 30 + (det - 0.5) * 1.4
+    d2 is x * x + z * z
+    if d2 is less than 1600 then
+        t is d2 / 1600
+        h is h * t + 1.6 * (1 - t)
+    give back h
+
+to msg with s
+    lg is G["log"]
+    push s to lg
+    if length of G["log"] is greater than 5 then
+        nl is []
+        i is 1
+        repeat while i is less than length of G["log"]
+            push G["log"][i] to nl
+            i is i + 1
+        G["log"] is nl
+    give back nothing
+
+note ---- world streaming ----
+
+to chunk_sent with cx and cz
+    i is 0
+    repeat while i is less than length of G["sent"]
+        c is G["sent"][i]
+        if c[0] is cx then
+            if c[1] is cz then
+                give back 1
+        i is i + 1
+    give back 0
+
+to build_chunk with cx and cz
+    note Emits one chunk op: 81 heights (step 6) plus props for the host.
+    hs is []
+    j is 0
+    repeat while j is less than 9
+        i is 0
+        repeat while i is less than 9
+            wx is cx * 48 + i * 6
+            wz is cz * 48 + j * 6
+            hv is theight with wx and wz
+            push hv to hs
+            i is i + 1
+        j is j + 1
+    props is []
+    k is 0
+    repeat while k is less than 12
+        r1 is hashg with (cx * 31 + k * 7 + 11) and (cz * 17 - k * 3 + 5)
+        r2 is hashg with (cx * 13 - k * 5 + 3) and (cz * 29 + k * 11 + 7)
+        r3 is hashg with (cx * 7 + k + 101) and (cz * 7 - k + 57)
+        lx is r1 * 46 + 1
+        lz is r2 * 46 + 1
+        gh is theight with (cx * 48 + lx) and (cz * 48 + lz)
+        pkind is "bush"
+        if r3 is less than 0.55 then
+            pkind is "tree"
+        otherwise if r3 is less than 0.82 then
+            pkind is "rock"
+        if gh is greater than -0.2 then
+            push [pkind, lx, lz, 0.8 + r2 * 0.7] to props
+        otherwise if pkind is "rock" then
+            if gh is greater than -0.8 then
+                push [pkind, lx, lz, 0.8 + r2 * 0.7] to props
+        k is k + 1
+    dl is G["dl"]
+    push ["chunk", cx, cz, hs, props] to dl
+    sn is G["sent"]
+    push [cx, cz] to sn
+    give back nothing
+
+to ensure_chunks
+    note Window is radius 2 (5 by 5). Builds run one chunk per tick,
+    note nearest ring first, so crossings are pre-built and never spike.
+    pcx is flr with (G["px"] / 48)
+    pcz is flr with (G["pz"] / 48)
+    keep is []
+    i is 0
+    repeat while i is less than length of G["sent"]
+        c is G["sent"][i]
+        dx is c[0] - pcx
+        dz is c[1] - pcz
+        if dx is less than 0 then
+            dx is 0 - dx
+        if dz is less than 0 then
+            dz is 0 - dz
+        dl is G["dl"]
+        if dx is greater than 2 then
+            push ["chunkgone", c[0], c[1]] to dl
+        otherwise if dz is greater than 2 then
+            push ["chunkgone", c[0], c[1]] to dl
+        otherwise
+            push c to keep
+        i is i + 1
+    G["sent"] is keep
+    rad is 0
+    repeat while rad is less than 3
+        dcz is 0 - rad
+        repeat while dcz is less than rad + 1
+            dcx is 0 - rad
+            repeat while dcx is less than rad + 1
+                adx is dcx
+                if adx is less than 0 then
+                    adx is 0 - adx
+                adz is dcz
+                if adz is less than 0 then
+                    adz is 0 - adz
+                onring is 0
+                if adx is rad then
+                    onring is 1
+                if adz is rad then
+                    onring is 1
+                if onring is 1 then
+                    cs is chunk_sent with (pcx + dcx) and (pcz + dcz)
+                    if cs is 0 then
+                        build_chunk with (pcx + dcx) and (pcz + dcz)
+                        give back nothing
+                dcx is dcx + 1
+            dcz is dcz + 1
+        rad is rad + 1
+    give back nothing
+
+note ---- actors ----
+
+to spawn_wolves
+    G["wolves"] is []
+    i is 0
+    repeat while i is less than 6
+        ang is i * 60 + rnd with 30
+        d is 26 + rnd with 18
+        w is a new table
+        sx is sint with ang
+        sz is cost with ang
+        w["x"] is G["px"] + sx * d
+        w["z"] is G["pz"] + sz * d
+        w["y"] is theight with w["x"] and w["z"]
+        w["hp"] is 30
+        w["wt"] is rnd with 90
+        w["cd"] is 0
+        w["hx"] is w["x"]
+        w["hz"] is w["z"]
+        w["hd"] is rnd with 360
+        ws is G["wolves"]
+        push w to ws
+        i is i + 1
+    give back nothing
+
+to tick_wolves
+    px is G["px"]
+    pz is G["pz"]
+    i is 0
+    repeat while i is less than length of G["wolves"]
+        w is G["wolves"][i]
+        dx is px - w["x"]
+        dz is pz - w["z"]
+        d2 is dx * dx + dz * dz
+        mx is 0
+        mz is 0
+        sp is 0
+        if d2 is less than 500 then
+            note Seek the player. Dominant-axis step, no root needed.
+            adx is absv with dx
+            adz is absv with dz
+            m is adx
+            if adz is greater than m then
+                m is adz
+            if m is greater than 0.01 then
+                mx is dx / m
+                mz is dz / m
+            sp is 3.4
+            if d2 is less than 3.24 then
+                sp is 0
+                if w["cd"] is less than 1 then
+                    if G["over"] is false then
+                        G["hp"] is G["hp"] - 6
+                        G["hurt"] is 10
+                        G["calm"] is 0
+                        msg with "A wolf bites you."
+                        w["cd"] is 45
+        otherwise
+            note Wander near home, drift back when too far.
+            hx is w["hx"] - w["x"]
+            hz is w["hz"] - w["z"]
+            hd2 is hx * hx + hz * hz
+            w["wt"] is w["wt"] - 1
+            if w["wt"] is less than 1 then
+                w["wt"] is 60 + rnd with 120
+                w["hd"] is rnd with 360
+            tx is sint with w["hd"]
+            tz is 0 - cost with w["hd"]
+            if hd2 is greater than 4900 then
+                adx is absv with hx
+                adz is absv with hz
+                m is adx
+                if adz is greater than m then
+                    m is adz
+                if m is greater than 0.01 then
+                    tx is hx / m
+                    tz is hz / m
+            mx is tx
+            mz is tz
+            sp is 1.2
+        if sp is greater than 0 then
+            w["x"] is w["x"] + mx * sp / 30
+            w["z"] is w["z"] + mz * sp / 30
+            if mx is greater than 0.5 then
+                w["hd"] is 90
+            if mx is less than -0.5 then
+                w["hd"] is 270
+            if mz is greater than 0.5 then
+                w["hd"] is 180
+            if mz is less than -0.5 then
+                w["hd"] is 0
+        w["y"] is theight with w["x"] and w["z"]
+        if w["cd"] is greater than 0 then
+            w["cd"] is w["cd"] - 1
+        i is i + 1
+    give back nothing
+
+to player_attack
+    fx is sint with G["hdg"]
+    fz is 0 - cost with G["hdg"]
+    i is 0
+    hit is 0
+    repeat while i is less than length of G["wolves"]
+        w is G["wolves"][i]
+        dx is w["x"] - G["px"]
+        dz is w["z"] - G["pz"]
+        d2 is dx * dx + dz * dz
+        if d2 is less than 7.3 then
+            dot is dx * fx + dz * fz
+            if dot is greater than 0 then
+                w["hp"] is w["hp"] - 34
+                w["x"] is w["x"] + fx * 1.4
+                w["z"] is w["z"] + fz * 1.4
+                hit is 1
+        i is i + 1
+    if hit is 1 then
+        msg with "Hit."
+    note Remove the dead, pay the score.
+    keep is []
+    i is 0
+    repeat while i is less than length of G["wolves"]
+        w is G["wolves"][i]
+        if w["hp"] is greater than 0 then
+            push w to keep
+        otherwise
+            G["score"] is G["score"] + 25
+            G["kills"] is G["kills"] + 1
+            msg with "Wolf down. +25"
+        i is i + 1
+    G["wolves"] is keep
+    give back nothing
+
+note ---- driver interface ----
+
+to seed_game with s
+    G["seed0"] is s
+    G["seed"] is s * 7919 + 13
+    G["queue"] is []
+    G["held"] is a new table
+    G["px"] is 8
+    G["pz"] is 8
+    G["py"] is theight with 8 and 8
+    G["vy"] is 0
+    G["hdg"] is 235
+    G["hp"] is 100
+    G["score"] is 0
+    G["kills"] is 0
+    G["dayfrac"] is 0.32
+    G["weather"] is 0
+    G["wtimer"] is 3600
+    G["fogmul"] is 1
+    G["atkcd"] is 0
+    G["atk"] is 0
+    G["pose"] is 0
+    G["hpt"] is 0
+    G["hurt"] is 0
+    G["calm"] is 0
+    G["over"] is false
+    G["tickn"] is 0
+    G["lcx"] is 999
+    G["lcz"] is 999
+    G["sent"] is []
+    G["dl"] is []
+    G["log"] is []
+    G["gait"] is 0
+    spawn_wolves
+    msg with "REALMS 3D, Jesun.Code edition."
+    msg with "WASD move, Shift sprint, Space jump, F attack."
+    give back nothing
+
+to press with k
+    q is G["queue"]
+    push k to q
+    give back nothing
+
+to handle_key with k
+    note Held keys get a 3 tick lease; the host re-sends them while held.
+    G["held"][k] is 3
+    if k is "f" then
+        G["atk"] is 1
+    if k is "r" then
+        if G["over"] then
+            seed_game with G["seed0"]
+    give back nothing
+
+to isheld with k
+    v is G["held"][k]
+    if v is nothing then
+        give back 0
+    give back v
+
+to tick_player
+    note Read held leases into locals first; comparisons need numbers.
+    kL is isheld with "left"
+    kR is isheld with "right"
+    kQ is isheld with "q"
+    kE is isheld with "e"
+    kW is isheld with "w"
+    kS is isheld with "s"
+    kA is isheld with "a"
+    kD is isheld with "d"
+    kSh is isheld with "shift"
+    kSp is isheld with "space"
+    note Turn.
+    if kL is greater than 0 then
+        G["hdg"] is G["hdg"] - 3
+    if kR is greater than 0 then
+        G["hdg"] is G["hdg"] + 3
+    if kQ is greater than 0 then
+        G["hdg"] is G["hdg"] - 3
+    if kE is greater than 0 then
+        G["hdg"] is G["hdg"] + 3
+    if G["hdg"] is less than 0 then
+        G["hdg"] is G["hdg"] + 360
+    if G["hdg"] is greater than 359 then
+        G["hdg"] is G["hdg"] - 360
+    note Move in the heading frame.
+    fx is sint with G["hdg"]
+    fz is 0 - cost with G["hdg"]
+    rx is cost with G["hdg"]
+    rz is sint with G["hdg"]
+    mx is 0
+    mz is 0
+    if kW is greater than 0 then
+        mx is mx + fx
+        mz is mz + fz
+    if kS is greater than 0 then
+        mx is mx - fx
+        mz is mz - fz
+    if kA is greater than 0 then
+        mx is mx - rx
+        mz is mz - rz
+    if kD is greater than 0 then
+        mx is mx + rx
+        mz is mz + rz
+    sp is 4.4
+    if kSh is greater than 0 then
+        sp is 7.6
+    moving is 0
+    if mx is greater than 0.01 then
+        moving is 1
+    if mx is less than -0.01 then
+        moving is 1
+    if mz is greater than 0.01 then
+        moving is 1
+    if mz is less than -0.01 then
+        moving is 1
+    if moving is 1 then
+        amx is absv with mx
+        amz is absv with mz
+        m is amx
+        if amz is greater than m then
+            m is amz
+        G["px"] is G["px"] + mx / m * sp / 30
+        G["pz"] is G["pz"] + mz / m * sp / 30
+        G["gait"] is G["gait"] + 1
+    note Vertical: gravity, jump, ground clamp.
+    ground is theight with G["px"] and G["pz"]
+    if kSp is greater than 0 then
+        if G["py"] is less than ground + 0.05 then
+            if G["vy"] is 0 then
+                G["vy"] is 8.5
+    G["vy"] is G["vy"] - 22 / 30
+    G["py"] is G["py"] + G["vy"] / 30
+    if G["py"] is less than ground then
+        G["py"] is ground
+        G["vy"] is 0
+    G["pose"] is 0
+    if moving is 1 then
+        G["pose"] is 1
+        if sp is greater than 5 then
+            G["pose"] is 2
+    if G["py"] is greater than ground + 0.05 then
+        G["pose"] is 3
+    give back nothing
+
+to tick_world
+    G["dayfrac"] is G["dayfrac"] + 1 / 14400
+    if G["dayfrac"] is greater than 1 then
+        G["dayfrac"] is G["dayfrac"] - 1
+    note Weather state machine with slow, seeded transitions.
+    G["wtimer"] is G["wtimer"] - 1
+    if G["wtimer"] is less than 1 then
+        r is rnd with 100
+        if r is less than 50 then
+            G["weather"] is 0
+        otherwise if r is less than 75 then
+            G["weather"] is 1
+        otherwise if r is less than 92 then
+            G["weather"] is 2
+        otherwise
+            G["weather"] is 3
+        G["wtimer"] is 1800 + rnd with 3600
+        if G["weather"] is 0 then
+            msg with "The sky clears."
+        if G["weather"] is 1 then
+            msg with "Clouds roll in."
+        if G["weather"] is 2 then
+            msg with "Rain starts."
+        if G["weather"] is 3 then
+            msg with "A storm breaks."
+    target is 1
+    if G["weather"] is 1 then
+        target is 0.58
+    if G["weather"] is 2 then
+        target is 0.24
+    if G["weather"] is 3 then
+        target is 0.1
+    if G["fogmul"] is less than target then
+        G["fogmul"] is G["fogmul"] + 0.002
+    if G["fogmul"] is greater than target then
+        G["fogmul"] is G["fogmul"] - 0.002
+    note Slow heal when calm.
+    G["calm"] is G["calm"] + 1
+    if G["calm"] is greater than 300 then
+        if G["hp"] is less than 100 then
+            G["hpt"] is G["hpt"] + 1
+            if G["hpt"] is greater than 29 then
+                G["hpt"] is 0
+                G["hp"] is G["hp"] + 1
+    if G["hurt"] is greater than 0 then
+        G["hurt"] is G["hurt"] - 1
+    if G["atkcd"] is greater than 0 then
+        G["atkcd"] is G["atkcd"] - 1
+    if G["hp"] is less than 1 then
+        if G["over"] is false then
+            G["over"] is true
+            msg with "You fall. Press R to rise again."
+    give back nothing
+
+to rebuild_dl
+    G["dl"] is []
+    dl is G["dl"]
+    note Chunk scans are the priciest steady work in the interpreter, so
+    note they run only on a chunk change or every 20 ticks as a safety.
+    G["tickn"] is G["tickn"] + 1
+    pcx2 is flr with (G["px"] / 48)
+    pcz2 is flr with (G["pz"] / 48)
+    due is 1
+    if pcx2 is G["lcx"] then
+        if pcz2 is G["lcz"] then
+            tn is G["tickn"] % 20
+            if tn is greater than 0 then
+                due is 0
+    if due is 1 then
+        G["lcx"] is pcx2
+        G["lcz"] is pcz2
+        ensure_chunks
+    note Environment: the brain decides, the host paints.
+    sundeg is ipart with (G["dayfrac"] * 360)
+    elev is sint with (sundeg - 90)
+    dayl is clamp with ((elev + 0.12) / 0.5) and 0 and 1
+    push ["env", G["dayfrac"], elev, dayl, G["fogmul"], G["weather"], sundeg] to dl
+    note Camera: behind and above the player, looking past them.
+    fx is sint with G["hdg"]
+    fz is 0 - cost with G["hdg"]
+    cx is G["px"] - fx * 9.5
+    cz is G["pz"] - fz * 9.5
+    cy is G["py"] + 4.4
+    cg is theight with cx and cz
+    if cy is less than cg + 1.2 then
+        cy is cg + 1.2
+    push ["cam", cx, cy, cz, G["px"] + fx * 6, G["py"] + 1.7, G["pz"] + fz * 6] to dl
+    push ["model", "player", 0, G["px"], G["py"], G["pz"], G["hdg"], G["pose"], G["gait"]] to dl
+    i is 0
+    repeat while i is less than length of G["wolves"]
+        w is G["wolves"][i]
+        push ["model", "wolf", i + 1, w["x"], w["y"], w["z"], w["hd"], 1, G["gait"]] to dl
+        i is i + 1
+    give back nothing
+
+to refresh_out
+    hud is a new table
+    hud["hp"] is G["hp"]
+    hud["score"] is G["score"]
+    hud["kills"] is G["kills"]
+    hud["hostiles"] is length of G["wolves"]
+    hud["hurt"] is G["hurt"]
+    hud["x"] is flr with G["px"]
+    hud["z"] is flr with G["pz"]
+    mins is ipart with (G["dayfrac"] * 1440)
+    hh is idiv with mins and 60
+    mm is mins - hh * 60
+    hs is text of hh
+    if hh is less than 10 then
+        hs is "0" + hs
+    ms is text of mm
+    if mm is less than 10 then
+        ms is "0" + ms
+    hud["clock"] is hs + ":" + ms
+    hud["weather"] is "Clear"
+    if G["weather"] is 1 then
+        hud["weather"] is "Overcast"
+    if G["weather"] is 2 then
+        hud["weather"] is "Rain"
+    if G["weather"] is 3 then
+        hud["weather"] is "Storm"
+    OUT["dl"] is G["dl"]
+    OUT["hud"] is hud
+    OUT["msgs"] is G["log"]
+    OUT["over"] is G["over"]
+    OUT["score"] is G["score"]
+    OUT["snd"] is []
+    give back nothing
+
+to drain_queue
+    n is 0
+    repeat while n is less than 14
+        if length of G["queue"] is 0 then
+            stop
+        k is G["queue"][0]
+        nq is []
+        i is 1
+        repeat while i is less than length of G["queue"]
+            push G["queue"][i] to nq
+            i is i + 1
+        G["queue"] is nq
+        handle_key with k
+        n is n + 1
+    give back nothing
+
+to tick
+    if G["over"] then
+        note Still drain, so R can restart.
+        drain_queue
+        rebuild_dl
+        refresh_out
+        give back nothing
+    G["atk"] is 0
+    drain_queue
+    tick_player
+    if G["atk"] is 1 then
+        if G["atkcd"] is less than 1 then
+            player_attack
+            G["atkcd"] is 12
+    tick_wolves
+    tick_world
+    note Decay held leases.
+    ks is ["w", "a", "s", "d", "shift", "space", "left", "right", "q", "e"]
+    i is 0
+    repeat while i is less than length of ks
+        k is ks[i]
+        v is G["held"][k]
+        if v is nothing then
+            G["held"][k] is 0
+        otherwise if v is greater than 0 then
+            G["held"][k] is v - 1
+        i is i + 1
+    rebuild_dl
+    refresh_out
+    give back nothing
