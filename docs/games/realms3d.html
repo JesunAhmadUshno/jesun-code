@@ -5578,11 +5578,13 @@ function squashTick(dt){
        automatically to all four, because spawnDust
        classifies the spawn point with surfaceAt.
        New honest limit at that step: all ground vehicles and the
-       horse now emit; the plane and train do
-       not emit dust (air and rail by design,
-       no dust surface under them); helicopter
+       horse now emit; the train does
+       not emit dust (rail by design,
+       no dust surface under it); helicopter
        downwash shipped separately in HELI
-       DOWNWASH DUST v1 below.
+       DOWNWASH DUST v1 below, and plane
+       ground-roll dust shipped separately
+       in PLANE GROUND-ROLL DUST v1 below.
        BOAT SPRAY v1: the driven boat now reuses this
        same pooled dust for stern spray too, so spray
        costs zero new draw calls, zero new Points and
@@ -5602,9 +5604,11 @@ function squashTick(dt){
        step: spray was stern-only, with no wake trail
        mesh; bow spray shipped separately in the
        BOAT BOW SPRAY v1 extension below, and the
-       stern remains as built here. The plane and
-       train still do not emit; helicopter downwash
+       stern remains as built here. The train
+       still does not emit; helicopter downwash
        shipped separately in HELI DOWNWASH DUST v1
+       below, and plane ground-roll dust shipped
+       separately in PLANE GROUND-ROLL DUST v1
        below.
        BOAT BOW SPRAY v1: the driven boat now reuses
        this same pooled dust for bow spray too, so bow
@@ -5651,8 +5655,38 @@ function squashTick(dt){
        pooled puff at the ground point under the rotor,
        not a radial foam or brownout sheet, and it
        shares the 48-slot dust ring with every other
-       emitter; the plane and train still do not emit
-       (air cruise and rail by design). --- */
+       emitter; the train still does not emit
+       (rail by design); plane ground-roll
+       dust shipped separately in PLANE
+       GROUND-ROLL DUST v1 below.
+       PLANE GROUND-ROLL DUST v1: the driven plane now
+       reuses this same pooled dust for ground-roll
+       dust too, so ground-roll dust costs zero new
+       draw calls, zero new Points and zero new
+       arrays. The trigger sits in planeUpdate in the
+       flying path only, after the planePose and
+       player-glue block and before the prop audio
+       block: it gates on PLANE.grounded and the
+       absolute speed above 6, accumulates
+       PLANE.dustDist by the absolute speed, and
+       fires one puff every PLANE.dustLen metres (5)
+       at the ground point 2.2 behind the centre
+       along the heading (the max of terrainHeight
+       and WATER_Y, plus 0.15) with strength 6 at
+       absolute speed 14 or over and 4 below that.
+       While airborne or at or below the gate the
+       accumulator resets to 0. The per-surface
+       profile applies automatically, because
+       spawnDust classifies the spawn point with
+       surfaceAt. planeEnter and planeExit both
+       reset the accumulator. New honest limit:
+       ground roll only (takeoff roll and landing
+       rollout; nothing in the air), a pooled puff
+       at the ground point behind the plane, not a
+       lateral dust sheet, and it shares the 48-slot
+       dust ring with every other emitter; the train
+       still does not emit (kinematic NPC traffic,
+       not player-driven). --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -22729,11 +22763,12 @@ const PLANE = {
   camDist: 14, camH: 5,                         // chase cam distance / height
   fovDrive: 72,
   boardR2: 6 * 6,                               // board radius, squared
+  dustLen: 5,                                   // metres travelled per ground-roll puff
   // ---- runtime state (not tuning) ----
   flying: false, grounded: true, autoLand: false,
   throttle: 0, speed: 0, heading: 0,
   pitch: 0, pitchVel: 0, bank: 0, vy: 0,
-  pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1,
+  pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1, dustDist: 0,
   activeIdx: -1, anchorCx: 1e9, anchorCz: 1e9, key: '',
   stallT: 0, stallWarned: false, crashT: 0, landT: 0,
   slots: [
@@ -22790,7 +22825,7 @@ function planeEnter() {
   PLANE.flying = true; PLANE.activeIdx = i;
   PLANE.pos.set(s.x, s.y, s.z); PLANE.heading = s.yaw;
   PLANE.throttle = 0; PLANE.speed = 0; PLANE.vy = 0;
-  PLANE.grounded = true; PLANE.autoLand = false;
+  PLANE.grounded = true; PLANE.autoLand = false; PLANE.dustDist = 0;
   PLANE.pitch = 0; PLANE.pitchVel = 0; PLANE.bank = 0;
   PLANE.stallT = 0; PLANE.stallWarned = false; PLANE.crashT = 0; PLANE.landT = 0;
   P.vel.set(0, 0, 0); P.vy = 0;
@@ -22821,7 +22856,7 @@ function planeEnter() {
 function planeExit() {
   if (!PLANE.flying) return;
   const i = PLANE.activeIdx;
-  PLANE.flying = false; PLANE.activeIdx = -1; PLANE.autoLand = false;
+  PLANE.flying = false; PLANE.activeIdx = -1; PLANE.autoLand = false; PLANE.dustDist = 0;
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
     planeDnBtnEl.style.display = 'none';
@@ -23052,6 +23087,16 @@ function planeUpdate(sdt, now) {
   player.position.copy(PLANE.pos);
   player.position.y += 1.4;   // seated in the cockpit
   player.rotation.y = PLANE.heading;
+
+  // ---- ground-roll dust: grounded roll only, pooled dust (PLANE GROUND-ROLL DUST v1) ----
+  if (PLANE.grounded && Math.abs(PLANE.speed) > 6) {
+    PLANE.dustDist += Math.abs(PLANE.speed) * sdt;
+    if (PLANE.dustDist >= PLANE.dustLen) {
+      PLANE.dustDist -= PLANE.dustLen;
+      const gx = PLANE.pos.x - Math.sin(PLANE.heading) * 2.2, gz = PLANE.pos.z - Math.cos(PLANE.heading) * 2.2, gy = Math.max(terrainHeight(gx, gz), WATER_Y);
+      spawnDust(gx, gy + 0.15, gz, Math.abs(PLANE.speed) >= 14 ? 6 : 4);
+    }
+  } else { PLANE.dustDist = 0; }
 
   // ---- prop audio: gain and RPM ride the throttle ----
   if (planeGain) {

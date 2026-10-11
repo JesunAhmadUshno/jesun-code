@@ -15063,8 +15063,8 @@ globalThis.__R3D2 = {
     htmlNV2.includes('The per-surface profile applies automatically to all four, because spawnDust classifies the spawn point with surfaceAt'));
   check('vehdustx2: header states the scooter airborne limit (hop emits nothing and resets)',
     htmlNV2.includes('only while SC.hopY is at or below 0 (an airborne hop emits nothing and resets the accumulator)'));
-  check('vehdustx2: header states the honest limit at that step (ground vehicles and horse emit, plane and train do not; heli downwash shipped separately in HELI DOWNWASH DUST v1; the boat joins in BOAT SPRAY v1)',
-    htmlNV2.includes('New honest limit at that step: all ground vehicles and the horse now emit; the plane and train do not emit dust (air and rail by design, no dust surface under them); helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below'));
+  check('vehdustx2: header states the honest limit at that step (ground vehicles and horse emit, train does not; heli downwash shipped separately in HELI DOWNWASH DUST v1 and plane ground-roll dust in PLANE GROUND-ROLL DUST v1; the boat joins in BOAT SPRAY v1)',
+    htmlNV2.includes('New honest limit at that step: all ground vehicles and the horse now emit; the train does not emit dust (rail by design, no dust surface under it); helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below, and plane ground-roll dust shipped separately in PLANE GROUND-ROLL DUST v1 below'));
   /* source: BIKE tuning/runtime fields, scoped to the BIKE object */
   check('vehdustx2: BIKE tuning source carries dustLen 4',
     segBikeObjV2.includes('dustLen: 4,'));
@@ -17527,13 +17527,14 @@ globalThis.__R3D2 = {
     && htmlNHeliDust.includes('applies automatically, because spawnDust classifies the spawn point with surfaceAt. heliEnter and heliExit both reset the accumulator'));
   check('helidust: dust header states heliEnter and heliExit reset the accumulator',
     htmlNHeliDust.includes('heliEnter and heliExit both reset the accumulator'));
-  check('helidust: dust header states the new honest limit (pooled puff under the rotor, not a radial sheet, shared 48-slot ring, plane and train still do not emit)',
-    htmlNHeliDust.includes('New honest limit: downwash is a pooled puff at the ground point under the rotor, not a radial foam or brownout sheet, and it shares the 48-slot dust ring with every other emitter; the plane and train still do not emit (air cruise and rail by design)'));
-  check('helidust: the stale honest limits are updated in place (extension v2 and boat spray now list only plane and train, with heli downwash shipped separately)',
-    htmlNHeliDust.includes('horse now emit; the plane and train do not emit dust (air and rail by design, no dust surface under them); helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below')
-    && htmlNHeliDust.includes('stern remains as built here. The plane and train still do not emit; helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below')
-    && !htmlNHeliDust.includes('the helicopter, plane and train do not emit')
-    && !htmlNHeliDust.includes('The helicopter, plane and train still do not emit'));
+  check('helidust: dust header states the new honest limit (pooled puff under the rotor, not a radial sheet, shared 48-slot ring, train still does not emit; plane ground-roll dust shipped separately in PLANE GROUND-ROLL DUST v1)',
+    htmlNHeliDust.includes('New honest limit: downwash is a pooled puff at the ground point under the rotor, not a radial foam or brownout sheet, and it shares the 48-slot dust ring with every other emitter; the train still does not emit (rail by design); plane ground-roll dust shipped separately in PLANE GROUND-ROLL DUST v1 below'));
+  check('helidust: the stale honest limits are updated in place (extension v2 and boat spray now list only the train, with heli downwash and plane ground-roll dust shipped separately)',
+    htmlNHeliDust.includes('horse now emit; the train does not emit dust (rail by design, no dust surface under it); helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below, and plane ground-roll dust shipped separately in PLANE GROUND-ROLL DUST v1 below')
+    && htmlNHeliDust.includes('stern remains as built here. The train still does not emit; helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below, and plane ground-roll dust shipped separately in PLANE GROUND-ROLL DUST v1 below')
+    && !htmlNHeliDust.includes('the plane and train do not emit')
+    && !htmlNHeliDust.includes('the plane and train still do not emit')
+    && !htmlNHeliDust.includes('The plane and train still do not emit'));
   /* source: HELI tuning/runtime fields, scoped to the HELI object */
   check('helidust: HELI tuning source carries dustLen 3',
     segHeliObj.includes('dustLen: 3,'));
@@ -17739,6 +17740,289 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('helidust: the run leaves zero console errors/warnings',
     consoleProblems.length === probsHeliDust, consoleProblems.slice(probsHeliDust).join(' | '));
+}
+
+/* ================= PLANE GROUND-ROLL DUST v1 =================
+   The driven plane now kicks the pooled dust up on the
+   ground roll only: zero new draw calls, Points, arrays
+   or nodes. The trigger sits in planeUpdate in the flying
+   path only, after the planePose and player-glue block and
+   before the prop audio: PLANE.grounded and the absolute
+   speed above 6 gate it, PLANE.dustDist accumulates the
+   absolute speed, and one spawnDust puff fires every
+   PLANE.dustLen metres (5) at the ground point 2.2 behind
+   the centre along the heading (the max of terrainHeight
+   and WATER_Y, plus 0.15) with strength 6 at absolute
+   speed 14 or over and 4 below that. While airborne or at
+   or below the gate the accumulator resets to 0.
+   planeEnter and planeExit reset the accumulator. The
+   per-surface profile applies automatically because
+   spawnDust classifies the spawn point with surfaceAt.
+   Honest limit: ground roll only (takeoff roll and
+   landing rollout; nothing in the air), a pooled puff at
+   the ground point behind the plane, and it shares the
+   48-slot dust ring with every other emitter; the train
+   still does not emit (kinematic NPC traffic, not
+   player-driven). The harness CAN fly the plane here
+   (PLANE, planeEnter and planeExit are exposed and
+   planeUpdate runs in the real tick), so the behavior
+   checks run the real planeUpdate via the real tick. */
+{
+  const probsPlaneDust = consoleProblems.length;
+  const livePlaneDust = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const linesPlaneDust = html.split('\n');
+  const lineHasPlaneDust = sub => linesPlaneDust.filter(l => l.includes(sub)).length;
+  const htmlNPlaneDust = html.replace(/\s+/g, ' ');
+  const segPlaneUpd = html.indexOf('function planeUpdate') >= 0
+    ? html.slice(html.indexOf('function planeUpdate'), html.indexOf('worldTickers.push(planeUpdate)')) : '';
+  const segPlaneObj = html.indexOf('const PLANE = {') >= 0
+    ? html.slice(html.indexOf('const PLANE = {'), html.indexOf('const PLANE_SCAN')) : '';
+  const segPlaneEnter = html.indexOf('function planeEnter()') >= 0
+    ? html.slice(html.indexOf('function planeEnter()'), html.indexOf('function planeExit()')) : '';
+  const segPlaneExit = html.indexOf('function planeExit()') >= 0
+    ? html.slice(html.indexOf('function planeExit()'), html.indexOf('function planeUpdate')) : '';
+  /* source: dust header PLANE GROUND-ROLL DUST v1 paragraph */
+  check('planedust: source carries the PLANE GROUND-ROLL DUST v1 header in the dust header',
+    html.includes('PLANE GROUND-ROLL DUST v1: the driven plane now'));
+  check('planedust: dust header states ground-roll dust reuses the pool at zero new draw calls',
+    htmlNPlaneDust.includes('reuses this same pooled dust for ground-roll dust too, so ground-roll dust costs zero new draw calls, zero new Points and zero new arrays'));
+  check('planedust: dust header states the trigger sits in the flying path after the pose and glue block and before the prop audio',
+    htmlNPlaneDust.includes('The trigger sits in planeUpdate in the flying path only, after the planePose and player-glue block and before the prop audio block'));
+  check('planedust: dust header states the gate on PLANE.grounded and the absolute speed above 6',
+    htmlNPlaneDust.includes('it gates on PLANE.grounded and the absolute speed above 6'));
+  check('planedust: dust header states one puff every PLANE.dustLen metres (5) accumulated by the absolute speed',
+    htmlNPlaneDust.includes('accumulates PLANE.dustDist by the absolute speed, and fires one puff every PLANE.dustLen metres (5)'));
+  check('planedust: dust header states the ground point 2.2 behind the centre with strength 6 at speed 14 or over and 4 below',
+    htmlNPlaneDust.includes('at the ground point 2.2 behind the centre along the heading (the max of terrainHeight and WATER_Y, plus 0.15) with strength 6 at absolute speed 14 or over and 4 below that'));
+  check('planedust: dust header states the accumulator resets while airborne or at or below the gate',
+    htmlNPlaneDust.includes('While airborne or at or below the gate the accumulator resets to 0'));
+  check('planedust: dust header states the per-surface profile applies automatically via spawnDust and surfaceAt',
+    htmlNPlaneDust.includes('The per-surface profile applies automatically, because spawnDust classifies the spawn point with surfaceAt'));
+  check('planedust: dust header states planeEnter and planeExit reset the accumulator',
+    htmlNPlaneDust.includes('planeEnter and planeExit both reset the accumulator'));
+  check('planedust: dust header states the new honest limit (ground roll only, pooled puff behind the plane, shared 48-slot ring, train still does not emit as kinematic NPC traffic)',
+    htmlNPlaneDust.includes('New honest limit: ground roll only (takeoff roll and landing rollout; nothing in the air), a pooled puff at the ground point behind the plane, not a lateral dust sheet, and it shares the 48-slot dust ring with every other emitter; the train still does not emit (kinematic NPC traffic, not player-driven)'));
+  check('planedust: the stale honest limits are updated in place (extension v2, boat spray and heli downwash now list only the train, with plane ground-roll dust shipped separately)',
+    htmlNPlaneDust.includes('horse now emit; the train does not emit dust (rail by design, no dust surface under it); helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below, and plane ground-roll dust shipped separately in PLANE GROUND-ROLL DUST v1 below')
+    && htmlNPlaneDust.includes('stern remains as built here. The train still does not emit; helicopter downwash shipped separately in HELI DOWNWASH DUST v1 below, and plane ground-roll dust shipped separately in PLANE GROUND-ROLL DUST v1 below')
+    && htmlNPlaneDust.includes('emitter; the train still does not emit (rail by design); plane ground-roll dust shipped separately in PLANE GROUND-ROLL DUST v1 below')
+    && !htmlNPlaneDust.includes('the plane and train')
+    && !htmlNPlaneDust.includes('The plane and train'));
+  /* source: PLANE tuning/runtime fields, scoped to the PLANE object */
+  check('planedust: PLANE tuning source carries dustLen 5',
+    segPlaneObj.includes('dustLen: 5,'));
+  check('planedust: PLANE runtime source carries dustDist 0',
+    segPlaneObj.includes('dustDist: 0,'));
+  G.PLANE.dustDist = 0;   // normalize any drift from earlier sections before the starts-at-0 check
+  check('planedust: runtime PLANE.dustLen is exactly 5',
+    G.PLANE.dustLen === 5, 'dustLen=' + G.PLANE.dustLen);
+  check('planedust: runtime PLANE.dustDist starts at 0 (the ground-roll accumulator field)',
+    G.PLANE.dustDist === 0, 'dustDist=' + G.PLANE.dustDist);
+  /* source: the exact ground-roll block inside planeUpdate */
+  check('planedust: planeUpdate source carries the ground-roll comment',
+    segPlaneUpd.includes('// ---- ground-roll dust: grounded roll only, pooled dust (PLANE GROUND-ROLL DUST v1) ----'));
+  check('planedust: planeUpdate source gates on PLANE.grounded and the absolute speed above 6',
+    segPlaneUpd.includes('if (PLANE.grounded && Math.abs(PLANE.speed) > 6) {'));
+  check('planedust: planeUpdate source accumulates dustDist by the absolute speed times sdt',
+    segPlaneUpd.includes('PLANE.dustDist += Math.abs(PLANE.speed) * sdt;'));
+  check('planedust: planeUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segPlaneUpd.includes('if (PLANE.dustDist >= PLANE.dustLen) {')
+    && segPlaneUpd.includes('PLANE.dustDist -= PLANE.dustLen;'));
+  check('planedust: planeUpdate source computes the ground point 2.2 behind the centre along the heading as max of terrainHeight and WATER_Y',
+    segPlaneUpd.includes('const gx = PLANE.pos.x - Math.sin(PLANE.heading) * 2.2, gz = PLANE.pos.z - Math.cos(PLANE.heading) * 2.2, gy = Math.max(terrainHeight(gx, gz), WATER_Y);'));
+  check('planedust: planeUpdate source spawns at the ground point plus 0.15 with strength 6 at speed 14 or over and 4 below',
+    segPlaneUpd.includes('spawnDust(gx, gy + 0.15, gz, Math.abs(PLANE.speed) >= 14 ? 6 : 4);'));
+  check('planedust: planeUpdate source resets dustDist to 0 in the airborne or slow branch',
+    segPlaneUpd.includes('} else { PLANE.dustDist = 0; }'));
+  check('planedust: planeUpdate carries exactly one spawnDust call (the ground-roll puff)',
+    (segPlaneUpd.split('spawnDust(').length - 1) === 1,
+    'n=' + (segPlaneUpd.split('spawnDust(').length - 1));
+  check('planedust: the ground-roll block sits after the pose and player-glue block and before the prop audio block',
+    segPlaneUpd.indexOf('planePose(PLANE.activeIdx') >= 0
+    && segPlaneUpd.indexOf('planePose(PLANE.activeIdx') < segPlaneUpd.indexOf('ground-roll dust: grounded roll only')
+    && segPlaneUpd.indexOf('player.rotation.y = PLANE.heading;') < segPlaneUpd.indexOf('ground-roll dust: grounded roll only')
+    && segPlaneUpd.indexOf('spawnDust(gx,') < segPlaneUpd.indexOf('prop audio: gain and RPM ride the throttle'));
+  check('planedust: the parked early-return path carries no spawnDust call (flying path only)',
+    !segPlaneUpd.slice(0, segPlaneUpd.indexOf('if (P.dead)')).includes('spawnDust('));
+  check('planedust: planeEnter source resets dustDist alongside the other state resets',
+    segPlaneEnter.includes('PLANE.dustDist = 0;'));
+  check('planedust: planeExit source resets dustDist alongside the other state resets',
+    segPlaneExit.includes('PLANE.dustDist = 0;'));
+  /* behavior: board a parked plane through the real entry path */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.P.hitstop = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.PLANE.flying) G.planeExit();
+  let stripChunkDust = null;
+  for (let gx = -40; gx <= 40 && !stripChunkDust; gx++)
+    for (let gz = -40; gz <= 40 && !stripChunkDust; gz++) {
+      const d = G.airstripFor(gx, gz);
+      if (d) stripChunkDust = { gx, gz, d };
+    }
+  check('planedust: seeded airstrips exist in the world', !!stripChunkDust,
+    stripChunkDust ? 'chunk ' + stripChunkDust.gx + ',' + stripChunkDust.gz : 'none in -40..40');
+  const pcxDust = (stripChunkDust.gx + 0.5) * 48, pczDust = (stripChunkDust.gz + 0.5) * 48;
+  G.player.position.set(pcxDust, groundY(pcxDust, pczDust), pczDust);
+  frame(3);
+  const sPlaneDust = G.PLANE.slots.find(s => s.placed);
+  check('planedust: a parked plane is placed at the strip', !!sPlaneDust,
+    'placed=' + G.PLANE.slots.filter(s => s.placed).length);
+  G.player.position.set(sPlaneDust.x, sPlaneDust.y + 1, sPlaneDust.z);
+  frame(2);
+  check('planedust: BOARD hint appears near the parked plane',
+    G.PLANE.hintOn === true && G.PLANE.nearIdx >= 0, 'hintOn=' + G.PLANE.hintOn);
+  G.PLANE.dustDist = 2.2;   // sentinel: boarding must clear the accumulator
+  G.planeEnter();
+  check('planedust: boarding enters the flying state and planeEnter resets dustDist to 0',
+    G.PLANE.flying === true && G.player.visible === false && G.PLANE.dustDist === 0,
+    'flying=' + G.PLANE.flying + ' dustDist=' + G.PLANE.dustDist);
+  /* grass arena on gentle ground: the rear ground point under the
+     heading classifies as grass, so the roll checks cannot classify
+     as water or gravel, and the landing rollout reliably touches */
+  let arenaPlaneDust = null;
+  for (let x = -180; x <= 180 && !arenaPlaneDust; x += 3)
+    for (let z = -180; z <= 180 && !arenaPlaneDust; z += 3) {
+      if (G.surfaceAt(x, z) !== 'grass') continue;
+      if (G.surfaceAt(x, z - 2.2) !== 'grass') continue;
+      if (Math.abs(G.terrainHeight(x, z + 1) - G.terrainHeight(x, z - 3)) > 0.3) continue;
+      arenaPlaneDust = [x, z];
+    }
+  check('planedust: a grass arena exists for the roll checks', !!arenaPlaneDust,
+    arenaPlaneDust ? 'at ' + arenaPlaneDust[0] + ',' + arenaPlaneDust[1] : 'none in -180..180');
+  const floorPlaneDust = (x, z) => Math.max(G.terrainHeight(x, z), -0.55) + G.PLANE.gearH;   // -0.55 is WATER_Y
+  const setupPlaneDust = (speed, dustDist, throttle) => {
+    G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false;
+    G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+    G.keys.Space = false; G.keys.KeyC = false; G.keys.ShiftLeft = false; G.keys.ShiftRight = false;
+    G.P.hitstop = 0;
+    G.PLANE.pos.set(arenaPlaneDust[0], floorPlaneDust(arenaPlaneDust[0], arenaPlaneDust[1]), arenaPlaneDust[1]);
+    G.PLANE.heading = 0; G.PLANE.speed = speed; G.PLANE.throttle = throttle; G.PLANE.vy = 0;
+    G.PLANE.pitch = 0; G.PLANE.pitchVel = 0; G.PLANE.bank = 0;
+    G.PLANE.grounded = true; G.PLANE.autoLand = false;
+    G.PLANE.crashT = 0; G.PLANE.landT = 0; G.PLANE.stallT = 0; G.PLANE.stallWarned = false;
+    G.PLANE.dustDist = dustDist;
+    G.player.position.set(G.PLANE.pos.x, G.PLANE.pos.y, G.PLANE.pos.z);
+    G.clearDust();
+  };
+  const nearRearDust = () => {
+    const gxD = G.PLANE.pos.x - Math.sin(G.PLANE.heading) * 2.2, gzD = G.PLANE.pos.z - Math.cos(G.PLANE.heading) * 2.2;
+    const gyD = Math.max(G.terrainHeight(gxD, gzD), -0.55) + 0.15;   // -0.55 is WATER_Y
+    let n = 0;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] > 0 && Math.hypot(G.dustPos[i * 3] - gxD, G.dustPos[i * 3 + 2] - gzD) < 0.6
+        && Math.abs(G.dustPos[i * 3 + 1] - gyD) < 0.6) n++;
+    }
+    return n;
+  };
+  /* ground roll across the threshold: speed 10 with the throttle
+     target holding it, one frame crosses dustLen and fires the
+     strength 4 burst (9 particles) at the rear ground point */
+  setupPlaneDust(10, G.PLANE.dustLen - 0.05, 10 / G.PLANE.topSpeed);
+  frame(1);
+  check('planedust: ground roll at speed 10 across the threshold spawns live dust (strength 4 burst of 9)',
+    livePlaneDust() === 9, 'live=' + livePlaneDust());
+  check('planedust: ground-roll dust spawns at the rear ground point (2.2 behind the centre, max of terrain and water, 0.15 up)',
+    nearRearDust() === livePlaneDust() && livePlaneDust() > 0, 'near=' + nearRearDust() + ' live=' + livePlaneDust());
+  check('planedust: after the ground-roll puff the accumulator keeps only the remainder under dustLen',
+    G.PLANE.dustDist >= 0 && G.PLANE.dustDist < G.PLANE.dustLen, 'dustDist=' + G.PLANE.dustDist);
+  /* ground profile: the roll burst at the grass arena carries the
+     grass profile on every live slot */
+  setupPlaneDust(10, G.PLANE.dustLen - 0.05, 10 / G.PLANE.topSpeed);
+  frame(1);
+  {
+    const gxProf = G.PLANE.pos.x - Math.sin(G.PLANE.heading) * 2.2, gzProf = G.PLANE.pos.z - Math.cos(G.PLANE.heading) * 2.2;
+    const surfPlaneDust = G.surfaceAt(gxProf, gzProf);
+    check('planedust: the rear ground point behind the rolling plane classifies as grass',
+      surfPlaneDust === 'grass', 'surf=' + surfPlaneDust);
+    let profOk = livePlaneDust() > 0;
+    const approxPlane = (a, b) => Math.abs(a - b) < 1e-6;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] <= 0) continue;
+      if (!approxPlane(G.dustGrav[i], 0.85) || !approxPlane(G.dustDrag[i], 1.15) || !approxPlane(G.dustGrow[i], 0.95)
+        || !approxPlane(G.dustRamp[i], 0.20) || !approxPlane(G.dustAlpha[i], 0.75)) profOk = false;
+      if (!(G.dustSizeBase[i] >= 0.8625 - 1e-6 && G.dustSizeBase[i] <= 1.4375 + 1e-6)) profOk = false;
+    }
+    check('planedust: ground-roll dust carries the ground surface profile on every slot (grass grav 0.85, drag 1.15, grow 0.95, ramp 0.20, alpha 0.75, size scale 1.15)',
+      profOk, 'live=' + livePlaneDust());
+  }
+  /* sub-threshold accumulation: one rolling frame below dustLen
+     accrues dustDist and spawns nothing */
+  setupPlaneDust(10, 0, 10 / G.PLANE.topSpeed);
+  frame(1);
+  check('planedust: one ground-roll frame below the threshold accumulates dustDist and spawns nothing',
+    G.PLANE.dustDist > 0.1 && G.PLANE.dustDist < G.PLANE.dustLen && livePlaneDust() === 0,
+    'dustDist=' + G.PLANE.dustDist + ' live=' + livePlaneDust());
+  /* landing rollout at speed 14 or over: a gentle touchdown at
+     speed 20 sets grounded in the terrain contact, and the dust
+     block fires the strength 6 burst (11 particles) that frame */
+  setupPlaneDust(20, G.PLANE.dustLen - 0.05, 0.5556);
+  G.PLANE.grounded = false;
+  G.PLANE.pos.y = floorPlaneDust(arenaPlaneDust[0], arenaPlaneDust[1]) + 0.01;
+  G.PLANE.vy = -6;
+  frame(1);
+  check('planedust: landing rollout at speed 20 spawns the strength 6 burst of 11 and the plane is grounded',
+    livePlaneDust() === 11 && G.PLANE.grounded === true, 'live=' + livePlaneDust() + ' grounded=' + G.PLANE.grounded);
+  check('planedust: landing rollout dust spawns at the rear ground point',
+    nearRearDust() === livePlaneDust() && livePlaneDust() > 0, 'near=' + nearRearDust() + ' live=' + livePlaneDust());
+  check('planedust: after the landing puff the accumulator keeps only the remainder under dustLen',
+    G.PLANE.dustDist >= 0 && G.PLANE.dustDist < G.PLANE.dustLen, 'dustDist=' + G.PLANE.dustDist);
+  /* slow roll at or below the gate: speed 5 spawns nothing and
+     the accumulator resets to 0 */
+  setupPlaneDust(5, 2.2, 5 / G.PLANE.topSpeed);
+  frame(1);
+  check('planedust: slow roll at speed 5 spawns nothing and dustDist resets to 0',
+    livePlaneDust() === 0 && G.PLANE.dustDist === 0, 'live=' + livePlaneDust() + ' dustDist=' + G.PLANE.dustDist);
+  /* airborne: fast flight off the ground spawns nothing and the
+     accumulator resets to 0 (nothing in the air) */
+  setupPlaneDust(20, 2.2, 0.7);
+  G.PLANE.grounded = false;
+  G.PLANE.pos.y = floorPlaneDust(arenaPlaneDust[0], arenaPlaneDust[1]) + 10;
+  frame(1);
+  check('planedust: airborne flight spawns nothing and dustDist resets to 0',
+    livePlaneDust() === 0 && G.PLANE.dustDist === 0 && G.PLANE.grounded === false,
+    'live=' + livePlaneDust() + ' dustDist=' + G.PLANE.dustDist + ' grounded=' + G.PLANE.grounded);
+  /* exit: planeExit clears the accumulator with the other resets */
+  G.PLANE.dustDist = 2.2;
+  G.planeExit();
+  check('planedust: planeExit resets dustDist to 0 and restores the player',
+    G.PLANE.flying === false && G.PLANE.dustDist === 0 && G.player.visible === true,
+    'flying=' + G.PLANE.flying + ' dustDist=' + G.PLANE.dustDist);
+  /* parked: the early-return path never runs the ground-roll block,
+     so a parked plane spawns nothing and leaves dustDist untouched */
+  G.PLANE.dustDist = 1.5;
+  G.clearDust();
+  frame(3);
+  check('planedust: parked (not flying) spawns nothing and leaves dustDist untouched',
+    livePlaneDust() === 0 && G.PLANE.dustDist === 1.5, 'live=' + livePlaneDust() + ' dustDist=' + G.PLANE.dustDist);
+  /* cleanup: leave the accumulator at 0 and the pool empty */
+  G.PLANE.dustDist = 0; G.PLANE.speed = 0; G.PLANE.throttle = 0;
+  G.clearDust();
+  check('planedust: cleanup leaves dustDist at 0, no live dust and the player restored',
+    G.PLANE.dustDist === 0 && livePlaneDust() === 0 && G.PLANE.flying === false && G.player.visible === true,
+    'dustDist=' + G.PLANE.dustDist + ' live=' + livePlaneDust() + ' flying=' + G.PLANE.flying);
+  /* static pins re-checked: plane ground-roll dust adds zero of everything */
+  check('planedust-pins: 49 InstancedMesh literals', lineHasPlaneDust('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasPlaneDust('new THREE.InstancedMesh'));
+  check('planedust-pins: 92 Math.random lines', lineHasPlaneDust('Math.random') === 92,
+    'n=' + lineHasPlaneDust('Math.random'));
+  check('planedust-pins: 72 setTimeout lines', lineHasPlaneDust('setTimeout') === 72,
+    'n=' + lineHasPlaneDust('setTimeout'));
+  check('planedust-pins: 6 lights',
+    linesPlaneDust.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('planedust-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('planedust-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('planedust-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasPlaneDust('new THREE.Points(') === 2, 'n=' + lineHasPlaneDust('new THREE.Points('));
+  check('planedust-pins: no em dashes', !html.includes('\u2014'));
+  check('planedust-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('planedust-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('planedust: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsPlaneDust, consoleProblems.slice(probsPlaneDust).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
