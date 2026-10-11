@@ -357,6 +357,7 @@ globalThis.__R3D = {
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   /* SKID MARKS v1: skid pool + helpers + constants (test-only exposure) */
   skidStep, skidTick, skidReset, clearSkid, SKID_N, SKID_LIFE, SKID_MIN_SEG,
+  skidWriteQuad,
   skidStep1, skidReset1, skidStep2, skidReset2, skidStep3, skidReset3,
   skidStep4, skidReset4, skidStep5, skidReset5,
   skidPos, skidCol, skidLife, skidLifeMax, skidAlpha, skidGeo, skidMesh,
@@ -15488,9 +15489,9 @@ globalThis.__R3D2 = {
     html.includes('SKID MARKS v1'));
   check('skid: header states the extension honest limit (horse still lays no marks yet)',
     htmlNSk.includes('horse still lays no marks yet'));
-  check('skid: header states quads conform along their length via the two end heights, with the new lateral and ridge honest limit',
-    htmlNSk.includes('quads conform along their length via the two end heights')
-    && htmlNSk.includes('lateral slope across the track width (at most 0.32m) still uses the end height')
+  check('skid: header states quads conform along their length via the two end heights and across their width via SKID LATERAL CONFORM v1, with the ridge honest limit kept',
+    htmlNSk.includes('quads conform along their length via the two end heights and across their width via SKID LATERAL CONFORM v1')
+    && !htmlNSk.includes('still uses the end height')
     && htmlNSk.includes('a sharp ridge inside one 0.9m segment can still clip slightly'));
   check('skid: header states pooled ribbon with exactly one new Mesh and +1 draw call',
     htmlNSk.includes('one pooled ground ribbon') && htmlNSk.includes('Exactly one new Mesh: +1 draw call'));
@@ -15546,11 +15547,15 @@ globalThis.__R3D2 = {
   {
     const s0 = head0Sk, s1 = (head0Sk + 1) % G.SKID_N;
     const p0 = s0 * 12, p1 = s1 * 12;
-    const exp0 = [10.66, 5.03, 18.1, 10.94, 5.03, 18.1, 10.94, 5.03, 19.1, 10.66, 5.03, 19.1];
-    const exp1 = [9.06, 5.03, 18.1, 9.34, 5.03, 18.1, 9.34, 5.03, 19.1, 9.06, 5.03, 19.1];
+    /* SKID LATERAL CONFORM v1: this point sits on a lateral slope, so each
+       corner Y is 5.03 plus its own centre-relative terrainHeight delta
+       (computed from terrainHeight at the corner minus its end centre);
+       X/Z are the legacy wheel maths unchanged. */
+    const exp0 = [10.66, 5.034485, 18.1, 10.94, 5.025490, 18.1, 10.94, 5.025134, 19.1, 10.66, 5.034842, 19.1];
+    const exp1 = [9.06, 5.033979, 18.1, 9.34, 5.025961, 18.1, 9.34, 5.025592, 19.1, 9.06, 5.034349, 19.1];
     let posOk = true;
     for (let i = 0; i < 12; i++) { if (!approxSk(G.skidPos[p0 + i], exp0[i]) || !approxSk(G.skidPos[p1 + i], exp1[i])) posOk = false; }
-    check('skid: written quad positions match the wheel maths within tolerance, y = ground+0.03',
+    check('skid: written quad positions match the wheel maths within tolerance, y = end base plus per-corner lateral delta',
       posOk, 'q0=' + [...G.skidPos.slice(p0, p0 + 12)].join(',') + ' q1=' + [...G.skidPos.slice(p1, p1 + 12)].join(','));
     let colOk = true;
     const expColsSk = [[0.10, 0.13, 0.05, 0.38], [0.16, 0.11, 0.06, 0.48]];
@@ -15778,10 +15783,12 @@ globalThis.__R3D2 = {
     'head=' + G.skidHead + ' live=' + liveSm());
   {
     const s0 = head0Sm, p0 = s0 * 12;
-    const expSm = [9.94, 5.03, 19.1, 10.06, 5.03, 19.1, 10.06, 5.03, 20.1, 9.94, 5.03, 20.1];
+    /* SKID LATERAL CONFORM v1: lateral slope here, so corner Y is 5.03 plus
+       its own centre-relative terrainHeight delta; X/Z unchanged. */
+    const expSm = [9.94, 5.031996, 19.1, 10.06, 5.027996, 19.1, 10.06, 5.027835, 20.1, 9.94, 5.032158, 20.1];
     let posOk = true;
     for (let i = 0; i < 12; i++) { if (!approxSm(G.skidPos[p0 + i], expSm[i])) posOk = false; }
-    check('skidmoto: written quad positions match the single-track maths with half-width 0.06, y = ground+0.03',
+    check('skidmoto: written quad positions match the single-track maths with half-width 0.06, y = end base plus per-corner lateral delta',
       posOk, 'q=' + [...G.skidPos.slice(p0, p0 + 12)].join(','));
     check('skidmoto: written quad width is exactly 0.12 (0.06 half-width on each side)',
       approxSm(G.skidPos[p0 + 3] - G.skidPos[p0], 0.12) && approxSm(G.skidPos[p0 + 6] - G.skidPos[p0 + 9], 0.12),
@@ -16008,10 +16015,12 @@ globalThis.__R3D2 = {
     'head=' + G.skidHead + ' live=' + liveSb());
   {
     const s0 = head0Sb, p0 = s0 * 12;
-    const expSb = [9.96, 5.03, 19.34, 10.04, 5.03, 19.34, 10.04, 5.03, 20.34, 9.96, 5.03, 20.34];
+    /* SKID LATERAL CONFORM v1: lateral slope here, so corner Y is 5.03 plus
+       its own centre-relative terrainHeight delta; X/Z unchanged. */
+    const expSb = [9.96, 5.031357, 19.34, 10.04, 5.028639, 19.34, 10.04, 5.028531, 20.34, 9.96, 5.031466, 20.34];
     let posOk = true;
     for (let i = 0; i < 12; i++) { if (!approxSb(G.skidPos[p0 + i], expSb[i])) posOk = false; }
-    check('skidbike: written quad positions match the single-track maths with half-width 0.04, y = ground+0.03',
+    check('skidbike: written quad positions match the single-track maths with half-width 0.04, y = end base plus per-corner lateral delta',
       posOk, 'q=' + [...G.skidPos.slice(p0, p0 + 12)].join(','));
     check('skidbike: written quad width is exactly 0.08 (0.04 half-width on each side)',
       approxSb(G.skidPos[p0 + 3] - G.skidPos[p0], 0.08) && approxSb(G.skidPos[p0 + 6] - G.skidPos[p0 + 9], 0.08),
@@ -16265,10 +16274,12 @@ globalThis.__R3D2 = {
     'head=' + G.skidHead + ' live=' + liveSs());
   {
     const s0 = head0Ss, p0 = s0 * 12;
-    const expSs = [9.95, 5.03, 19.68, 10.05, 5.03, 19.68, 10.05, 5.03, 20.68, 9.95, 5.03, 20.68];
+    /* SKID LATERAL CONFORM v1: lateral slope here, so corner Y is 5.03 plus
+       its own centre-relative terrainHeight delta; X/Z unchanged. */
+    const expSs = [9.95, 5.031742, 19.68, 10.05, 5.028253, 19.68, 10.05, 5.028116, 20.68, 9.95, 5.031879, 20.68];
     let posOk = true;
     for (let i = 0; i < 12; i++) { if (!approxSs(G.skidPos[p0 + i], expSs[i])) posOk = false; }
-    check('skidscoot: written quad positions match the single-track maths with half-width 0.05, y = ground+0.03',
+    check('skidscoot: written quad positions match the single-track maths with half-width 0.05, y = end base plus per-corner lateral delta',
       posOk, 'q=' + [...G.skidPos.slice(p0, p0 + 12)].join(','));
     check('skidscoot: written quad width is exactly 0.10 (0.05 half-width on each side)',
       approxSs(G.skidPos[p0 + 3] - G.skidPos[p0], 0.10) && approxSs(G.skidPos[p0 + 6] - G.skidPos[p0 + 9], 0.10),
@@ -16609,13 +16620,15 @@ globalThis.__R3D2 = {
     'head=' + G.skidHead + ' live=' + liveBd());
   {
     const s0 = head0Bd, s1 = (head0Bd + 1) % G.SKID_N, p0 = s0 * 12, p1 = s1 * 12;
-    const expL = [10.74, 5.03, 15.8, 11.06, 5.03, 15.8, 11.06, 5.03, 16.8, 10.74, 5.03, 16.8];
-    const expR = [8.94, 5.03, 15.8, 9.26, 5.03, 15.8, 9.26, 5.03, 16.8, 8.94, 5.03, 16.8];
+    /* SKID LATERAL CONFORM v1: lateral slope here, so corner Y is 5.03 plus
+       its own centre-relative terrainHeight delta; X/Z unchanged. */
+    const expL = [10.74, 5.033858, 15.8, 11.06, 5.026058, 15.8, 11.06, 5.025331, 16.8, 10.74, 5.034632, 16.8];
+    const expR = [8.94, 5.032617, 15.8, 9.26, 5.027256, 15.8, 9.26, 5.026262, 16.8, 8.94, 5.033622, 16.8];
     let posL = true, posR = true;
     for (let i = 0; i < 12; i++) { if (!approxBd(G.skidPos[p0 + i], expL[i])) posL = false; if (!approxBd(G.skidPos[p1 + i], expR[i])) posR = false; }
-    check('skidbus: bus left quad positions match the dual-track maths with half-width 0.16, y = ground+0.03',
+    check('skidbus: bus left quad positions match the dual-track maths with half-width 0.16, y = end base plus per-corner lateral delta',
       posL, 'qL=' + [...G.skidPos.slice(p0, p0 + 12)].join(','));
-    check('skidbus: bus right quad positions match the dual-track maths with half-width 0.16, y = ground+0.03',
+    check('skidbus: bus right quad positions match the dual-track maths with half-width 0.16, y = end base plus per-corner lateral delta',
       posR, 'qR=' + [...G.skidPos.slice(p1, p1 + 12)].join(','));
     check('skidbus: bus quad widths are exactly 0.32 (0.16 half-width on each side)',
       approxBd(G.skidPos[p0 + 3] - G.skidPos[p0], 0.32) && approxBd(G.skidPos[p1 + 3] - G.skidPos[p1], 0.32)
@@ -16656,13 +16669,15 @@ globalThis.__R3D2 = {
     'head=' + G.skidHead + ' live=' + liveBd());
   {
     const s0 = head2Bd, s1 = (head2Bd + 1) % G.SKID_N, p0 = s0 * 12, p1 = s1 * 12;
-    const expL = [10.70, 5.03, 16.5, 11.00, 5.03, 16.5, 11.00, 5.03, 17.5, 10.70, 5.03, 17.5];
-    const expR = [9.00, 5.03, 16.5, 9.30, 5.03, 16.5, 9.30, 5.03, 17.5, 9.00, 5.03, 17.5];
+    /* SKID LATERAL CONFORM v1: lateral slope here, so corner Y is 5.03 plus
+       its own centre-relative terrainHeight delta; X/Z unchanged. */
+    const expL = [10.70, 5.034142, 16.5, 11.00, 5.025801, 16.5, 11.00, 5.025381, 17.5, 10.70, 5.034591, 17.5];
+    const expR = [9.00, 5.033176, 16.5, 9.30, 5.026719, 16.5, 9.30, 5.025971, 17.5, 9.00, 5.033941, 17.5];
     let posL = true, posR = true;
     for (let i = 0; i < 12; i++) { if (!approxBd(G.skidPos[p0 + i], expL[i])) posL = false; if (!approxBd(G.skidPos[p1 + i], expR[i])) posR = false; }
-    check('skidbus: fire truck left quad positions match the dual-track maths with half-width 0.15, y = ground+0.03',
+    check('skidbus: fire truck left quad positions match the dual-track maths with half-width 0.15, y = end base plus per-corner lateral delta',
       posL, 'qL=' + [...G.skidPos.slice(p0, p0 + 12)].join(','));
-    check('skidbus: fire truck right quad positions match the dual-track maths with half-width 0.15, y = ground+0.03',
+    check('skidbus: fire truck right quad positions match the dual-track maths with half-width 0.15, y = end base plus per-corner lateral delta',
       posR, 'qR=' + [...G.skidPos.slice(p1, p1 + 12)].join(','));
     check('skidbus: fire truck quad widths are exactly 0.30 (0.15 half-width on each side)',
       approxBd(G.skidPos[p0 + 3] - G.skidPos[p0], 0.30) && approxBd(G.skidPos[p1 + 3] - G.skidPos[p1], 0.30)
@@ -18195,6 +18210,240 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('skidsurf: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSSu, consoleProblems.slice(probsSSu).join(' | '));
+  G.clearSkid();
+}
+
+/* ================= SKID LATERAL CONFORM v1 =================
+   skidWriteQuad now adds a centre-relative per-corner height
+   delta inside the writer only: each corner Y is its end base
+   (prevY + 0.03 at the previous end, y + 0.03 at the current
+   end) plus terrainHeight at that corner minus terrainHeight
+   at its own end centre, so the quad tilts across its width
+   on a lateral slope and keeps the legacy heights exactly on
+   flat ground. Behaviour points are self-validating: the flat
+   point sits inside the spawn flatten radius where
+   terrainHeight is exactly 0, and the sloped points are found
+   by scanning G.terrainHeight for meaningful lateral diffs
+   at both ends plus distinct end-centre heights, then the
+   written corners are compared against deltas recomputed
+   from G.terrainHeight inside the test. */
+{
+  const probsSL = consoleProblems.length;
+  const linesSL = html.split('\n');
+  const lineHasSL = sub => linesSL.filter(l => l.includes(sub)).length;
+  const htmlNSL = html.replace(/\s+/g, ' ');
+  const approxSL = (a, b) => Math.abs(a - b) < 1e-3;
+  const approxTightSL = (a, b) => Math.abs(a - b) < 1e-4;
+  const liveSL = () => { let n = 0; for (let i = 0; i < G.SKID_N; i++) if (G.skidLife[i] > 0) n++; return n; };
+  const segWriteSL = html.indexOf('function skidWriteQuad') >= 0 ? html.slice(html.indexOf('function skidWriteQuad'), html.indexOf('function skidStep4')) : '';
+  const segHeadSL = html.indexOf('SKID LATERAL CONFORM v1') >= 0 ? html.slice(html.indexOf('SKID LATERAL CONFORM v1'), html.indexOf('SKID LATERAL CONFORM v1') + 1500).replace(/\s+/g, ' ') : '';
+  const TH = (x, z) => G.terrainHeight(x, z);
+  /* source: header paragraph and honest limits */
+  check('skidlat: source carries the SKID LATERAL CONFORM v1 header paragraph',
+    html.includes('SKID LATERAL CONFORM v1'));
+  check('skidlat: header states a centre-relative per-corner height delta inside the writer only',
+    segHeadSL.includes('centre-relative per-corner height delta inside the writer only'));
+  check('skidlat: header states each corner Y is its end base plus terrainHeight at that corner minus terrainHeight at its own end centre',
+    segHeadSL.includes('Each corner Y is its end base (prevY + 0.03 at the previous end, y + 0.03 at the current end) plus terrainHeight at that corner minus terrainHeight at its own end centre'));
+  check('skidlat: header states the previous end uses the previous centre and the current end uses the current centre as reference',
+    segHeadSL.includes('the previous end uses the previous centre as its reference and the current end uses the current centre'));
+  check('skidlat: header states the quad tilts across its width and flat ground keeps the legacy heights exactly',
+    segHeadSL.includes('The quad now tilts across its width on a lateral slope')
+    && segHeadSL.includes('on flat ground every delta is zero so the legacy heights are kept exactly'));
+  check('skidlat: header states zero new draw calls and zero new Mesh',
+    segHeadSL.includes('Zero new draw calls, zero new Mesh'));
+  check('skidlat: header no longer lists lateral slope as using the end height',
+    !htmlNSL.includes('still uses the end height')
+    && !htmlNSL.includes('lateral slope across the track width (at most 0.32m)'));
+  check('skidlat: header keeps the remaining honest limits (ridge clip, per-quad centre classification, horse lays no marks)',
+    segHeadSL.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
+    && segHeadSL.includes('surface classification stays per-quad centre only')
+    && segHeadSL.includes('the horse still lays no marks'));
+  /* source: writer wiring */
+  check('skidlat: skidWriteQuad signature is unchanged (halfW defaults to 0.14, prevY defaults to y)',
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+  check('skidlat: writer source computes the two end-centre heights pcH and ccH from terrainHeight',
+    segWriteSL.includes('const pcH = terrainHeight(px, pz);')
+    && segWriteSL.includes('const ccH = terrainHeight(cx, cz);'));
+  check('skidlat: writer source computes the four centre-relative corner deltas and calls terrainHeight exactly six times',
+    segWriteSL.includes('const dPL = terrainHeight(px - lx * halfW, pz - lz * halfW) - pcH;')
+    && segWriteSL.includes('const dPR = terrainHeight(px + lx * halfW, pz + lz * halfW) - pcH;')
+    && segWriteSL.includes('const dCR = terrainHeight(cx + lx * halfW, cz + lz * halfW) - ccH;')
+    && segWriteSL.includes('const dCL = terrainHeight(cx - lx * halfW, cz - lz * halfW) - ccH;')
+    && segWriteSL.split('terrainHeight(').length - 1 === 6,
+    'n=' + (segWriteSL.split('terrainHeight(').length - 1));
+  check('skidlat: writer source writes prev corners at py plus prev deltas and curr corners at yy plus curr deltas in vertex order',
+    segWriteSL.includes('skidPos[p + 1] = py + dPL;')
+    && segWriteSL.includes('skidPos[p + 4] = py + dPR;')
+    && segWriteSL.includes('skidPos[p + 7] = yy + dCR;')
+    && segWriteSL.includes('skidPos[p + 10] = yy + dCL;'));
+  check('skidlat: runtime exposes skidWriteQuad and terrainHeight as functions',
+    typeof G.skidWriteQuad === 'function' && typeof G.terrainHeight === 'function');
+  /* flat ground: spawn flatten radius, terrainHeight exactly 0 */
+  check('skidlat: flat precondition holds (terrainHeight is 0 at the flat quad centres and all four corners)',
+    TH(0, -0.5) === 0 && TH(0, 0.5) === 0
+    && TH(-0.14, -0.5) === 0 && TH(0.14, -0.5) === 0 && TH(0.14, 0.5) === 0 && TH(-0.14, 0.5) === 0);
+  G.clearSkid();
+  const headFSL = G.skidHead;
+  G.skidWriteQuad(0, -0.5, 0, 0.5, 1, 0, 4, 0.14, 2);
+  const pFSL = headFSL * 12;
+  check('skidlat: flat direct writer call writes exactly one live quad and advances head by 1',
+    liveSL() === 1 && G.skidHead === (headFSL + 1) % G.SKID_N,
+    'live=' + liveSL() + ' head=' + G.skidHead);
+  check('skidlat: flat direct writer keeps legacy corner heights exactly (prev pair at prevY+0.03, curr pair at y+0.03, distinct ends)',
+    approxTightSL(G.skidPos[pFSL + 1], 2.03) && approxTightSL(G.skidPos[pFSL + 4], 2.03)
+    && approxTightSL(G.skidPos[pFSL + 7], 4.03) && approxTightSL(G.skidPos[pFSL + 10], 4.03),
+    'y=' + [G.skidPos[pFSL + 1], G.skidPos[pFSL + 4], G.skidPos[pFSL + 7], G.skidPos[pFSL + 10]].join(','));
+  check('skidlat: flat direct writer keeps legacy X/Z geometry (corners at centre plus/minus halfW in vertex order)',
+    approxTightSL(G.skidPos[pFSL], -0.14) && approxTightSL(G.skidPos[pFSL + 2], -0.5)
+    && approxTightSL(G.skidPos[pFSL + 3], 0.14) && approxTightSL(G.skidPos[pFSL + 5], -0.5)
+    && approxTightSL(G.skidPos[pFSL + 6], 0.14) && approxTightSL(G.skidPos[pFSL + 8], 0.5)
+    && approxTightSL(G.skidPos[pFSL + 9], -0.14) && approxTightSL(G.skidPos[pFSL + 11], 0.5));
+  G.clearSkid();
+  const headFsSL = G.skidHead;
+  G.skidStep1(0, 0.4, 0, 3);
+  G.skidStep1(0, 1.4, 0, 3);
+  const pFsSL = headFsSL * 12;
+  check('skidlat: flat skidStep1 drive inside the spawn radius writes one quad with all four corners at the legacy 3.03',
+    liveSL() === 1
+    && approxTightSL(G.skidPos[pFsSL + 1], 3.03) && approxTightSL(G.skidPos[pFsSL + 4], 3.03)
+    && approxTightSL(G.skidPos[pFsSL + 7], 3.03) && approxTightSL(G.skidPos[pFsSL + 10], 3.03),
+    'live=' + liveSL() + ' y=' + [G.skidPos[pFsSL + 1], G.skidPos[pFsSL + 4], G.skidPos[pFsSL + 7], G.skidPos[pFsSL + 10]].join(','));
+  /* sloped ground: self-validating scan for the direct writer (halfW 0.14) */
+  let ptSL = null, pcSL = null, ccSL = null, latPSL = 0, latCSL = 0;
+  for (let x = -80; x <= 80 && !ptSL; x += 1) {
+    for (let z = -80; z <= 80; z += 1) {
+      const pc = { x, z: z - 0.5 }, cc = { x, z: z + 0.5 };
+      const lp = Math.abs(TH(pc.x + 0.14, pc.z) - TH(pc.x - 0.14, pc.z));
+      const lc = Math.abs(TH(cc.x + 0.14, cc.z) - TH(cc.x - 0.14, cc.z));
+      const cen = Math.abs(TH(cc.x, cc.z) - TH(pc.x, pc.z));
+      if (lp > 0.025 && lc > 0.025 && cen > 0.08) { ptSL = { x, z }; pcSL = pc; ccSL = cc; latPSL = lp; latCSL = lc; break; }
+    }
+  }
+  check('skidlat: self-validating scan finds a point with meaningful lateral terrain diffs at both ends (over 0.025 each)',
+    !!ptSL && latPSL > 0.025 && latCSL > 0.025,
+    ptSL ? 'pt=' + ptSL.x + ',' + ptSL.z + ' latP=' + latPSL + ' latC=' + latCSL : 'none found');
+  check('skidlat: the scan point end centres differ meaningfully (over 0.08), so the two centre references are distinguishable',
+    !!ptSL && Math.abs(TH(ccSL.x, ccSL.z) - TH(pcSL.x, pcSL.z)) > 0.08,
+    ptSL ? 'pcH=' + TH(pcSL.x, pcSL.z) + ' ccH=' + TH(ccSL.x, ccSL.z) : 'none found');
+  if (ptSL) {
+    const pcH = TH(pcSL.x, pcSL.z), ccH = TH(ccSL.x, ccSL.z);
+    const ePL = 2.03 + (TH(pcSL.x - 0.14, pcSL.z) - pcH);
+    const ePR = 2.03 + (TH(pcSL.x + 0.14, pcSL.z) - pcH);
+    const eCR = 5.03 + (TH(ccSL.x + 0.14, ccSL.z) - ccH);
+    const eCL = 5.03 + (TH(ccSL.x - 0.14, ccSL.z) - ccH);
+    G.clearSkid();
+    const headSSL = G.skidHead;
+    G.skidWriteQuad(pcSL.x, pcSL.z, ccSL.x, ccSL.z, 1, 0, 5, 0.14, 2);
+    const pSSL = headSSL * 12;
+    check('skidlat: sloped prev corners each equal prevY+0.03 plus their own prev-centre delta',
+      approxSL(G.skidPos[pSSL + 1], ePL) && approxSL(G.skidPos[pSSL + 4], ePR),
+      'got=' + G.skidPos[pSSL + 1] + ',' + G.skidPos[pSSL + 4] + ' exp=' + ePL + ',' + ePR);
+    check('skidlat: sloped curr corners each equal y+0.03 plus their own curr-centre delta',
+      approxSL(G.skidPos[pSSL + 7], eCR) && approxSL(G.skidPos[pSSL + 10], eCL),
+      'got=' + G.skidPos[pSSL + 7] + ',' + G.skidPos[pSSL + 10] + ' exp=' + eCR + ',' + eCL);
+    check('skidlat: left-minus-right corner Y diff matches the terrain left-minus-right delta at both ends',
+      approxSL(G.skidPos[pSSL + 1] - G.skidPos[pSSL + 4], TH(pcSL.x - 0.14, pcSL.z) - TH(pcSL.x + 0.14, pcSL.z))
+      && approxSL(G.skidPos[pSSL + 10] - G.skidPos[pSSL + 7], TH(ccSL.x - 0.14, ccSL.z) - TH(ccSL.x + 0.14, ccSL.z)),
+      'prevDiff=' + (G.skidPos[pSSL + 1] - G.skidPos[pSSL + 4]) + ' currDiff=' + (G.skidPos[pSSL + 10] - G.skidPos[pSSL + 7]));
+    const offsSL = [G.skidPos[pSSL + 1] - 2.03, G.skidPos[pSSL + 4] - 2.03, G.skidPos[pSSL + 7] - 5.03, G.skidPos[pSSL + 10] - 5.03];
+    check('skidlat: the sloped quad actually tilts (spread of per-corner offsets from their end bases exceeds 0.02)',
+      Math.max(...offsSL) - Math.min(...offsSL) > 0.02,
+      'offs=' + offsSL.join(','));
+    const headS2SL = G.skidHead;
+    G.skidWriteQuad(pcSL.x, pcSL.z, ccSL.x, ccSL.z, 1, 0, ccH, 0.14, pcH);
+    const pS2SL = headS2SL * 12;
+    check('skidlat: with end heights set to their centre terrain heights, all four corners sit on terrainHeight(corner)+0.03',
+      approxSL(G.skidPos[pS2SL + 1], TH(pcSL.x - 0.14, pcSL.z) + 0.03)
+      && approxSL(G.skidPos[pS2SL + 4], TH(pcSL.x + 0.14, pcSL.z) + 0.03)
+      && approxSL(G.skidPos[pS2SL + 7], TH(ccSL.x + 0.14, ccSL.z) + 0.03)
+      && approxSL(G.skidPos[pS2SL + 10], TH(ccSL.x - 0.14, ccSL.z) + 0.03),
+      'y=' + [G.skidPos[pS2SL + 1], G.skidPos[pS2SL + 4], G.skidPos[pS2SL + 7], G.skidPos[pS2SL + 10]].join(','));
+    /* expiry: skidTick still parks a laterally conformed quad */
+    G.clearSkid();
+    const headXSL = G.skidHead;
+    G.skidWriteQuad(pcSL.x, pcSL.z, ccSL.x, ccSL.z, 1, 0, 5, 0.14, 2);
+    G.skidTick(G.SKID_LIFE + 0.1);
+    const pXSL = headXSL * 12;
+    check('skidlat: skidTick expiry still parks a sloped quad at y -999 with life 0',
+      liveSL() === 0 && G.skidLife[headXSL] === 0
+      && G.skidPos[pXSL + 1] === -999 && G.skidPos[pXSL + 4] === -999
+      && G.skidPos[pXSL + 7] === -999 && G.skidPos[pXSL + 10] === -999,
+      'live=' + liveSL() + ' life=' + G.skidLife[headXSL]);
+  } else {
+    check('skidlat: sloped prev corners each equal prevY+0.03 plus their own prev-centre delta', false, 'no point');
+    check('skidlat: sloped curr corners each equal y+0.03 plus their own curr-centre delta', false, 'no point');
+    check('skidlat: left-minus-right corner Y diff matches the terrain left-minus-right delta at both ends', false, 'no point');
+    check('skidlat: the sloped quad actually tilts (spread of per-corner offsets from their end bases exceeds 0.02)', false, 'no point');
+    check('skidlat: with end heights set to their centre terrain heights, all four corners sit on terrainHeight(corner)+0.03', false, 'no point');
+    check('skidlat: skidTick expiry still parks a sloped quad at y -999 with life 0', false, 'no point');
+  }
+  /* sloped ground through the shared stepper path (skidStep1, halfW 0.06) */
+  let ptTSL = null, pcTSL = null, ccTSL = null;
+  for (let x = -80; x <= 80 && !ptTSL; x += 1) {
+    for (let z = -80; z <= 80; z += 1) {
+      const pc = { x, z: z - 0.5 }, cc = { x, z: z + 0.5 };
+      const lp = Math.abs(TH(pc.x + 0.06, pc.z) - TH(pc.x - 0.06, pc.z));
+      const lc = Math.abs(TH(cc.x + 0.06, cc.z) - TH(cc.x - 0.06, cc.z));
+      const cen = Math.abs(TH(cc.x, cc.z) - TH(pc.x, pc.z));
+      if (lp > 0.011 && lc > 0.011 && cen > 0.08) { ptTSL = { x, z }; pcTSL = pc; ccTSL = cc; break; }
+    }
+  }
+  check('skidlat: self-validating scan finds a stepper point with meaningful lateral diffs at halfW 0.06 and distinct centres',
+    !!ptTSL, ptTSL ? 'pt=' + ptTSL.x + ',' + ptTSL.z : 'none found');
+  if (ptTSL) {
+    G.clearSkid();
+    const headTSL = G.skidHead;
+    G.skidStep1(ptTSL.x, ptTSL.z + 0.4, 0, TH(pcTSL.x, pcTSL.z));
+    G.skidStep1(ptTSL.x, ptTSL.z + 1.4, 0, TH(ccTSL.x, ccTSL.z));
+    const pTSL = headTSL * 12;
+    check('skidlat: skidStep1 across the sloped point writes exactly one quad',
+      liveSL() === 1 && G.skidHead === (headTSL + 1) % G.SKID_N,
+      'live=' + liveSL() + ' head=' + G.skidHead);
+    check('skidlat: stepper prev corners sit on terrainHeight(corner)+0.03 via the prev-centre reference',
+      approxSL(G.skidPos[pTSL + 1], TH(pcTSL.x - 0.06, pcTSL.z) + 0.03)
+      && approxSL(G.skidPos[pTSL + 4], TH(pcTSL.x + 0.06, pcTSL.z) + 0.03),
+      'got=' + G.skidPos[pTSL + 1] + ',' + G.skidPos[pTSL + 4]);
+    check('skidlat: stepper curr corners sit on terrainHeight(corner)+0.03 via the curr-centre reference and the left-right diff matches terrain',
+      approxSL(G.skidPos[pTSL + 7], TH(ccTSL.x + 0.06, ccTSL.z) + 0.03)
+      && approxSL(G.skidPos[pTSL + 10], TH(ccTSL.x - 0.06, ccTSL.z) + 0.03)
+      && approxSL(G.skidPos[pTSL + 10] - G.skidPos[pTSL + 7], TH(ccTSL.x - 0.06, ccTSL.z) - TH(ccTSL.x + 0.06, ccTSL.z)),
+      'got=' + G.skidPos[pTSL + 7] + ',' + G.skidPos[pTSL + 10]);
+  } else {
+    check('skidlat: skidStep1 across the sloped point writes exactly one quad', false, 'no point');
+    check('skidlat: stepper prev corners sit on terrainHeight(corner)+0.03 via the prev-centre reference', false, 'no point');
+    check('skidlat: stepper curr corners sit on terrainHeight(corner)+0.03 via the curr-centre reference and the left-right diff matches terrain', false, 'no point');
+  }
+  /* cleanup: clearSkid still resets the whole pool after sloped writes */
+  G.clearSkid();
+  check('skidlat: clearSkid leaves no live quads, all prev null, parked at -999 and skidAlpha reset to 0.55',
+    liveSL() === 0 && G.skidPrev === null && G.skid1Prev === null && G.skid4Prev === null && G.skid5Prev === null
+    && G.skidPos[1] === -999 && Array.from(G.skidAlpha).every(v => approxTightSL(v, 0.55)),
+    'live=' + liveSL());
+  /* static pins re-checked: lateral conform adds zero of everything pinned */
+  check('skidlat-pins: 49 InstancedMesh literals', lineHasSL('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasSL('new THREE.InstancedMesh'));
+  check('skidlat-pins: 92 Math.random lines', lineHasSL('Math.random') === 92,
+    'n=' + lineHasSL('Math.random'));
+  check('skidlat-pins: 72 setTimeout lines', lineHasSL('setTimeout') === 72,
+    'n=' + lineHasSL('setTimeout'));
+  check('skidlat-pins: 6 lights',
+    linesSL.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('skidlat-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('skidlat-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('skidlat-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasSL('new THREE.Points(') === 2, 'n=' + lineHasSL('new THREE.Points('));
+  check('skidlat-pins: no em dashes', !html.includes('\u2014'));
+  check('skidlat-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('skidlat-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('skidlat: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSL, consoleProblems.slice(probsSL).join(' | '));
   G.clearSkid();
 }
 
