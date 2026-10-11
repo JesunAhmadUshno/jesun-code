@@ -5249,10 +5249,21 @@ function squashTick(dt){
        sprint-step puffs. Preallocated ring buffer (DUST_N slots, no allocation in
        spawn or tick), deterministic LCG spread (the sfxStep idiom, so
        the random pin never moves), dead particles parked at
-       y = -999. Exactly one new Points object: +1 draw call. --- */
+       y = -999. Exactly one new Points object: +1 draw call.
+       SURFACE-AWARE DUST COLOR v1: the same pool now carries a preallocated
+       per-particle color buffer (dustCol) bound as the geometry color
+       attribute, and the material uses vertexColors with a white base
+       color so each particle shows its true surface color. spawnDust
+       calls surfaceAt(x, z) once per burst and writes the surface palette
+       into dustCol with a small deterministic brightness jitter from the
+       existing dustRand LCG. Palette: grass (0.52, 0.60, 0.34),
+       dirt (0.62, 0.47, 0.30), rock (0.60, 0.61, 0.64),
+       gravel (0.71, 0.69, 0.63), water (0.62, 0.79, 0.90),
+       fallback (0.79, 0.69, 0.55). No new Points object, no new draw call. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
+const dustCol = new Float32Array(DUST_N * 3);
 const dustLife = new Float32Array(DUST_N);
 let dustHead = 0;
 let dustSeed = 987654321;
@@ -5263,7 +5274,9 @@ function dustRand(){
 }
 const dustGeo = new THREE.BufferGeometry();
 const dustPosAttr = new THREE.BufferAttribute(dustPos, 3);
+const dustColAttr = new THREE.BufferAttribute(dustCol, 3);
 dustGeo.setAttribute('position', dustPosAttr);
+dustGeo.setAttribute('color', dustColAttr);
 const dustPts = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d');
@@ -5272,7 +5285,7 @@ const dustPts = (() => {
   gr.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = gr; g.beginPath(); g.arc(32, 32, 32, 0, 7); g.fill();
   const mat = new THREE.PointsMaterial({
-    map: new THREE.CanvasTexture(c), color: 0xc9b18c, size: 0.4,
+    map: new THREE.CanvasTexture(c), color: 0xffffff, vertexColors: true, size: 0.4,
     sizeAttenuation: true, transparent: true, opacity: 0.55, depthWrite: false
   });
   const pts = new THREE.Points(dustGeo, mat);
@@ -5282,18 +5295,30 @@ const dustPts = (() => {
 })();
 function spawnDust(x, y, z, strength){
   const count = Math.max(4, Math.min(12, Math.round(4 + strength * 1.2)));
+  const surf = surfaceAt(x, z);
+  let pr = 0.79, pg = 0.69, pb = 0.55;
+  if (surf === 'grass') { pr = 0.52; pg = 0.60; pb = 0.34; }
+  else if (surf === 'dirt') { pr = 0.62; pg = 0.47; pb = 0.30; }
+  else if (surf === 'rock') { pr = 0.60; pg = 0.61; pb = 0.64; }
+  else if (surf === 'gravel') { pr = 0.71; pg = 0.69; pb = 0.63; }
+  else if (surf === 'water') { pr = 0.62; pg = 0.79; pb = 0.90; }
   for (let n = 0; n < count; n++) {
     const slot = dustHead; dustHead = (dustHead + 1) % DUST_N;
     const ang = dustRand() * Math.PI * 2;
     const radial = 1.2 + dustRand() * 1.4;
     const up = 0.6 + dustRand() * 1.0;
+    const jit = 0.88 + dustRand() * 0.24;
     dustPos[slot * 3] = x; dustPos[slot * 3 + 1] = y; dustPos[slot * 3 + 2] = z;
     dustVel[slot * 3] = Math.cos(ang) * radial;
     dustVel[slot * 3 + 1] = up;
     dustVel[slot * 3 + 2] = Math.sin(ang) * radial;
+    dustCol[slot * 3] = Math.min(1, pr * jit);
+    dustCol[slot * 3 + 1] = Math.min(1, pg * jit);
+    dustCol[slot * 3 + 2] = Math.min(1, pb * jit);
     dustLife[slot] = DUST_LIFE;
   }
   dustPosAttr.needsUpdate = true;
+  dustColAttr.needsUpdate = true;
 }
 function dustTick(dt){
   let changed = false;
@@ -5316,6 +5341,7 @@ function dustTick(dt){
 function clearDust(){
   for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; }
   dustPosAttr.needsUpdate = true;
+  dustColAttr.needsUpdate = true;
 }
 
 /* --- TRAUMA SHAKE v1: one 0..1 trauma accumulator (Vlambeer / Eiserloh
