@@ -341,6 +341,8 @@ globalThis.__R3D = {
   MAG_CONE, MAG_RANGE, FRICTION_CONE, FRICTION_FACTOR, aimFriction, aimTargetDir,
   /* POSITIONAL STEREO-PAN POOL v1: constants + helpers (test-only exposure) */
   PAN_NEAR, PAN_RANGE, posPan, sfxEnemyShotAt, sfxBlipAt, sfxDieAt, sfxSlamAt,
+  /* SURFACE-AWARE FOOTSTEPS v1: constants + helpers (test-only exposure) */
+  STEP_LEN, surfaceAt, sfxStep,
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
@@ -2438,9 +2440,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('food-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('food-static: audio nodes pin (18 osc, 31 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain, +1 poker osc, +1 poker gain)',
+  check('food-static: audio nodes pin (18 osc, 32 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain, +1 poker osc, +1 poker gain, +1 footstep gain)',
     (html.match(/\.createOscillator\(/g) || []).length === 18 &&
-    (html.match(/\.createGain\(/g) || []).length === 31 &&
+    (html.match(/\.createGain\(/g) || []).length === 32 &&
     (html.match(/AudioContext/g) || []).length === 2);
   {
     const foodSrc = html.slice(
@@ -2668,9 +2670,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('farmv1-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('farmv1-static: audio nodes pin (18 osc, 31 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain, +1 poker osc, +1 poker gain)',
+  check('farmv1-static: audio nodes pin (18 osc, 32 gain: +2 motor osc, +1 motor gain, +1 splash gain, +2 rotor osc, +4 rotor gains, +1 piano osc, +2 piano gains, +2 prop osc, +1 prop gain, +1 buffet gain, +1 poker osc, +1 poker gain, +1 footstep gain)',
     (html.match(/\.createOscillator\(/g) || []).length === 18 &&
-    (html.match(/\.createGain\(/g) || []).length === 31 &&
+    (html.match(/\.createGain\(/g) || []).length === 32 &&
     (html.match(/AudioContext/g) || []).length === 2);
   check('farmv1-static: no TODO/FIXME markers', !/\b(TODO|FIXME)\b/.test(html));
   check('farmv1-static: no em dashes', !html.includes('—'));
@@ -4180,9 +4182,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
-  check('theater-static: audio nodes pin unchanged (18 osc, 31 gain: music reuses sfxBlip; poker sting schedules on the audio clock: +1 osc, +1 gain)',
+  check('theater-static: audio nodes pin unchanged (18 osc, 32 gain: music reuses sfxBlip; poker sting schedules on the audio clock: +1 osc, +1 gain, +1 footstep gain)',
     (html.match(/\.createOscillator\(/g) || []).length === 18 &&
-    (html.match(/\.createGain\(/g) || []).length === 31);
+    (html.match(/\.createGain\(/g) || []).length === 32);
   check('theater-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('theater-static: guard coverage (positive chains)',
@@ -4591,9 +4593,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('stadium-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
-  check('stadium-static: audio nodes pin unchanged (18 osc, 31 gain: cheer reuses sfxBlip; poker sting: +1 osc, +1 gain)',
+  check('stadium-static: audio nodes pin unchanged (18 osc, 32 gain: cheer reuses sfxBlip; poker sting: +1 osc, +1 gain, +1 footstep gain)',
     (html.match(/\.createOscillator\(/g) || []).length === 18 &&
-    (html.match(/\.createGain\(/g) || []).length === 31);
+    (html.match(/\.createGain\(/g) || []).length === 32);
   check('stadium-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('stadium-static: guard coverage (positive chains)',
@@ -4736,9 +4738,9 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
   check('amuse-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
-  check('amuse-static: audio nodes pin unchanged (18 osc, 31 gain: chimes reuse sfxBlip; poker sting: +1 osc, +1 gain)',
+  check('amuse-static: audio nodes pin unchanged (18 osc, 32 gain: chimes reuse sfxBlip; poker sting: +1 osc, +1 gain, +1 footstep gain)',
     (html.match(/\.createOscillator\(/g) || []).length === 18 &&
-    (html.match(/\.createGain\(/g) || []).length === 31);
+    (html.match(/\.createGain\(/g) || []).length === 32);
   check('amuse-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
   check('amuse-static: guard coverage (positive chains)',
@@ -7586,7 +7588,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bacc: zero new lights, zero new audio nodes (pins hold)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6
     && (html.match(/\.createOscillator\(/g) || []).length === 18
-    && (html.match(/\.createGain\(/g) || []).length === 31);
+    && (html.match(/\.createGain\(/g) || []).length === 32);
   check('bacc: the shoe seed lives in the fresh hash space (6533, 11)',
     G.BACC_HASH_A === 6533 && G.BACC_HASH_B === 11 && G.baccShoeSeed() !== 0
     && G.BACC_HASH_A !== 6503 && G.BACC_HASH_A !== 6521 && G.BACC_HASH_A !== 6529);
@@ -7871,7 +7873,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('keno: zero new lights, zero new audio nodes (pins hold)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6
     && (html.match(/\.createOscillator\(/g) || []).length === 18
-    && (html.match(/\.createGain\(/g) || []).length === 31);
+    && (html.match(/\.createGain\(/g) || []).length === 32);
   check('keno: the draw seed lives in the fresh hash space (6537, 13)',
     G.KENO_HASH_A === 6537 && G.KENO_HASH_B === 13 && G.kenoDrawSeed() !== 0
     && G.KENO_HASH_A !== 6503 && G.KENO_HASH_A !== 6521 && G.KENO_HASH_A !== 6529 && G.KENO_HASH_A !== 6533);
@@ -10097,7 +10099,7 @@ globalThis.__R3D2 = {
   check('loyal: zero new lights, zero new audio nodes (pins hold)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6
     && (html.match(/\.createOscillator\(/g) || []).length === 18
-    && (html.match(/\.createGain\(/g) || []).length === 31);
+    && (html.match(/\.createGain\(/g) || []).length === 32);
   check('loyal: the seat toggle is the 9-cycle (wheel -> hiroll -> slots)',
     /'wheel' \? 'hiroll' : 'slots'/.test(html));
   check('loyal: the tier table is sane (4 tiers, rising thresholds and rates)',
@@ -11167,6 +11169,144 @@ globalThis.__R3D2 = {
   check('pan-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('pan: the run leaves zero console errors/warnings',
     consoleProblems.length === probsP, consoleProblems.slice(probsP).join(' | '));
+}
+
+/* ================= SURFACE-AWARE FOOTSTEPS v1 =================
+   Distance-driven steps: the on-foot walk block accumulates speed * sdt
+   into P.stepDist and fires one procedural sfxStep per STEP_LEN metres,
+   but only while grounded, alive and moving (speed > 0.8). The surface
+   comes from the pure classifier surfaceAt, which mirrors the world
+   painters: water below WATER_Y (-0.55), rail gravel within 3.4 of
+   TRAIN_TRACK_X, rock above 1.1, patch-noise dirt, else grass. */
+{
+  const probsS = consoleProblems.length;
+  const noThrowS = (fn) => { try { fn(); return true; } catch (e) { return false; } };
+  const setupOnFootS = () => {
+    for (const k in G.keys) G.keys[k] = false;
+    G.touch.jump = false; G.touch.moveX = 0; G.touch.moveY = 0; G.touch.sprint = false;
+    G.P.dead = false; G.P.deadT = 0; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.trauma = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0; G.P.grounded = true;
+    G.P.stepDist = 0; G.P.stepAlt = 0; G.P.stepCount = 0;
+    G.player.position.set(0, groundY(0, 0), 0);
+  };
+  /* constants, fields and helpers exist with the exact design values */
+  check('step: STEP_LEN is 2.3', G.STEP_LEN === 2.3, 'stepLen=' + G.STEP_LEN);
+  check('step: surfaceAt and sfxStep exist', typeof G.surfaceAt === 'function' && typeof G.sfxStep === 'function');
+  check('step: P carries stepDist, stepAlt and stepCount fields',
+    typeof G.P.stepDist === 'number' && typeof G.P.stepAlt === 'number' && typeof G.P.stepCount === 'number');
+  check('step: source carries the STEP_LEN line, the P fields and the wet modifier',
+    html.includes('const STEP_LEN = 2.3;')
+    && html.includes('stepDist: 0, stepAlt: 0, stepCount: 0')
+    && html.includes('WX.wet > 0.5'));
+  /* classifier: grass at spawn (flat, h 0, patch noise 0.5, off the track) */
+  check('step: surfaceAt returns grass at spawn (0,0)', G.surfaceAt(0, 0) === 'grass',
+    'surf=' + G.surfaceAt(0, 0) + ' h=' + groundY(0, 0));
+  /* classifier: water at a verified dip (terrain below WATER_Y) */
+  check('step: verified water point has terrain below WATER_Y (-0.55)',
+    groundY(-100, -86) < -0.55, 'h=' + groundY(-100, -86));
+  check('step: surfaceAt returns water at the verified dip (-100,-86)',
+    G.surfaceAt(-100, -86) === 'water', 'surf=' + G.surfaceAt(-100, -86));
+  /* classifier: programmatic search finds a water point and it classifies */
+  let waterPtS = null;
+  for (let x = -200; x <= 200 && !waterPtS; x += 4)
+    for (let z = -200; z <= 200; z += 4)
+      if (groundY(x, z) < -0.55) { waterPtS = [x, z]; break; }
+  check('step: programmatic search finds a water point and surfaceAt calls it water',
+    !!waterPtS && G.surfaceAt(waterPtS[0], waterPtS[1]) === 'water',
+    waterPtS ? 'pt=' + waterPtS.join(',') : 'none found');
+  /* classifier: the track centre at z 0 sits in a dip, so water wins over
+     gravel there (classifier order); a dry stretch of the same track is gravel */
+  check('step: TRAIN_TRACK_X is 268 and its z 0 point is water (order: water first)',
+    G.TRAIN_TRACK_X === 268 && groundY(G.TRAIN_TRACK_X, 0) < -0.55
+    && G.surfaceAt(G.TRAIN_TRACK_X, 0) === 'water',
+    'trackX=' + G.TRAIN_TRACK_X + ' h=' + groundY(G.TRAIN_TRACK_X, 0)
+    + ' surf=' + G.surfaceAt(G.TRAIN_TRACK_X, 0));
+  check('step: surfaceAt returns gravel on a dry stretch of the track (268,-200)',
+    groundY(G.TRAIN_TRACK_X, -200) >= -0.55
+    && G.surfaceAt(G.TRAIN_TRACK_X, -200) === 'gravel',
+    'h=' + groundY(G.TRAIN_TRACK_X, -200) + ' surf=' + G.surfaceAt(G.TRAIN_TRACK_X, -200));
+  /* classifier: rock at a verified high point away from the track */
+  check('step: surfaceAt returns rock at the verified high point (-100,-20)',
+    groundY(-100, -20) > 1.1 && Math.abs(-100 - G.TRAIN_TRACK_X) >= 3.4
+    && G.surfaceAt(-100, -20) === 'rock',
+    'h=' + groundY(-100, -20) + ' surf=' + G.surfaceAt(-100, -20));
+  /* classifier: dirt at a verified patch-noise point (dry, low, off track) */
+  const dirtNoiseS = Math.sin(11 * 0.9 + (-60) * 1.3) * 0.5 + 0.5;
+  check('step: surfaceAt returns dirt at the verified patch point (11,-60)',
+    groundY(11, -60) >= -0.55 && groundY(11, -60) <= 1.1 && dirtNoiseS > 0.86
+    && G.surfaceAt(11, -60) === 'dirt',
+    'h=' + groundY(11, -60) + ' noise=' + dirtNoiseS + ' surf=' + G.surfaceAt(11, -60));
+  /* classifier: programmatic search also finds rock and dirt points */
+  let rockPtS = null, dirtPtS = null;
+  for (let x = -200; x <= 200 && (!rockPtS || !dirtPtS); x += 2)
+    for (let z = -200; z <= 200 && (!rockPtS || !dirtPtS); z += 2) {
+      if (!rockPtS && G.surfaceAt(x, z) === 'rock') rockPtS = [x, z];
+      if (!dirtPtS && G.surfaceAt(x, z) === 'dirt') dirtPtS = [x, z];
+    }
+  check('step: programmatic search finds rock and dirt points that classify back',
+    !!rockPtS && !!dirtPtS && groundY(rockPtS[0], rockPtS[1]) > 1.1,
+    'rock=' + (rockPtS && rockPtS.join(',')) + ' dirt=' + (dirtPtS && dirtPtS.join(',')));
+  /* voice: every surface name runs in the stub env without throwing,
+     including the sprint and alt-foot variants */
+  check('step: sfxStep does not throw for any surface',
+    ['grass', 'dirt', 'rock', 'gravel', 'water'].every(sf => noThrowS(() => G.sfxStep(sf, false, 0))));
+  check('step: sfxStep does not throw for sprint and alt-foot variants',
+    noThrowS(() => G.sfxStep('grass', true, 1)) && noThrowS(() => G.sfxStep('gravel', true, 0))
+    && noThrowS(() => G.sfxStep('water', false, 1)));
+  /* wiring: walking on foot through the real tick fires steps and toggles */
+  setupOnFootS();
+  const startS = G.player.position.clone();
+  G.keys.KeyW = true; frame(90); G.keys.KeyW = false;
+  check('step: walking on foot increments P.stepCount',
+    G.P.stepCount >= 2, 'steps=' + G.P.stepCount + ' dist=' + G.P.stepDist);
+  check('step: stepAlt toggles once per step (parity matches stepCount)',
+    G.P.stepAlt === (G.P.stepCount % 2), 'alt=' + G.P.stepAlt + ' steps=' + G.P.stepCount);
+  check('step: stepDist stays inside one step length after walking',
+    G.P.stepDist >= 0 && G.P.stepDist < G.STEP_LEN, 'dist=' + G.P.stepDist);
+  check('step: the walk actually moved the player',
+    G.player.position.distanceTo(startS) > 4,
+    'moved=' + G.player.position.distanceTo(startS));
+  /* wiring: sprinting also fires steps */
+  setupOnFootS();
+  G.keys.KeyW = true; G.keys.ShiftLeft = true; frame(60);
+  G.keys.KeyW = false; G.keys.ShiftLeft = false;
+  check('step: sprinting on foot increments P.stepCount',
+    G.P.stepCount >= 2, 'steps=' + G.P.stepCount);
+  /* wiring: no step while stationary */
+  setupOnFootS(); frame(30);
+  check('step: no step while stationary',
+    G.P.stepCount === 0 && G.P.stepAlt === 0 && G.P.stepDist === 0,
+    'steps=' + G.P.stepCount + ' dist=' + G.P.stepDist);
+  /* wiring: no step while airborne (grounded gate), even at walk speed */
+  setupOnFootS();
+  G.P.grounded = false; G.P.vy = 0; G.player.position.y = groundY(0, 0) + 3;
+  G.keys.KeyW = true; frame(10); G.keys.KeyW = false;
+  check('step: no step while airborne',
+    G.P.grounded === false && G.P.stepCount === 0 && G.P.stepDist === 0,
+    'grounded=' + G.P.grounded + ' steps=' + G.P.stepCount + ' dist=' + G.P.stepDist);
+  /* cleanup: back on foot, alive, no input or god mode left behind */
+  setupOnFootS(); G.P.godT = 0; frame(1);
+  /* static pins: the feature adds exactly one gain and nothing else */
+  const linesS = html.split('\n');
+  const lineHasS = sub => linesS.filter(l => l.includes(sub)).length;
+  check('step-pins: 49 InstancedMesh literals', lineHasS('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasS('new THREE.InstancedMesh'));
+  check('step-pins: 92 Math.random lines', lineHasS('Math.random') === 92,
+    'n=' + lineHasS('Math.random'));
+  check('step-pins: 72 setTimeout lines', lineHasS('setTimeout') === 72,
+    'n=' + lineHasS('setTimeout'));
+  check('step-pins: 6 lights',
+    linesS.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('step-pins: 18 osc, 32 gain (+1 footstep gain)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 32,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length
+    + ' gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('step-pins: no em dashes', !html.includes('\u2014'));
+  check('step-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('step: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsS, consoleProblems.slice(probsS).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
