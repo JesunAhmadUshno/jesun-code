@@ -30,6 +30,8 @@ async function main() {
   const startMs = performance.now() - t0;
   check('boot + first tick ok', res.ok, res.error || '');
   const bootHud = res.hud;
+  const seedOp = res.dl.find((c) => c[0] === 'seed');
+  check('seed op emitted on first tick with the world seed', !!seedOp && seedOp[1] === 424242, seedOp ? String(seedOp[1]) : 'missing');
   const ops = res.dl.map((c) => c[0]);
   const chunks = res.dl.filter((c) => c[0] === 'chunk');
   check('exactly 1 chunk op on first tick (one build per tick)', chunks.length === 1, 'got ' + chunks.length);

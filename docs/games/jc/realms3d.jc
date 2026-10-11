@@ -389,6 +389,7 @@ to seed_game with s
     G["hurt"] is 0
     G["calm"] is 0
     G["over"] is false
+    G["seedop"] is 0
     G["tickn"] is 0
     G["lcx"] is 999
     G["lcz"] is 999
@@ -583,6 +584,9 @@ to rebuild_dl
     sundeg is ipart with (G["dayfrac"] * 360)
     elev is sint with (sundeg - 90)
     dayl is clamp with ((elev + 0.12) / 0.5) and 0 and 1
+    if G["seedop"] is 0 then
+        G["seedop"] is 1
+        push ["seed", G["seed0"]] to dl
     push ["env", G["dayfrac"], elev, dayl, G["fogmul"], G["weather"], sundeg] to dl
     note Camera: behind and above the player, looking past them.
     fx is sint with G["hdg"]
