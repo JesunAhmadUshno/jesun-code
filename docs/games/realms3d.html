@@ -6167,8 +6167,8 @@ function clearDust(){
        Honest limit: quads conform along their length via the
        two end heights and across their width via SKID
        LATERAL CONFORM v1 below. Remaining honest limit: a
-       sharp ridge inside one 0.9m segment can still clip
-       slightly.
+       ridge sharper than one split (inside a half segment,
+       ~0.45m) can still clip slightly.
        SKID MARKS EXTENSION v1: motorcycle now lays a single 0.12-wide
        rear-track ribbon from the same pooled mesh (zero new draw calls,
        zero new Mesh), gated by hard lean over 0.25 and speed over 8,
@@ -6225,10 +6225,31 @@ function clearDust(){
        now tilts across its width on a lateral slope, and
        on flat ground every delta is zero so the legacy
        heights are kept exactly. Zero new draw calls, zero
-       new Mesh. Remaining honest limits: a sharp ridge
-       inside one 0.9m segment can still clip slightly,
-       surface classification stays per-quad centre only. --- */
+       new Mesh. Remaining honest limits: a ridge
+       sharper than one split (inside a half segment,
+       ~0.45m) can still clip slightly,
+       surface classification stays per-quad centre only.
+       SKID RIDGE SPLIT v1: skidWriteQuad now samples the
+       segment midpoint before writing. It computes pcH and
+       ccH, then mx and mz at the segment midpoint, midH as
+       terrainHeight at the midpoint and expected as the
+       mean of pcH and ccH. If depth is 0 and the absolute
+       gap between midH and expected exceeds SKID_RIDGE_T
+       (0.12), the writer splits the segment at the
+       midpoint instead of writing one quad: midY is
+       (prevY + y) / 2 + (midH - expected), and it writes
+       two half quads via depth 1 calls, prev to mid at
+       midY and mid to current at y, so the ridge peak is
+       followed instead of clipped. Depth 1 writes never
+       split again, flat ground at or under the threshold
+       writes exactly as before, and the split reuses the
+       same pooled mesh. Zero new draw calls, zero new
+       Mesh. Remaining honest limit: a ridge sharper than
+       one split (inside a half segment, ~0.45m) can
+       still clip slightly, and surface classification
+       stays per-quad centre only. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
+const SKID_RIDGE_T = 0.12;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
 const skidCol = new Float32Array(SKID_N * 4 * 4);
 const skidLife = new Float32Array(SKID_N);
@@ -6273,13 +6294,24 @@ let skid5PLx = 0, skid5PLz = 0, skid5PRx = 0, skid5PRz = 0, skid5PCx = 0, skid5P
 let skid6Prev = null;
 let skid6PrevY = 0;
 let skid6Px = 0, skid6Pz = 0, skid6Cx = 0, skid6Cz = 0;
-function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){
+function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth = 0){
+  const pcH = terrainHeight(px, pz);
+  const ccH = terrainHeight(cx, cz);
+  if (depth === 0) {
+    const mx = (px + cx) / 2, mz = (pz + cz) / 2;
+    const midH = terrainHeight(mx, mz);
+    const expected = (pcH + ccH) / 2;
+    if (Math.abs(midH - expected) > SKID_RIDGE_T) {
+      const midY = (prevY + y) / 2 + (midH - expected);
+      skidWriteQuad(px, pz, mx, mz, lx, lz, midY, halfW, prevY, 1);
+      skidWriteQuad(mx, mz, cx, cz, lx, lz, y, halfW, midY, 1);
+      return;
+    }
+  }
   const slot = skidHead; skidHead = (skidHead + 1) % SKID_N;
   const yy = y + 0.03;
   const py = prevY + 0.03;
   const p = slot * 4 * 3;
-  const pcH = terrainHeight(px, pz);
-  const ccH = terrainHeight(cx, cz);
   const dPL = terrainHeight(px - lx * halfW, pz - lz * halfW) - pcH;
   const dPR = terrainHeight(px + lx * halfW, pz + lz * halfW) - pcH;
   const dCR = terrainHeight(cx + lx * halfW, cz + lz * halfW) - ccH;
