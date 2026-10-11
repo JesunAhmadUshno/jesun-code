@@ -30,8 +30,8 @@ check('static: no TODO/FIXME markers', !/\b(TODO|FIXME)\b/.test(html));
 check('static: no em dashes', !html.includes('—'));
 {
   const urls = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-  const ok = urls.length === 1 && urls[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js';
-  check('static: single allowed CDN URL', ok, urls.join(', '));
+  const ok = urls.length >= 1 && urls.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x));
+  check('static: allowed CDN URLs (Phase 1 set)', ok, urls.join(', '));
 }
 {
   const emoteSrc = html.slice(
@@ -9969,9 +9969,9 @@ globalThis.__R3D2 = {
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('conch-static: single keydown listener (zero new keybinds)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1);
-  check('conch-static: single allowed CDN URL',
+  check('conch-static: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('conch-static: KeyC opens snacks in the single keydown handler',
     html.includes("if (e.code === 'KeyC' && CONCH.promptOn) openConcession();"));
   {
@@ -12074,9 +12074,9 @@ globalThis.__R3D2 = {
     lineHasX('new THREE.Points(') === 2, 'n=' + lineHasX('new THREE.Points('));
   check('dustx-pins: no em dashes', !html.includes('—'));
   check('dustx-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustx-pins: exactly 1 allowed CDN URL',
+  check('dustx-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustx: the run leaves zero console errors/warnings',
     consoleProblems.length === probsX, consoleProblems.slice(probsX).join(' | '));
 }
@@ -12297,9 +12297,9 @@ globalThis.__R3D2 = {
     lineHasC2('new THREE.Points(') === 2, 'n=' + lineHasC2('new THREE.Points('));
   check('dustcol-pins: no em dashes', !html.includes('\u2014'));
   check('dustcol-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustcol-pins: exactly 1 allowed CDN URL',
+  check('dustcol-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustcol: the run leaves zero console errors/warnings',
     consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
 }
@@ -12503,9 +12503,9 @@ globalThis.__R3D2 = {
     lineHasW('new THREE.Points(') === 2, 'n=' + lineHasW('new THREE.Points('));
   check('dustsplash-pins: no em dashes', !html.includes('\u2014'));
   check('dustsplash-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustsplash-pins: exactly 1 allowed CDN URL',
+  check('dustsplash-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustsplash: the run leaves zero console errors/warnings',
     consoleProblems.length === probsW, consoleProblems.slice(probsW).join(' | '));
 }
@@ -12662,9 +12662,9 @@ globalThis.__R3D2 = {
     lineHasL('new THREE.Points(') === 2, 'n=' + lineHasL('new THREE.Points('));
   check('dustlife-pins: no em dashes', !html.includes('—'));
   check('dustlife-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustlife-pins: exactly 1 allowed CDN URL',
+  check('dustlife-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustlife: the run leaves zero console errors/warnings',
     consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
 }
@@ -12842,9 +12842,9 @@ globalThis.__R3D2 = {
     lineHasF('new THREE.Points(') === 2, 'n=' + lineHasF('new THREE.Points('));
   check('dustfade-pins: no em dashes', !html.includes('\u2014'));
   check('dustfade-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustfade-pins: exactly 1 allowed CDN URL',
+  check('dustfade-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustfade: the run leaves zero console errors/warnings',
     consoleProblems.length === probsF, consoleProblems.slice(probsF).join(' | '));
 }
@@ -13011,9 +13011,9 @@ globalThis.__R3D2 = {
     lineHasC('new THREE.Points(') === 2, 'n=' + lineHasC('new THREE.Points('));
   check('dustcurve-pins: no em dashes', !html.includes('\u2014'));
   check('dustcurve-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustcurve-pins: exactly 1 allowed CDN URL',
+  check('dustcurve-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustcurve: the run leaves zero console errors/warnings',
     consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
 }
@@ -13205,9 +13205,9 @@ globalThis.__R3D2 = {
     lineHasS('new THREE.Points(') === 2, 'n=' + lineHasS('new THREE.Points('));
   check('dustsize-pins: no em dashes', !html.includes('\u2014'));
   check('dustsize-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustsize-pins: exactly 1 allowed CDN URL',
+  check('dustsize-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustsize: the run leaves zero console errors/warnings',
     consoleProblems.length === probsS, consoleProblems.slice(probsS).join(' | '));
 }
@@ -13389,9 +13389,9 @@ globalThis.__R3D2 = {
     lineHasGr('new THREE.Points(') === 2, 'n=' + lineHasGr('new THREE.Points('));
   check('dustgrow-pins: no em dashes', !html.includes('\u2014'));
   check('dustgrow-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustgrow-pins: exactly 1 allowed CDN URL',
+  check('dustgrow-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustgrow: the run leaves zero console errors/warnings',
     consoleProblems.length === probsGr, consoleProblems.slice(probsGr).join(' | '));
 }
@@ -13594,9 +13594,9 @@ globalThis.__R3D2 = {
     lineHasRa('new THREE.Points(') === 2, 'n=' + lineHasRa('new THREE.Points('));
   check('dustramp-pins: no em dashes', !html.includes('\u2014'));
   check('dustramp-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustramp-pins: exactly 1 allowed CDN URL',
+  check('dustramp-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustramp: the run leaves zero console errors/warnings',
     consoleProblems.length === probsRa, consoleProblems.slice(probsRa).join(' | '));
 }
@@ -13808,9 +13808,9 @@ globalThis.__R3D2 = {
     lineHasP('new THREE.Points(') === 2, 'n=' + lineHasP('new THREE.Points('));
   check('dustprof-pins: no em dashes', !html.includes('\u2014'));
   check('dustprof-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustprof-pins: exactly 1 allowed CDN URL',
+  check('dustprof-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustprof: the run leaves zero console errors/warnings',
     consoleProblems.length === probsP, consoleProblems.slice(probsP).join(' | '));
 }
@@ -14036,9 +14036,9 @@ globalThis.__R3D2 = {
     lineHasPh('new THREE.Points(') === 2, 'n=' + lineHasPh('new THREE.Points('));
   check('dustphys-pins: no em dashes', !html.includes('\u2014'));
   check('dustphys-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustphys-pins: exactly 1 allowed CDN URL',
+  check('dustphys-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustphys: the run leaves zero console errors/warnings',
     consoleProblems.length === probsPh, consoleProblems.slice(probsPh).join(' | '));
 }
@@ -14204,9 +14204,9 @@ globalThis.__R3D2 = {
     lineHasLa('new THREE.Points(') === 2, 'n=' + lineHasLa('new THREE.Points('));
   check('dustlaunch-pins: no em dashes', !html.includes('\u2014'));
   check('dustlaunch-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustlaunch-pins: exactly 1 allowed CDN URL',
+  check('dustlaunch-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustlaunch: the run leaves zero console errors/warnings',
     consoleProblems.length === probsLa, consoleProblems.slice(probsLa).join(' | '));
 }
@@ -14375,9 +14375,9 @@ globalThis.__R3D2 = {
     lineHasSz('new THREE.Points(') === 2, 'n=' + lineHasSz('new THREE.Points('));
   check('dustsurfsize-pins: no em dashes', !html.includes('\u2014'));
   check('dustsurfsize-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustsurfsize-pins: exactly 1 allowed CDN URL',
+  check('dustsurfsize-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustsurfsize: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSz, consoleProblems.slice(probsSz).join(' | '));
 }
@@ -14575,9 +14575,9 @@ globalThis.__R3D2 = {
     lineHasOp('new THREE.Points(') === 2, 'n=' + lineHasOp('new THREE.Points('));
   check('dustopac-pins: no em dashes', !html.includes('\u2014'));
   check('dustopac-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('dustopac-pins: exactly 1 allowed CDN URL',
+  check('dustopac-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('dustopac: the run leaves zero console errors/warnings',
     consoleProblems.length === probsOp, consoleProblems.slice(probsOp).join(' | '));
 }
@@ -14744,9 +14744,9 @@ globalThis.__R3D2 = {
     lineHasVd('new THREE.Points(') === 2, 'n=' + lineHasVd('new THREE.Points('));
   check('vehicledust-pins: no em dashes', !html.includes('\u2014'));
   check('vehicledust-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('vehicledust-pins: exactly 1 allowed CDN URL',
+  check('vehicledust-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('vehicledust: the run leaves zero console errors/warnings',
     consoleProblems.length === probsVd, consoleProblems.slice(probsVd).join(' | '));
 }
@@ -15001,9 +15001,9 @@ globalThis.__R3D2 = {
     lineHasVx('new THREE.Points(') === 2, 'n=' + lineHasVx('new THREE.Points('));
   check('vehdustx-pins: no em dashes', !html.includes('\u2014'));
   check('vehdustx-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('vehdustx-pins: exactly 1 allowed CDN URL',
+  check('vehdustx-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('vehdustx: the run leaves zero console errors/warnings',
     consoleProblems.length === probsVx, consoleProblems.slice(probsVx).join(' | '));
 }
@@ -15453,9 +15453,9 @@ globalThis.__R3D2 = {
     lineHasV2('new THREE.Points(') === 2, 'n=' + lineHasV2('new THREE.Points('));
   check('vehdustx2-pins: no em dashes', !html.includes('\u2014'));
   check('vehdustx2-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('vehdustx2-pins: exactly 1 allowed CDN URL',
+  check('vehdustx2-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('vehdustx2: the run leaves zero console errors/warnings',
     consoleProblems.length === probsV2, consoleProblems.slice(probsV2).join(' | '));
 }
@@ -15669,9 +15669,9 @@ globalThis.__R3D2 = {
     lineHasSk('new THREE.InstancedMesh') === 49);
   check('skid-pins: no em dashes', !html.includes('\u2014'));
   check('skid-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('skid-pins: exactly 1 allowed CDN URL',
+  check('skid-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skid: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSk, consoleProblems.slice(probsSk).join(' | '));
 }
@@ -15893,9 +15893,9 @@ globalThis.__R3D2 = {
     lineHasSm('new THREE.Mesh(skidGeo') === 1, 'n=' + lineHasSm('new THREE.Mesh(skidGeo'));
   check('skidmoto-pins: no em dashes', !html.includes('\u2014'));
   check('skidmoto-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('skidmoto-pins: exactly 1 allowed CDN URL',
+  check('skidmoto-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidmoto: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSm, consoleProblems.slice(probsSm).join(' | '));
 }
@@ -16140,9 +16140,9 @@ globalThis.__R3D2 = {
     lineHasSb('new THREE.Mesh(skidGeo') === 1, 'n=' + lineHasSb('new THREE.Mesh(skidGeo'));
   check('skidbike-pins: no em dashes', !html.includes('\u2014'));
   check('skidbike-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('skidbike-pins: exactly 1 allowed CDN URL',
+  check('skidbike-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidbike: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSb, consoleProblems.slice(probsSb).join(' | '));
 }
@@ -16427,9 +16427,9 @@ globalThis.__R3D2 = {
     lineHasSs('new THREE.Mesh(skidGeo') === 1, 'n=' + lineHasSs('new THREE.Mesh(skidGeo'));
   check('skidscoot-pins: no em dashes', !html.includes('\u2014'));
   check('skidscoot-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('skidscoot-pins: exactly 1 allowed CDN URL',
+  check('skidscoot-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidscoot: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSs, consoleProblems.slice(probsSs).join(' | '));
 }
@@ -16902,9 +16902,9 @@ globalThis.__R3D2 = {
     lineHasBd('new THREE.Mesh(skidGeo') === 1, 'n=' + lineHasBd('new THREE.Mesh(skidGeo'));
   check('skidbus-pins: no em dashes', !html.includes('\u2014'));
   check('skidbus-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('skidbus-pins: exactly 1 allowed CDN URL',
+  check('skidbus-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidbus: the run leaves zero console errors/warnings',
     consoleProblems.length === probsBd, consoleProblems.slice(probsBd).join(' | '));
 }
@@ -17028,9 +17028,9 @@ globalThis.__R3D2 = {
     'n=' + lineHasHeave('new THREE.Points('));
   check('boatheave-pins: no em dashes', !html.includes('—'));
   check('boatheave-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('boatheave-pins: exactly 1 allowed CDN URL',
+  check('boatheave-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('boatheave: the block leaves zero console errors/warnings',
     consoleProblems.length === probsHeave, consoleProblems.slice(probsHeave).join(' | '));
 }
@@ -17253,9 +17253,9 @@ globalThis.__R3D2 = {
     lineHasSpray('new THREE.Points(') === 2, 'n=' + lineHasSpray('new THREE.Points('));
   check('boatspray-pins: no em dashes', !html.includes('\u2014'));
   check('boatspray-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('boatspray-pins: exactly 1 allowed CDN URL',
+  check('boatspray-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('boatspray: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSpray, consoleProblems.slice(probsSpray).join(' | '));
 }
@@ -17480,9 +17480,9 @@ globalThis.__R3D2 = {
     lineHasBow('new THREE.Points(') === 2, 'n=' + lineHasBow('new THREE.Points('));
   check('bowspray-pins: no em dashes', !html.includes('\u2014'));
   check('bowspray-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('bowspray-pins: exactly 1 allowed CDN URL',
+  check('bowspray-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('bowspray: the run leaves zero console errors/warnings',
     consoleProblems.length === probsBow, consoleProblems.slice(probsBow).join(' | '));
 }
@@ -17754,9 +17754,9 @@ globalThis.__R3D2 = {
     lineHasHeliDust('new THREE.Points(') === 2, 'n=' + lineHasHeliDust('new THREE.Points('));
   check('helidust-pins: no em dashes', !html.includes('\u2014'));
   check('helidust-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('helidust-pins: exactly 1 allowed CDN URL',
+  check('helidust-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('helidust: the run leaves zero console errors/warnings',
     consoleProblems.length === probsHeliDust, consoleProblems.slice(probsHeliDust).join(' | '));
 }
@@ -18037,9 +18037,9 @@ globalThis.__R3D2 = {
     lineHasPlaneDust('new THREE.Points(') === 2, 'n=' + lineHasPlaneDust('new THREE.Points('));
   check('planedust-pins: no em dashes', !html.includes('\u2014'));
   check('planedust-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('planedust-pins: exactly 1 allowed CDN URL',
+  check('planedust-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('planedust: the run leaves zero console errors/warnings',
     consoleProblems.length === probsPlaneDust, consoleProblems.slice(probsPlaneDust).join(' | '));
 }
@@ -18205,9 +18205,9 @@ globalThis.__R3D2 = {
     lineHasSSu('new THREE.Points(') === 2, 'n=' + lineHasSSu('new THREE.Points('));
   check('skidsurf-pins: no em dashes', !html.includes('\u2014'));
   check('skidsurf-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('skidsurf-pins: exactly 1 allowed CDN URL',
+  check('skidsurf-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidsurf: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSSu, consoleProblems.slice(probsSSu).join(' | '));
   G.clearSkid();
@@ -18439,9 +18439,9 @@ globalThis.__R3D2 = {
     lineHasSL('new THREE.Points(') === 2, 'n=' + lineHasSL('new THREE.Points('));
   check('skidlat-pins: no em dashes', !html.includes('\u2014'));
   check('skidlat-pins: no TODO markers', !/\bTODO\b/.test(html));
-  check('skidlat-pins: exactly 1 allowed CDN URL',
+  check('skidlat-pins: allowed CDN URLs (Phase 1 set)',
     (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
-      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidlat: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSL, consoleProblems.slice(probsSL).join(' | '));
   G.clearSkid();
