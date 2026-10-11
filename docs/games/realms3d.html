@@ -1359,7 +1359,7 @@
   <div id="help">
     <b>WASD</b> move &nbsp; <b>MOUSE</b> look &nbsp; <b>SHIFT</b> sprint<br>
     <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>F</b> punch &nbsp; <b>R-CLICK</b> punch &nbsp; <b>ESC</b> release mouse<br>
-    <b>1/2/3</b> weapons &nbsp; <b>N</b> NEW GAME &nbsp; <b>M</b> DMG NUMS
+    <b>1/2/3</b> weapons &nbsp; <b>N</b> NEW GAME &nbsp; <b>M</b> DMG NUMS &nbsp; <b>O</b> SHAKE
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b><br><span id="armorchip">ARMOR <b id="armor">100</b></span></div>
@@ -4576,7 +4576,8 @@ const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0,
             hp: 100, dead: false, deadT: 0, godT: 0, graceT: 0, punchT: 0, punchCd: 0, punchHit: false,
             punchDur: 0.32, combo: 0, comboWin: 0,       // melee polish: 3-punch chain
             hitstop: 0,                                 // melee polish: world-freeze timer
-            shakeT: 0, shakeDur: 0.001, shakeMag: 0 };   // melee polish: camera punch
+            shakeT: 0, shakeDur: 0.001, shakeMag: 0,   // melee polish: camera punch
+            trauma: 0, traumaT: 0, traumaOn: true };   // trauma shake: accumulator, noise clock, accessibility gate
 
 /* --- procedural skin texture: tone variation, pores (64px, iOS-safe) --- */
 function makeSkinTex() {
@@ -5056,6 +5057,18 @@ function punchConnectFX(step) {
   player.position.x -= fx * rec;
   player.position.z -= fz * rec;
 }
+
+/* --- TRAUMA SHAKE v1: one 0..1 trauma accumulator (Vlambeer / Eiserloh
+       lineage). Shake intensity is trauma squared, so small hits stay
+       subtle and big hits slam; the offset is smooth deterministic noise,
+       never random jitter. Decays linearly on real time in the camera
+       update (below), so it drains even during hit-stop. KeyO toggles it
+       for accessibility; toggling off clears any live trauma. --- */
+const TRAUMA_DECAY = 1.4;
+const TRAUMA_MAX_OFF = 0.30;
+function addTrauma(a){ if(!P.traumaOn) return; P.trauma = Math.min(1, P.trauma + a); }
+function toggleTrauma(){ P.traumaOn = !P.traumaOn; if(!P.traumaOn) P.trauma = 0; toast('SHAKE ' + (P.traumaOn ? 'ON' : 'OFF')); }
+function traumaNoise(t){ return (Math.sin(t*1.9) + Math.sin(t*3.7+1.3)*0.6 + Math.sin(t*8.3+4.1)*0.3) / 1.9; }
 
 /* --- rifle: box-built, held at the right side, points where the player faces --- */
 const gun = new THREE.Group();
@@ -5553,6 +5566,8 @@ function damageEnemy(e, d) {
        Non-killing hits set nothing: per-hit freezes feel laggy. */
     const hsScaled = e.type === 'brute' ? 0.09 : e.type === 'shooter' ? 0.06 : 0.05;
     P.hitstop = Math.min(0.10, Math.max(P.hitstop, hsScaled));
+    /* TRAUMA SHAKE v1: kill-only, scaled like the hit-stop above */
+    addTrauma(e.type === 'brute' ? 0.30 : e.type === 'shooter' ? 0.22 : 0.18);
     /* enemy variety reward: brutes pay best, shooters mid, rushers base */
     const pay = e.type === 'brute' ? 60 : e.type === 'shooter' ? 35 : 25;
     kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type, pay);
@@ -5692,12 +5707,13 @@ function hurtPlayer(d) {
   P.hp -= d;
   /* DAMAGE NUMBERS v1: one pooled floater per taken hit, red */
   dmgNumSpawn('player', player.position.x, player.position.y + 1.3, player.position.z, d, 'taken');
+  addTrauma(0.35);   /* TRAUMA SHAKE v1: a real HP loss shakes; armor-absorbed hits returned above */
   sfxHurt();
   emoteCancel();   // taking a hit cancels the emote
   dmgV = 0.85;
   diffRecordDamage(d);   // dynamic difficulty: rolling damage-taken stat
   updateHpHUD();
-  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; diffRecordDeath();
+  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; P.trauma = 0; diffRecordDeath();
     P.graceT = 0; graceChipEl.style.display = 'none';   // spawn grace never survives death
     const lost = Math.floor(cash * 0.15); cash -= lost; updateCashHUD();   // Phase 5 bank: only carried cash is seized; the bank is never touched
     toast('ELIMINATED - $' + lost + ' LOST'); missionOnDeath();
@@ -6386,6 +6402,7 @@ function damageCop(idx, d) {
     c.state = 'dead'; c.deadT = 0; c.respawnT = 8;
     /* RANGED HIT-STOP v1: same kill-only rule as damageEnemy, flat 0.06 */
     P.hitstop = Math.min(0.10, Math.max(P.hitstop, 0.06));
+    addTrauma(0.22);   /* TRAUMA SHAKE v1: kill-only, flat like the hit-stop above */
     c.eyeMat.color.setHex(COP_CFG.eye);
     copAimLine.visible = false;
     kills++; updateCombatHUD();
@@ -14964,6 +14981,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Digit3') selectWeapon('smg');
   if (e.code === 'KeyN') newGame();                                   // wipe save, start fresh
   if (e.code === 'KeyM') toggleDmgNums();                            // damage numbers on/off (desktop; see #help)
+  if (e.code === 'KeyO') toggleTrauma();                             // trauma shake on/off (desktop; see #help)
   const pk = PIANO_KEYCODES.indexOf(e.code);                          // Phase 5 pianos: A/S/D/F/G/H/J/K play notes while seated
   if (pk >= 0 && PIANO.playing) pianoNote(pk);
   else {
@@ -25078,6 +25096,16 @@ function tick() {
     camera.position.x += (Math.random() * 2 - 1) * m;
     camera.position.y += (Math.random() * 2 - 1) * m * 0.6;
     camera.position.z += (Math.random() * 2 - 1) * m;
+  }
+  /* --- TRAUMA SHAKE v1: same guard chain as the melee punch above, so it
+         applies in exactly the same camera states. Decay uses real dt (not
+         sdt), so trauma drains during hit-stop. The offset is trauma
+         squared times TRAUMA_MAX_OFF times smooth noise; camera.position
+         is re-copied from camPos every frame, so no drift accumulates. --- */
+  if (P.trauma > 0 && !CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
+    P.traumaT += dt * 30; P.trauma = Math.max(0, P.trauma - TRAUMA_DECAY * dt);
+    const ts = P.trauma * P.trauma * TRAUMA_MAX_OFF;
+    if (ts > 0.0001) { camera.position.x += traumaNoise(P.traumaT) * ts; camera.position.y += traumaNoise(P.traumaT + 57.3) * ts * 0.6; camera.position.z += traumaNoise(P.traumaT + 113.7) * ts; }
   }
   camera.lookAt(lookTarget);
 

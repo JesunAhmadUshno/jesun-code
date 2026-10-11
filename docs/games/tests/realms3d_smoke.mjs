@@ -335,6 +335,9 @@ globalThis.__R3D = {
   get dmgNumOn() { return dmgNumOn; }, set dmgNumOn(v) { dmgNumOn = v; },
   /* COYOTE + JUMP BUFFER v1: jump-feel constants + touch state (test-only exposure) */
   COYOTE_T, JUMP_BUF_T, JUMP_V, GRAV, touch,
+  /* TRAUMA SHAKE v1: trauma helpers + constants (test-only exposure) */
+  addTrauma, toggleTrauma, traumaNoise, TRAUMA_DECAY, TRAUMA_MAX_OFF,
+  get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
 `;
 writeFileSync(BOOT, src);
@@ -10679,6 +10682,175 @@ globalThis.__R3D2 = {
   check('coyote-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('coyote: the run leaves zero console errors/warnings',
     consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
+}
+
+/* ================= TRAUMA SHAKE v1 =================
+   Trauma is a 0..1 accumulator: addTrauma stacks and clamps, KeyO toggle
+   gates and clears it, kills and real HP loss feed it (armor-absorbed hits
+   and non-kills feed nothing), death clears it, and the camera applies
+   trauma squared times TRAUMA_MAX_OFF as smooth noise, decaying on real
+   dt so it drains during hit-stop. */
+{
+  const probsT = consoleProblems.length;
+  const DT = 16.667 / 1000;
+  const approx = (a, b, tol) => Math.abs(a - b) <= tol;
+  const resetT = () => {
+    if (!G.P.traumaOn) G.toggleTrauma();
+    G.P.trauma = 0; G.P.traumaT = 0; G.P.hitstop = 0; G.P.shakeT = 0;
+    G.P.dead = false; G.P.deadT = 0; G.P.hp = 100; G.P.godT = 0; G.P.graceT = 0;
+    G.shopArmor = 0;
+  };
+  const byTypeT = t => G.enemies.find(e => e.type === t);
+  const reviveT = (e, hp) => {
+    e.state = 'wander'; e.deadT = 0; e.hp = hp;
+    e.group.position.set(G.player.position.x, G.player.position.y, G.player.position.z);
+  };
+  const setupOnFootT = () => {
+    for (const k in G.keys) G.keys[k] = false;
+    G.touch.jump = false; G.touch.moveX = 0; G.touch.moveY = 0; G.touch.sprint = false;
+    resetT();
+    G.P.godT = 9999; G.P.vel.set(0, 0, 0); G.P.vy = 0; G.P.grounded = true;
+    G.player.position.set(0, groundY(0, 0), 0);
+  };
+  /* constants and default state */
+  check('trauma: constants TRAUMA_DECAY and TRAUMA_MAX_OFF are 1.4 and 0.30',
+    G.TRAUMA_DECAY === 1.4 && G.TRAUMA_MAX_OFF === 0.30,
+    'decay=' + G.TRAUMA_DECAY + ' maxOff=' + G.TRAUMA_MAX_OFF);
+  /* boot state is a source fact here: by this point in the suite, earlier
+     combat sections have fed trauma through real gameplay, so the runtime
+     value is no longer the boot value; the P literal pins the start */
+  check('trauma: P starts at 0 with shake ON (P literal) and carries a numeric noise clock',
+    html.includes('trauma: 0, traumaT: 0, traumaOn: true')
+    && G.P.traumaOn === true && typeof G.P.trauma === 'number' && typeof G.P.traumaT === 'number',
+    'on=' + G.P.traumaOn + ' trauma=' + G.P.trauma + ' t=' + G.P.traumaT);
+  check('trauma: source carries the KeyO keybind and the help text',
+    html.includes('<b>O</b> SHAKE') && html.includes("e.code === 'KeyO'"));
+  /* addTrauma: adds, stacks, clamps */
+  resetT(); G.addTrauma(0.3);
+  check('trauma: addTrauma adds', approx(G.P.trauma, 0.3, 1e-9), 'trauma=' + G.P.trauma);
+  G.addTrauma(0.25);
+  check('trauma: stacking two adds sums (0.3 + 0.25 = 0.55)',
+    approx(G.P.trauma, 0.55, 1e-9), 'trauma=' + G.P.trauma);
+  G.addTrauma(0.9);
+  check('trauma: addTrauma clamps at 1', G.P.trauma === 1, 'trauma=' + G.P.trauma);
+  /* toggle: off clears and blocks, on re-enables */
+  G.toggleTrauma();
+  check('trauma: toggle OFF clears trauma and reports SHAKE OFF',
+    G.P.traumaOn === false && G.P.trauma === 0 && G.toastEl.textContent === 'SHAKE OFF',
+    'on=' + G.P.traumaOn + ' trauma=' + G.P.trauma + ' toast=' + G.toastEl.textContent);
+  G.addTrauma(0.5);
+  check('trauma: addTrauma is blocked while OFF', G.P.trauma === 0, 'trauma=' + G.P.trauma);
+  G.toggleTrauma();
+  check('trauma: toggle ON re-enables and reports SHAKE ON',
+    G.P.traumaOn === true && G.toastEl.textContent === 'SHAKE ON',
+    'on=' + G.P.traumaOn + ' toast=' + G.toastEl.textContent);
+  G.addTrauma(0.2);
+  check('trauma: adds work again after toggle ON', approx(G.P.trauma, 0.2, 1e-9),
+    'trauma=' + G.P.trauma);
+  /* hurtPlayer: real HP loss adds 0.35, armor-absorbed adds nothing */
+  resetT(); G.hurtPlayer(10);
+  check('trauma: hurtPlayer real HP loss adds 0.35',
+    approx(G.P.trauma, 0.35, 1e-9) && G.P.hp === 90,
+    'trauma=' + G.P.trauma + ' hp=' + G.P.hp);
+  resetT(); G.shopArmor = 100; G.hurtPlayer(10);
+  check('trauma: armor-absorbed hit adds 0 and loses no HP',
+    G.P.trauma === 0 && G.P.hp === 100 && G.shopArmor === 90,
+    'trauma=' + G.P.trauma + ' hp=' + G.P.hp + ' armor=' + G.shopArmor);
+  /* damageEnemy: non-kills add nothing, kills add the per-type amount */
+  const eNK2 = byTypeT('shooter'); reviveT(eNK2, 100); resetT();
+  G.damageEnemy(eNK2, 5);
+  check('trauma: enemy non-kill adds 0',
+    G.P.trauma === 0 && eNK2.state !== 'dead', 'trauma=' + G.P.trauma);
+  const eR2 = byTypeT('rusher'); reviveT(eR2, 1); resetT();
+  G.damageEnemy(eR2, 999);
+  const trRusher = G.P.trauma;
+  check('trauma: rusher kill adds 0.18',
+    approx(trRusher, 0.18, 1e-9) && eR2.state === 'dead', 'trauma=' + trRusher);
+  const eS2 = byTypeT('shooter'); reviveT(eS2, 1); resetT();
+  G.damageEnemy(eS2, 999);
+  check('trauma: shooter kill adds 0.22',
+    approx(G.P.trauma, 0.22, 1e-9) && eS2.state === 'dead', 'trauma=' + G.P.trauma);
+  const eB2 = byTypeT('brute'); reviveT(eB2, 1); resetT();
+  G.damageEnemy(eB2, 999);
+  const trBrute = G.P.trauma;
+  check('trauma: brute kill adds 0.30',
+    approx(trBrute, 0.30, 1e-9) && eB2.state === 'dead', 'trauma=' + trBrute);
+  check('trauma: brute kill trauma beats rusher kill trauma', trBrute > trRusher,
+    'brute=' + trBrute + ' rusher=' + trRusher);
+  /* damageCop: non-kills add nothing, kills add 0.22 */
+  const copT = G.cops[0];
+  copT.active = true; copT.state = 'chase'; copT.hp = 100;
+  copT.group.position.set(G.player.position.x, G.player.position.y, G.player.position.z);
+  resetT(); G.damageCop(copT.idx, 5);
+  check('trauma: cop non-kill adds 0',
+    G.P.trauma === 0 && copT.state !== 'dead', 'trauma=' + G.P.trauma);
+  copT.hp = 1; G.damageCop(copT.idx, 999);
+  check('trauma: cop kill adds 0.22',
+    approx(G.P.trauma, 0.22, 1e-9) && copT.state === 'dead', 'trauma=' + G.P.trauma);
+  /* trauma squared law: at trauma 0.5 the applied per-axis offset is
+     bounded by a quarter of TRAUMA_MAX_OFF (0.5 squared), captured from
+     the real camera after the camera has settled on a stationary player */
+  setupOnFootT(); G.P.trauma = 0;
+  frame(60);
+  G.P.shakeT = 0; G.P.traumaT = 0; G.P.trauma = 0;
+  frame(1);
+  const baseCam = G.camera.position.clone();
+  G.P.trauma = 0.5; G.P.traumaT = 0;
+  frame(1);
+  const offX = G.camera.position.x - baseCam.x;
+  const offY = G.camera.position.y - baseCam.y;
+  const offZ = G.camera.position.z - baseCam.z;
+  const quarter = 0.25 * G.TRAUMA_MAX_OFF;
+  check('trauma: trauma^2 law bounds the applied offset at trauma 0.5 to a quarter of full',
+    Math.abs(offX) <= quarter + 0.002 && Math.abs(offZ) <= quarter + 0.002
+    && Math.abs(offY) <= 0.6 * quarter + 0.002,
+    'off=' + offX.toFixed(4) + ',' + offY.toFixed(4) + ',' + offZ.toFixed(4));
+  check('trauma: the camera offset is actually applied at trauma 0.5',
+    Math.hypot(offX, offY, offZ) > 0.005,
+    'mag=' + Math.hypot(offX, offY, offZ).toFixed(4));
+  /* decay: 30 frames is about 0.5s of real dt; 1.4 * 0.5 = 0.7 drained */
+  setupOnFootT(); G.P.trauma = 1;
+  frame(30);
+  check('trauma: decay drains about 0.7 over 0.5s of real dt (1 -> about 0.3)',
+    approx(G.P.trauma, 0.3, 0.06), 'trauma=' + G.P.trauma);
+  /* decay uses real dt, not sdt: it still drains while hit-stop freezes sdt */
+  setupOnFootT(); G.P.trauma = 0.8; G.P.hitstop = 0.5;
+  frame(1);
+  check('trauma: decay runs during hit-stop (real dt drain)',
+    approx(G.P.trauma, 0.8 - G.TRAUMA_DECAY * DT, 0.004) && G.P.hitstop > 0,
+    'trauma=' + G.P.trauma + ' hitstop=' + G.P.hitstop);
+  G.P.hitstop = 0;
+  /* death clears trauma */
+  resetT(); G.P.trauma = 0.2; G.hurtPlayer(9999);
+  check('trauma: death clears trauma',
+    G.P.dead === true && G.P.trauma === 0, 'trauma=' + G.P.trauma + ' dead=' + G.P.dead);
+  G.P.deadT = 1.1; frame(15);
+  check('trauma: redeploy hook revives the player after the death check',
+    !G.P.dead && G.P.hp === 100, 'dead=' + G.P.dead + ' hp=' + G.P.hp);
+  /* noise: deterministic and bounded */
+  const noiseSamples = [0, 1.7, 12.34, 57.3, 100, 999.9];
+  check('trauma: traumaNoise is deterministic',
+    noiseSamples.every(t => G.traumaNoise(t) === G.traumaNoise(t)));
+  check('trauma: traumaNoise stays bounded (|n| <= 1.05)',
+    noiseSamples.every(t => Math.abs(G.traumaNoise(t)) <= 1.05)
+    && Array.from({ length: 200 }, (_, i) => i * 0.37).every(t => Math.abs(G.traumaNoise(t)) <= 1.05));
+  /* cleanup: no trauma, freeze, or god mode left behind */
+  setupOnFootT(); G.P.godT = 0; G.P.trauma = 0; frame(1);
+  /* static pins still hold: the feature adds zero of each */
+  const linesT = html.split('\n');
+  const lineHasT = sub => linesT.filter(l => l.includes(sub)).length;
+  check('trauma-pins: 49 InstancedMesh literals', lineHasT('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasT('new THREE.InstancedMesh'));
+  check('trauma-pins: 92 Math.random lines', lineHasT('Math.random') === 92,
+    'n=' + lineHasT('Math.random'));
+  check('trauma-pins: 72 setTimeout lines', lineHasT('setTimeout') === 72,
+    'n=' + lineHasT('setTimeout'));
+  check('trauma-pins: 6 lights',
+    linesT.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('trauma-pins: no em dashes', !html.includes('—'));
+  check('trauma-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('trauma: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsT, consoleProblems.slice(probsT).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
