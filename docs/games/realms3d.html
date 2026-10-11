@@ -5758,9 +5758,14 @@ function clearDust(){
        vertexAlphas gives per-quad alpha like dust. Marks fade over
        SKID_LIFE seconds in skidTick and are cleared by clearSkid on a
        new game only, so marks outlive the driver briefly on death.
-       Honest limit: car only in v1, other vehicles do not lay marks
-       yet; marks are flat quads at ground+0.03 so steep slopes may
-       clip slightly. --- */
+       Honest limit: marks are flat quads at ground+0.03 so steep
+       slopes may clip slightly.
+       SKID MARKS EXTENSION v1: motorcycle now lays a single 0.12-wide
+       rear-track ribbon from the same pooled mesh (zero new draw calls,
+       zero new Mesh), gated by hard lean over 0.25 and speed over 8,
+       rear 0.9 behind centre. New honest limit: bus, fire truck,
+       bicycle, scooter and horse still lay no marks yet; flat-quad
+       slope clipping limit still applies. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
 const skidCol = new Float32Array(SKID_N * 4 * 4);
@@ -5786,14 +5791,16 @@ scene.add(skidMesh);
 let skidHead = 0;
 let skidPrev = null;
 let skidPLx = 0, skidPLz = 0, skidPRx = 0, skidPRz = 0, skidPCx = 0, skidPCz = 0;
-function skidWriteQuad(px, pz, cx, cz, lx, lz, y){
+let skid1Prev = null;
+let skid1Px = 0, skid1Pz = 0, skid1Cx = 0, skid1Cz = 0;
+function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){
   const slot = skidHead; skidHead = (skidHead + 1) % SKID_N;
   const yy = y + 0.03;
   const p = slot * 4 * 3;
-  skidPos[p] = px - lx * 0.14; skidPos[p + 1] = yy; skidPos[p + 2] = pz - lz * 0.14;
-  skidPos[p + 3] = px + lx * 0.14; skidPos[p + 4] = yy; skidPos[p + 5] = pz + lz * 0.14;
-  skidPos[p + 6] = cx + lx * 0.14; skidPos[p + 7] = yy; skidPos[p + 8] = cz + lz * 0.14;
-  skidPos[p + 9] = cx - lx * 0.14; skidPos[p + 10] = yy; skidPos[p + 11] = cz - lz * 0.14;
+  skidPos[p] = px - lx * halfW; skidPos[p + 1] = yy; skidPos[p + 2] = pz - lz * halfW;
+  skidPos[p + 3] = px + lx * halfW; skidPos[p + 4] = yy; skidPos[p + 5] = pz + lz * halfW;
+  skidPos[p + 6] = cx + lx * halfW; skidPos[p + 7] = yy; skidPos[p + 8] = cz + lz * halfW;
+  skidPos[p + 9] = cx - lx * halfW; skidPos[p + 10] = yy; skidPos[p + 11] = cz - lz * halfW;
   const c = slot * 4 * 4;
   for (let v = 0; v < 4; v++) {
     skidCol[c + v * 4] = 0.07; skidCol[c + v * 4 + 1] = 0.07; skidCol[c + v * 4 + 2] = 0.07; skidCol[c + v * 4 + 3] = 0.55;
@@ -5818,7 +5825,23 @@ function skidStep(x, z, heading, y){
   skidPosAttr.needsUpdate = true;
   skidColAttr.needsUpdate = true;
 }
+function skidStep1(x, z, heading, y){
+  const fx = Math.sin(heading), fz = Math.cos(heading);
+  const lx = fz, lz = -fx;
+  const rx = x - fx * 0.9, rz = z - fz * 0.9;
+  if (skid1Prev === null) {
+    skid1Px = rx; skid1Pz = rz; skid1Cx = rx; skid1Cz = rz; skid1Prev = 1;
+    return;
+  }
+  const dx = rx - skid1Cx, dz = rz - skid1Cz;
+  if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;
+  skidWriteQuad(skid1Px, skid1Pz, rx, rz, lx, lz, y, 0.06);
+  skid1Px = rx; skid1Pz = rz; skid1Cx = rx; skid1Cz = rz;
+  skidPosAttr.needsUpdate = true;
+  skidColAttr.needsUpdate = true;
+}
 function skidReset(){ skidPrev = null; }
+function skidReset1(){ skid1Prev = null; }
 function skidTick(dt){
   let colChanged = false, posChanged = false;
   for (let i = 0; i < SKID_N; i++) {
@@ -5845,6 +5868,7 @@ function clearSkid(){
     for (let v = 0; v < 4; v++) { skidPos[p + v * 3 + 1] = -999; skidCol[c + v * 4 + 3] = 0; }
   }
   skidPrev = null;
+  skid1Prev = null;
   skidPosAttr.needsUpdate = true;
   skidColAttr.needsUpdate = true;
 }
@@ -20701,6 +20725,9 @@ function bikeUpdate(sdt) {
   } else {
     BIKE.dustDist = 0;
   }
+
+  // ---- SKID MARKS EXTENSION v1: single-track skid while hard-leaning ----
+  if (Math.abs(BIKE.lean) > 0.25 && Math.abs(BIKE.speed) > 8) skidStep1(BIKE.pos.x, BIKE.pos.z, BIKE.heading, BIKE.pos.y); else skidReset1();
 
   // ---- engine audio: the car's oscillator stack, pitched higher for the bike.
   //      Nodes are created once by ensureEngineAudio; the tick only retunes. ----
