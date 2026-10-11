@@ -6195,16 +6195,19 @@ function clearDust(){
        0.4 and speed over 8 (canter and gallop only), rear 0.5 behind
        centre, dismount resets the stepper.
        SURFACE-AWARE SKID COLOR v1: skidWriteQuad classifies
-       once per quad via surfaceAt at the quad centre and
-       writes a per-surface colour: rock 0.07, 0.07, 0.07 at
+       surfaceAt twice, once at the previous end centre and
+       once at the current end centre, and writes a
+       per-surface colour per end: rock 0.07, 0.07, 0.07 at
        peak 0.55; gravel 0.13, 0.12, 0.10 at peak 0.50; dirt
        0.16, 0.11, 0.06 at peak 0.48; grass 0.10, 0.13, 0.05
        at peak 0.38; water 0.20, 0.22, 0.20 at peak 0.12;
        fallback 0.07, 0.07, 0.07 at peak 0.55. skidAlpha
-       stores the per-slot peak and skidTick fades from it.
-       Zero new draw calls, zero new Mesh. New honest limit:
-       classification is per-quad centre only so a quad
-       crossing a surface boundary takes one surface.
+       stores the per-slot max peak and skidTick fades per
+       vertex from skidPeakV. Zero new draw calls, zero new
+       Mesh. New honest limit: classification is per-end
+       only, so a surface change inside one segment blends
+       linearly across the quad instead of snapping at the
+       exact boundary point.
        New honest limit: flat-quad slope clipping limit still applies.
        SKID SLOPE CONFORM v1: skidWriteQuad now takes a
        prevY argument: previous-end corners now written at
@@ -6228,7 +6231,7 @@ function clearDust(){
        new Mesh. Remaining honest limits: a ridge
        sharper than one split (inside a half segment,
        ~0.45m) can still clip slightly,
-       surface classification stays per-quad centre only.
+       surface classification is per-end only.
        SKID RIDGE SPLIT v1: skidWriteQuad now samples the
        segment midpoint before writing. It computes pcH and
        ccH, then mx and mz at the segment midpoint, midH as
@@ -6247,7 +6250,29 @@ function clearDust(){
        Mesh. Remaining honest limit: a ridge sharper than
        one split (inside a half segment, ~0.45m) can
        still clip slightly, and surface classification
-       stays per-quad centre only. --- */
+       is per-end only.
+       SKID PER-END SURFACE COLOR v1: skidWriteQuad now
+       classifies surfaceAt twice per quad, at the
+       previous end centre (px, pz) and at the current
+       end centre (cx, cz), using the same per-surface
+       table as SURFACE-AWARE SKID COLOR v1 above.
+       Vertices 0 and 1 (the previous end) get the
+       previous-end colour and peak, vertices 2 and 3
+       (the current end) get the current-end colour and
+       peak, so GPU interpolation blends across a
+       boundary-crossing quad. Per-vertex peaks live in
+       the preallocated skidPeakV array (SKID_N * 4) and
+       skidTick fades each vertex from its own peak;
+       skidAlpha keeps the per-slot max peak for legacy
+       readers and clearSkid resets skidPeakV to 0.55.
+       Ridge-split depth 1 halves classify their own
+       ends the same way: the shared midpoint yields the
+       same surface on both sides. Zero new draw calls,
+       zero new Mesh. Remaining honest limit:
+       classification is per-end only, so a surface
+       change inside one segment blends linearly across
+       the quad instead of snapping at the exact boundary
+       point. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
 const SKID_RIDGE_T = 0.12;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
@@ -6256,6 +6281,7 @@ const skidLife = new Float32Array(SKID_N);
 const skidLifeMax = new Float32Array(SKID_N);
 skidLifeMax.fill(SKID_LIFE);
 const skidAlpha = new Float32Array(SKID_N); skidAlpha.fill(0.55);
+const skidPeakV = new Float32Array(SKID_N * 4); skidPeakV.fill(0.55);
 for (let i = 0; i < SKID_N * 4; i++) skidPos[i * 3 + 1] = -999;
 const skidIdx = new Uint32Array(SKID_N * 6);
 for (let q = 0; q < SKID_N; q++) {
@@ -6320,17 +6346,23 @@ function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth
   skidPos[p + 3] = px + lx * halfW; skidPos[p + 4] = py + dPR; skidPos[p + 5] = pz + lz * halfW;
   skidPos[p + 6] = cx + lx * halfW; skidPos[p + 7] = yy + dCR; skidPos[p + 8] = cz + lz * halfW;
   skidPos[p + 9] = cx - lx * halfW; skidPos[p + 10] = yy + dCL; skidPos[p + 11] = cz - lz * halfW;
-  const surf = surfaceAt((px + cx) / 2, (pz + cz) / 2);
-  let sr = 0.07, sg = 0.07, sb = 0.07, peak = 0.55;
-  if (surf === 'gravel') { sr = 0.13; sg = 0.12; sb = 0.10; peak = 0.50; }
-  else if (surf === 'dirt') { sr = 0.16; sg = 0.11; sb = 0.06; peak = 0.48; }
-  else if (surf === 'grass') { sr = 0.10; sg = 0.13; sb = 0.05; peak = 0.38; }
-  else if (surf === 'water') { sr = 0.20; sg = 0.22; sb = 0.20; peak = 0.12; }
+  const surfPrev = surfaceAt(px, pz);
+  const surfCurr = surfaceAt(cx, cz);
   const c = slot * 4 * 4;
-  for (let v = 0; v < 4; v++) {
-    skidCol[c + v * 4] = sr; skidCol[c + v * 4 + 1] = sg; skidCol[c + v * 4 + 2] = sb; skidCol[c + v * 4 + 3] = peak;
+  for (let e = 0; e < 2; e++) {
+    const surf = e === 0 ? surfPrev : surfCurr;
+    let sr = 0.07, sg = 0.07, sb = 0.07, peak = 0.55;
+    if (surf === 'gravel') { sr = 0.13; sg = 0.12; sb = 0.10; peak = 0.50; }
+    else if (surf === 'dirt') { sr = 0.16; sg = 0.11; sb = 0.06; peak = 0.48; }
+    else if (surf === 'grass') { sr = 0.10; sg = 0.13; sb = 0.05; peak = 0.38; }
+    else if (surf === 'water') { sr = 0.20; sg = 0.22; sb = 0.20; peak = 0.12; }
+    for (let k = 0; k < 2; k++) {
+      const v = e * 2 + k;
+      skidCol[c + v * 4] = sr; skidCol[c + v * 4 + 1] = sg; skidCol[c + v * 4 + 2] = sb; skidCol[c + v * 4 + 3] = peak;
+      skidPeakV[slot * 4 + v] = peak;
+    }
   }
-  skidAlpha[slot] = peak;
+  skidAlpha[slot] = Math.max(skidPeakV[slot * 4], skidPeakV[slot * 4 + 2]);
   skidLife[slot] = SKID_LIFE; skidLifeMax[slot] = SKID_LIFE;
 }
 function skidStep4(x, z, heading, y){
@@ -6472,9 +6504,8 @@ function skidTick(dt){
       for (let v = 0; v < 4; v++) { skidPos[p + v * 3 + 1] = -999; skidCol[c + v * 4 + 3] = 0; }
       colChanged = true; posChanged = true; continue;
     }
-    const a = skidAlpha[i] * Math.max(0, skidLife[i] / SKID_LIFE);
     const c = i * 4 * 4;
-    for (let v = 0; v < 4; v++) skidCol[c + v * 4 + 3] = a;
+    for (let v = 0; v < 4; v++) skidCol[c + v * 4 + 3] = skidPeakV[i * 4 + v] * Math.max(0, skidLife[i] / SKID_LIFE);
     colChanged = true;
   }
   if (colChanged) skidColAttr.needsUpdate = true;
@@ -6487,6 +6518,7 @@ function clearSkid(){
     for (let v = 0; v < 4; v++) { skidPos[p + v * 3 + 1] = -999; skidCol[c + v * 4 + 3] = 0; }
   }
   skidAlpha.fill(0.55);
+  skidPeakV.fill(0.55);
   skidPrev = null;
   skid1Prev = null;
   skid2Prev = null;
