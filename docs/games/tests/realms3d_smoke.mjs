@@ -352,6 +352,7 @@ globalThis.__R3D = {
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
   spawnDust, dustTick, clearDust, DUST_N, DUST_LIFE,
   dustPos, dustVel, dustLife, dustCol, dustGrav, dustDrag, dustLifeMax, dustPts,
+  dustSize, dustSizeBase,
   get dustHead() { return dustHead; },
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
@@ -12985,6 +12986,198 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustcurve: the run leaves zero console errors/warnings',
     consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
+}
+
+
+/* ================= DUST SIZE v1 =================
+   Particle size is now per-particle over life. A preallocated
+   aSize attribute (dustSize, 48 slots, itemSize 1) feeds the
+   shared PointsMaterial through an onBeforeCompile injection
+   (attribute float aSize; gl_PointSize = size * aSize;).
+   spawnDust derives base from the jit it already rolled
+   (0.75..1.25) and writes size at base * 0.6; dustTick grows
+   size with growth 0.6 + 0.8 * (1 - fRem) up to 1.4 times
+   base at death; expiry zeroes size; clearDust zeroes size
+   and resets base to 1. No new Points, draw calls or nodes. */
+{
+  const probsS = consoleProblems.length;
+  const approxS = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveS = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
+  const linesS = html.split('\n');
+  const lineHasS = sub => linesS.filter(l => l.includes(sub)).length;
+  /* source: header, declarations, attribute and injection */
+  check('dustsize: source carries the DUST SIZE v1 header',
+    html.includes('DUST SIZE v1'));
+  check('dustsize: source declares dustSize and dustSizeBase as Float32Array(DUST_N)',
+    html.includes('const dustSize = new Float32Array(DUST_N);')
+    && html.includes('const dustSizeBase = new Float32Array(DUST_N);'));
+  check('dustsize: source initializes dustSizeBase to 1 at declaration time',
+    html.includes('dustSizeBase.fill(1);'));
+  check('dustsize: source declares the aSize attribute with itemSize 1 and binds it',
+    html.includes('const dustSizeAttr = new THREE.BufferAttribute(dustSize, 1);')
+    && html.includes("dustGeo.setAttribute('aSize', dustSizeAttr);"));
+  check('dustsize: source carries the onBeforeCompile aSize injection on the dust material',
+    html.includes("mat.onBeforeCompile = (sh) => { sh.vertexShader = 'attribute float aSize;")
+    && html.includes("sh.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = size * aSize;');"));
+  {
+    const segSS = html.indexOf('function spawnDust') >= 0 ? html.slice(html.indexOf('function spawnDust'), html.indexOf('function dustTick')) : '';
+    check('dustsize: spawnDust source derives base from jit and writes size at base * 0.6',
+      segSS.includes('const norm = (jit - 0.88) / 0.24;')
+      && segSS.includes('const sizeBase = 0.75 + norm * 0.5;')
+      && segSS.includes('dustSizeBase[slot] = sizeBase;')
+      && segSS.includes('dustSize[slot] = sizeBase * 0.6;'));
+    check('dustsize: spawnDust source flags the aSize attribute needsUpdate',
+      segSS.includes('dustSizeAttr.needsUpdate = true;'));
+    const segTS = html.indexOf('function dustTick') >= 0 ? html.slice(html.indexOf('function dustTick'), html.indexOf('function clearDust')) : '';
+    check('dustsize: dustTick source grows size from base with the 0.6 to 1.4 growth curve',
+      segTS.includes('const growth = 0.6 + 0.8 * (1 - fRem);')
+      && segTS.includes('dustSize[i] = dustSizeBase[i] * growth;'));
+    check('dustsize: dustTick source zeroes size on expiry and flags the aSize attribute',
+      segTS.includes('dustSize[i] = 0;')
+      && segTS.includes('dustSizeAttr.needsUpdate = true;'));
+    const segCS = html.indexOf('function clearDust') >= 0 ? html.slice(html.indexOf('function clearDust'), html.indexOf('function clearDust') + 500) : '';
+    check('dustsize: clearDust source zeroes size, resets base to 1 and flags the aSize attribute',
+      segCS.includes('dustSize[i] = 0; dustSizeBase[i] = 1;')
+      && segCS.includes('dustSizeAttr.needsUpdate = true;'));
+  }
+  /* buffer shape, geometry attribute and the unchanged material */
+  check('dustsize: dustSize and dustSizeBase are preallocated Float32Arrays of 48',
+    !!G.dustSize && G.dustSize instanceof Float32Array && G.dustSize.length === 48
+    && !!G.dustSizeBase && G.dustSizeBase instanceof Float32Array && G.dustSizeBase.length === 48,
+    'size=' + (G.dustSize && G.dustSize.length) + ' base=' + (G.dustSizeBase && G.dustSizeBase.length));
+  check('dustsize: geometry has an aSize attribute sharing the dustSize array with itemSize 1 and count 48',
+    !!G.dustPts.geometry.attributes.aSize
+    && G.dustPts.geometry.attributes.aSize.array === G.dustSize
+    && G.dustPts.geometry.attributes.aSize.itemSize === 1
+    && G.dustPts.geometry.attributes.aSize.count === 48);
+  check('dustsize: material keeps size 0.4, opacity 0.55, transparent, depthWrite false, map present',
+    G.dustPts.material.size === 0.4 && Math.abs(G.dustPts.material.opacity - 0.55) < 1e-9
+    && G.dustPts.material.transparent === true && G.dustPts.material.depthWrite === false
+    && !!G.dustPts.material.map);
+  /* the injection: a function that rewrites a shader exactly as specified */
+  check('dustsize: material.onBeforeCompile is a function',
+    typeof G.dustPts.material.onBeforeCompile === 'function');
+  {
+    const fakeS = { vertexShader: 'void main() { gl_PointSize = size; }' };
+    if (typeof G.dustPts.material.onBeforeCompile === 'function') G.dustPts.material.onBeforeCompile(fakeS);
+    check('dustsize: applying onBeforeCompile to a fake shader adds the aSize attribute declaration',
+      fakeS.vertexShader.includes('attribute float aSize;'),
+      'shader=' + fakeS.vertexShader);
+    check('dustsize: applying onBeforeCompile to a fake shader rewrites gl_PointSize to size * aSize',
+      fakeS.vertexShader.includes('gl_PointSize = size * aSize;'),
+      'shader=' + fakeS.vertexShader);
+  }
+  /* probe a grass location for spawn checks */
+  let grassS = null;
+  for (let x = -360; x <= 360 && !grassS; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      if (G.surfaceAt(x, z) === 'grass') { grassS = { x, z }; break; }
+    }
+  }
+  check('dustsize: probe finds a grass location', !!grassS, JSON.stringify(grassS || null));
+  /* spawn writes base in range and size at base * 0.6, and flags the attribute */
+  let slotsS = [];
+  let sizeAtSpawnS = null;
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    const v0S = G.dustPts.geometry.attributes.aSize.version;
+    if (grassS) G.spawnDust(grassS.x, 1, grassS.z, 5);
+    slotsS = liveS();
+    check('dustsize: spawn writes base in 0.75..1.25 for every live particle',
+      slotsS.length === 10 && slotsS.every(i => G.dustSizeBase[i] >= 0.75 - 1e-6 && G.dustSizeBase[i] <= 1.25 + 1e-6),
+      'live=' + slotsS.length);
+    check('dustsize: spawn writes size == base * 0.6 within 1e-6 for every live particle',
+      slotsS.length === 10 && slotsS.every(i => approxS(G.dustSize[i], G.dustSizeBase[i] * 0.6, 1e-6)));
+    check('dustsize: spawn sizes vary inside one burst (jit-derived, not one flat size)',
+      slotsS.length === 10 && new Set(slotsS.map(i => G.dustSize[i])).size > 1);
+    check('dustsize: spawn flags the aSize attribute needsUpdate (version increments)',
+      G.dustPts.geometry.attributes.aSize.version > v0S,
+      'v=' + v0S + '->' + G.dustPts.geometry.attributes.aSize.version);
+    sizeAtSpawnS = slotsS.map(i => G.dustSize[i]);
+  }
+  /* after a tick size grows strictly and matches base * growth at its life fraction */
+  {
+    const v1S = G.dustPts.geometry.attributes.aSize.version;
+    G.dustTick(0.05);
+    const liveAfterS = liveS();
+    check('dustsize: after a tick every live size is strictly greater than at spawn',
+      liveAfterS.length > 0 && !!sizeAtSpawnS && slotsS.every((slot, k) => G.dustLife[slot] <= 0 || G.dustSize[slot] > sizeAtSpawnS[k]),
+      'live=' + liveAfterS.length);
+    check('dustsize: after a tick every live size matches base * (0.6 + 0.8 * (1 - fRem)) within 1e-5',
+      liveAfterS.length > 0 && liveAfterS.every(i => {
+        const fRemS = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
+        return approxS(G.dustSize[i], G.dustSizeBase[i] * (0.6 + 0.8 * (1 - fRemS)), 1e-5);
+      }));
+    check('dustsize: dustTick flags the aSize attribute needsUpdate (version increments)',
+      G.dustPts.geometry.attributes.aSize.version > v1S,
+      'v=' + v1S + '->' + G.dustPts.geometry.attributes.aSize.version);
+  }
+  /* determinism: same seed respawn reproduces base and size exactly */
+  {
+    const recS = () => {
+      G.clearDust(); G.dustSeed = 987654321;
+      const h = G.dustHead;
+      if (grassS) G.spawnDust(grassS.x, 1, grassS.z, 5);
+      const out = [];
+      for (let n = 0; n < 10; n++) { const s = (h + n) % G.DUST_N; out.push(G.dustSizeBase[s], G.dustSize[s]); }
+      return out;
+    };
+    const r1S = recS(), r2S = recS();
+    check('dustsize: same-seed respawn reproduces base and size exactly',
+      r1S.length === 20 && r1S.every((v, i) => v === r2S[i]));
+  }
+  /* expiry sets size 0 */
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    if (grassS) G.spawnDust(grassS.x, 1, grassS.z, 5);
+    const expS = liveS(); const expSlotS = expS.length ? expS[0] : -1;
+    G.dustTick(10);
+    check('dustsize: expiry sets size 0 and parks y at -999 with nothing live',
+      expSlotS >= 0 && G.dustSize[expSlotS] === 0 && G.dustPos[expSlotS * 3 + 1] === -999 && liveS().length === 0,
+      'slot=' + expSlotS);
+    check('dustsize: after expiry every size slot is 0',
+      Array.from(G.dustSize).every(v => v === 0));
+  }
+  /* clearDust zeroes size and resets base to 1, and flags the attribute */
+  {
+    if (grassS) G.spawnDust(grassS.x, 1, grassS.z, 5);
+    const v2S = G.dustPts.geometry.attributes.aSize.version;
+    G.clearDust();
+    check('dustsize: clearDust zeroes every size slot',
+      Array.from(G.dustSize).every(v => v === 0));
+    check('dustsize: clearDust resets every base slot to 1',
+      Array.from(G.dustSizeBase).every(v => v === 1));
+    check('dustsize: clearDust flags the aSize attribute needsUpdate (version increments)',
+      G.dustPts.geometry.attributes.aSize.version > v2S,
+      'v=' + v2S + '->' + G.dustPts.geometry.attributes.aSize.version);
+    check('dustsize: after clearDust nothing is live',
+      liveS().length === 0, 'live=' + liveS().length);
+  }
+  G.clearDust();
+  /* static pins re-checked: the size feature adds zero of everything */
+  check('dustsize-pins: 49 InstancedMesh literals', lineHasS('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasS('new THREE.InstancedMesh'));
+  check('dustsize-pins: 92 Math.random lines', lineHasS('Math.random') === 92,
+    'n=' + lineHasS('Math.random'));
+  check('dustsize-pins: 72 setTimeout lines', lineHasS('setTimeout') === 72,
+    'n=' + lineHasS('setTimeout'));
+  check('dustsize-pins: 6 lights',
+    linesS.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustsize-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustsize-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustsize-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasS('new THREE.Points(') === 2, 'n=' + lineHasS('new THREE.Points('));
+  check('dustsize-pins: no em dashes', !html.includes('\u2014'));
+  check('dustsize-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustsize-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustsize: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsS, consoleProblems.slice(probsS).join(' | '));
 }
 
 

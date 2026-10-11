@@ -5303,7 +5303,26 @@ function squashTick(dt){
        is allocation-free and inline, and the dustRand call order
        and count per particle stay exactly four. Honest limit:
        particle size still stays global to the one shared
-       material, so particles fade in place and never shrink. --- */
+       material, so particles fade in place and never shrink.
+       DUST SIZE v1: particle size is now per-particle over life.
+       A preallocated aSize geometry attribute (dustSize, 48 slots,
+       itemSize 1) feeds the shared PointsMaterial through an
+       onBeforeCompile injection that adds the attribute float
+       aSize declaration and rewrites gl_PointSize = size; as
+       gl_PointSize = size * aSize;, the same injection idiom as
+       glyphBoardMat and CROP_MAT, with no ShaderMaterial and no
+       new draw call. spawnDust derives each particle base size
+       from the jit value it already rolled (norm = (jit - 0.88)
+       / 0.24, so base = 0.75 + norm * 0.5, in 0.75..1.25), stored
+       in dustSizeBase, and writes dustSize at base * 0.6 at birth.
+       dustTick grows the size over life with growth = 0.6 + 0.8
+       * (1 - fRem), so a particle grows from 0.6 times its base
+       at birth to 1.4 times its base at death, expiry zeroes the
+       size, and clearDust zeroes size and resets base to 1. This
+       supersedes the earlier size-stays-global honest limit
+       above. New honest limit: the growth curve is uniform
+       across surfaces (not per-surface), and point size is still
+       sizeAttenuation-scaled by distance in the material. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -5312,8 +5331,11 @@ const dustLife = new Float32Array(DUST_N);
 const dustGrav = new Float32Array(DUST_N);
 const dustDrag = new Float32Array(DUST_N);
 const dustLifeMax = new Float32Array(DUST_N);
+const dustSize = new Float32Array(DUST_N);
+const dustSizeBase = new Float32Array(DUST_N);
 dustGrav.fill(1); dustDrag.fill(1);
 dustLifeMax.fill(DUST_LIFE);
+dustSizeBase.fill(1);
 let dustHead = 0;
 let dustSeed = 987654321;
 for (let i = 0; i < DUST_N; i++) dustPos[i * 3 + 1] = -999;
@@ -5324,8 +5346,10 @@ function dustRand(){
 const dustGeo = new THREE.BufferGeometry();
 const dustPosAttr = new THREE.BufferAttribute(dustPos, 3);
 const dustColAttr = new THREE.BufferAttribute(dustCol, 4);
+const dustSizeAttr = new THREE.BufferAttribute(dustSize, 1);
 dustGeo.setAttribute('position', dustPosAttr);
 dustGeo.setAttribute('color', dustColAttr);
+dustGeo.setAttribute('aSize', dustSizeAttr);
 const dustPts = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d');
@@ -5337,6 +5361,7 @@ const dustPts = (() => {
     map: new THREE.CanvasTexture(c), color: 0xffffff, vertexColors: true, size: 0.4,
     sizeAttenuation: true, transparent: true, opacity: 0.55, depthWrite: false
   });
+  mat.onBeforeCompile = (sh) => { sh.vertexShader = 'attribute float aSize;\n' + sh.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = size * aSize;'); };
   const pts = new THREE.Points(dustGeo, mat);
   pts.frustumCulled = false;
   scene.add(pts);
@@ -5359,6 +5384,10 @@ function spawnDust(x, y, z, strength){
     const radial = 1.2 + dustRand() * 1.4;
     const up = 0.6 + dustRand() * 1.0;
     const jit = 0.88 + dustRand() * 0.24;
+    const norm = (jit - 0.88) / 0.24;
+    const sizeBase = 0.75 + norm * 0.5;
+    dustSizeBase[slot] = sizeBase;
+    dustSize[slot] = sizeBase * 0.6;
     dustPos[slot * 3] = x; dustPos[slot * 3 + 1] = y; dustPos[slot * 3 + 2] = z;
     dustVel[slot * 3] = Math.cos(ang) * radial * radialScale;
     dustVel[slot * 3 + 1] = up * upScale;
@@ -5374,6 +5403,7 @@ function spawnDust(x, y, z, strength){
   }
   dustPosAttr.needsUpdate = true;
   dustColAttr.needsUpdate = true;
+  dustSizeAttr.needsUpdate = true;
 }
 function dustTick(dt){
   let changed = false;
@@ -5381,9 +5411,11 @@ function dustTick(dt){
     if (dustLife[i] <= 0) continue;
     dustLife[i] -= dt;
     if (dustLife[i] <= 0) {
-      dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustCol[i * 4 + 3] = 0; changed = true; continue;
+      dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustCol[i * 4 + 3] = 0; dustSize[i] = 0; changed = true; continue;
     }
     const fRem = Math.max(0, dustLife[i] / dustLifeMax[i]);
+    const growth = 0.6 + 0.8 * (1 - fRem);
+    dustSize[i] = dustSizeBase[i] * growth;
     const inRamp = Math.min(1, (1 - fRem) / 0.15);
     dustCol[i * 4 + 3] = inRamp * fRem * fRem * (3 - 2 * fRem);
     dustPos[i * 3] += dustVel[i * 3] * dt;
@@ -5394,12 +5426,13 @@ function dustTick(dt){
     dustVel[i * 3] *= drag; dustVel[i * 3 + 2] *= drag;
     changed = true;
   }
-  if (changed) { dustPosAttr.needsUpdate = true; dustColAttr.needsUpdate = true; }
+  if (changed) { dustPosAttr.needsUpdate = true; dustColAttr.needsUpdate = true; dustSizeAttr.needsUpdate = true; }
 }
 function clearDust(){
-  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; dustLifeMax[i] = DUST_LIFE; dustCol[i * 4 + 3] = 0; }
+  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; dustLifeMax[i] = DUST_LIFE; dustCol[i * 4 + 3] = 0; dustSize[i] = 0; dustSizeBase[i] = 1; }
   dustPosAttr.needsUpdate = true;
   dustColAttr.needsUpdate = true;
+  dustSizeAttr.needsUpdate = true;
 }
 
 /* --- TRAUMA SHAKE v1: one 0..1 trauma accumulator (Vlambeer / Eiserloh
