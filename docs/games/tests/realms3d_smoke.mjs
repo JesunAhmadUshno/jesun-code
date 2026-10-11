@@ -16890,6 +16890,131 @@ globalThis.__R3D2 = {
 }
 
 
+/* ================= BOAT HEAVE SYNC v1 =================
+   The buoyancy spring writes BOAT.y while the hull pose and the
+   player seat read BOAT.pos.y. boatUpdate must sync the two in
+   the driving path (after boatFloat, before boatPose) or the
+   driven boat pitches and rolls but never heaves. Proved below
+   through the real tick: force BOAT.y off the entry height, run
+   one frame, and the synced pos, the rendered hull instance and
+   the player seat must all follow the post-frame BOAT.y. */
+{
+  const probsHeave = consoleProblems.length;
+  const linesHeave = html.split('\n');
+  const lineHasHeave = sub => linesHeave.filter(l => l.includes(sub)).length;
+
+  /* source: the sync line sits in the driving path, in order */
+  const segHeave = html.indexOf('function boatUpdate') >= 0
+    ? html.slice(html.indexOf('function boatUpdate'), html.indexOf('worldTickers.push(boatUpdate)')) : '';
+  const idxFloatHeave = segHeave.indexOf('boatFloat(BOAT.pos.x');
+  const idxSyncHeave = segHeave.indexOf('BOAT.pos.y = BOAT.y;');
+  const idxPoseHeave = segHeave.indexOf('boatPose(BOAT.activeIdx');
+  check('boatheave: source carries the sync line in boatUpdate',
+    idxSyncHeave >= 0, 'idx=' + idxSyncHeave);
+  check('boatheave: sync line sits after the driving boatFloat call',
+    idxFloatHeave >= 0 && idxSyncHeave > idxFloatHeave,
+    'float=' + idxFloatHeave + ' sync=' + idxSyncHeave);
+  check('boatheave: sync line sits before the driving boatPose call',
+    idxPoseHeave >= 0 && idxSyncHeave < idxPoseHeave,
+    'sync=' + idxSyncHeave + ' pose=' + idxPoseHeave);
+  check('boatheave: exactly one sync line in boatUpdate',
+    segHeave.split('BOAT.pos.y = BOAT.y;').length - 1 === 1,
+    'n=' + (segHeave.split('BOAT.pos.y = BOAT.y;').length - 1));
+
+  /* behaviour: board a moored boat through the real entry path */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  let dockChunkHeave = null;
+  for (let gx = -10; gx <= 10 && !dockChunkHeave; gx++)
+    for (let gz = -10; gz <= 10 && !dockChunkHeave; gz++) {
+      const d = G.dockFor(gx, gz);
+      if (d) dockChunkHeave = { gx, gz, d };
+    }
+  check('boatheave: seeded docks exist in the world', !!dockChunkHeave,
+    dockChunkHeave ? 'chunk ' + dockChunkHeave.gx + ',' + dockChunkHeave.gz : 'none in -10..10');
+  const dcxHeave = (dockChunkHeave.gx + 0.5) * 48, dczHeave = (dockChunkHeave.gz + 0.5) * 48;
+  G.player.position.set(dcxHeave, groundY(dcxHeave, dczHeave), dczHeave);
+  frame(3);
+  const sHeave = G.BOAT.slots.find(s => s.placed);
+  check('boatheave: a moored boat is placed at the dock', !!sHeave,
+    'placed=' + G.BOAT.slots.filter(s => s.placed).length);
+  G.player.position.set(sHeave.x, 0.5, sHeave.z);
+  frame(2);
+  check('boatheave: BOARD hint appears near the moored boat',
+    G.BOAT.hintOn === true && G.BOAT.nearIdx >= 0, 'hintOn=' + G.BOAT.hintOn);
+  G.boatEnter();
+  check('boatheave: boarding enters the driving state',
+    G.BOAT.driving === true && G.BOAT.activeIdx >= 0 && G.player.visible === false,
+    'driving=' + G.BOAT.driving + ' activeIdx=' + G.BOAT.activeIdx);
+  const entryYHeave = G.BOAT.y;
+  check('boatheave: entry height starts synced (pos.y equals BOAT.y)',
+    Math.abs(G.BOAT.pos.y - entryYHeave) < 1e-6,
+    'pos.y=' + G.BOAT.pos.y + ' y=' + entryYHeave);
+
+  /* forced offset 1: one real frame must sync pos, hull and seat */
+  G.BOAT.speed = 0; G.BOAT.steer = 0; G.BOAT.groundT = 0;
+  G.BOAT.y = entryYHeave + 0.8; G.BOAT.yVel = 0;
+  frame(1);
+  const sample1Heave = G.BOAT.pos.y;
+  check('boatheave: after one frame pos.y equals the post-frame BOAT.y',
+    Math.abs(G.BOAT.pos.y - G.BOAT.y) < 1e-6,
+    'pos.y=' + G.BOAT.pos.y + ' y=' + G.BOAT.y);
+  check('boatheave: the rendered hull instance Y equals BOAT.y',
+    Math.abs(G.boatBodyIM.instanceMatrix.array[G.BOAT.activeIdx * 16 + 13] - G.BOAT.y) < 1e-3,
+    'hullY=' + G.boatBodyIM.instanceMatrix.array[G.BOAT.activeIdx * 16 + 13] + ' y=' + G.BOAT.y);
+  check('boatheave: the player seat sits at BOAT.y + 0.9',
+    Math.abs(G.player.position.y - (G.BOAT.y + 0.9)) < 1e-3,
+    'seatY=' + G.player.position.y + ' y+0.9=' + (G.BOAT.y + 0.9));
+
+  /* forced offset 2: a different offset tracks again on the next frame */
+  G.BOAT.y = entryYHeave - 0.6; G.BOAT.yVel = 0;
+  frame(1);
+  check('boatheave: a second forced offset syncs pos.y again',
+    Math.abs(G.BOAT.pos.y - G.BOAT.y) < 1e-6,
+    'pos.y=' + G.BOAT.pos.y + ' y=' + G.BOAT.y);
+  check('boatheave: pos.y moved between the two forced offsets (heave is live)',
+    Math.abs(G.BOAT.pos.y - sample1Heave) > 0.5,
+    'sample1=' + sample1Heave + ' sample2=' + G.BOAT.pos.y);
+  check('boatheave: the rendered hull instance Y tracks the second offset',
+    Math.abs(G.boatBodyIM.instanceMatrix.array[G.BOAT.activeIdx * 16 + 13] - G.BOAT.y) < 1e-3,
+    'hullY=' + G.boatBodyIM.instanceMatrix.array[G.BOAT.activeIdx * 16 + 13] + ' y=' + G.BOAT.y);
+  check('boatheave: the player seat tracks the second offset',
+    Math.abs(G.player.position.y - (G.BOAT.y + 0.9)) < 1e-3,
+    'seatY=' + G.player.position.y + ' y+0.9=' + (G.BOAT.y + 0.9));
+
+  /* exit cleanly and leave the state as found */
+  G.boatExit();
+  check('boatheave: exit leaves the driving state and restores the player',
+    G.BOAT.driving === false && G.BOAT.activeIdx === -1 && G.player.visible === true,
+    'driving=' + G.BOAT.driving + ' activeIdx=' + G.BOAT.activeIdx);
+  G.BOAT.speed = 0; G.BOAT.steer = 0;
+
+  /* pins: this change adds zero of everything pinned */
+  check('boatheave-pins: 49 InstancedMesh literals', lineHasHeave('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasHeave('new THREE.InstancedMesh'));
+  check('boatheave-pins: 92 Math.random lines', lineHasHeave('Math.random') === 92,
+    'n=' + lineHasHeave('Math.random'));
+  check('boatheave-pins: 72 setTimeout lines', lineHasHeave('setTimeout') === 72,
+    'n=' + lineHasHeave('setTimeout'));
+  check('boatheave-pins: 6 lights',
+    linesHeave.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('boatheave-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('boatheave-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('boatheave-pins: exactly 2 Points objects', lineHasHeave('new THREE.Points(') === 2,
+    'n=' + lineHasHeave('new THREE.Points('));
+  check('boatheave-pins: no em dashes', !html.includes('—'));
+  check('boatheave-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('boatheave-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('boatheave: the block leaves zero console errors/warnings',
+    consoleProblems.length === probsHeave, consoleProblems.slice(probsHeave).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
