@@ -4577,7 +4577,8 @@ const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0,
             punchDur: 0.32, combo: 0, comboWin: 0,       // melee polish: 3-punch chain
             hitstop: 0,                                 // melee polish: world-freeze timer
             shakeT: 0, shakeDur: 0.001, shakeMag: 0,   // melee polish: camera punch
-            trauma: 0, traumaT: 0, traumaOn: true };   // trauma shake: accumulator, noise clock, accessibility gate
+            trauma: 0, traumaT: 0, traumaOn: true,   // trauma shake: accumulator, noise clock, accessibility gate
+            stepDist: 0, stepAlt: 0, stepCount: 0 };   // footsteps: distance accumulator, alt foot, total steps
 
 /* --- procedural skin texture: tone variation, pores (64px, iOS-safe) --- */
 function makeSkinTex() {
@@ -4778,6 +4779,46 @@ function panDest(panValue) {
   PAN_POOL_I = (PAN_POOL_I + 1) % PAN_POOL.length;
   node.pan.value = panValue;
   return node;
+}
+/* --- SURFACE-AWARE FOOTSTEPS v1: pure surface classifier + procedural
+       noise-burst step voice. The classifier mirrors the exact thresholds
+       the world painters already use: water below WATER_Y, the rail gravel
+       bed within 3.4 of TRAIN_TRACK_X, rock above 1.1, then the patch-noise
+       dirt test from buildChunk. The voice is a deterministic LCG noise
+       burst (the sfxThud idiom): no unseeded RNG, no oscillator, one
+       filtered one-shot per step, never per-frame. --- */
+function surfaceAt(x, z) {
+  if (terrainHeight(x, z) < WATER_Y) return 'water';
+  if (Math.abs(x - TRAIN_TRACK_X) < 3.4) return 'gravel';
+  if (terrainHeight(x, z) > 1.1) return 'rock';
+  if ((Math.sin(x * 0.9 + z * 1.3) * 0.5 + 0.5) > 0.86) return 'dirt';
+  return 'grass';
+}
+let stepSeedN = 0;
+function sfxStep(surface, sprint, alt) {
+  const a = ac(); if (!a) return;
+  let type = 'lowpass', freq = 500, dur = 0.09, vol = 0.16, exp = 2.5;
+  if (surface === 'dirt') { freq = 350; dur = 0.11; vol = 0.20; exp = 2.2; }
+  else if (surface === 'rock') { type = 'bandpass'; freq = 1100; dur = 0.07; vol = 0.18; exp = 5; }
+  else if (surface === 'gravel') { type = 'bandpass'; freq = 1800; dur = 0.08; vol = 0.20; exp = 4; }
+  else if (surface === 'water') { freq = 900; dur = 0.18; vol = 0.28; exp = 1.5; }
+  if (surface !== 'water' && WX.wet > 0.5) { freq *= 0.7; vol *= 1.15; dur *= 1.2; }
+  if (sprint) vol *= 1.35;
+  freq *= alt ? 0.92 : 1.06;
+  stepSeedN++;
+  let seed = (987654321 + stepSeedN * 1013904223) & 0x7fffffff;
+  const n = Math.floor(a.sampleRate * dur);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    const t = i / n;
+    d[i] = ((seed / 0x7fffffff) * 2 - 1) * Math.pow(1 - t, exp);
+  }
+  const src = a.createBufferSource(); src.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = type; f.frequency.value = freq;
+  if (type === 'bandpass') f.Q.value = 1.1;
+  const g = a.createGain(); g.gain.value = vol;
+  src.connect(f); f.connect(g); g.connect(a.destination); src.start();
 }
 function sfxShot() {
   const a = ac(); if (!a) return;
@@ -25001,6 +25042,7 @@ worldTickers.push(apartmentTick);
 const clock = new THREE.Clock();
 const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
 const COYOTE_T = 0.12, JUMP_BUF_T = 0.20;   // jump feel: ledge grace (s), pre-landing press buffer (s, mobile-friendly)
+const STEP_LEN = 2.3;   // footsteps: metres travelled per step
 const wishDir = new THREE.Vector3(), tmpV = new THREE.Vector3();
 const posEl = document.getElementById('pos');
 let hudTick = 0;
@@ -25141,6 +25183,10 @@ function tick() {
          frozen while riding: the horse ticker poses the rider) --- */
   if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CASINOHALL.inHall && !FIRESTHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
   P.walkPhase += sdt * (4 + speed * 1.6);
+  if (P.grounded && !P.dead && speed > 0.8) {
+    P.stepDist += speed * sdt;
+    if (P.stepDist >= STEP_LEN) { P.stepDist -= STEP_LEN; sfxStep(surfaceAt(player.position.x, player.position.z), sprint, P.stepAlt); P.stepAlt ^= 1; P.stepCount++; }
+  }
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
   legL.rotation.x = s; legR.rotation.x = -s;
