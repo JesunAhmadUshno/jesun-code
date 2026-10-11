@@ -17055,8 +17055,9 @@ globalThis.__R3D2 = {
     html.includes('BOAT SPRAY v1: the driven boat now reuses this'));
   check('boatspray: dust header states stern spray reuses the pool at zero new draw calls',
     htmlNSpray.includes('same pooled dust for stern spray too, so spray costs zero new draw calls, zero new Points and zero new arrays'));
-  check('boatspray: dust header states the new honest limit (stern-only, no bow spray, no wake trail mesh)',
-    htmlNSpray.includes('New honest limit: spray is stern-only, no bow spray and no wake trail mesh; the helicopter, plane and train still do not emit'));
+  check('boatspray: dust header states the updated honest limit (stern as built, bow spray shipped separately, no wake trail mesh)',
+    htmlNSpray.includes('Honest limit at that step: spray was stern-only, with no wake trail mesh; bow spray shipped separately in the BOAT BOW SPRAY v1 extension below, and the stern remains as built here')
+    && !html.includes('no bow spray'));
   check('boatspray: BOATS header no longer claims no wake particles and states stern spray via the pooled dust',
     segBoatHeadSpray.includes('stern spray via the pooled dust')
     && !segBoatHeadSpray.includes('no wake particles')
@@ -17088,8 +17089,8 @@ globalThis.__R3D2 = {
     segBoatSpray.includes('spawnDust(bx, BOAT.pos.y + 0.15, bz, boatSpd > 8 ? 7 : 4);'));
   check('boatspray: boatUpdate source resets dustDist to 0 in the slow branch',
     segBoatSpray.includes('BOAT.dustDist = 0;'));
-  check('boatspray: the stern-spray spawn is the only spawnDust call inside boatUpdate',
-    (segBoatSpray.split('spawnDust(').length - 1) === 1,
+  check('boatspray: boatUpdate carries exactly two spawnDust calls (stern plus bow)',
+    (segBoatSpray.split('spawnDust(').length - 1) === 2,
     'n=' + (segBoatSpray.split('spawnDust(').length - 1));
   check('boatspray: the spawn call site sits after the boatPose block and before the motor audio block',
     segBoatSpray.indexOf('boatPose(BOAT.activeIdx') >= 0
@@ -17238,6 +17239,233 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('boatspray: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSpray, consoleProblems.slice(probsSpray).join(' | '));
+}
+
+/* ================= BOAT BOW SPRAY v1 =================
+   The driven boat now also throws spray off the bow, reusing
+   the same pooled dust: zero new draw calls, Points, arrays
+   or nodes. The trigger sits in boatUpdate right after the
+   stern spray block and before the motor audio, and it is
+   forward-only: the gate reads the SIGNED BOAT.speed, so
+   only fast forward motion (BOAT.speed > 8) accumulates
+   BOAT.bowDist, firing one spawnDust puff of strength 6
+   every BOAT.bowLen metres (2.5) at the bow (2.4 ahead of
+   the centre along the heading, 0.15 above the origin). At
+   or below the gate, and whenever reversing, the accumulator
+   resets to 0. The per-surface profile applies automatically
+   because spawnDust classifies the spawn point with
+   surfaceAt: a bow on water gets the water profile. Honest
+   limit: no wake trail mesh; bow spray is a pooled puff at
+   the bow point, not a lateral foam sheet. The harness CAN
+   drive the boat here (BOAT, boatEnter and boatExit are
+   exposed and boatUpdate runs in the real tick), so the
+   behavior checks run the real boatUpdate via the real tick,
+   plus a direct spawnDust check at the bow for the water
+   profile. */
+{
+  const probsBow = consoleProblems.length;
+  const liveBow = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const linesBow = html.split('\n');
+  const lineHasBow = sub => linesBow.filter(l => l.includes(sub)).length;
+  const htmlNBow = html.replace(/\s+/g, ' ');
+  const segBoatBow = html.indexOf('function boatUpdate') >= 0
+    ? html.slice(html.indexOf('function boatUpdate'), html.indexOf('worldTickers.push(boatUpdate)')) : '';
+  const segBoatObjBow = html.indexOf('const BOAT = {') >= 0
+    ? html.slice(html.indexOf('const BOAT = {'), html.indexOf('const BOAT_SCAN')) : '';
+  /* source: dust header BOAT BOW SPRAY v1 paragraph */
+  check('bowspray: source carries the BOAT BOW SPRAY v1 header in the dust header',
+    html.includes('BOAT BOW SPRAY v1: the driven boat now reuses'));
+  check('bowspray: dust header states bow spray reuses the pool at zero new draw calls',
+    htmlNBow.includes('this same pooled dust for bow spray too, so bow spray costs zero new draw calls, zero new Points and zero new arrays'));
+  check('bowspray: dust header states the trigger sits after the stern spray block and before the motor audio',
+    htmlNBow.includes('The trigger sits in boatUpdate in the driving path only, after the stern spray block and before the motor audio'));
+  check('bowspray: dust header states the forward-only signed gate BOAT.speed above 8',
+    htmlNBow.includes('it fires forward only, gated on the signed BOAT.speed > 8'));
+  check('bowspray: dust header states one puff every BOAT.bowLen metres (2.5) at the bow (2.4 ahead, 0.15 up) with strength 6',
+    htmlNBow.includes('firing one puff every BOAT.bowLen metres (2.5) at the bow, 2.4 ahead of the centre along its heading and 0.15 above the boat origin, with strength 6'));
+  check('bowspray: dust header states the water profile applies automatically via spawnDust and surfaceAt',
+    htmlNBow.includes('because spawnDust classifies the spawn point with surfaceAt: a bow on water gets the water profile'));
+  check('bowspray: dust header states the new honest limit (no wake trail mesh, pooled puff at the bow point, not a lateral foam sheet)',
+    htmlNBow.includes('New honest limit: no wake trail mesh; bow spray is a pooled puff at the bow point, not a lateral foam sheet'));
+  /* source: BOAT tuning/runtime fields, scoped to the BOAT object */
+  check('bowspray: BOAT tuning source carries bowLen 2.5',
+    segBoatObjBow.includes('bowLen: 2.5,'));
+  check('bowspray: BOAT runtime source carries bowDist 0',
+    segBoatObjBow.includes('bowDist: 0,'));
+  check('bowspray: runtime BOAT.bowLen is exactly 2.5',
+    G.BOAT.bowLen === 2.5, 'bowLen=' + G.BOAT.bowLen);
+  check('bowspray: runtime BOAT.bowDist starts at 0 (the bow spray accumulator field)',
+    G.BOAT.bowDist === 0, 'bowDist=' + G.BOAT.bowDist);
+  /* source: the exact bow-spray block inside boatUpdate */
+  check('bowspray: boatUpdate source carries the bow spray comment',
+    segBoatBow.includes('bow spray: fast forward only, puffs off the bow (BOAT BOW SPRAY v1)'));
+  check('bowspray: boatUpdate source gates on the signed BOAT.speed above 8',
+    segBoatBow.includes('if (BOAT.speed > 8) {'));
+  check('bowspray: boatUpdate source accumulates bowDist by BOAT.speed times sdt',
+    segBoatBow.includes('BOAT.bowDist += BOAT.speed * sdt;'));
+  check('bowspray: boatUpdate source fires at bowDist reaching bowLen and subtracts one puff length',
+    segBoatBow.includes('if (BOAT.bowDist >= BOAT.bowLen) { BOAT.bowDist -= BOAT.bowLen;'));
+  check('bowspray: boatUpdate source computes the bow point 2.4 ahead along the heading',
+    segBoatBow.includes('const bx = BOAT.pos.x + Math.sin(BOAT.heading) * 2.4, bz = BOAT.pos.z + Math.cos(BOAT.heading) * 2.4;'));
+  check('bowspray: boatUpdate source spawns at the bow point plus 0.15 with strength 6',
+    segBoatBow.includes('spawnDust(bx, BOAT.pos.y + 0.15, bz, 6);'));
+  check('bowspray: boatUpdate source resets bowDist to 0 in the below-gate branch',
+    segBoatBow.includes('} else { BOAT.bowDist = 0; }'));
+  check('bowspray: boatUpdate carries exactly two spawnDust calls (stern plus bow)',
+    (segBoatBow.split('spawnDust(').length - 1) === 2,
+    'n=' + (segBoatBow.split('spawnDust(').length - 1));
+  check('bowspray: the bow block sits after the stern spray block and before the motor audio block',
+    segBoatBow.indexOf('stern spray: distance-driven puffs off the stern') >= 0
+    && segBoatBow.indexOf('stern spray: distance-driven puffs off the stern') < segBoatBow.indexOf('bow spray: fast forward only')
+    && segBoatBow.indexOf('spawnDust(bx, BOAT.pos.y + 0.15, bz, boatSpd > 8 ? 7 : 4);') < segBoatBow.indexOf('spawnDust(bx, BOAT.pos.y + 0.15, bz, 6);')
+    && segBoatBow.indexOf('spawnDust(bx, BOAT.pos.y + 0.15, bz, 6);') < segBoatBow.indexOf('motor audio: gain rides throttle'));
+  /* behavior: board a moored boat through the real entry path */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.P.hitstop = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  let dockChunkBow = null;
+  for (let gx = -10; gx <= 10 && !dockChunkBow; gx++)
+    for (let gz = -10; gz <= 10 && !dockChunkBow; gz++) {
+      const d = G.dockFor(gx, gz);
+      if (d) dockChunkBow = { gx, gz, d };
+    }
+  check('bowspray: seeded docks exist in the world', !!dockChunkBow,
+    dockChunkBow ? 'chunk ' + dockChunkBow.gx + ',' + dockChunkBow.gz : 'none in -10..10');
+  const dcxBow = (dockChunkBow.gx + 0.5) * 48, dczBow = (dockChunkBow.gz + 0.5) * 48;
+  G.player.position.set(dcxBow, groundY(dcxBow, dczBow), dczBow);
+  frame(3);
+  const sBow = G.BOAT.slots.find(s => s.placed);
+  check('bowspray: a moored boat is placed at the dock', !!sBow,
+    'placed=' + G.BOAT.slots.filter(s => s.placed).length);
+  G.player.position.set(sBow.x, 0.5, sBow.z);
+  frame(2);
+  check('bowspray: BOARD hint appears near the moored boat',
+    G.BOAT.hintOn === true && G.BOAT.nearIdx >= 0, 'hintOn=' + G.BOAT.hintOn);
+  G.boatEnter();
+  check('bowspray: boarding enters the driving state',
+    G.BOAT.driving === true && G.BOAT.activeIdx >= 0 && G.player.visible === false,
+    'driving=' + G.BOAT.driving + ' activeIdx=' + G.BOAT.activeIdx);
+  /* deep-water arena: centre, bow and stern all sit on water, so the
+     drive checks below cannot beach or classify the bow as land */
+  let deepBow = null;
+  for (let x = -180; x <= 180 && !deepBow; x += 3)
+    for (let z = -180; z <= 180 && !deepBow; z += 3) {
+      if (G.surfaceAt(x, z) !== 'water') continue;
+      if (G.terrainHeight(x, z) > -1.2) continue;
+      if (G.surfaceAt(x, z + 2.4) !== 'water') continue;
+      if (G.surfaceAt(x, z - 2.6) !== 'water') continue;
+      if (G.terrainHeight(x, z + 2.2) > -0.8) continue;
+      if (G.terrainHeight(x, z + 3) > -0.8) continue;
+      if (G.terrainHeight(x, z - 3) > -0.8) continue;
+      deepBow = [x, z];
+    }
+  check('bowspray: a deep-water arena exists for the drive checks', !!deepBow,
+    deepBow ? 'at ' + deepBow[0] + ',' + deepBow[1] : 'none in -180..180');
+  const setupBowSpray = (speed, bowDist) => {
+    G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false;
+    G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+    G.keys.Space = false;
+    G.P.hitstop = 0;
+    G.BOAT.pos.set(deepBow[0], G.BOAT.y, deepBow[1]);
+    G.BOAT.heading = 0; G.BOAT.steer = 0; G.BOAT.groundT = 0; G.BOAT.yVel = 0;
+    G.BOAT.speed = speed; G.BOAT.bowDist = bowDist; G.BOAT.dustDist = 0;
+    G.clearDust();
+  };
+  const nearBowSpray = () => {
+    const bxB = G.BOAT.pos.x + Math.sin(G.BOAT.heading) * 2.4;
+    const bzB = G.BOAT.pos.z + Math.cos(G.BOAT.heading) * 2.4;
+    let n = 0;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] > 0 && Math.hypot(G.dustPos[i * 3] - bxB, G.dustPos[i * 3 + 2] - bzB) < 0.6
+        && Math.abs(G.dustPos[i * 3 + 1] - (G.BOAT.pos.y + 0.15)) < 0.6) n++;
+    }
+    return n;
+  };
+  /* fast forward: one frame across the threshold spawns the strength 6 burst (11 particles) at the bow */
+  setupBowSpray(10, 2.45);
+  frame(1);
+  check('bowspray: fast forward across the threshold spawns live bow spray (strength 6 burst of 11)',
+    liveBow() === 11, 'live=' + liveBow());
+  check('bowspray: bow spray spawns at the bow point (2.4 ahead, 0.15 up)',
+    nearBowSpray() === liveBow() && liveBow() > 0, 'near=' + nearBowSpray() + ' live=' + liveBow());
+  check('bowspray: after the puff the accumulator keeps only the remainder under bowLen',
+    G.BOAT.bowDist >= 0 && G.BOAT.bowDist < G.BOAT.bowLen, 'bowDist=' + G.BOAT.bowDist);
+  /* accumulation below the threshold: distance accrues, nothing spawns yet */
+  setupBowSpray(10, 0);
+  frame(1);
+  check('bowspray: one fast frame below the threshold accumulates bowDist and spawns nothing',
+    G.BOAT.bowDist > 0.03 && G.BOAT.bowDist < G.BOAT.bowLen && liveBow() === 0,
+    'bowDist=' + G.BOAT.bowDist + ' live=' + liveBow());
+  /* forward cruise at speed 5: below the signed gate, no bow spray and the accumulator resets */
+  setupBowSpray(5, 2.49);
+  frame(1);
+  check('bowspray: forward cruise at speed 5 spawns no bow spray and bowDist resets to 0',
+    liveBow() === 0 && G.BOAT.bowDist === 0, 'live=' + liveBow() + ' bowDist=' + G.BOAT.bowDist);
+  /* reversing fast: the signed gate never fires in reverse */
+  setupBowSpray(-10, 2.49);
+  frame(1);
+  check('bowspray: reversing fast (speed -10) spawns no bow spray and bowDist resets to 0',
+    liveBow() === 0 && G.BOAT.bowDist === 0, 'live=' + liveBow() + ' bowDist=' + G.BOAT.bowDist);
+  /* slow and at rest: no spray, and the accumulator resets to 0 */
+  setupBowSpray(2, 2.0);
+  frame(3);
+  check('bowspray: driving slow (speed 2, at or below the gate) spawns no bow spray and resets bowDist',
+    liveBow() === 0 && G.BOAT.bowDist === 0, 'live=' + liveBow() + ' bowDist=' + G.BOAT.bowDist);
+  setupBowSpray(0, 1.5);
+  frame(2);
+  check('bowspray: at rest spawns no bow spray and resets bowDist',
+    liveBow() === 0 && G.BOAT.bowDist === 0, 'live=' + liveBow() + ' bowDist=' + G.BOAT.bowDist);
+  /* direct spawnDust at the bow: the water profile lands on every slot */
+  setupBowSpray(0, 0);
+  {
+    const bxW = G.BOAT.pos.x + Math.sin(G.BOAT.heading) * 2.4;
+    const bzW = G.BOAT.pos.z + Math.cos(G.BOAT.heading) * 2.4;
+    check('bowspray: the bow point classifies as water',
+      G.surfaceAt(bxW, bzW) === 'water', 'surf=' + G.surfaceAt(bxW, bzW));
+    G.spawnDust(bxW, G.BOAT.pos.y + 0.15, bzW, 6);
+    check('bowspray: direct spawnDust at the bow at strength 6 bursts exactly 11',
+      liveBow() === 11, 'live=' + liveBow());
+    let profOk = liveBow() > 0;
+    const approxBow = (a, b) => Math.abs(a - b) < 1e-6;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] <= 0) continue;
+      if (!approxBow(G.dustGrav[i], 1.8) || !approxBow(G.dustDrag[i], 0.35) || !approxBow(G.dustGrow[i], -0.2)
+        || !approxBow(G.dustRamp[i], 0.03) || !approxBow(G.dustAlpha[i], 0.65)) profOk = false;
+      if (!(G.dustSizeBase[i] >= 0.45 - 1e-6 && G.dustSizeBase[i] <= 0.75 + 1e-6)) profOk = false;
+    }
+    check('bowspray: bow spray carries the water profile on every slot (grav 1.8, drag 0.35, grow -0.2, ramp 0.03, alpha 0.65, size scale 0.60)',
+      profOk, 'live=' + liveBow());
+  }
+  /* cleanup: disembark and leave the pool empty */
+  G.boatExit();
+  G.BOAT.speed = 0; G.BOAT.steer = 0; G.BOAT.bowDist = 0; G.BOAT.dustDist = 0;
+  G.clearDust();
+  check('bowspray: cleanup leaves bowDist at 0, no live spray and the player restored',
+    G.BOAT.bowDist === 0 && liveBow() === 0 && G.BOAT.driving === false && G.player.visible === true,
+    'bowDist=' + G.BOAT.bowDist + ' live=' + liveBow() + ' driving=' + G.BOAT.driving);
+  /* static pins re-checked: bow spray adds zero of everything */
+  check('bowspray-pins: 49 InstancedMesh literals', lineHasBow('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasBow('new THREE.InstancedMesh'));
+  check('bowspray-pins: 92 Math.random lines', lineHasBow('Math.random') === 92,
+    'n=' + lineHasBow('Math.random'));
+  check('bowspray-pins: 72 setTimeout lines', lineHasBow('setTimeout') === 72,
+    'n=' + lineHasBow('setTimeout'));
+  check('bowspray-pins: 6 lights',
+    linesBow.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('bowspray-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('bowspray-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('bowspray-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasBow('new THREE.Points(') === 2, 'n=' + lineHasBow('new THREE.Points('));
+  check('bowspray-pins: no em dashes', !html.includes('\u2014'));
+  check('bowspray-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('bowspray-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('bowspray: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsBow, consoleProblems.slice(probsBow).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */

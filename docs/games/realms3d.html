@@ -5596,10 +5596,32 @@ function squashTick(dt){
        classifies the spawn point with surfaceAt: a stern
        on water gets the water profile (radial 0.55, up
        1.9, grav 1.8, drag 0.35, grow -0.2, ramp 0.03,
-       size 0.60, alpha 0.65). New honest limit: spray
-       is stern-only, no bow spray and no wake trail
-       mesh; the helicopter, plane and train still do
-       not emit. --- */
+       size 0.60, alpha 0.65). Honest limit at that
+       step: spray was stern-only, with no wake trail
+       mesh; bow spray shipped separately in the
+       BOAT BOW SPRAY v1 extension below, and the
+       stern remains as built here. The helicopter,
+       plane and train still do not emit.
+       BOAT BOW SPRAY v1: the driven boat now reuses
+       this same pooled dust for bow spray too, so bow
+       spray costs zero new draw calls, zero new Points
+       and zero new arrays. The trigger sits in
+       boatUpdate in the driving path only, after the
+       stern spray block and before the motor audio:
+       it fires forward only, gated on the signed
+       BOAT.speed > 8, and accumulates BOAT.bowDist
+       only above that gate, firing one puff every
+       BOAT.bowLen metres (2.5) at the bow, 2.4 ahead
+       of the centre along its heading and 0.15 above
+       the boat origin, with strength 6. The
+       per-surface profile applies automatically,
+       because spawnDust classifies the spawn point
+       with surfaceAt: a bow on water gets the water
+       profile (radial 0.55, up 1.9, grav 1.8, drag
+       0.35, grow -0.2, ramp 0.03, size 0.60, alpha
+       0.65). New honest limit: no wake trail mesh;
+       bow spray is a pooled puff at the bow point,
+       not a lateral foam sheet. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -21745,10 +21767,11 @@ const BOAT = {
   fovDrive: 68, fovT: 68,
   boardR2: 5 * 5,                        // board radius, squared
   dustLen: 3.5,                          // metres travelled per spray puff
+  bowLen: 2.5,                           // metres travelled per bow puff
   // ---- runtime state (not tuning) ----
   driving: false, speed: 0, heading: 0, steer: 0,
   y: 0, yVel: 0, pitch: 0, pitchVel: 0, roll: 0, rollVel: 0,   // buoyancy springs
-  pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1, dustDist: 0,
+  pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1, dustDist: 0, bowDist: 0,
   activeIdx: -1, anchorCx: 1e9, anchorCz: 1e9, key: '',
   groundT: 0,                            // run-aground toast/thud cooldown
   slots: [
@@ -22020,6 +22043,12 @@ function boatUpdate(sdt, now) {
       spawnDust(bx, BOAT.pos.y + 0.15, bz, boatSpd > 8 ? 7 : 4);
     }
   } else { BOAT.dustDist = 0; }
+
+  // ---- bow spray: fast forward only, puffs off the bow (BOAT BOW SPRAY v1) ----
+  if (BOAT.speed > 8) {
+    BOAT.bowDist += BOAT.speed * sdt;
+    if (BOAT.bowDist >= BOAT.bowLen) { BOAT.bowDist -= BOAT.bowLen; const bx = BOAT.pos.x + Math.sin(BOAT.heading) * 2.4, bz = BOAT.pos.z + Math.cos(BOAT.heading) * 2.4; spawnDust(bx, BOAT.pos.y + 0.15, bz, 6); }
+  } else { BOAT.bowDist = 0; }
 
   // ---- motor audio: gain rides throttle, pitch rides speed ----
   if (boatGain) {
