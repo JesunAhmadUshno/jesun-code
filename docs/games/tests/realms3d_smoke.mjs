@@ -12738,16 +12738,16 @@ globalThis.__R3D2 = {
   let alphaAfterTick1 = null;
   {
     const vBeforeF = G.dustPts.geometry.attributes.color.version;
-    G.dustTick(0.1);
+    G.dustTick(0.15);
     const liveAfter = liveF();
-    check('dustfade: after dustTick(0.1) every live alpha approx the eased curve value within 1e-5',
+    check('dustfade: after dustTick(0.15) every live alpha approx the eased curve value within 1e-5',
       liveAfter.length > 0 && liveAfter.every(i => {
         const fR = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
-        const inR = Math.min(1, (1 - fR) / 0.15);
+        const inR = Math.min(1, (1 - fR) / 0.20);
         return approxF(G.dustCol[i * 4 + 3], inR * fR * fR * (3 - 2 * fR), 1e-5);
       }),
       'live=' + liveAfter.length);
-    check('dustfade: after dustTick(0.1) every live alpha is strictly less than 1',
+    check('dustfade: after dustTick(0.15) every live alpha is strictly less than 1',
       liveAfter.length > 0 && liveAfter.every(i => G.dustCol[i * 4 + 3] < 1));
     check('dustfade: dustTick flags the color attribute needsUpdate (version increments)',
       G.dustPts.geometry.attributes.color.version > vBeforeF,
@@ -12835,7 +12835,7 @@ globalThis.__R3D2 = {
   const probsC = consoleProblems.length;
   const approxC = (a, b, tol) => Math.abs(a - b) <= tol;
   const liveC = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
-  const curveC = (life, max) => { const fR = Math.max(0, life / max); const inR = Math.min(1, (1 - fR) / 0.15); return inR * fR * fR * (3 - 2 * fR); };
+  const curveC = (life, max) => { const fR = Math.max(0, life / max); const inR = Math.min(1, (1 - fR) / 0.20); return inR * fR * fR * (3 - 2 * fR); };
   const linesC = html.split('\n');
   const lineHasC = sub => linesC.filter(l => l.includes(sub)).length;
   /* source: header and the curve write sites */
@@ -12898,8 +12898,8 @@ globalThis.__R3D2 = {
     approxC(exactAtC(0.5), 0.5, 1e-5), 'a=' + exactAtC(0.5));
   check('dustcurve: exact curve at remaining fraction 0.25 gives alpha 0.15625',
     approxC(exactAtC(0.25), 0.15625, 1e-5), 'a=' + exactAtC(0.25));
-  check('dustcurve: exact curve at remaining fraction 0.925 gives alpha about 0.5 times smoothstep(0.925)',
-    approxC(exactAtC(0.925), 0.5 * 0.925 * 0.925 * (3 - 2 * 0.925), 1e-5), 'a=' + exactAtC(0.925));
+  check('dustcurve: exact curve at remaining fraction 0.925 gives alpha about 0.375 times smoothstep(0.925)',
+    approxC(exactAtC(0.925), 0.375 * 0.925 * 0.925 * (3 - 2 * 0.925), 1e-5), 'a=' + exactAtC(0.925));
   /* alpha rises through the ramp into the peak, then falls monotonically */
   let riseC = null;
   {
@@ -12910,7 +12910,7 @@ globalThis.__R3D2 = {
       G.dustLifeMax[s] = 0.45; G.dustLife[s] = 0.45;
       G.dustTick(0.01); const a1 = G.dustCol[s * 4 + 3];
       G.dustTick(0.02); const a2 = G.dustCol[s * 4 + 3];
-      G.dustTick(0.04); const a3 = G.dustCol[s * 4 + 3];
+      G.dustTick(0.06); const a3 = G.dustCol[s * 4 + 3];
       G.dustTick(0.05); const a4 = G.dustCol[s * 4 + 3];
       G.dustTick(0.05); const a5 = G.dustCol[s * 4 + 3];
       G.dustTick(0.05); const a6 = G.dustCol[s * 4 + 3];
@@ -13103,10 +13103,10 @@ globalThis.__R3D2 = {
     check('dustsize: after a tick every live size is strictly greater than at spawn',
       liveAfterS.length > 0 && !!sizeAtSpawnS && slotsS.every((slot, k) => G.dustLife[slot] <= 0 || G.dustSize[slot] > sizeAtSpawnS[k]),
       'live=' + liveAfterS.length);
-    check('dustsize: after a tick every live size matches base * (0.6 + 0.8 * (1 - fRem)) within 1e-5',
+    check('dustsize: after a tick every live size matches base * (0.6 + 0.95 * (1 - fRem)) within 1e-5',
       liveAfterS.length > 0 && liveAfterS.every(i => {
         const fRemS = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
-        return approxS(G.dustSize[i], G.dustSizeBase[i] * (0.6 + 0.8 * (1 - fRemS)), 1e-5);
+        return approxS(G.dustSize[i], G.dustSizeBase[i] * (0.6 + 0.95 * (1 - fRemS)), 1e-5);
       }));
     check('dustsize: dustTick flags the aSize attribute needsUpdate (version increments)',
       G.dustPts.geometry.attributes.aSize.version > v1S,
@@ -13211,7 +13211,7 @@ globalThis.__R3D2 = {
     check('dustgrow: spawnDust source carries the default growF line',
       segSGr.includes('let growF = 0.8;'));
     check('dustgrow: spawnDust source carries the exact water growF line',
-      segSGr.includes("if (surf === 'water') { growF = -0.2; }"));
+      segSGr.includes("else if (surf === 'water') { growF = -0.2; }"));
     check('dustgrow: spawnDust source writes dustGrow per slot after the grav/drag write',
       segSGr.includes('dustGrav[slot] = grav; dustDrag[slot] = dragF;')
       && segSGr.includes('dustGrow[slot] = growF;'));
@@ -13264,8 +13264,8 @@ globalThis.__R3D2 = {
     grassRecGr = spawnRecGr(foundGr.grass);
     check('dustgrow: grass spawn bursts exactly 10 at strength 5',
       grassRecGr.live === 10 && grassRecGr.grow.length === 10, 'live=' + grassRecGr.live);
-    check('dustgrow: grass spawn writes grow 0.8 for every live slot',
-      grassRecGr.grow.every(v => approxGr(v, 0.8, 1e-6)), 'grow=' + grassRecGr.grow.join(','));
+    check('dustgrow: grass spawn writes grow 0.95 for every live slot',
+      grassRecGr.grow.every(v => approxGr(v, 0.95, 1e-6)), 'grow=' + grassRecGr.grow.join(','));
     check('dustgrow: grass spawn keeps birth size at base * 0.6 within 1e-6',
       grassRecGr.size.every((v, k) => approxGr(v, grassRecGr.base[k] * 0.6, 1e-6)));
     const spawnSizeGr = grassRecGr.size.slice();
@@ -13275,10 +13275,10 @@ globalThis.__R3D2 = {
     check('dustgrow: after a tick every live grass size is larger than at spawn',
       liveAfterGr.length > 0 && grassRecGr.slots.every((s, k) => G.dustLife[s] <= 0 || G.dustSize[s] > spawnSizeGr[k]),
       'live=' + liveAfterGr.length);
-    check('dustgrow: after a tick grass size matches base * (0.6 + 0.8 * (1 - fRem)) within 1e-5',
+    check('dustgrow: after a tick grass size matches base * (0.6 + 0.95 * (1 - fRem)) within 1e-5',
       liveAfterGr.length > 0 && liveAfterGr.every(i => {
         const fRemGr = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
-        return approxGr(G.dustSize[i], G.dustSizeBase[i] * (0.6 + 0.8 * (1 - fRemGr)), 1e-5);
+        return approxGr(G.dustSize[i], G.dustSizeBase[i] * (0.6 + 0.95 * (1 - fRemGr)), 1e-5);
       }));
   }
   if (foundGr.water) {
@@ -13394,7 +13394,7 @@ globalThis.__R3D2 = {
     check('dustramp: spawnDust source carries the default rampF line',
       segSRa.includes('let rampF = 0.15;'));
     check('dustramp: spawnDust source carries the exact water rampF line',
-      segSRa.includes("if (surf === 'water') { rampF = 0.03; }"));
+      segSRa.includes("else if (surf === 'water') { rampF = 0.03; }"));
     check('dustramp: spawnDust source writes dustRamp per slot after the dustGrow write',
       segSRa.includes('dustGrow[slot] = growF;')
       && segSRa.includes('dustRamp[slot] = rampF;'));
@@ -13444,18 +13444,18 @@ globalThis.__R3D2 = {
     grassRecRa = spawnRecRa(foundRa.grass);
     check('dustramp: grass spawn bursts exactly 10 at strength 5',
       grassRecRa.live === 10 && grassRecRa.ramp.length === 10, 'live=' + grassRecRa.live);
-    check('dustramp: grass spawn writes ramp 0.15 for every live slot',
-      grassRecRa.ramp.every(v => approxRa(v, 0.15, 1e-6)), 'ramp=' + grassRecRa.ramp.join(','));
+    check('dustramp: grass spawn writes ramp 0.20 for every live slot',
+      grassRecRa.ramp.every(v => approxRa(v, 0.20, 1e-6)), 'ramp=' + grassRecRa.ramp.join(','));
     check('dustramp: grass spawn keeps birth alpha at 0 for every live slot',
       grassRecRa.alpha.every(v => v === 0));
     G.dustTick(0.03);
     const liveGrassRa = liveRa();
     grassAlphaRa = grassRecRa.slots.map(s => G.dustCol[s * 4 + 3]);
-    check('dustramp: after a tick in the ramp window grass alpha matches the 0.15 inRamp formula within 1e-5',
+    check('dustramp: after a tick in the ramp window grass alpha matches the 0.20 inRamp formula within 1e-5',
       liveGrassRa.length > 0 && liveGrassRa.every(i => {
         const fRemRa = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
-        return (1 - fRemRa) > 0.03 && (1 - fRemRa) < 0.15
-          && approxRa(G.dustCol[i * 4 + 3], Math.min(1, (1 - fRemRa) / 0.15) * smoothRa(fRemRa), 1e-5);
+        return (1 - fRemRa) > 0.03 && (1 - fRemRa) < 0.20
+          && approxRa(G.dustCol[i * 4 + 3], Math.min(1, (1 - fRemRa) / 0.20) * smoothRa(fRemRa), 1e-5);
       }), 'live=' + liveGrassRa.length);
     check('dustramp: after a tick in the ramp window grass alpha is strictly below the smoothstep fade-out',
       liveGrassRa.length > 0 && liveGrassRa.every(i => {
@@ -13500,8 +13500,8 @@ globalThis.__R3D2 = {
       approxRa(exactAtRa(foundRa.water, 0.93), smoothRa(0.93), 1e-5), 'a=' + exactAtRa(foundRa.water, 0.93));
   }
   if (foundRa.grass) {
-    check('dustramp: exact grass curve at remaining fraction 0.93 gives alpha about (0.07 / 0.15) times smoothstep(0.93)',
-      approxRa(exactAtRa(foundRa.grass, 0.93), (0.07 / 0.15) * smoothRa(0.93), 1e-5), 'a=' + exactAtRa(foundRa.grass, 0.93));
+    check('dustramp: exact grass curve at remaining fraction 0.93 gives alpha about (0.07 / 0.20) times smoothstep(0.93)',
+      approxRa(exactAtRa(foundRa.grass, 0.93), (0.07 / 0.20) * smoothRa(0.93), 1e-5), 'a=' + exactAtRa(foundRa.grass, 0.93));
     check('dustramp: exact grass curve at remaining fraction 0.5 gives alpha 0.5 (ramp saturated, non-water unchanged)',
       approxRa(exactAtRa(foundRa.grass, 0.5), 0.5, 1e-5), 'a=' + exactAtRa(foundRa.grass, 0.5));
   }
@@ -13563,6 +13563,215 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustramp: the run leaves zero console errors/warnings',
     consoleProblems.length === probsRa, consoleProblems.slice(probsRa).join(' | '));
+}
+
+
+/* ================= PER-SURFACE DUST PROFILES v1 =================
+   Growth and fade-in are now a full per-surface profile table.
+   spawnDust selects growF and rampF in two if and else-if chains:
+   grass 0.95 / 0.20, dirt 0.8 / 0.15 (the old defaults, behavior
+   unchanged), rock 0.35 / 0.08, gravel 0.5 / 0.10 and water
+   -0.2 / 0.03 (unchanged), with any other surface falling back
+   to the defaults 0.8 / 0.15. Both factors write the existing
+   preallocated dustGrow and dustRamp arrays; birth size stays
+   base * 0.6, birth alpha stays 0, the dustRand order and count
+   per particle stay exactly four, dustTick formulas are
+   unchanged and clearDust still resets 0.8 / 0.15. The profile
+   is two scalars per surface: gravity and drag stay
+   water-versus-rest. No new Points, draw calls or nodes. */
+{
+  const probsP = consoleProblems.length;
+  const approxP = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveP = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
+  const smoothP = f => f * f * (3 - 2 * f);
+  const linesP = html.split('\n');
+  const lineHasP = sub => linesP.filter(l => l.includes(sub)).length;
+  /* source: header and the full profile table in spawnDust */
+  check('dustprof: source carries the PER-SURFACE DUST PROFILES v1 header',
+    html.includes('PER-SURFACE DUST PROFILES v1'));
+  {
+    const segSP = html.indexOf('function spawnDust') >= 0 ? html.slice(html.indexOf('function spawnDust'), html.indexOf('function dustTick')) : '';
+    check('dustprof: spawnDust source carries the grass profile lines (grow 0.95, ramp 0.20)',
+      segSP.includes("if (surf === 'grass') { growF = 0.95; }")
+      && segSP.includes("if (surf === 'grass') { rampF = 0.20; }"));
+    check('dustprof: spawnDust source carries the dirt profile lines (grow 0.8, ramp 0.15)',
+      segSP.includes("else if (surf === 'dirt') { growF = 0.8; }")
+      && segSP.includes("else if (surf === 'dirt') { rampF = 0.15; }"));
+    check('dustprof: spawnDust source carries the rock profile lines (grow 0.35, ramp 0.08)',
+      segSP.includes("else if (surf === 'rock') { growF = 0.35; }")
+      && segSP.includes("else if (surf === 'rock') { rampF = 0.08; }"));
+    check('dustprof: spawnDust source carries the gravel profile lines (grow 0.5, ramp 0.10)',
+      segSP.includes("else if (surf === 'gravel') { growF = 0.5; }")
+      && segSP.includes("else if (surf === 'gravel') { rampF = 0.10; }"));
+    check('dustprof: spawnDust source carries the water profile lines (grow -0.2, ramp 0.03)',
+      segSP.includes("else if (surf === 'water') { growF = -0.2; }")
+      && segSP.includes("else if (surf === 'water') { rampF = 0.03; }"));
+    check('dustprof: spawnDust source keeps the fallback defaults (grow 0.8, ramp 0.15)',
+      segSP.includes('let growF = 0.8;') && segSP.includes('let rampF = 0.15;'));
+    check('dustprof: spawnDust source writes dustGrow and dustRamp per slot after the grav/drag write',
+      segSP.includes('dustGrav[slot] = grav; dustDrag[slot] = dragF;')
+      && segSP.includes('dustGrow[slot] = growF;')
+      && segSP.includes('dustRamp[slot] = rampF;'));
+    const segTP = html.indexOf('function dustTick') >= 0 ? html.slice(html.indexOf('function dustTick'), html.indexOf('function clearDust')) : '';
+    check('dustprof: dustTick source keeps the per-particle growth and inRamp formulas',
+      segTP.includes('const growth = 0.6 + dustGrow[i] * (1 - fRem);')
+      && segTP.includes('const inRamp = Math.min(1, (1 - fRem) / dustRamp[i]);'));
+    const segCP = html.indexOf('function clearDust') >= 0 ? html.slice(html.indexOf('function clearDust'), html.indexOf('function clearDust') + 500) : '';
+    check('dustprof: clearDust source resets grow to 0.8 and ramp to 0.15',
+      segCP.includes('dustGrow[i] = 0.8; dustRamp[i] = 0.15;'));
+  }
+  /* buffers: both profile arrays stay preallocated at 48 slots */
+  check('dustprof: dustGrow is a preallocated Float32Array of 48',
+    !!G.dustGrow && G.dustGrow instanceof Float32Array && G.dustGrow.length === 48,
+    'len=' + (G.dustGrow && G.dustGrow.length));
+  check('dustprof: dustRamp is a preallocated Float32Array of 48',
+    !!G.dustRamp && G.dustRamp instanceof Float32Array && G.dustRamp.length === 48,
+    'len=' + (G.dustRamp && G.dustRamp.length));
+  /* probe one location per surface from the classifier itself */
+  const foundP = {};
+  for (let x = -360; x <= 360 && Object.keys(foundP).length < 5; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      const surf = G.surfaceAt(x, z);
+      if ((surf === 'grass' || surf === 'dirt' || surf === 'rock' || surf === 'gravel' || surf === 'water') && !foundP[surf]) foundP[surf] = { x, z };
+      if (Object.keys(foundP).length >= 5) break;
+    }
+  }
+  check('dustprof: probe finds grass, dirt, rock and gravel locations',
+    !!foundP.grass && !!foundP.dirt && !!foundP.rock && !!foundP.gravel,
+    JSON.stringify(foundP));
+  check('dustprof: probe finds a water location', !!foundP.water, JSON.stringify(foundP.water || null));
+  /* deterministic spawn recorder: same seed, slots in spawn order */
+  const spawnRecP = (loc) => {
+    G.clearDust(); G.dustSeed = 987654321;
+    const head = G.dustHead;
+    G.spawnDust(loc.x, 1, loc.z, 5);
+    const slots = [];
+    for (let n = 0; n < 10; n++) slots.push((head + n) % G.DUST_N);
+    return {
+      slots,
+      grow: slots.map(s => G.dustGrow[s]),
+      ramp: slots.map(s => G.dustRamp[s]),
+      base: slots.map(s => G.dustSizeBase[s]),
+      size: slots.map(s => G.dustSize[s]),
+      alpha: slots.map(s => G.dustCol[s * 4 + 3]),
+      live: liveP().length,
+    };
+  };
+  const profP = { grass: [0.95, 0.20], dirt: [0.8, 0.15], rock: [0.35, 0.08], gravel: [0.5, 0.10], water: [-0.2, 0.03] };
+  const recsP = {};
+  for (const surf of Object.keys(profP)) if (foundP[surf]) recsP[surf] = spawnRecP(foundP[surf]);
+  for (const surf of Object.keys(profP)) {
+    const rec = recsP[surf];
+    check('dustprof: ' + surf + ' spawn bursts exactly 10 and writes grow ' + profP[surf][0] + ' and ramp ' + profP[surf][1] + ' for every live slot',
+      !!rec && rec.live === 10
+      && rec.grow.every(v => approxP(v, profP[surf][0], 1e-6))
+      && rec.ramp.every(v => approxP(v, profP[surf][1], 1e-6)),
+      'live=' + (rec && rec.live) + ' grow=' + (rec && rec.grow[0]) + ' ramp=' + (rec && rec.ramp[0]));
+  }
+  check('dustprof: every surface keeps birth size at base * 0.6 and birth alpha at 0',
+    Object.keys(profP).every(surf => !!recsP[surf]
+      && recsP[surf].size.every((v, k) => approxP(v, recsP[surf].base[k] * 0.6, 1e-6))
+      && recsP[surf].alpha.every(v => v === 0)));
+  /* tick behavior per surface at the same tick length */
+  const tickCheckP = (surf, dt) => {
+    if (!foundP[surf]) return false;
+    spawnRecP(foundP[surf]);
+    G.dustTick(dt);
+    const live = liveP();
+    return live.length > 0 && live.every(i => {
+      const fRemP = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
+      return approxP(G.dustSize[i], G.dustSizeBase[i] * (0.6 + profP[surf][0] * (1 - fRemP)), 1e-5)
+        && approxP(G.dustCol[i * 4 + 3], Math.min(1, (1 - fRemP) / profP[surf][1]) * smoothP(fRemP), 1e-5);
+    });
+  };
+  check('dustprof: after a tick grass size and alpha match the 0.95 grow and 0.20 ramp formulas within 1e-5',
+    tickCheckP('grass', 0.03));
+  check('dustprof: after a tick rock size and alpha match the 0.35 grow and 0.08 ramp formulas within 1e-5',
+    tickCheckP('rock', 0.03));
+  check('dustprof: after a tick dirt size and alpha match the unchanged 0.8 grow and 0.15 ramp formulas within 1e-5',
+    tickCheckP('dirt', 0.03));
+  check('dustprof: after a tick water size and alpha match the -0.2 grow and 0.03 ramp formulas within 1e-5',
+    tickCheckP('water', 0.03));
+  /* paired same-seed comparisons across surfaces */
+  {
+    let grassSizeP = null, rockSizeP = null, pairedBaseP = false;
+    if (foundP.grass) { const r = spawnRecP(foundP.grass); G.dustTick(0.05); grassSizeP = r.slots.map(s => G.dustSize[s]); }
+    if (foundP.rock) { const r = spawnRecP(foundP.rock); G.dustTick(0.05); rockSizeP = r.slots.map(s => G.dustSize[s]); pairedBaseP = !!recsP.rock && !!recsP.grass && r.base.every((v, k) => v === recsP.grass.base[k]); }
+    check('dustprof: at the same life fraction rock size grows less than paired grass size',
+      !!grassSizeP && !!rockSizeP && pairedBaseP && rockSizeP.every((v, k) => v < grassSizeP[k]),
+      'rock=' + (rockSizeP && rockSizeP[0]) + ' grass=' + (grassSizeP && grassSizeP[0]));
+  }
+  {
+    let grassAlphaP = null, gravelAlphaP = null;
+    if (foundP.grass) { const r = spawnRecP(foundP.grass); G.dustTick(0.03); grassAlphaP = r.slots.map(s => G.dustCol[s * 4 + 3]); }
+    if (foundP.gravel) { const r = spawnRecP(foundP.gravel); G.dustTick(0.03); gravelAlphaP = r.slots.map(s => G.dustCol[s * 4 + 3]); }
+    check('dustprof: gravel reaches fuller alpha sooner than paired grass after the same tick',
+      !!grassAlphaP && !!gravelAlphaP && gravelAlphaP.every((v, k) => v > grassAlphaP[k]),
+      'gravel=' + (gravelAlphaP && gravelAlphaP[0]) + ' grass=' + (grassAlphaP && grassAlphaP[0]));
+  }
+  /* determinism: same-seed respawn reproduces the profile exactly */
+  if (foundP.rock) {
+    const r1P = spawnRecP(foundP.rock);
+    const r2P = spawnRecP(foundP.rock);
+    check('dustprof: same-seed respawn reproduces grow and ramp exactly',
+      r1P.grow.length === 10 && r1P.grow.every((v, i) => v === r2P.grow[i]) && r1P.ramp.every((v, i) => v === r2P.ramp[i]));
+  }
+  if (foundP.gravel) {
+    const recTickP = () => {
+      const r = spawnRecP(foundP.gravel);
+      G.dustTick(0.03);
+      return { grow: r.grow, ramp: r.ramp, size: r.slots.map(s => G.dustSize[s]), alpha: r.slots.map(s => G.dustCol[s * 4 + 3]) };
+    };
+    const t1P = recTickP(), t2P = recTickP();
+    check('dustprof: same-seed respawn plus tick reproduces grow, ramp, size and alpha exactly',
+      t1P.grow.every((v, i) => v === t2P.grow[i]) && t1P.ramp.every((v, i) => v === t2P.ramp[i])
+      && t1P.size.every((v, i) => v === t2P.size[i]) && t1P.alpha.every((v, i) => v === t2P.alpha[i]));
+  }
+  /* expiry still zeroes size and alpha and parks the particle */
+  {
+    if (foundP.grass) spawnRecP(foundP.grass);
+    const expP = liveP(); const expSlotP = expP.length ? expP[0] : -1;
+    G.dustTick(10);
+    check('dustprof: expiry still zeroes size and alpha and parks y at -999 with nothing live',
+      expSlotP >= 0 && G.dustSize[expSlotP] === 0 && G.dustCol[expSlotP * 4 + 3] === 0 && G.dustPos[expSlotP * 3 + 1] === -999 && liveP().length === 0,
+      'slot=' + expSlotP);
+  }
+  /* clearDust resets both profile arrays to the fallback defaults */
+  {
+    if (foundP.rock) spawnRecP(foundP.rock);
+    G.clearDust();
+    check('dustprof: clearDust resets every dustGrow slot to 0.8',
+      Array.from(G.dustGrow).every(v => approxP(v, 0.8, 1e-6)));
+    check('dustprof: clearDust resets every dustRamp slot to 0.15',
+      Array.from(G.dustRamp).every(v => approxP(v, 0.15, 1e-6)));
+    check('dustprof: after clearDust nothing is live',
+      liveP().length === 0, 'live=' + liveP().length);
+  }
+  G.clearDust();
+  /* static pins re-checked: the profile table adds zero of everything */
+  check('dustprof-pins: 49 InstancedMesh literals', lineHasP('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasP('new THREE.InstancedMesh'));
+  check('dustprof-pins: 92 Math.random lines', lineHasP('Math.random') === 92,
+    'n=' + lineHasP('Math.random'));
+  check('dustprof-pins: 72 setTimeout lines', lineHasP('setTimeout') === 72,
+    'n=' + lineHasP('setTimeout'));
+  check('dustprof-pins: 6 lights',
+    linesP.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustprof-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustprof-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustprof-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasP('new THREE.Points(') === 2, 'n=' + lineHasP('new THREE.Points('));
+  check('dustprof-pins: no em dashes', !html.includes('\u2014'));
+  check('dustprof-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustprof-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustprof: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsP, consoleProblems.slice(probsP).join(' | '));
 }
 
 

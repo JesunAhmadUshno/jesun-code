@@ -5336,10 +5336,12 @@ function squashTick(dt){
        falls, from 0.6 times base at birth to 0.4 times base at
        death. Birth size is unchanged for every surface:
        spawnDust still writes dustSize at base * 0.6. New honest
-       limit: growth is per-surface only for water versus all
-       other surfaces (grass, dirt, rock and gravel still share
-       the dust curve), and size is still sizeAttenuation-scaled
-       by distance in the material.
+       limit at that step: growth was per-surface only for water
+       versus all other surfaces (grass, dirt, rock and gravel
+       still shared the dust curve), and size is still
+       sizeAttenuation-scaled by distance in the material. The
+       water-versus-rest growth limit is superseded by
+       PER-SURFACE DUST PROFILES v1 below.
        PER-SURFACE DUST FADE-IN v1: the fade-in ramp is now
        per-surface. One more preallocated array (dustRamp, 48
        slots, filled 0.15 at declaration) carries each particle
@@ -5352,9 +5354,35 @@ function squashTick(dt){
        rampF 0.15 and dustTick inRamp = Math.min(1, (1 - fRem)
        / dustRamp[i]) is byte-equivalent to the old fixed 0.15
        curve for non-water. Birth alpha is unchanged at 0.
-       New honest limit: fade-in is per-surface only for water
-       versus all other surfaces (grass, dirt, rock and gravel
-       still share the 0.15 dust ramp). --- */
+       New honest limit at that step: fade-in was per-surface
+       only for water versus all other surfaces (grass, dirt,
+       rock and gravel still shared the 0.15 dust ramp). The
+       water-versus-rest fade-in limit is superseded by
+       PER-SURFACE DUST PROFILES v1 below.
+       PER-SURFACE DUST PROFILES v1: growth and fade-in are now
+       a full per-surface profile table, selected in spawnDust
+       by two if and else-if chains in the same style as the
+       palette block above, writing the existing preallocated
+       dustGrow and dustRamp arrays with no new arrays, no new
+       Points and no new draw calls. The table is: grass growF
+       0.95 and rampF 0.20 (loose leafy dust billows more and
+       forms slower), dirt growF 0.8 and rampF 0.15 (the old
+       default values, behavior unchanged), rock growF 0.35 and
+       rampF 0.08 (dense mineral grit expands little and is
+       already formed), gravel growF 0.5 and rampF 0.10, and
+       water growF -0.2 and rampF 0.03 (unchanged from before).
+       Any other surface string falls back to the defaults:
+       growF 0.8 and rampF 0.15, which are also the values the
+       arrays are filled with at declaration and the values
+       clearDust resets to. Birth size (base * 0.6), birth
+       alpha (0) and the dustRand order and count per particle
+       (exactly four) are unchanged for every surface, and the
+       dustTick formulas are unchanged: they already read
+       dustGrow[i] and dustRamp[i] per particle. New honest
+       limit: the profile is two scalars per surface (grow
+       plus ramp); gravity and drag stay water-versus-rest,
+       and point size is still sizeAttenuation-scaled by
+       distance in the material. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -5415,9 +5443,17 @@ function spawnDust(x, y, z, strength){
   let radialScale = 1, upScale = 1, grav = 1, dragF = 1;
   if (surf === 'water') { radialScale = 0.55; upScale = 1.9; grav = 1.8; dragF = 0.35; }
   let growF = 0.8;
-  if (surf === 'water') { growF = -0.2; }
+  if (surf === 'grass') { growF = 0.95; }
+  else if (surf === 'dirt') { growF = 0.8; }
+  else if (surf === 'rock') { growF = 0.35; }
+  else if (surf === 'gravel') { growF = 0.5; }
+  else if (surf === 'water') { growF = -0.2; }
   let rampF = 0.15;
-  if (surf === 'water') { rampF = 0.03; }
+  if (surf === 'grass') { rampF = 0.20; }
+  else if (surf === 'dirt') { rampF = 0.15; }
+  else if (surf === 'rock') { rampF = 0.08; }
+  else if (surf === 'gravel') { rampF = 0.10; }
+  else if (surf === 'water') { rampF = 0.03; }
   for (let n = 0; n < count; n++) {
     const slot = dustHead; dustHead = (dustHead + 1) % DUST_N;
     const ang = dustRand() * Math.PI * 2;
