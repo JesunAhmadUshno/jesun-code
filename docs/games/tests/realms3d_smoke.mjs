@@ -333,6 +333,8 @@ globalThis.__R3D = {
   dmgNums, dmgNumSpawn, dmgNumTick, dmgNumRecycleAll, toggleDmgNums, damageCop,
   DMGNUM_N, DMGNUM_LIFE, DMGNUM_MERGE_S,
   get dmgNumOn() { return dmgNumOn; }, set dmgNumOn(v) { dmgNumOn = v; },
+  /* COYOTE + JUMP BUFFER v1: jump-feel constants + touch state (test-only exposure) */
+  COYOTE_T, JUMP_BUF_T, JUMP_V, GRAV, touch,
 };
 `;
 writeFileSync(BOOT, src);
@@ -10547,6 +10549,136 @@ globalThis.__R3D2 = {
     'n=' + lineHasH('setTimeout'));
   check('hitstop: the run leaves zero console errors/warnings',
     consoleProblems.length === probsH, consoleProblems.slice(probsH).join(' | '));
+}
+
+/* ================= COYOTE TIME + JUMP BUFFER v1 =================
+   Drives the real tick() through the stub harness (frame() advances the
+   manual clock 16.667ms per frame, so one frame is dt = sdt = 0.016667
+   unless hit-stop freezes sdt). Jump input is driven via keys.Space, the
+   same (keys.Space || touch.jump) expression the on-foot block reads.
+   Airborne preconditions (grounded/coyoteT) are set directly, the idiom
+   the hitstop/dmgnum sections use for P.hitstop/dmg state; every jump,
+   drain, landing and buffer fire below happens inside the real tick. */
+{
+  const probsC = consoleProblems.length;
+  const DT = 16.667 / 1000;
+  const setupOnFoot = () => {
+    for (const k in G.keys) G.keys[k] = false;
+    G.touch.jump = false; G.touch.moveX = 0; G.touch.moveY = 0; G.touch.sprint = false;
+    G.P.dead = false; G.P.deadT = 0; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0; G.P.grounded = true;
+    G.P.coyoteT = 0; G.P.jumpBufT = 0; G.P.prevJump = false;
+    G.player.position.set(0, groundY(0, 0), 0);
+    return groundY(0, 0);
+  };
+  const setupAirborne = (height, vy, coyoteT) => {
+    const gy = setupOnFoot();
+    G.P.grounded = false; G.P.vy = vy; G.P.coyoteT = coyoteT;
+    G.player.position.y = gy + height;
+    return gy;
+  };
+  /* (a) constants and state fields exist with the exact design values */
+  check('coyote: constants COYOTE_T and JUMP_BUF_T are 0.12 and 0.20',
+    G.COYOTE_T === 0.12 && G.JUMP_BUF_T === 0.20,
+    'coyote=' + G.COYOTE_T + ' buf=' + G.JUMP_BUF_T);
+  check('coyote: P carries coyoteT, jumpBufT and prevJump fields',
+    typeof G.P.coyoteT === 'number' && typeof G.P.jumpBufT === 'number' && typeof G.P.prevJump === 'boolean');
+  check('coyote: source carries the exact constants line and P fields',
+    html.includes('const COYOTE_T = 0.12, JUMP_BUF_T = 0.20;')
+    && html.includes('coyoteT: 0, jumpBufT: 0, prevJump: false,'));
+  /* (b) a grounded press still jumps the same frame (gravity then applies
+     for that same frame, so vy reads JUMP_V + GRAV * dt after the tick) */
+  {
+    const gy = setupOnFoot();
+    G.keys.Space = true; frame(1); G.keys.Space = false;
+    check('coyote: grounded press jumps (airborne, vy at JUMP_V after same-frame gravity)',
+      G.P.grounded === false && Math.abs(G.P.vy - (G.JUMP_V + G.GRAV * DT)) < 0.01
+      && G.player.position.y > gy + 0.1,
+      'vy=' + G.P.vy + ' grounded=' + G.P.grounded + ' y-gy=' + (G.player.position.y - gy));
+    check('coyote: a fired jump consumes both timers',
+      G.P.coyoteT === 0 && G.P.jumpBufT === 0,
+      'coyoteT=' + G.P.coyoteT + ' jumpBufT=' + G.P.jumpBufT);
+  }
+  /* (c) walking off ground, then pressing inside the coyote window, jumps.
+     The airborne state with a live coyoteT is exactly the state the tick
+     leaves on the first frame after a ledge exit. */
+  {
+    setupAirborne(3, 0, G.COYOTE_T);
+    G.keys.Space = true; frame(1); G.keys.Space = false;
+    check('coyote: press inside the coyote window jumps from airborne',
+      G.P.grounded === false && Math.abs(G.P.vy - (G.JUMP_V + G.GRAV * DT)) < 0.01,
+      'vy=' + G.P.vy + ' grounded=' + G.P.grounded);
+  }
+  /* (d) pressing after the coyote window has expired does NOT jump */
+  {
+    setupAirborne(1, 0, G.COYOTE_T);
+    frame(8);   // 8 * 0.016667 = 0.133s of drain: the 0.12s window is gone
+    check('coyote: coyote timer drains to expiry while airborne',
+      G.P.coyoteT <= 0 && G.P.grounded === false, 'coyoteT=' + G.P.coyoteT);
+    G.keys.Space = true; frame(1); G.keys.Space = false;
+    check('coyote: press after coyote expiry does not jump (still falling)',
+      G.P.grounded === false && G.P.vy < 0, 'vy=' + G.P.vy);
+  }
+  /* (e) pressing shortly before landing fires the jump on landing:
+     the landing clamp sets vy to exactly JUMP_V in the landing frame */
+  {
+    setupAirborne(0.35, -3, 0);
+    G.keys.Space = true; frame(1); G.keys.Space = false;
+    check('coyote: pre-landing press buffers without jumping mid-air',
+      G.P.grounded === false && G.P.vy < 0 && G.P.jumpBufT > 0.15,
+      'vy=' + G.P.vy + ' jumpBufT=' + G.P.jumpBufT);
+    let fired = false;
+    for (let i = 0; i < 10 && !fired; i++) { frame(1); if (G.P.vy === G.JUMP_V && !G.P.grounded) fired = true; }
+    check('coyote: buffered press fires on the landing frame (vy is exactly JUMP_V)',
+      fired && G.P.jumpBufT === 0, 'vy=' + G.P.vy + ' grounded=' + G.P.grounded);
+  }
+  /* (f) holding jump (no new press edge) does NOT auto-rejump on landing.
+     prevJump = true is the state the tick itself maintains while held. */
+  {
+    const gy = setupAirborne(0.3, -2, 0);
+    G.P.prevJump = true; G.keys.Space = true;
+    for (let i = 0; i < 20 && !G.P.grounded; i++) frame(1);
+    const landed = G.P.grounded;
+    frame(3);   // still held, standing on the ground: no edge, no rejump
+    check('coyote: held jump does not auto-rejump on landing',
+      landed && G.P.grounded === true && G.P.vy === 0 && G.player.position.y === gy && G.P.jumpBufT === 0,
+      'grounded=' + G.P.grounded + ' vy=' + G.P.vy + ' jumpBufT=' + G.P.jumpBufT);
+    G.keys.Space = false;
+  }
+  /* (g) a dead player cannot jump and both timers clear */
+  {
+    const gy = setupOnFoot();
+    G.P.dead = true; G.P.deadT = 0; G.P.coyoteT = G.COYOTE_T; G.P.jumpBufT = G.JUMP_BUF_T;
+    G.keys.Space = true; frame(1); G.keys.Space = false;
+    check('coyote: dead player cannot jump and both timers clear',
+      G.P.dead === true && G.P.vy === 0 && G.P.grounded === true && G.player.position.y === gy
+      && G.P.coyoteT === 0 && G.P.jumpBufT === 0,
+      'vy=' + G.P.vy + ' coyoteT=' + G.P.coyoteT + ' jumpBufT=' + G.P.jumpBufT);
+  }
+  /* timers drain by sdt, not raw dt: hit-stop (sdt = 0) freezes them */
+  {
+    setupAirborne(3, 0, G.COYOTE_T);
+    G.P.hitstop = 0.10; frame(1);
+    check('coyote: hit-stop freezes the coyote timer and gravity (sdt drain)',
+      G.P.coyoteT === G.COYOTE_T && G.P.vy === 0,
+      'coyoteT=' + G.P.coyoteT + ' vy=' + G.P.vy);
+    G.P.hitstop = 0;
+  }
+  /* cleanup: back on foot, alive, no input or freeze left behind */
+  setupOnFoot(); G.P.godT = 0; frame(1);
+  /* (h) static pins still hold: the feature adds zero of each */
+  const linesC = html.split('\n');
+  const lineHasC = sub => linesC.filter(l => l.includes(sub)).length;
+  check('coyote-pins: 49 InstancedMesh literals', lineHasC('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasC('new THREE.InstancedMesh'));
+  check('coyote-pins: 92 Math.random lines', lineHasC('Math.random') === 92, 'n=' + lineHasC('Math.random'));
+  check('coyote-pins: 72 setTimeout lines', lineHasC('setTimeout') === 72, 'n=' + lineHasC('setTimeout'));
+  check('coyote-pins: 6 lights',
+    linesC.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('coyote-pins: no em dashes', !html.includes('—'));
+  check('coyote-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('coyote: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */

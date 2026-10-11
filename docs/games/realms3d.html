@@ -4572,6 +4572,7 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
    iOS-safe: MeshStandardMaterial only, shared geos/mats, one 64px canvas tex. */
 const player = new THREE.Group();
 const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0,
+            coyoteT: 0, jumpBufT: 0, prevJump: false,   // jump feel: coyote window, buffered press, press-edge track
             hp: 100, dead: false, deadT: 0, godT: 0, graceT: 0, punchT: 0, punchCd: 0, punchHit: false,
             punchDur: 0.32, combo: 0, comboWin: 0,       // melee polish: 3-punch chain
             hitstop: 0,                                 // melee polish: world-freeze timer
@@ -24839,6 +24840,7 @@ worldTickers.push(apartmentTick);
 /* ============================== GAME LOOP ================================= */
 const clock = new THREE.Clock();
 const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
+const COYOTE_T = 0.12, JUMP_BUF_T = 0.20;   // jump feel: ledge grace (s), pre-landing press buffer (s, mobile-friendly)
 const wishDir = new THREE.Vector3(), tmpV = new THREE.Vector3();
 const posEl = document.getElementById('pos');
 let hudTick = 0;
@@ -24955,11 +24957,23 @@ function tick() {
   /* --- jump + gravity, collide with terrain (skipped while driving or riding) --- */
   const groundY = terrainHeight(player.position.x, player.position.z);
   if (!CAR.driving && !FT.driving && !HORSE.riding && !BUS.driving && !BUS.riding && !TX.riding && !BIKE.driving && !BC.driving && !SC.driving && !BOAT.driving && !HELI.flying && !PLANE.flying && !TRAIN.riding && !SLOT.playing && !PIANO.playing && !THEATER.watching && !THEATERHALL.inHall && !CASINOHALL.inHall && !FIRESTHALL.inHall && !CIVIC.state && !WORSHIP.state && !APARTMENT.state && !AMUSE.riding && !STADIUM.watching) {
-    if ((keys.Space || touch.jump) && P.grounded && !P.dead) { P.vy = JUMP_V; P.grounded = false; }
+    const jumpHeld = !!(keys.Space || touch.jump);
+    const jumpPressed = jumpHeld && !P.prevJump;
+    P.prevJump = jumpHeld;
+    if (P.dead) { P.coyoteT = 0; P.jumpBufT = 0; }
+    else {
+      if (P.grounded) P.coyoteT = COYOTE_T;
+      else if (P.coyoteT > 0) P.coyoteT -= sdt;
+      if (jumpPressed) P.jumpBufT = JUMP_BUF_T;
+      else if (P.jumpBufT > 0) P.jumpBufT -= sdt;
+      const canJump = P.grounded || P.coyoteT > 0;
+      if (canJump && P.jumpBufT > 0) { P.vy = JUMP_V; P.grounded = false; P.coyoteT = 0; P.jumpBufT = 0; }
+    }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
     if (player.position.y <= groundY) {
       player.position.y = groundY; P.vy = 0; P.grounded = true;
+      if (P.jumpBufT > 0 && !P.dead) { P.vy = JUMP_V; P.grounded = false; P.jumpBufT = 0; P.coyoteT = 0; }
     }
   }
 
