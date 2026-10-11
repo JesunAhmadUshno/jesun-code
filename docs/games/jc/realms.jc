@@ -1681,6 +1681,41 @@ to take_item with it
             msg with "Shrine of Vitality: max HP +10."
     give back nothing
 
+to sidestep_step with e and sx and sy
+    note One sidestep attempt: a wall blocks, the player tile attacks, a
+    note free tile moves. Anything else means the step fails.
+    tx is e["x"] + sx
+    ty is e["y"] + sy
+    if is_wall with tx and ty then
+        give back false
+    if tx is G["px"] and ty is G["py"] then
+        r3 is rnd with 3
+        dmg is e["atk"] + r3
+        e["atkT"] is G["tick"]
+        hurt_player with dmg and e["name"]
+        give back true
+    occ2 is entity_at with tx and ty
+    if occ2 is not nothing then
+        give back false
+    e["x"] is tx
+    e["y"] is ty
+    give back true
+
+to chaser_sidestep with e and mx and my
+    note A chaser blocked by another enemy tries the two tiles
+    note perpendicular to the chase direction before giving up the move.
+    if mx is not 0 then
+        sx is 0
+        sy is 1
+    otherwise
+        sx is 1
+        sy is 0
+    if sidestep_step with e and sx and sy then
+        give back true
+    if sidestep_step with e and (0 - sx) and (0 - sy) then
+        give back true
+    give back false
+
 to enemy_ai
     for each e in G["enemies"]
         if e["flash"] is greater than 0 then
@@ -1745,6 +1780,11 @@ to enemy_ai
             skip
         occ is entity_at with nx and ny
         if occ is not nothing then
+            note Another enemy blocks the chase lane: a chaser tries a
+            note sidestep into the perpendicular tile before giving up.
+            if chaser and occ["nkind"] is nothing then
+                if chaser_sidestep with e and mx and my then
+                    e["ph"] is e["ph"] + 1
             skip
         e["x"] is nx
         e["y"] is ny
