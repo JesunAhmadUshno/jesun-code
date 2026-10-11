@@ -339,6 +339,9 @@ globalThis.__R3D = {
   addTrauma, toggleTrauma, traumaNoise, TRAUMA_DECAY, TRAUMA_MAX_OFF,
   /* BULLET MAGNETISM + AIM FRICTION v1: constants + helpers (test-only exposure) */
   MAG_CONE, MAG_RANGE, FRICTION_CONE, FRICTION_FACTOR, aimFriction, aimTargetDir,
+  /* POSITIONAL STEREO-PAN POOL v1: constants + helpers (test-only exposure) */
+  PAN_NEAR, PAN_RANGE, posPan, sfxEnemyShotAt, sfxBlipAt, sfxDieAt, sfxSlamAt,
+  get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
 `;
@@ -11082,6 +11085,88 @@ globalThis.__R3D2 = {
   check('magnetism-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('magnetism: the run leaves zero console errors/warnings',
     consoleProblems.length === probsM, consoleProblems.slice(probsM).join(' | '));
+}
+
+
+/* ================= POSITIONAL STEREO-PAN POOL v1 =================
+   Pan is the dot of the normalized source direction with the camera
+   screen-right in XZ, RIGHT = (-cos(camYaw), sin(camYaw)); gain is 1 at
+   or inside PAN_NEAR, 0 at or past PAN_RANGE, linear between, and far
+   sounds are culled before any node is created. At camYaw 0 the camera
+   looks toward +Z, so RIGHT is (-1, 0) and world +X is screen left. */
+{
+  const probsP = consoleProblems.length;
+  const savedYawP = G.camYaw;
+  G.camYaw = 0;
+  G.player.position.set(0, groundY(0, 0), 0);
+  const pxP = G.player.position.x, pzP = G.player.position.z;
+  const rgtP = { x: -Math.cos(0), z: Math.sin(0) };
+  const fwdP = { x: Math.sin(0), z: Math.cos(0) };
+  const approxP = (a, b, eps) => Math.abs(a - b) <= (eps || 0.001);
+  const noThrowP = (fn) => { try { fn(); return true; } catch (e) { return false; } };
+  check('pan: constants are PAN_NEAR 8 and PAN_RANGE 60',
+    G.PAN_NEAR === 8 && G.PAN_RANGE === 60,
+    'near=' + G.PAN_NEAR + ' range=' + G.PAN_RANGE);
+  check('pan: posPan exists', typeof G.posPan === 'function');
+  check('pan: sfxBlipAt exists', typeof G.sfxBlipAt === 'function');
+  check('pan: sfxEnemyShotAt exists', typeof G.sfxEnemyShotAt === 'function');
+  check('pan: sfxDieAt exists', typeof G.sfxDieAt === 'function');
+  check('pan: sfxSlamAt exists', typeof G.sfxSlamAt === 'function');
+  const outP = { pan: 99, gain: 99 };
+  const retP = G.posPan(pxP + fwdP.x * 5, pzP + fwdP.z * 5, outP);
+  check('pan: posPan returns the caller-supplied out object (no allocation)',
+    retP === outP, 'same=' + (retP === outP));
+  check('pan: dead-ahead near source has pan approx 0', approxP(outP.pan, 0),
+    'pan=' + outP.pan);
+  check('pan: dead-ahead near source has gain 1', outP.gain === 1, 'gain=' + outP.gain);
+  const rightResP = G.posPan(pxP + rgtP.x * 20, pzP + rgtP.z * 20);
+  check('pan: source at player + RIGHT*20 has pan > 0.9', rightResP.pan > 0.9,
+    'pan=' + rightResP.pan);
+  check('pan: right source pan is clamped to at most 1', rightResP.pan <= 1,
+    'pan=' + rightResP.pan);
+  const leftResP = G.posPan(pxP - rgtP.x * 20, pzP - rgtP.z * 20);
+  check('pan: mirrored left source has pan < -0.9', leftResP.pan < -0.9,
+    'pan=' + leftResP.pan);
+  const behindResP = G.posPan(pxP - fwdP.x * 20, pzP - fwdP.z * 20);
+  check('pan: behind source has pan approx 0', approxP(behindResP.pan, 0),
+    'pan=' + behindResP.pan);
+  check('pan: gain at PAN_NEAR is 1',
+    G.posPan(pxP + fwdP.x * G.PAN_NEAR, pzP + fwdP.z * G.PAN_NEAR).gain === 1);
+  check('pan: gain at PAN_RANGE is 0',
+    G.posPan(pxP + fwdP.x * G.PAN_RANGE, pzP + fwdP.z * G.PAN_RANGE).gain === 0);
+  check('pan: gain at the midpoint (34) is approx 0.5',
+    approxP(G.posPan(pxP + fwdP.x * 34, pzP + fwdP.z * 34).gain, 0.5),
+    'gain=' + G.posPan(pxP + fwdP.x * 34, pzP + fwdP.z * 34).gain);
+  check('pan: gain for a far source (100) is 0',
+    G.posPan(pxP + fwdP.x * 100, pzP + fwdP.z * 100).gain === 0);
+  check('pan: far sources are culled and the positional calls do not throw',
+    noThrowP(() => G.sfxBlipAt(440, 0.1, 'sine', 0.2, pxP + 100, pzP))
+    && noThrowP(() => G.sfxEnemyShotAt(pxP + 100, pzP))
+    && noThrowP(() => G.sfxDieAt(pxP + 100, pzP))
+    && noThrowP(() => G.sfxSlamAt(pxP + 100, pzP)));
+  check('pan: near sfxBlipAt runs through the panner pool without throwing',
+    noThrowP(() => G.sfxBlipAt(440, 0.1, 'sine', 0.2, pxP + fwdP.x * 5, pzP + fwdP.z * 5)));
+  check('pan: near sfxEnemyShotAt runs without throwing',
+    noThrowP(() => G.sfxEnemyShotAt(pxP + fwdP.x * 5, pzP + fwdP.z * 5)));
+  check('pan: near sfxDieAt runs without throwing',
+    noThrowP(() => G.sfxDieAt(pxP + fwdP.x * 5, pzP + fwdP.z * 5)));
+  check('pan: near sfxSlamAt runs without throwing',
+    noThrowP(() => G.sfxSlamAt(pxP + fwdP.x * 5, pzP + fwdP.z * 5)));
+  G.camYaw = savedYawP;
+  const linesP = html.split('\n');
+  const lineHasP = sub => linesP.filter(l => l.includes(sub)).length;
+  check('pan-pins: 49 InstancedMesh literals', lineHasP('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasP('new THREE.InstancedMesh'));
+  check('pan-pins: 92 Math.random lines', lineHasP('Math.random') === 92,
+    'n=' + lineHasP('Math.random'));
+  check('pan-pins: 72 setTimeout lines', lineHasP('setTimeout') === 72,
+    'n=' + lineHasP('setTimeout'));
+  check('pan-pins: 6 lights',
+    linesP.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('pan-pins: no em dashes', !html.includes('\u2014'));
+  check('pan-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('pan: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsP, consoleProblems.slice(probsP).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
