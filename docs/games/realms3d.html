@@ -6189,6 +6189,11 @@ function clearDust(){
        dual-track ribbon from the same pooled mesh (zero new draw
        calls, zero new Mesh), rear 3.5, lateral +/-0.85,
        half-width 0.15, same steer/speed gates.
+       SKID MARKS EXTENSION v5: horse now lays a single 0.10-wide
+       rear-hoof scuff ribbon from the same pooled mesh (zero new draw
+       calls, zero new Mesh), half-width 0.05, gated by |steer| over
+       0.4 and speed over 8 (canter and gallop only), rear 0.5 behind
+       centre, dismount resets the stepper.
        SURFACE-AWARE SKID COLOR v1: skidWriteQuad classifies
        once per quad via surfaceAt at the quad centre and
        writes a per-surface colour: rock 0.07, 0.07, 0.07 at
@@ -6200,8 +6205,7 @@ function clearDust(){
        Zero new draw calls, zero new Mesh. New honest limit:
        classification is per-quad centre only so a quad
        crossing a surface boundary takes one surface.
-       New honest limit: horse still lays no marks yet;
-       flat-quad slope clipping limit still applies.
+       New honest limit: flat-quad slope clipping limit still applies.
        SKID SLOPE CONFORM v1: skidWriteQuad now takes a
        prevY argument: previous-end corners now written at
        the stored previous-step height + 0.03 and current-end
@@ -6223,8 +6227,7 @@ function clearDust(){
        heights are kept exactly. Zero new draw calls, zero
        new Mesh. Remaining honest limits: a sharp ridge
        inside one 0.9m segment can still clip slightly,
-       surface classification stays per-quad centre only,
-       and the horse still lays no marks. --- */
+       surface classification stays per-quad centre only. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
 const skidCol = new Float32Array(SKID_N * 4 * 4);
@@ -6267,6 +6270,9 @@ let skid4PLx = 0, skid4PLz = 0, skid4PRx = 0, skid4PRz = 0, skid4PCx = 0, skid4P
 let skid5Prev = null;
 let skid5PrevY = 0;
 let skid5PLx = 0, skid5PLz = 0, skid5PRx = 0, skid5PRz = 0, skid5PCx = 0, skid5PCz = 0;
+let skid6Prev = null;
+let skid6PrevY = 0;
+let skid6Px = 0, skid6Pz = 0, skid6Cx = 0, skid6Cz = 0;
 function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){
   const slot = skidHead; skidHead = (skidHead + 1) % SKID_N;
   const yy = y + 0.03;
@@ -6335,6 +6341,23 @@ function skidStep5(x, z, heading, y){
   skidColAttr.needsUpdate = true;
 }
 function skidReset5(){ skid5Prev = null; }
+function skidStep6(x, z, heading, y){
+  const fx = Math.sin(heading), fz = Math.cos(heading);
+  const lx = fz, lz = -fx;
+  const rx = x - fx * 0.5, rz = z - fz * 0.5;
+  if (skid6Prev === null) {
+    skid6Px = rx; skid6Pz = rz; skid6Cx = rx; skid6Cz = rz; skid6Prev = 1; skid6PrevY = y;
+    return;
+  }
+  const dx = rx - skid6Cx, dz = rz - skid6Cz;
+  if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;
+  skidWriteQuad(skid6Px, skid6Pz, rx, rz, lx, lz, y, 0.05, skid6PrevY);
+  skid6PrevY = y;
+  skid6Px = rx; skid6Pz = rz; skid6Cx = rx; skid6Cz = rz;
+  skidPosAttr.needsUpdate = true;
+  skidColAttr.needsUpdate = true;
+}
+function skidReset6(){ skid6Prev = null; }
 function skidStep(x, z, heading, y){
   const fx = Math.sin(heading), fz = Math.cos(heading);
   const lx = fz, lz = -fx;
@@ -6438,6 +6461,7 @@ function clearSkid(){
   skid3Prev = null;
   skid4Prev = null;
   skid5Prev = null;
+  skid6Prev = null;
   skidPosAttr.needsUpdate = true;
   skidColAttr.needsUpdate = true;
 }
@@ -19450,6 +19474,7 @@ function horseEnter() {
 function horseExit() {
   if (!HORSE.riding) return;
   HORSE.riding = false;
+  skidReset6();
   const a = HORSE.a;
   if (a) {   // the horse stays where it was left, and stays re-mountable
     a.pos.copy(HORSE.pos); a.pos.y = terrainHeight(HORSE.pos.x, HORSE.pos.z);
@@ -19633,6 +19658,7 @@ function horseUpdate(sdt, now) {
   } else {
     HORSE.dustDist = 0;
   }
+  if (Math.abs(HORSE.steer) > 0.4 && Math.abs(HORSE.speed) > 8) skidStep6(HORSE.pos.x, HORSE.pos.z, HORSE.heading, HORSE.pos.y); else skidReset6();
 
   // ---- camera feel: pullback with speed, FOV kick at gallop ----
   HORSE.camDist = HORSE.camDist0 + spdN * 1.6;
