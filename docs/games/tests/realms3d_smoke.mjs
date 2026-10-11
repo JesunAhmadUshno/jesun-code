@@ -351,7 +351,7 @@ globalThis.__R3D = {
   footFov, FOV_SPRINT,
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
   spawnDust, dustTick, clearDust, DUST_N, DUST_LIFE,
-  dustPos, dustVel, dustLife, dustCol, dustGrav, dustDrag, dustPts,
+  dustPos, dustVel, dustLife, dustCol, dustGrav, dustDrag, dustLifeMax, dustPts,
   get dustHead() { return dustHead; },
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
@@ -11798,11 +11798,12 @@ globalThis.__R3D2 = {
       const hs = Math.hypot(G.dustVel[i * 3], G.dustVel[i * 3 + 2]);
       if (hs < 1.2 - 1e-6 || hs > 2.6 + 1e-6) velOk = false;
       if (G.dustVel[i * 3 + 1] < 0.6 - 1e-6 || G.dustVel[i * 3 + 1] > 1.6 + 1e-6) velOk = false;
-      if (!approxD(G.dustLife[i], G.DUST_LIFE, 1e-6)) lifeOk = false;
+      if (!approxD(G.dustLife[i], G.dustLifeMax[i], 1e-6)) lifeOk = false;
+      if (G.dustLife[i] < G.DUST_LIFE * 0.6 - 1e-6 || G.dustLife[i] > G.DUST_LIFE * 1.4 + 1e-6) lifeOk = false;
     }
     check('dust: every spawned particle starts exactly at the spawn point', placed);
     check('dust: spawned velocities sit in range (radial 1.2..2.6, up 0.6..1.6)', velOk);
-    check('dust: every spawned particle starts at full DUST_LIFE', lifeOk);
+    check('dust: every spawned particle starts at its full dustLifeMax within 0.6..1.4 of DUST_LIFE', lifeOk);
   }
   /* determinism: reseeding the LCG reproduces the same velocity stream */
   {
@@ -11833,6 +11834,7 @@ globalThis.__R3D2 = {
     let s0 = -1; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) { s0 = i; break; }
     const px = G.dustPos[s0 * 3], py = G.dustPos[s0 * 3 + 1], pz = G.dustPos[s0 * 3 + 2];
     const vx = G.dustVel[s0 * 3], vy = G.dustVel[s0 * 3 + 1], vz = G.dustVel[s0 * 3 + 2];
+    const life0 = G.dustLife[s0];
     G.dustTick(0.1);
     check('dust: dustTick moves positions by velocity * dt',
       approxD(G.dustPos[s0 * 3], px + vx * 0.1, 1e-6)
@@ -11844,14 +11846,14 @@ globalThis.__R3D2 = {
       && approxD(G.dustVel[s0 * 3], vx * 0.7, 1e-6)
       && approxD(G.dustVel[s0 * 3 + 2], vz * 0.7, 1e-6),
       'vel=' + G.dustVel[s0 * 3] + ',' + G.dustVel[s0 * 3 + 1] + ',' + G.dustVel[s0 * 3 + 2]);
-    check('dust: dustTick spends life by dt (0.45 - 0.1 = 0.35)',
-      approxD(G.dustLife[s0], 0.35, 1e-6), 'life=' + G.dustLife[s0]);
+    check('dust: dustTick spends life by dt (life - 0.1)',
+      approxD(G.dustLife[s0], life0 - 0.1, 1e-6), 'life=' + G.dustLife[s0] + ' before=' + life0);
   }
   /* expiry parks particles; tick at rest is a no-op */
   {
     G.clearDust(); G.spawnDust(0, 1, 0, 5);
-    G.dustTick(0.5);
-    check('dust: a tick past DUST_LIFE expires every particle and parks it at y -999',
+    G.dustTick(0.65);
+    check('dust: a tick past the max per-particle life expires every particle and parks it at y -999',
       liveD() === 0 && parkedD(), 'live=' + liveD());
     G.dustTick(DTD); G.dustTick(0);
     check('dust: dustTick at rest is a safe no-op (still nothing live, all parked)',
@@ -12256,8 +12258,8 @@ globalThis.__R3D2 = {
   /* tick expiry still works with colors attached */
   {
     if (foundC.grass) G.spawnDust(foundC.grass.x, 1, foundC.grass.z, 5);
-    G.dustTick(0.5);
-    check('dustcol: a tick past DUST_LIFE still expires every colored particle',
+    G.dustTick(0.65);
+    check('dustcol: a tick past the max per-particle life still expires every colored particle',
       liveColC().length === 0, 'live=' + liveColC().length);
   }
   G.clearDust();
@@ -12447,8 +12449,8 @@ globalThis.__R3D2 = {
   {
     if (foundW.water) spawnRecW(foundW.water);
     const preExpW = liveW();
-    G.dustTick(0.5);
-    check('dustsplash: a tick past DUST_LIFE still expires every splash particle',
+    G.dustTick(0.65);
+    check('dustsplash: a tick past the max per-particle life still expires every splash particle',
       preExpW > 0 && liveW() === 0, 'pre=' + preExpW + ' live=' + liveW());
   }
   G.clearDust();
@@ -12480,6 +12482,165 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustsplash: the run leaves zero console errors/warnings',
     consoleProblems.length === probsW, consoleProblems.slice(probsW).join(' | '));
+}
+
+/* ================= PER-PARTICLE DUST LIFE v1 =================
+   Particles in one pooled dust burst no longer expire on the exact
+   same frame. One more preallocated array (dustLifeMax, 48 slots,
+   initialized to DUST_LIFE) carries each particle's own life span.
+   spawnDust derives the factor from the up velocity it already
+   rolled for that particle (lifeF = 1 + (up - 1.1) * 0.7, so
+   0.65..1.35 across up 0.6..1.6) with no new dustRand call: the
+   call order and count per particle stay exactly four (ang,
+   radial, up, jit). dustLife starts at dustLifeMax and counts down
+   in dustTick exactly as before, so a burst thins out particle by
+   particle instead of popping out all at once. clearDust resets
+   dustLifeMax to DUST_LIFE. Honest limit: material opacity and
+   size stay global, so the fade is by expiry order only. No new
+   Points, draw calls or nodes. */
+{
+  const probsL = consoleProblems.length;
+  const approxL = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveL = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const parkedL = () => { let ok = true; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] <= 0 && G.dustPos[i * 3 + 1] !== -999) ok = false; return ok; };
+  /* array exists and resets to DUST_LIFE on clearDust */
+  check('dustlife: dustLifeMax is a preallocated Float32Array of 48',
+    !!G.dustLifeMax && G.dustLifeMax instanceof Float32Array && G.dustLifeMax.length === 48,
+    'len=' + (G.dustLifeMax && G.dustLifeMax.length));
+  G.clearDust();
+  check('dustlife: after clearDust every dustLifeMax slot is DUST_LIFE',
+    Array.from(G.dustLifeMax).every(v => approxL(v, G.DUST_LIFE, 1e-6)),
+    'first=' + G.dustLifeMax[0] + ' life=' + G.DUST_LIFE);
+  /* source declarations, exact formula and the unchanged dustRand budget */
+  check('dustlife: source declares the preallocated array beside dustLife',
+    html.includes('const dustLifeMax = new Float32Array(DUST_N);'));
+  check('dustlife: source initializes dustLifeMax to DUST_LIFE at declaration time',
+    html.includes('dustLifeMax.fill(DUST_LIFE);'));
+  check('dustlife: source carries the PER-PARTICLE DUST LIFE v1 header',
+    html.includes('PER-PARTICLE DUST LIFE v1'));
+  check('dustlife: clearDust source resets dustLifeMax slots to DUST_LIFE',
+    html.includes('dustLifeMax[i] = DUST_LIFE;'));
+  {
+    const segStartL = html.indexOf('function spawnDust');
+    const segL = segStartL >= 0 ? html.slice(segStartL, html.indexOf('function dustTick')) : '';
+    check('dustlife: spawnDust source carries the exact life factor line',
+      segL.includes('const lifeF = 1 + (up - 1.1) * 0.7;'));
+    check('dustlife: spawnDust source writes dustLifeMax then dustLife from it per slot',
+      segL.includes('dustLifeMax[slot] = DUST_LIFE * lifeF;')
+      && segL.includes('dustLife[slot] = dustLifeMax[slot];'));
+    check('dustlife: spawnDust still calls dustRand exactly 4 times per particle (no new call)',
+      (segL.split('dustRand()').length - 1) === 4,
+      'n=' + (segL.split('dustRand()').length - 1));
+  }
+  /* one burst: lives differ per particle, start at dustLifeMax, stay in bounds */
+  let burstL = null;
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    const headL = G.dustHead;
+    G.spawnDust(0, 1, 0, 5);
+    const slotsL = [];
+    for (let n = 0; n < 10; n++) slotsL.push((headL + n) % G.DUST_N);
+    burstL = {
+      slots: slotsL,
+      life: slotsL.map(s => G.dustLife[s]),
+      max: slotsL.map(s => G.dustLifeMax[s]),
+      live: liveL(),
+    };
+  }
+  check('dustlife: one burst at strength 5 spawns exactly 10 particles',
+    !!burstL && burstL.live === 10, 'live=' + (burstL && burstL.live));
+  check('dustlife: particles from one burst do NOT all share the same life (at least 2 distinct dustLife values)',
+    !!burstL && new Set(burstL.life).size >= 2,
+    'distinct=' + (burstL && new Set(burstL.life).size)
+    + ' lives=' + (burstL && burstL.life.map(v => v.toFixed(3)).join(',')));
+  check('dustlife: every spawned dustLife equals its dustLifeMax at spawn',
+    !!burstL && burstL.life.every((v, i) => approxL(v, burstL.max[i], 1e-6)));
+  check('dustlife: all lives stay within [DUST_LIFE*0.6, DUST_LIFE*1.4]',
+    !!burstL && burstL.life.every(v => v >= G.DUST_LIFE * 0.6 - 1e-6 && v <= G.DUST_LIFE * 1.4 + 1e-6),
+    'min=' + (burstL && Math.min(...burstL.life)) + ' max=' + (burstL && Math.max(...burstL.life)));
+  check('dustlife: all lives stay within the tighter derived band [DUST_LIFE*0.65, DUST_LIFE*1.35]',
+    !!burstL && burstL.life.every(v => v >= G.DUST_LIFE * 0.65 - 1e-4 && v <= G.DUST_LIFE * 1.35 + 1e-4),
+    'min=' + (burstL && Math.min(...burstL.life)) + ' max=' + (burstL && Math.max(...burstL.life)));
+  /* determinism: same seed respawn reproduces per-particle lives exactly */
+  {
+    const recL = () => {
+      G.clearDust(); G.dustSeed = 987654321;
+      const h = G.dustHead; G.spawnDust(0, 1, 0, 5);
+      const out = [];
+      for (let n = 0; n < 10; n++) { const s = (h + n) % G.DUST_N; out.push(G.dustLife[s], G.dustLifeMax[s]); }
+      return out;
+    };
+    const r1L = recL(), r2L = recL();
+    check('dustlife: same seed respawn reproduces per-particle lives exactly',
+      r1L.length === 20 && r1L.every((v, i) => v === r2L[i]));
+  }
+  /* staggered expiry: past the shortest life some are dead and parked, longer-lived ones remain; past the max all are dead */
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    const headL2 = G.dustHead;
+    G.spawnDust(0, 1, 0, 5);
+    const slotsL2 = [];
+    for (let n = 0; n < 10; n++) slotsL2.push((headL2 + n) % G.DUST_N);
+    const livesL2 = slotsL2.map(s => G.dustLife[s]);
+    const minL = Math.min(...livesL2), maxL = Math.max(...livesL2);
+    check('dustlife: the recorded burst has a real life spread (max > min)',
+      maxL > minL, 'min=' + minL + ' max=' + maxL);
+    const midL = minL + (maxL - minL) * 0.5;
+    G.dustTick(midL);
+    const deadAfterMid = slotsL2.filter(s => G.dustLife[s] <= 0 && G.dustPos[s * 3 + 1] === -999).length;
+    const aliveAfterMid = slotsL2.filter(s => G.dustLife[s] > 0).length;
+    check('dustlife: after ticking past the shortest life some particles are dead and parked while longer-lived ones are still alive',
+      deadAfterMid >= 1 && aliveAfterMid >= 1,
+      'dead=' + deadAfterMid + ' alive=' + aliveAfterMid + ' tick=' + midL + ' min=' + minL + ' max=' + maxL);
+    check('dustlife: the shortest-lived particle is among the ones that expired first',
+      G.dustLife[slotsL2[livesL2.indexOf(minL)]] <= 0
+      && G.dustPos[slotsL2[livesL2.indexOf(minL)] * 3 + 1] === -999);
+    check('dustlife: the longest-lived particle is still alive after the mid tick',
+      G.dustLife[slotsL2[livesL2.indexOf(maxL)]] > 0);
+    G.dustTick(maxL);
+    check('dustlife: after ticking past the max life all particles are dead and parked',
+      liveL() === 0 && parkedL(), 'live=' + liveL());
+  }
+  /* clearDust after a varied burst resets dustLifeMax to DUST_LIFE on every slot */
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    G.spawnDust(0, 1, 0, 5);
+    const preClearLive = liveL();
+    const preClearDistinct = new Set(Array.from(G.dustLifeMax)).size;
+    G.clearDust();
+    check('dustlife: clearDust resets dustLifeMax to DUST_LIFE after a varied burst',
+      preClearLive === 10 && preClearDistinct >= 2
+      && Array.from(G.dustLifeMax).every(v => approxL(v, G.DUST_LIFE, 1e-6))
+      && liveL() === 0 && parkedL(),
+      'preLive=' + preClearLive + ' distinctMax=' + preClearDistinct);
+  }
+  G.clearDust();
+  /* static pins still hold exactly: per-particle life adds zero of everything */
+  const linesL = html.split('\n');
+  const lineHasL = sub => linesL.filter(l => l.includes(sub)).length;
+  check('dustlife-pins: 49 InstancedMesh literals', lineHasL('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasL('new THREE.InstancedMesh'));
+  check('dustlife-pins: 92 Math.random lines', lineHasL('Math.random') === 92,
+    'n=' + lineHasL('Math.random'));
+  check('dustlife-pins: 72 setTimeout lines', lineHasL('setTimeout') === 72,
+    'n=' + lineHasL('setTimeout'));
+  check('dustlife-pins: 6 lights',
+    linesL.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustlife-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustlife-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustlife-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasL('new THREE.Points(') === 2, 'n=' + lineHasL('new THREE.Points('));
+  check('dustlife-pins: no em dashes', !html.includes('—'));
+  check('dustlife-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustlife-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustlife: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */

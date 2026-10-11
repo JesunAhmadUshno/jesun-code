@@ -5271,7 +5271,21 @@ function squashTick(dt){
        dragF 1. Per-particle gravity and drag live in two preallocated
        arrays (dustGrav and dustDrag, 48 slots each, initialized to 1,
        written by spawnDust, reset to 1 by clearDust, no allocation in
-       spawn or tick). Non-water bursts are unchanged in behavior. --- */
+       spawn or tick). Non-water bursts are unchanged in behavior.
+       PER-PARTICLE DUST LIFE v1: particles in one burst no longer
+       expire on the same frame. Each particle gets its own life span
+       in one more preallocated array (dustLifeMax, 48 slots,
+       initialized to DUST_LIFE, written by spawnDust, reset to
+       DUST_LIFE by clearDust, no allocation in spawn or tick).
+       spawnDust derives the life factor from the up velocity it
+       already rolled for that particle (factor 1 + (up - 1.1) * 0.7,
+       so 0.65..1.35 across the up range 0.6..1.6): higher puffs live
+       longer, low puffs fade first, and the burst thins out instead
+       of popping out all at once. No new dustRand call: the call
+       order and count per particle stay exactly four. Honest limit:
+       the fade is by expiry order only, because the material opacity
+       and size stay global to the one shared material, so a particle
+       keeps full opacity and size until its own life runs out. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -5279,7 +5293,9 @@ const dustCol = new Float32Array(DUST_N * 3);
 const dustLife = new Float32Array(DUST_N);
 const dustGrav = new Float32Array(DUST_N);
 const dustDrag = new Float32Array(DUST_N);
+const dustLifeMax = new Float32Array(DUST_N);
 dustGrav.fill(1); dustDrag.fill(1);
+dustLifeMax.fill(DUST_LIFE);
 let dustHead = 0;
 let dustSeed = 987654321;
 for (let i = 0; i < DUST_N; i++) dustPos[i * 3 + 1] = -999;
@@ -5333,7 +5349,9 @@ function spawnDust(x, y, z, strength){
     dustCol[slot * 3] = Math.min(1, pr * jit);
     dustCol[slot * 3 + 1] = Math.min(1, pg * jit);
     dustCol[slot * 3 + 2] = Math.min(1, pb * jit);
-    dustLife[slot] = DUST_LIFE;
+    const lifeF = 1 + (up - 1.1) * 0.7;
+    dustLifeMax[slot] = DUST_LIFE * lifeF;
+    dustLife[slot] = dustLifeMax[slot];
   }
   dustPosAttr.needsUpdate = true;
   dustColAttr.needsUpdate = true;
@@ -5357,7 +5375,7 @@ function dustTick(dt){
   if (changed) dustPosAttr.needsUpdate = true;
 }
 function clearDust(){
-  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; }
+  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; dustLifeMax[i] = DUST_LIFE; }
   dustPosAttr.needsUpdate = true;
   dustColAttr.needsUpdate = true;
 }
