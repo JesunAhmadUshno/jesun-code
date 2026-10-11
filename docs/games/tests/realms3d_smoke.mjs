@@ -343,6 +343,8 @@ globalThis.__R3D = {
   PAN_NEAR, PAN_RANGE, posPan, sfxEnemyShotAt, sfxBlipAt, sfxDieAt, sfxSlamAt,
   /* SURFACE-AWARE FOOTSTEPS v1: constants + helpers (test-only exposure) */
   STEP_LEN, surfaceAt, sfxStep,
+  /* SQUASH-AND-STRETCH v1: squash helpers + constants (test-only exposure) */
+  squashImpulse, squashTick, SQ_MAX, SQ_DECAY, punchConnectFX,
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
@@ -11307,6 +11309,197 @@ globalThis.__R3D2 = {
   check('step-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('step: the run leaves zero console errors/warnings',
     consoleProblems.length === probsS, consoleProblems.slice(probsS).join(' | '));
+}
+
+/* ================= SQUASH-AND-STRETCH v1 =================
+   Volume-preserving deformation impulse on the player group: one signed
+   P.squash (positive stretches taller, negative squashes flatter), set by
+   real events (jump, landing, landed punch) with latest-wins semantics,
+   decayed exponentially by squashTick on sdt in the on-foot walk block.
+   The volume law is sx = 1 / sqrt(sy), so sx * sx * sy stays 1. */
+{
+  const probsQ = consoleProblems.length;
+  const DTQ = 16.667 / 1000;
+  const approxQ = (a, b, tol) => Math.abs(a - b) <= tol;
+  const scaleIs1 = () => G.player.scale.x === 1 && G.player.scale.y === 1 && G.player.scale.z === 1;
+  const setupOnFootQ = () => {
+    for (const k in G.keys) G.keys[k] = false;
+    G.touch.jump = false; G.touch.moveX = 0; G.touch.moveY = 0; G.touch.sprint = false;
+    G.P.dead = false; G.P.deadT = 0; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.trauma = 0; G.P.graceT = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0; G.P.grounded = true;
+    G.P.coyoteT = 0; G.P.jumpBufT = 0; G.P.prevJump = false;
+    G.P.punchCd = 0; G.P.punchT = 0; G.P.combo = 0; G.P.comboWin = 0;
+    G.P.squash = 0; G.player.scale.set(1, 1, 1);
+    G.player.rotation.y = 0;
+    G.player.position.set(0, groundY(0, 0), 0);
+    return groundY(0, 0);
+  };
+  const setupAirborneQ = (height, vy) => {
+    const gy = setupOnFootQ();
+    G.P.grounded = false; G.P.vy = vy; G.P.coyoteT = 0;
+    G.player.position.y = gy + height;
+    return gy;
+  };
+  /* constants, helpers and boot state */
+  check('squash: constants SQ_MAX and SQ_DECAY are 0.30 and 10',
+    G.SQ_MAX === 0.30 && G.SQ_DECAY === 10,
+    'max=' + G.SQ_MAX + ' decay=' + G.SQ_DECAY);
+  check('squash: squashImpulse and squashTick are functions',
+    typeof G.squashImpulse === 'function' && typeof G.squashTick === 'function');
+  check('squash: P starts at 0 (P literal) and player scale starts at (1,1,1)',
+    html.includes('squash: 0,') && typeof G.P.squash === 'number'
+    && G.player.scale.x === 1 && G.player.scale.y === 1 && G.player.scale.z === 1,
+    'squash=' + G.P.squash + ' scale=' + G.player.scale.x + ',' + G.player.scale.y + ',' + G.player.scale.z);
+  check('squash: source carries the constants line, the volume law and the jump/land wiring',
+    html.includes('const SQ_MAX = 0.30, SQ_DECAY = 10;')
+    && html.includes('const sx = 1 / Math.sqrt(sy);')
+    && html.includes('squashImpulse(0.22)')
+    && html.includes('squashTick(sdt)'));
+  /* impulse: set semantics (latest wins, never stacks) and clamping */
+  G.P.squash = 0; G.squashImpulse(0.15);
+  check('squash: squashImpulse sets a positive stretch', G.P.squash === 0.15, 'squash=' + G.P.squash);
+  G.squashImpulse(-0.05);
+  check('squash: a later impulse replaces, never stacks (0.15 then -0.05 reads -0.05)',
+    G.P.squash === -0.05, 'squash=' + G.P.squash);
+  G.squashImpulse(0.99);
+  check('squash: squashImpulse clamps at +SQ_MAX', G.P.squash === G.SQ_MAX, 'squash=' + G.P.squash);
+  G.squashImpulse(-0.99);
+  check('squash: squashImpulse clamps at -SQ_MAX', G.P.squash === -G.SQ_MAX, 'squash=' + G.P.squash);
+  /* volume law: stretch at 0.22, read after a zero-length tick (no decay) */
+  G.P.squash = 0; G.player.scale.set(1, 1, 1);
+  G.squashImpulse(0.22); G.squashTick(0);
+  check('squash: stretch at 0.22 gives sy approx 1.22 before decay',
+    approxQ(G.player.scale.y, 1.22, 1e-9), 'sy=' + G.player.scale.y);
+  check('squash: volume is preserved at 0.22 (sx*sx*sy approx 1 within 1e-6)',
+    approxQ(G.player.scale.x * G.player.scale.x * G.player.scale.y, 1, 1e-6)
+    && approxQ(G.player.scale.x, 1 / Math.sqrt(1.22), 1e-9),
+    'vol=' + (G.player.scale.x * G.player.scale.x * G.player.scale.y));
+  /* volume law: a negative squash widens and flattens, volume still 1 */
+  G.squashImpulse(-0.20); G.squashTick(0);
+  check('squash: negative squash widens sx above 1 and lowers sy below 1',
+    G.player.scale.x > 1 && G.player.scale.y < 1 && approxQ(G.player.scale.y, 0.80, 1e-9),
+    'sx=' + G.player.scale.x + ' sy=' + G.player.scale.y);
+  check('squash: volume is preserved at -0.20 (sx*sx*sy approx 1 within 1e-6)',
+    approxQ(G.player.scale.x * G.player.scale.x * G.player.scale.y, 1, 1e-6),
+    'vol=' + (G.player.scale.x * G.player.scale.x * G.player.scale.y));
+  /* decay: exponential shrink, then an exact snap to zero and scale (1,1,1) */
+  G.squashImpulse(0.28);
+  const beforeDecayQ = Math.abs(G.P.squash);
+  for (let i = 0; i < 10; i++) G.squashTick(DTQ);
+  check('squash: decay shrinks |squash| over repeated ticks (still positive at 10 ticks)',
+    Math.abs(G.P.squash) < beforeDecayQ && G.P.squash > 0,
+    'before=' + beforeDecayQ + ' after=' + G.P.squash);
+  for (let i = 0; i < 120; i++) G.squashTick(DTQ);
+  check('squash: decay snaps to exactly 0 with scale exactly (1,1,1)',
+    G.P.squash === 0 && scaleIs1(), 'squash=' + G.P.squash);
+  G.squashTick(DTQ); G.squashTick(0);
+  check('squash: squashTick at rest is a safe no-op (stays 0, scale stays (1,1,1))',
+    G.P.squash === 0 && scaleIs1());
+  /* wiring: a real jump through the tick stretches */
+  {
+    setupOnFootQ();
+    G.keys.Space = true; frame(1); G.keys.Space = false;
+    check('squash: a real jump via the tick path sets squash > 0 (decayed one tick)',
+      G.P.grounded === false && G.P.squash > 0.15 && G.player.scale.y > 1.1,
+      'squash=' + G.P.squash + ' sy=' + G.player.scale.y + ' grounded=' + G.P.grounded);
+  }
+  /* wiring: a real fall and landing through the tick squashes */
+  {
+    setupAirborneQ(2.5, -6);
+    let landedQ = false;
+    for (let i = 0; i < 60 && !landedQ; i++) { frame(1); if (G.P.grounded) landedQ = true; }
+    check('squash: a real fall + landing via the tick path sets squash < 0',
+      landedQ && G.P.squash < -0.15, 'squash=' + G.P.squash + ' landed=' + landedQ);
+    check('squash: the landing squash flattens and widens the player scale',
+      G.player.scale.y < 1 && G.player.scale.x > 1,
+      'sx=' + G.player.scale.x + ' sy=' + G.player.scale.y);
+  }
+  /* wiring: standing on the ground never retriggers the landing squash */
+  {
+    setupOnFootQ();
+    frame(30);
+    check('squash: standing on ground for 30 ticks never sets squash',
+      G.P.grounded === true && G.P.squash === 0 && scaleIs1(),
+      'squash=' + G.P.squash + ' grounded=' + G.P.grounded);
+  }
+  /* wiring: a buffered re-jump on the landing frame wins over the landing
+     squash (the jump stretch is the later set) */
+  {
+    setupAirborneQ(0.35, -3);
+    G.keys.Space = true; frame(1); G.keys.Space = false;
+    let firedQ = false;
+    for (let i = 0; i < 10 && !firedQ; i++) { frame(1); if (G.P.vy === G.JUMP_V && !G.P.grounded) firedQ = true; }
+    check('squash: buffered re-jump on landing reads as stretch, not squash (jump wins)',
+      firedQ && G.P.squash > 0.1, 'squash=' + G.P.squash + ' fired=' + firedQ);
+  }
+  /* wiring: punchConnectFX stretches, light and heavy */
+  setupOnFootQ();
+  G.punchConnectFX(1);
+  check('squash: punchConnectFX light (step 1) sets squash 0.12',
+    approxQ(G.P.squash, 0.12, 1e-9), 'squash=' + G.P.squash);
+  G.P.squash = 0; G.P.hitstop = 0;
+  G.punchConnectFX(3);
+  check('squash: punchConnectFX heavy (step 3) sets squash 0.18',
+    approxQ(G.P.squash, 0.18, 1e-9), 'squash=' + G.P.squash);
+  /* wiring: a real landed punch through doPunch + the tick stretches */
+  {
+    setupOnFootQ();
+    for (const e of G.enemies) e.state = 'dead';
+    for (const c of G.cops) c.active = false;
+    G.setHeat(0, true);
+    const ePunchQ = G.enemies.find(e => e.type === 'shooter');
+    ePunchQ.state = 'wander'; ePunchQ.deadT = 0; ePunchQ.hp = 100;
+    ePunchQ.group.position.set(0, groundY(0, 0), 1.5);
+    G.doPunch();
+    let hitQ = false;
+    for (let i = 0; i < 40 && !hitQ; i++) { frame(1); if (G.P.squash > 0) hitQ = true; }
+    check('squash: a landed punch on a placed enemy sets squash > 0 (0.12 light)',
+      hitQ && approxQ(G.P.squash, 0.12, 1e-6), 'squash=' + G.P.squash + ' hit=' + hitQ);
+    G.P.hitstop = 0;
+  }
+  /* death clears the deformation and resets the scale */
+  {
+    setupOnFootQ();
+    G.P.godT = 0; G.shopArmor = 0;
+    G.squashImpulse(0.25); G.squashTick(0);
+    G.hurtPlayer(9999);
+    check('squash: death clears squash and resets scale to (1,1,1)',
+      G.P.dead === true && G.P.squash === 0 && scaleIs1(),
+      'squash=' + G.P.squash + ' dead=' + G.P.dead);
+    G.P.deadT = 1.1; frame(15);
+    check('squash: redeploy hook revives the player after the death check',
+      !G.P.dead && G.P.hp === 100, 'dead=' + G.P.dead + ' hp=' + G.P.hp);
+  }
+  /* newGame clears the deformation too */
+  {
+    G.squashImpulse(-0.20); G.squashTick(0);
+    G.newGame();
+    check('squash: newGame clears squash and resets scale to (1,1,1)',
+      G.P.squash === 0 && scaleIs1(), 'squash=' + G.P.squash);
+  }
+  /* cleanup: back on foot, alive, undeformed, no input or god mode left */
+  setupOnFootQ(); G.P.godT = 0; frame(1);
+  /* static pins still hold: the feature adds zero of each */
+  const linesQ = html.split('\n');
+  const lineHasQ = sub => linesQ.filter(l => l.includes(sub)).length;
+  check('squash-pins: 49 InstancedMesh literals', lineHasQ('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasQ('new THREE.InstancedMesh'));
+  check('squash-pins: 92 Math.random lines', lineHasQ('Math.random') === 92,
+    'n=' + lineHasQ('Math.random'));
+  check('squash-pins: 72 setTimeout lines', lineHasQ('setTimeout') === 72,
+    'n=' + lineHasQ('setTimeout'));
+  check('squash-pins: 6 lights',
+    linesQ.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('squash-pins: 18 osc, 32 gain (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 32,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length
+    + ' gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('squash-pins: no em dashes', !html.includes('—'));
+  check('squash-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('squash: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsQ, consoleProblems.slice(probsQ).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */

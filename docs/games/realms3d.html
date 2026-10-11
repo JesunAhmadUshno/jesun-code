@@ -4578,6 +4578,7 @@ const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0,
             hitstop: 0,                                 // melee polish: world-freeze timer
             shakeT: 0, shakeDur: 0.001, shakeMag: 0,   // melee polish: camera punch
             trauma: 0, traumaT: 0, traumaOn: true,   // trauma shake: accumulator, noise clock, accessibility gate
+            squash: 0,                              // squash-and-stretch: signed deformation impulse
             stepDist: 0, stepAlt: 0, stepCount: 0 };   // footsteps: distance accumulator, alt foot, total steps
 
 /* --- procedural skin texture: tone variation, pores (64px, iOS-safe) --- */
@@ -5180,6 +5181,25 @@ function punchConnectFX(step) {
   const rec = heavy ? 0.5 : 0.3;        // subtle nudge (infinite world: no clamp)
   player.position.x -= fx * rec;
   player.position.z -= fz * rec;
+  squashImpulse(heavy ? 0.18 : 0.12);   // SQUASH-AND-STRETCH v1: a landed punch stretches the attacker
+}
+
+/* --- SQUASH-AND-STRETCH v1: volume-preserving deformation impulse on the
+       player group (Disney principle: if sy changes, sx and sz compensate
+       so sx * sx * sy stays 1). One signed value on P: positive stretches
+       taller, negative squashes flatter. Events set it (latest wins, never
+       stacks), squashTick decays it exponentially and writes player.scale.
+       Zero new objects, meshes or draw calls: player.scale was unused. --- */
+const SQ_MAX = 0.30, SQ_DECAY = 10;
+function squashImpulse(a){ P.squash = Math.max(-SQ_MAX, Math.min(SQ_MAX, a)); }
+function squashTick(dt){
+  if (P.squash === 0) return;
+  P.squash *= Math.exp(-SQ_DECAY * dt);
+  if (Math.abs(P.squash) < 0.002) P.squash = 0;
+  if (P.squash === 0) { player.scale.set(1, 1, 1); return; }
+  const sy = 1 + P.squash;
+  const sx = 1 / Math.sqrt(sy);
+  player.scale.set(sx, sy, sx);
 }
 
 /* --- TRAUMA SHAKE v1: one 0..1 trauma accumulator (Vlambeer / Eiserloh
@@ -5894,7 +5914,7 @@ function hurtPlayer(d) {
   dmgV = 0.85;
   diffRecordDamage(d);   // dynamic difficulty: rolling damage-taken stat
   updateHpHUD();
-  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; P.trauma = 0; diffRecordDeath();
+  if (P.hp <= 0) { P.hp = 0; P.dead = true; P.deadT = 0; P.trauma = 0; P.squash = 0; player.scale.set(1, 1, 1); diffRecordDeath();
     P.graceT = 0; graceChipEl.style.display = 'none';   // spawn grace never survives death
     const lost = Math.floor(cash * 0.15); cash -= lost; updateCashHUD();   // Phase 5 bank: only carried cash is seized; the bank is never touched
     toast('ELIMINATED - $' + lost + ' LOST'); missionOnDeath();
@@ -25169,13 +25189,15 @@ function tick() {
       if (jumpPressed) P.jumpBufT = JUMP_BUF_T;
       else if (P.jumpBufT > 0) P.jumpBufT -= sdt;
       const canJump = P.grounded || P.coyoteT > 0;
-      if (canJump && P.jumpBufT > 0) { P.vy = JUMP_V; P.grounded = false; P.coyoteT = 0; P.jumpBufT = 0; }
+      if (canJump && P.jumpBufT > 0) { P.vy = JUMP_V; P.grounded = false; P.coyoteT = 0; P.jumpBufT = 0; squashImpulse(0.22); }
     }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
     if (player.position.y <= groundY) {
+      const wasAirborne = !P.grounded; const fallVy = P.vy;
       player.position.y = groundY; P.vy = 0; P.grounded = true;
-      if (P.jumpBufT > 0 && !P.dead) { P.vy = JUMP_V; P.grounded = false; P.jumpBufT = 0; P.coyoteT = 0; }
+      if (wasAirborne) squashImpulse(-Math.min(0.28, 0.10 + Math.abs(fallVy) * 0.02));
+      if (P.jumpBufT > 0 && !P.dead) { P.vy = JUMP_V; P.grounded = false; P.jumpBufT = 0; P.coyoteT = 0; squashImpulse(0.22); }
     }
   }
 
@@ -25198,6 +25220,7 @@ function tick() {
          Runs after locomotion writes the base pose, before punch (which wins
          per joint by writing later, and cancels the emote outright). --- */
   emoteTick(sdt);
+  squashTick(sdt);   /* SQUASH-AND-STRETCH v1: decay the deformation impulse (sdt, so hit-stop freezes it) */
   /* --- punch animation: arm extends fast, retracts; the 3rd hit (hook)
          swings visibly bigger with an arc across the body --- */
   if (P.punchCd > 0) P.punchCd -= sdt;
@@ -25725,6 +25748,7 @@ function loadSave() {
 function newGame() {
   if (!playing()) return;
   emoteCancel(); dmgNumRecycleAll();   // new game: no strays from the old run
+  P.squash = 0; player.scale.set(1, 1, 1);   // SQUASH-AND-STRETCH v1: a new game starts undeformed
   try {
     localStorage.removeItem(SAVE_KEY);
     localStorage.removeItem(SAVE_JOURNAL);
