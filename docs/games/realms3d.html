@@ -1910,6 +1910,59 @@ if (renderer.shadowMap) {
   renderer.shadowMap.needsUpdate = true;
 }
 
+/* ==================== PHASE 1 LOOK: CASCADED SHADOW MAPS ====================
+   Ported from the Phase 1 build (core/lighting.js). `sun` stays the single
+   source of truth for sun color, intensity and direction (day/night writes it,
+   water and fog read it); once CSM is live it no longer lights or shadows the
+   scene itself: three cascaded shadow-map lights do, copied from it every
+   frame. Cascades cover 0-250 m instead of the old 56 m box, so buildings,
+   trees and terrain self-shadow at distance while the near cascade stays
+   sharper than the old single map.
+   Loaded by dynamic import (real-GPU browsers only; the headless stub never
+   enters, and a failed fetch leaves the classic sun shadows running: the game
+   must never depend on the addons CDN path to boot). Construction waits for
+   the first tick because the camera is created later in this module. */
+let CSMClass = null, csm = null, csmOn = false;
+if (renderer.isWebGLRenderer) {
+  import('three/addons/csm/CSM.js').then(m => { CSMClass = m.CSM; }).catch(() => { CSMClass = null; });
+}
+function csmSetup(material) {
+  if (!csm || !material || material.userData.csm) return;
+  if (!(material.isMeshStandardMaterial || material.isMeshLambertMaterial || material.isMeshPhongMaterial)) return;
+  material.userData.csm = true;
+  csm.setupMaterial(material);
+  material.needsUpdate = true;   // runtime-created materials recompile with the cascade defines
+}
+function csmSetupScene() {
+  if (!csm) return;
+  scene.traverse(o => { const m = o.material; if (!m) return; if (Array.isArray(m)) m.forEach(csmSetup); else csmSetup(m); });
+  csm.updateFrustums();
+}
+function initCSM() {
+  if (csm || !CSMClass) return;
+  try {
+    const lowTier = ((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 8) <= 4;
+    csm = new CSMClass({
+      camera, parent: scene, cascades: 3, maxFar: 250, mode: 'practical',
+      shadowMapSize: lowTier ? 1024 : 2048, lightDirection: new THREE.Vector3(-0.5, -0.7, -0.3).normalize(),
+      lightIntensity: 1, lightMargin: 150, shadowBias: -0.00015,
+    });
+    csm.fade = true;
+    for (const l of csm.lights) { l.shadow.normalBias = 0.04; l.shadow.radius = 2; }
+    csmSetupScene();
+    sun.castShadow = false;   // the cascades own the shadow pass now
+    csmOn = true;
+  } catch (e) { csm = null; csmOn = false; }
+}
+const _csmDir = new THREE.Vector3();
+function csmTick(dirToSun) {
+  if (!csmOn) return;
+  _csmDir.copy(dirToSun).negate();
+  csm.lightDirection.copy(_csmDir);
+  for (const l of csm.lights) { l.color.copy(sun.color); l.intensity = sun.intensity; }
+  csm.update();
+}
+
 /* ---- PERF-7 STATIC FREEZE: per-frame render traversal recomposes the
    local matrix of every Object3D with matrixAutoUpdate=true. Static meshes
    that are positioned once and never moved pay that CPU cost every frame for
@@ -18492,7 +18545,7 @@ function dayNightTick(dt, now) {
   if (skyAcc >= 1) { skyAcc = 0; paintSky(); }
   /* PHASE 1 LOOK: re-prefilter the sky into scene.environment on cadence */
   envAcc += dt;
-  if (envAcc >= ENV_EVERY_SEC) { envAcc = 0; updateEnvironment(); }
+  if (envAcc >= ENV_EVERY_SEC) { envAcc = 0; updateEnvironment(); if (csmOn) csmSetupScene(); }   // CSM: pick up materials created since the last pass
 
   /* HUD clock: 06:00 dawn, 12:00 noon, 18:00 dusk, 00:00 midnight */
   const mins = Math.floor(((dayPhase * 24 + 6) % 24) * 60);
@@ -26664,6 +26717,12 @@ function tick() {
   /* --- sun follows player for crisp shadows; direction driven by day/night cycle --- */
   sun.position.copy(player.position).addScaledVector(sunDir, 130);
   sun.target.position.copy(player.position);
+
+  /* PHASE 1 LOOK: cascaded shadow maps ride the camera; color and intensity
+     are copied from `sun` each frame. First tick constructs CSM (the camera
+     exists by then); until the addon lands, classic sun shadows keep running. */
+  if (csmOn) csmTick(sunDir);
+  else if (CSMClass) initCSM();
 
   /* PERF-1h: shadow-map cadence (see LIGHTING section). needsUpdate=true on
      this frame makes the render rebuild the shadow map; all other frames
