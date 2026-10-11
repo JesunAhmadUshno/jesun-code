@@ -25104,6 +25104,12 @@ worldTickers.push(apartmentTick);
 const clock = new THREE.Clock();
 const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
 const COYOTE_T = 0.12, JUMP_BUF_T = 0.20;   // jump feel: ledge grace (s), pre-landing press buffer (s, mobile-friendly)
+const FOV_SPRINT = 68;   // sprint FOV kick: on-foot top end (walk is CAR.fovWalk 62)
+function footFov(sprinting, spd) {
+  if (!sprinting || spd <= WALK) return CAR.fovWalk;
+  const t = Math.min(1, Math.max(0, (spd - WALK) / (SPRINT - WALK)));
+  return CAR.fovWalk + (FOV_SPRINT - CAR.fovWalk) * t;
+}
 const STEP_LEN = 2.3;   // footsteps: metres travelled per step
 const wishDir = new THREE.Vector3(), tmpV = new THREE.Vector3();
 const posEl = document.getElementById('pos');
@@ -25335,7 +25341,7 @@ function tick() {
   camera.position.copy(camPos);
   }
   /* wider FOV while driving or galloping, eases back to normal after */
-  const fovT = THEATERHALL.inHall ? CAR.fovWalk : CASINOHALL.inHall ? CAR.fovWalk : FIRESTHALL.inHall ? CAR.fovWalk : APARTMENT.state ? CAR.fovWalk : WORSHIP.state ? CAR.fovWalk : CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (AMUSE.riding ? CAR.fovWalk : (STADIUM.watching ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (FT.driving ? FT.fovDrive : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : CAR.fovWalk))))))))))))))));
+  const fovT = THEATERHALL.inHall ? CAR.fovWalk : CASINOHALL.inHall ? CAR.fovWalk : FIRESTHALL.inHall ? CAR.fovWalk : APARTMENT.state ? CAR.fovWalk : WORSHIP.state ? CAR.fovWalk : CIVIC.state ? CAR.fovWalk : (SLOT.playing ? CAR.fovWalk : (PIANO.playing ? CAR.fovWalk : (AMUSE.riding ? CAR.fovWalk : (STADIUM.watching ? CAR.fovWalk : (THEATER.watching ? CAR.fovWalk : (CAR.driving ? CAR.fovDrive : (BIKE.driving ? BIKE.fovT : (BC.driving ? BC.fovT : (SC.driving ? SC.fovT : (FT.driving ? FT.fovDrive : (PLANE.flying ? PLANE.fovDrive : (HELI.flying ? HELI.fovDrive : (TRAIN.riding ? TRAIN.fovDrive : (inBus ? BUS.fovDrive : (TX.riding ? TX.fovDrive : (HORSE.riding ? HORSE.fovT : footFov(sprint, speed)))))))))))))))));
   if (Math.abs(camera.fov - fovT) > 0.05) {
     camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);
     camera.updateProjectionMatrix();
