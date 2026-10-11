@@ -118,7 +118,7 @@ Chasers conga-line behind each other in corridors. Add a cheap sidestep: when
 the target tile is occupied by another enemy, try the perpendicular tile before
 giving up. Keeps per-tick cost O(enemies).
 
-### 7. Ranged enemy: Gloom Spitter (depth 2+)
+### 7. Ranged enemy: Gloom Spitter (depth 2+) [DONE 2026-10-11, see Done section]
 First ranged threat. Slow projectiles as a small entity list (1 tile per 2
 ticks, die on wall or player hit). Needs one new sprite in `assets/custom.png`
 plus an `atlas.json` entry, drawn in the existing 16x16 style.
@@ -155,6 +155,25 @@ Pure Jesun.Code; verify with the CPython pump + a scripted adjacent-talk
 unit check.
 
 ## Done
+
+### 2026-10-11: Ranged enemy: Gloom Spitter (roadmap item 7)
+Shipped. New enemy type `spitter` on depth 2+ (about 12% of spawns, carved
+out of the bat share): a squat toad that fires a glowing spit glob when it
+shares a row or column with the player at range 2 to 6 with a clear line
+(`spit_try` + `spit_los`); adjacent, it melees like everything else, and out
+of line it wanders. Globs ride `G["projs"]` via `tick_projs`: 1 tile per 2
+ticks, walls eat them, the player takes the stored damage, max life 8 moves.
+Drawn in every renderer: new 32px two-frame sprite appended to
+`assets/dark.png` (atlas entries `spitter`/`spitter2`), a 10-box low-poly
+model in the driver for the 3D view, green bead rects in top-down and the
+raycaster FPP, spark models in 3D FPP. New `spit` sound through the existing
+snd channel. Per-tick cost O(enemies + projs); projs clear on floor gen.
+Verified: 13/13 CPython checks (aligned fire, glob travel and exact damage,
+wall-blocked LOS, range gate, diagonal no-fire, adjacent melee, depth 3
+spawn count 40 across 40 seeds, zero spitters on depth 1, 400-tick
+randomized pump zero exceptions, determinism byte-identical); Node+Pyodide
+move_regress ALL GREEN; FPP scene build avg 18.4ms/tick, p95 26.0ms/tick
+(budget 120ms). Next up: Villager quest log (item 8).
 
 ### 2026-10-10: Enemy separation steering (roadmap item 6)
 Shipped. Decision: new helpers `chaser_sidestep` (tries both perpendicular

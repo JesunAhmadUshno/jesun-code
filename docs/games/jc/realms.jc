@@ -48,6 +48,8 @@ SPR["rat"] is "rat"
 SPR["rat2"] is "rat2"
 SPR["bat"] is "bat"
 SPR["bat2"] is "bat2"
+SPR["spitter"] is "spitter"
+SPR["spitter2"] is "spitter2"
 SPR["well"] is "well"
 SPR["stairs_down"] is "stairs_down"
 SPR["stairs_sealed"] is "stairs_sealed"
@@ -77,6 +79,10 @@ to sprw_of with nm
     otherwise if nm is "bat" then
         give back 32
     otherwise if nm is "bat2" then
+        give back 32
+    otherwise if nm is "spitter" then
+        give back 32
+    otherwise if nm is "spitter2" then
         give back 32
     otherwise if nm is "warden" then
         give back 32
@@ -201,6 +207,9 @@ to sfx with nm
     otherwise if nm is "bossdie" then
         tone with 330 and 55 and 600 and "saw" and 0.36
         hiss with 300 and 0.26
+    otherwise if nm is "spit" then
+        tone with 820 and 240 and 90 and "sine" and 0.20
+        hiss with 50 and 0.14
     otherwise if nm is "heal" then
         tone with 500 and 800 and 120 and "sine" and 0.24
     otherwise if nm is "error" then
@@ -241,6 +250,7 @@ to seed_game with s
     G["blessed"] is false
     G["parts"] is []
     G["floaters"] is []
+    G["projs"] is []
     G["sndq"] is []
     G["shake"] is 0
     G["hitstop"] is 0
@@ -746,6 +756,11 @@ to mk_enemy with et and x and y
         e["hp"] is idiv with (55 + (idiv with d * 5 and 2)) * hpct and 100
         e["atk"] is idiv with (11 + (idiv with d * 4 and 5)) * dpct and 100
         e["rate"] is 3
+    otherwise if et is "spitter" then
+        e["name"] is "Gloom Spitter"
+        e["hp"] is idiv with (20 + (idiv with d * 5 and 2)) * hpct and 100
+        e["atk"] is idiv with (6 + (idiv with d * 4 and 5)) * dpct and 100
+        e["rate"] is 3
     otherwise
         e["name"] is "Deep Warden"
         e["hp"] is idiv with (120 + d * 12) * hpct and 100
@@ -798,6 +813,7 @@ to hint
 to gen_floor with d
     G["map"] is "dungeon"
     G["depth"] is d
+    G["projs"] is []
     G["block_npc"] is nothing
     G["bump_npc"] is nothing
     G["bump_freeze"] is 0
@@ -938,6 +954,8 @@ to gen_floor with d
             et is "ogre"
         otherwise if d is greater than 1 and r is less than 50 then
             et is "goblin"
+        otherwise if d is greater than 1 and r is less than 62 then
+            et is "spitter"
         otherwise if r is less than 72 then
             et is "bat"
         mk_enemy with et and s["x"] and s["y"]
@@ -1096,6 +1114,7 @@ to tick
         n is n + 1
     if G["over"] is false then
         enemy_ai
+        tick_projs
     tick_parts
     tick_floaters
     rebuild_dl
@@ -1716,6 +1735,93 @@ to chaser_sidestep with e and mx and my
         give back true
     give back false
 
+to spit_los with e and dx and dy
+    note Straight-line sight along the shared row or column: any wall
+    note tile between the spitter and the player blocks the shot.
+    sx is 0
+    sy is 0
+    if dx is greater than 0 then
+        sx is 1
+    otherwise if dx is less than 0 then
+        sx is 0 - 1
+    otherwise if dy is greater than 0 then
+        sy is 1
+    otherwise
+        sy is 0 - 1
+    x is e["x"] + sx
+    y is e["y"] + sy
+    repeat while x is not G["px"] or y is not G["py"]
+        if is_wall with x and y then
+            give back false
+        x is x + sx
+        y is y + sy
+    give back true
+
+to spit_try with e and dx and dy
+    note Ranged attack: aligned, 2 to 6 tiles out, clear line. The glob
+    note spawns on the spitter tile and rides tick_projs from there.
+    if dx is not 0 and dy is not 0 then
+        give back false
+    dist is (absv with dx) + (absv with dy)
+    if dist is less than 2 or dist is greater than 6 then
+        give back false
+    los is spit_los with e and dx and dy
+    if los is false then
+        give back false
+    sx is 0
+    sy is 0
+    if dx is greater than 0 then
+        sx is 1
+    otherwise if dx is less than 0 then
+        sx is 0 - 1
+    otherwise if dy is greater than 0 then
+        sy is 1
+    otherwise
+        sy is 0 - 1
+    p is a new table
+    p["x"] is e["x"]
+    p["y"] is e["y"]
+    p["dx"] is sx
+    p["dy"] is sy
+    p["dmg"] is e["atk"] + (rnd with 3)
+    p["life"] is 8
+    ps is G["projs"]
+    push p to ps
+    e["atkT"] is G["tick"]
+    sfx with "spit"
+    msg with "The Gloom Spitter hocks a glowing glob at you."
+    give back true
+
+to tick_projs
+    note Gloom spit rides one tile every other tick. Walls eat it, the
+    note player takes the stored damage, everything else lets it pass.
+    if G["map"] is not "dungeon" then
+        if length of G["projs"] is greater than 0 then
+            G["projs"] is []
+        give back nothing
+    if G["tick"] % 2 is 1 then
+        give back nothing
+    kept is []
+    for each p in G["projs"]
+        if p["x"] is G["px"] and p["y"] is G["py"] then
+            hurt_player with p["dmg"] and "Gloom spit"
+            skip
+        nx is p["x"] + p["dx"]
+        ny is p["y"] + p["dy"]
+        if is_wall with nx and ny then
+            spawn_part with p["x"] and p["y"] and "a8e04a" and 4
+            skip
+        if nx is G["px"] and ny is G["py"] then
+            hurt_player with p["dmg"] and "Gloom spit"
+            skip
+        p["x"] is nx
+        p["y"] is ny
+        p["life"] is p["life"] - 1
+        if p["life"] is greater than 0 then
+            push p to kept
+    G["projs"] is kept
+    give back nothing
+
 to enemy_ai
     for each e in G["enemies"]
         if e["flash"] is greater than 0 then
@@ -1735,6 +1841,12 @@ to enemy_ai
             e["atkT"] is G["tick"]
             hurt_player with dmg and e["name"]
             skip
+        if e["type"] is "spitter" then
+            note In range with a clear line, the spitter fires instead of
+            note moving. Out of line, it wanders like any non-chaser.
+            fired is spit_try with e and dx and dy
+            if fired then
+                skip
         chaser is false
         if e["type"] is "goblin" or e["type"] is "ogre" or e["type"] is "warden" then
             chaser is true
@@ -2027,6 +2139,18 @@ to render_top with dl
         draw_enemy with dl and e and camx and camy
     draw_player with dl and camx and camy
     draw_parts_top with dl and camx and camy
+    draw_projs_top with dl and camx and camy
+    give back nothing
+
+to draw_projs_top with dl and camx and camy
+    note In-flight spit globs, top-down: a glowing green bead per glob.
+    for each p in G["projs"]
+        vis is on_screen with p["x"] and p["y"] and camx and camy
+        if vis then
+            sx is (p["x"] - camx) * 8 + G["shx"]
+            sy is (p["y"] - camy) * 8 + G["shy"]
+            push ["rect", sx + 2, sy + 2, 4, 4, "a8e04a"] to dl
+            push ["rect", sx + 3, sy + 3, 1, 1, "e8ffb0"] to dl
     give back nothing
 
 to draw_ladder with dl and camx and camy
@@ -2115,6 +2239,8 @@ to draw_enemy with dl and e and camx and camy
         nm is SPR["bat"]
     otherwise if t is "ogre" then
         nm is SPR["ogre"]
+    otherwise if t is "spitter" then
+        nm is SPR["spitter"]
     otherwise if t is "warden" then
         nm is SPR["warden"]
     note walk-cycle frame: alternate sprite on a 4-tick period, offset per
@@ -2126,6 +2252,8 @@ to draw_enemy with dl and e and camx and camy
             nm is SPR["bat2"]
         otherwise if t is "ogre" then
             nm is SPR["ogre2"]
+        otherwise if t is "spitter" then
+            nm is SPR["spitter2"]
         otherwise if t is "warden" then
             nm is SPR["warden2"]
         otherwise
@@ -2514,6 +2642,8 @@ to sprite_cols with tag and ref and d
             cs is ["4ae08a", "2a8a4a"]
         otherwise if t is "ogre" then
             cs is ["8a6a4a", "5a4a3a"]
+        otherwise if t is "spitter" then
+            cs is ["a8e04a", "5a7a1e"]
         otherwise
             cs is ["8a2a2a", "4a1414"]
         give back [cs[sh], cs[0]]
@@ -2542,6 +2672,8 @@ to fpp_spr_name with tag and ref
             nm is SPR["bat"]
         otherwise if t is "ogre" then
             nm is SPR["ogre"]
+        otherwise if t is "spitter" then
+            nm is SPR["spitter"]
         otherwise if t is "warden" then
             nm is SPR["warden"]
         note same walk-cycle parity as draw_enemy so both views agree
@@ -2552,6 +2684,8 @@ to fpp_spr_name with tag and ref
                 nm is SPR["bat2"]
             otherwise if t is "ogre" then
                 nm is SPR["ogre2"]
+            otherwise if t is "spitter" then
+                nm is SPR["spitter2"]
             otherwise if t is "warden" then
                 nm is SPR["warden2"]
             otherwise
@@ -2746,6 +2880,38 @@ to draw_fpp_parts with dl and zb and ox and oy
             push ["rect", x0, y0, sz, sz, p["c"]] to dl
     give back nothing
 
+to draw_fpp_projs with dl and zb and ox and oy
+    note In-flight spit globs in the raycaster view: same projection and
+    note depth test as the particle pass, one glowing bead per glob.
+    fdx is G["fdx"]
+    fdy is G["fdy"]
+    rx is 0 - fdy
+    ry is fdx
+    for each p in G["projs"]
+        d is sproj with p["x"] + 0.5 and p["y"] + 0.5 and ox and oy and fdx and fdy
+        if d is greater than 0.3 and d is less than 12 then
+            relx is (p["x"] + 0.5) - ox
+            rely is (p["y"] + 0.5) - oy
+            lat is relx * rx + rely * ry
+            fx is 96 + lat * 147.83 / d
+            if fx is less than 0 or fx is greater than 192 then
+                skip
+            qc is ipart with (fx / 4)
+            col is clamp with qc and 0 and 47
+            if zb[col] is less than d - 0.2 then
+                skip
+            sz is ipart with (10 / d) + 1
+            if sz is less than 2 then
+                sz is 2
+            if sz is greater than 6 then
+                sz is 6
+            x0 is (ipart with fx) - (idiv with sz and 2)
+            if x0 is less than 0 then
+                x0 is 0
+            y0 is 58 - (idiv with sz and 2)
+            push ["rect", x0 + G["shx"], y0 + G["shy"], sz, sz, "a8e04a"] to dl
+    give back nothing
+
 to draw_fpp_minimap with dl
     note FPP minimap, top-right corner of the 192x128 canvas. 1px per tile,
     note 60x42 tile dungeon plus a 1px plate border. Rooms are dark rects,
@@ -2821,6 +2987,7 @@ to render_fpp with dl
         i is i + 1
     draw_fpp_sprites with dl and zb and ox and oy
     draw_fpp_parts with dl and zb and ox and oy
+    draw_fpp_projs with dl and zb and ox and oy
     push ["rect", 94 + G["shx"], 116 + G["shy"], 4, 12, "9a9ab0"] to dl
     push ["rect", 93 + G["shx"], 112 + G["shy"], 6, 4, "dfe6f5"] to dl
     draw_fpp_minimap with dl
@@ -2939,6 +3106,10 @@ to render_fpp3d with dl
         wx is p["x"] + 0.5
         wy is p["y"] + 0.5
         fpp3d_put with dl and wx and wy and 0.5 and "spark" and 0 and 0 and 10
+    for each p in G["projs"]
+        wx is p["x"] + 0.5
+        wy is p["y"] + 0.5
+        fpp3d_put with dl and wx and wy and 0.5 and "spark" and 0 and 0 and 12
     sw is 0
     if G["tick"] - G["patk"] is less than 2 then
         sw is 1

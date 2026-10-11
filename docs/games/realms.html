@@ -166,7 +166,7 @@ var FLASHCACHE={};
 // BUMP APP_VERSION on every ship. It cache-busts every game file fetch below
 // so a returning browser can never mix NEW game code with a CACHED old driver
 // (which silently drops new display-list ops and breaks rendering).
-var APP_VERSION='20261010b';
+var APP_VERSION='20261011a';
 function av(u){ return u+'?v='+APP_VERSION; }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -461,6 +461,18 @@ function defModels3D(){
   BX(B, -0.32,0.60,-0.02, 0.40,0.05,0.26, 0.12,0.09,0.17,{limb:'wingL',px:-0.10,py:0.62,pz:0});
   BX(B, 0.32,0.60,-0.02, 0.40,0.05,0.26, 0.12,0.09,0.17,{limb:'wingR',px:0.10,py:0.62,pz:0});
   MODELS3D.bat=B;
+  B=[];
+  BX(B, 0,0.30,0, 0.62,0.42,0.50, 0.20,0.33,0.13);
+  BX(B, 0,0.52,-0.05, 0.44,0.18,0.36, 0.24,0.38,0.16);
+  BX(B, 0,0.26,0.24, 0.34,0.30,0.14, 0.66,0.77,0.38);
+  BX(B, -0.16,0.62,0.05, 0.09,0.16,0.09, 0.18,0.30,0.12);
+  BX(B, 0.16,0.62,0.05, 0.09,0.16,0.09, 0.18,0.30,0.12);
+  BX(B, -0.16,0.72,0.08, 0.07,0.05,0.04, 0.75,0.94,0.35,{emi:1});
+  BX(B, 0.16,0.72,0.08, 0.07,0.05,0.04, 0.75,0.94,0.35,{emi:1});
+  BX(B, 0,0.42,0.26, 0.22,0.05,0.03, 0.03,0.05,0.03);
+  BX(B, -0.24,0.05,0.18, 0.16,0.10,0.14, 0.14,0.24,0.09);
+  BX(B, 0.24,0.05,0.18, 0.16,0.10,0.14, 0.14,0.24,0.09);
+  MODELS3D.spitter=B;
   B=[];
   BX(B, 0,0.82,0, 0.50,0.72,0.34, 0.07,0.07,0.09);
   BX(B, 0,0.88,0.15, 0.36,0.42,0.08, 0.14,0.14,0.17);
