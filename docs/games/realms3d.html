@@ -5293,6 +5293,16 @@ function squashTick(dt){
        expiry, and clearDust resets every alpha to 0. Final on-screen
        alpha is the global opacity 0.55 times the per-particle alpha.
        Honest limit: size still stays global to the one shared
+       material, so particles fade in place and never shrink.
+       DUST FADE CURVE v1: spawn now writes alpha 0, so a particle
+       is invisible until its first tick ramps it in and there is
+       no pop-in frame at full opacity. dustTick eases the alpha:
+       fade in over the first 15 percent of life, then a
+       smoothstep fade-out (f * f * (3 - 2 * f)) over the rest,
+       where f is the remaining life fraction (fRem). The curve
+       is allocation-free and inline, and the dustRand call order
+       and count per particle stay exactly four. Honest limit:
+       particle size still stays global to the one shared
        material, so particles fade in place and never shrink. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
@@ -5357,7 +5367,7 @@ function spawnDust(x, y, z, strength){
     dustCol[slot * 4] = Math.min(1, pr * jit);
     dustCol[slot * 4 + 1] = Math.min(1, pg * jit);
     dustCol[slot * 4 + 2] = Math.min(1, pb * jit);
-    dustCol[slot * 4 + 3] = 1;
+    dustCol[slot * 4 + 3] = 0;
     const lifeF = 1 + (up - 1.1) * 0.7;
     dustLifeMax[slot] = DUST_LIFE * lifeF;
     dustLife[slot] = dustLifeMax[slot];
@@ -5373,7 +5383,9 @@ function dustTick(dt){
     if (dustLife[i] <= 0) {
       dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustCol[i * 4 + 3] = 0; changed = true; continue;
     }
-    dustCol[i * 4 + 3] = Math.max(0, dustLife[i] / dustLifeMax[i]);
+    const fRem = Math.max(0, dustLife[i] / dustLifeMax[i]);
+    const inRamp = Math.min(1, (1 - fRem) / 0.15);
+    dustCol[i * 4 + 3] = inRamp * fRem * fRem * (3 - 2 * fRem);
     dustPos[i * 3] += dustVel[i * 3] * dt;
     dustPos[i * 3 + 1] += dustVel[i * 3 + 1] * dt;
     dustPos[i * 3 + 2] += dustVel[i * 3 + 2] * dt;
