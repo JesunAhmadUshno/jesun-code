@@ -26507,6 +26507,98 @@ function togglePerf() {
   }
 }
 
+/* ==================== PHASE 1 LOOK: POST STACK ====================
+   Ported from the Phase 1 build (core/post.js).
+   high tier:  N8AO (scene render + ambient occlusion) -> bloom -> tone map +
+               sRGB (OutputPass) -> SMAA -> grade
+   low tier:   scene render -> bloom -> tone map + sRGB -> grade
+   Materials render linear HDR into a half-float target; OutputPass applies
+   the renderer's ACES tone mapping and the day/night exposure, so emissive
+   values above 1.0 bloom and the HUD (DOM) is untouched.
+   Loaded by dynamic import, real-GPU browsers only, initialized lazily on the
+   first frame: until the stack is live (and forever if the fetch or the GPU
+   path fails), renderFrame falls back to the classic direct render. The
+   canvas keeps antialias:true for that fallback path; the composer renders
+   into its own targets, where the canvas flag has no effect (deliberate
+   deviation from the Phase 1 build, which set it false). */
+let composer = null, postBloom = null, postTried = false;
+let postPR = 0, postIW = 0, postIH = 0;
+const POST_GRADE = {
+  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.08 }, uContrast: { value: 1.06 }, uVignette: { value: 0.28 }, uLift: { value: 0.0 } },
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uSat, uContrast, uVignette, uLift; varying vec2 vUv;
+    void main() {
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c = mix(vec3(l), c, uSat);
+      c = (c - 0.5) * uContrast + 0.5 + uLift;
+      vec2 q = vUv - 0.5; float v = 1.0 - uVignette * dot(q, q) * 2.2;
+      gl_FragColor = vec4(clamp(c * v, 0.0, 1.0), 1.0);
+    }`,
+};
+function initPost() {
+  if (postTried) return;
+  postTried = true;
+  if (!renderer.isWebGLRenderer) return;
+  Promise.all([
+    import('three/addons/postprocessing/EffectComposer.js'),
+    import('three/addons/postprocessing/RenderPass.js'),
+    import('three/addons/postprocessing/UnrealBloomPass.js'),
+    import('three/addons/postprocessing/OutputPass.js'),
+    import('three/addons/postprocessing/ShaderPass.js'),
+    import('three/addons/postprocessing/SMAAPass.js'),
+    import('n8ao'),
+  ]).then(([EC, RP, UB, OP, SP, SMAA, N8AO]) => {
+    try {
+      const lowTier = matchMedia('(pointer: coarse)').matches
+        || ((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 8) <= 4;
+      const useAO = !lowTier;
+      const _size = renderer.getDrawingBufferSize(new THREE.Vector2());
+      const target = new THREE.WebGLRenderTarget(_size.x, _size.y, { type: THREE.HalfFloatType, samples: useAO ? 0 : 4 });
+      const comp = new EC.EffectComposer(renderer, target);
+      if (useAO) {
+        const ao = new N8AO.N8AOPass(scene, camera, _size.x, _size.y);
+        ao.configuration.aoRadius = 2.2;            // world units: contact shadows under props, people, eaves
+        ao.configuration.distanceFalloff = 1.0;
+        ao.configuration.intensity = 2.6;
+        ao.configuration.aoSamples = 12;
+        ao.configuration.denoiseSamples = 8;
+        ao.configuration.denoiseRadius = 10;
+        ao.configuration.halfRes = true;             // 2-4x cheaper; the denoiser upsamples depth-aware
+        ao.configuration.gammaCorrection = false;    // the stack is linear until OutputPass
+        comp.addPass(ao);
+      } else {
+        comp.addPass(new RP.RenderPass(scene, camera));
+      }
+      postBloom = new UB.UnrealBloomPass(new THREE.Vector2(_size.x, _size.y), 0.32, 0.5, 1.0);
+      comp.addPass(postBloom);
+      comp.addPass(new OP.OutputPass());
+      if (useAO) comp.addPass(new SMAA.SMAAPass(_size.x, _size.y));
+      comp.addPass(new SP.ShaderPass(POST_GRADE));
+      composer = comp;
+      postPR = 0; postIW = 0; postIH = 0;   // force a size sync on the next frame
+    } catch (e) { composer = null; }
+  }).catch(() => { composer = null; });
+}
+function renderFrame() {
+  if (composer) {
+    try {
+      /* keep the composer in sync with the DPR governor and window resizes
+         without touching either system: a size or ratio change re-syncs once */
+      const pr = renderer.getPixelRatio();
+      if (pr !== postPR || innerWidth !== postIW || innerHeight !== postIH) {
+        postPR = pr; postIW = innerWidth; postIH = innerHeight;
+        composer.setPixelRatio(pr);
+        composer.setSize(innerWidth, innerHeight);   // also resizes every pass, including N8AO and SMAA
+      }
+      composer.render();
+      return;
+    } catch (e) { composer = null; }   // permanent fallback, no retry spam
+  } else initPost();   // no-op after the first attempt
+  renderer.render(scene, camera);
+}
+
 function tick() {
   requestAnimationFrame(tick);
   if (webglLost) return;   // context lost: keep rAF alive, skip sim+render
@@ -26848,7 +26940,7 @@ function tick() {
   /* PERF-1f: reset counters at frame start so CALLS is the true per-frame
      total across the main pass and the shadow-map pass. */
   if (renderer.info) renderer.info.reset();
-  renderer.render(scene, camera);
+  renderFrame();   // PHASE 1 LOOK: post stack when live, classic direct render otherwise
 
   /* PERF-3: adaptive pixel-ratio governor. Samples the rAF interval and
      steps DPR for iPhone thermal safety. Zero draw calls, zero allocation,
