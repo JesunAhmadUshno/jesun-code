@@ -578,6 +578,15 @@
     background: rgba(10,12,10,.72); border: 1px solid #3a8a5a; padding: 6px 10px;
     letter-spacing: 2px; display: none; pointer-events: none;
   }
+  /* ---- damage numbers v1: pooled floating combat feedback. DOM only, zero
+         draw calls. The pool divs are created once at boot inside #hud;
+         the JS tick drives rise/fade/scale per frame with no allocation. ---- */
+  .dmgnum {
+    position: absolute; left: 0; top: 0; transform: translate(-50%,0) scale(1);
+    color: #ffffff; font-size: 15px; font-weight: bold; letter-spacing: 1px;
+    text-shadow: 0 0 6px #000, 0 1px 2px #000; pointer-events: none;
+    display: none; white-space: nowrap; z-index: 11; opacity: 1;
+  }
   #thallhint {
     position: absolute; bottom: 758px; left: 50%; transform: translateX(-50%);
     color: #0c0e0a; background: #e8c8e0; font-size: 13px; letter-spacing: 3px;
@@ -1350,7 +1359,7 @@
   <div id="help">
     <b>WASD</b> move &nbsp; <b>MOUSE</b> look &nbsp; <b>SHIFT</b> sprint<br>
     <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>F</b> punch &nbsp; <b>R-CLICK</b> punch &nbsp; <b>ESC</b> release mouse<br>
-    <b>1/2/3</b> weapons &nbsp; <b>N</b> NEW GAME
+    <b>1/2/3</b> weapons &nbsp; <b>N</b> NEW GAME &nbsp; <b>M</b> DMG NUMS
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b><br><span id="armorchip">ARMOR <b id="armor">100</b></span></div>
@@ -5422,6 +5431,106 @@ for (const e of enemies) limbIM.userData.enemyOf.push(e, e);   // leg slots 0-9
 for (const e of enemies) limbIM.userData.enemyOf.push(e, e);   // arm slots 10-19
 updateCombatHUD();
 
+/* ================= DAMAGE NUMBERS v1 =================
+   Floating pooled DOM damage numbers: the combat-feedback gap closer.
+   DOM only: zero new WebGL draw calls, zero new lights, zero new audio
+   nodes, zero new RNG, zero new timer calls. 24 divs are created once at
+   boot inside #hud and recycled (never created/destroyed per hit).
+   Merge stacking: hits on the SAME target within 0.45s merge into one
+   number (accumulate total, refresh life, brief 1.25x scale pop) instead
+   of stacking divs. Colors reuse the existing palette: white = player
+   dealt, gold = killing blow, red = player took damage. KeyM toggles
+   (default ON); death/redeploy/newGame recycle all actives (no strays).
+   ================================================================ */
+const DMGNUM_N = 24;
+const DMGNUM_LIFE = 0.7;         // seconds a number lives
+const DMGNUM_MERGE_S = 0.45;     // merge window per target
+const DMGNUM_RISE = 40;          // px rise over the life
+const DMGNUM_COL_DEALT = '#ffffff';   // player-dealt: paper white
+const DMGNUM_COL_KILL = '#ffd24a';    // killing blow: gold (existing palette)
+const DMGNUM_COL_TAKEN = '#ff6b5e';   // player-taken: red (existing palette)
+let dmgNumOn = true;             // default ON; KeyM toggles
+const hudEl = document.getElementById('hud');
+const dmgProjV = new THREE.Vector3();    // module-scope scratch, zero alloc
+const dmgScr = { x: 0, y: 0 };           // module-scope scratch screen point
+const dmgNums = [];
+for (let _di = 0; _di < DMGNUM_N; _di++) {
+  const _del = document.createElement('div');
+  _del.className = 'dmgnum';
+  hudEl.appendChild(_del);
+  dmgNums.push({ el: _del, alive: false, age: 0, total: 0, target: null,
+                 kind: 'dealt', x: 0, y: 0, pop: 0 });
+}
+function dmgNumProject(wx, wy, wz) {   // true when the point is in front of the camera
+  dmgProjV.set(wx, wy, wz).project(camera);
+  if (dmgProjV.z > 1) return false;   // behind the camera: skip the spawn
+  dmgScr.x = (dmgProjV.x * 0.5 + 0.5) * innerWidth;
+  dmgScr.y = (-dmgProjV.y * 0.5 + 0.5) * innerHeight;
+  return true;
+}
+function dmgNumSpawn(target, wx, wy, wz, amount, kind) {
+  if (!dmgNumOn || amount <= 0) return;
+  /* merge stacking: same target, still inside the window -> accumulate */
+  for (let i = 0; i < dmgNums.length; i++) {
+    const s = dmgNums[i];
+    if (s.alive && s.target === target && s.age < DMGNUM_MERGE_S) {
+      s.total += amount;
+      s.age = 0; s.pop = 1;   // refresh life + brief 1.25x scale pop
+      if (kind === 'kill') { s.kind = 'kill'; s.el.style.color = DMGNUM_COL_KILL; }
+      s.el.textContent = String(Math.round(s.total));
+      return;
+    }
+  }
+  /* free slot; else recycle the oldest (never create/destroy per hit) */
+  let slot = null, oldest = null;
+  for (let i = 0; i < dmgNums.length; i++) {
+    const s = dmgNums[i];
+    if (!s.alive) { slot = s; break; }
+    if (!oldest || s.age > oldest.age) oldest = s;
+  }
+  if (!slot) slot = oldest;
+  if (!dmgNumProject(wx, wy, wz)) return;
+  slot.alive = true; slot.age = 0; slot.total = amount; slot.target = target;
+  slot.kind = kind; slot.pop = 0;   // onReset discipline: everything reset on reuse
+  slot.x = dmgScr.x; slot.y = dmgScr.y;
+  slot.el.style.color = kind === 'kill' ? DMGNUM_COL_KILL
+    : kind === 'taken' ? DMGNUM_COL_TAKEN : DMGNUM_COL_DEALT;
+  slot.el.style.left = slot.x.toFixed(0) + 'px';
+  slot.el.style.top = slot.y.toFixed(0) + 'px';
+  slot.el.style.transform = 'translate(-50%,0) scale(1)';
+  slot.el.style.opacity = 1;
+  slot.el.textContent = String(Math.round(amount));
+  slot.el.style.display = 'block';
+}
+function dmgNumTick(sdt) {   // driven by the main tick; zero per-frame allocation
+  for (let i = 0; i < dmgNums.length; i++) {
+    const s = dmgNums[i];
+    if (!s.alive) continue;
+    s.age += sdt;
+    if (s.age >= DMGNUM_LIFE) {   // recycle: reset discipline, no strays
+      s.alive = false; s.target = null;
+      s.el.style.display = 'none';
+      continue;
+    }
+    const k = s.age / DMGNUM_LIFE;
+    s.pop = Math.max(0, s.pop - sdt * 4);
+    s.el.style.transform = 'translate(-50%,' + (-DMGNUM_RISE * k).toFixed(1)
+      + 'px) scale(' + (1 + 0.25 * s.pop).toFixed(2) + ')';
+    s.el.style.opacity = (1 - k).toFixed(2);
+  }
+}
+function dmgNumRecycleAll() {   // teardown: death / redeploy / newGame / toggle-off
+  for (let i = 0; i < dmgNums.length; i++) {
+    const s = dmgNums[i];
+    if (s.alive) { s.alive = false; s.target = null; s.el.style.display = 'none'; }
+  }
+}
+function toggleDmgNums() {
+  dmgNumOn = !dmgNumOn;
+  if (!dmgNumOn) dmgNumRecycleAll();
+  toast('DMG NUMS ' + (dmgNumOn ? 'ON' : 'OFF'));
+}
+
 function damageEnemy(e, d) {
   if (e.state === 'dead') return;
   e.hp -= d;
@@ -5441,6 +5550,9 @@ function damageEnemy(e, d) {
     kills++; sfxDie(); updateCombatHUD(); missionOnKill(e.type, pay);
     toast('HOSTILE DOWN +$' + pay); addHeat(1);
   } else sfxHit();
+  /* DAMAGE NUMBERS v1: one pooled floater per hit, gold on the killing blow */
+  dmgNumSpawn(e, e.group.position.x, e.group.position.y + 1.5, e.group.position.z, d,
+               e.state === 'dead' ? 'kill' : 'dealt');
 }
 
 const raycaster = new THREE.Raycaster();
@@ -5570,6 +5682,8 @@ function hurtPlayer(d) {
     if (d <= 0) return;                             // fully absorbed: no HP loss, no flash
   }
   P.hp -= d;
+  /* DAMAGE NUMBERS v1: one pooled floater per taken hit, red */
+  dmgNumSpawn('player', player.position.x, player.position.y + 1.3, player.position.z, d, 'taken');
   sfxHurt();
   emoteCancel();   // taking a hit cancels the emote
   dmgV = 0.85;
@@ -5580,7 +5694,7 @@ function hurtPlayer(d) {
     const lost = Math.floor(cash * 0.15); cash -= lost; updateCashHUD();   // Phase 5 bank: only carried cash is seized; the bank is never touched
     toast('ELIMINATED - $' + lost + ' LOST'); missionOnDeath();
     endHeist('death');   // Phase 5 heist: the take stays in the wallet; the 15% seizure above already punished
-    closeShop();
+    closeShop(); dmgNumRecycleAll();   // death-eject: no strays
     curWeapon = 'rifle'; updateWeaponHUD(); updateHpHUD(); }
 }
 
@@ -6271,6 +6385,9 @@ function damageCop(idx, d) {
     addHeat(2);
     if (W.heat === before) toast('COP DOWN');
   } else sfxHit();
+  /* DAMAGE NUMBERS v1: one pooled floater per hit, gold on the killing blow */
+  dmgNumSpawn(c, c.group.position.x, c.group.position.y + 1.5, c.group.position.z, d,
+               c.state === 'dead' ? 'kill' : 'dealt');
 }
 
 /* --- cop AI: the hostile shooter brain on a cop body --- */
@@ -14836,6 +14953,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Digit2') selectWeapon('shotgun');
   if (e.code === 'Digit3') selectWeapon('smg');
   if (e.code === 'KeyN') newGame();                                   // wipe save, start fresh
+  if (e.code === 'KeyM') toggleDmgNums();                            // damage numbers on/off (desktop; see #help)
   const pk = PIANO_KEYCODES.indexOf(e.code);                          // Phase 5 pianos: A/S/D/F/G/H/J/K play notes while seated
   if (pk >= 0 && PIANO.playing) pianoNote(pk);
   else {
@@ -24974,6 +25092,7 @@ function tick() {
   fireCd -= sdt;
   if (P.godT > 0) P.godT -= sdt;
   graceTick(sdt);   // spawn grace drain + chip countdown + expiry ping
+  dmgNumTick(sdt);   // damage numbers: rise, fade, recycle (DOM only, zero draw calls)
   if (P.dead) {
     if (CAR.driving) carExit();   // death always ejects: no driving while dead
     if (HORSE.riding) horseExit(); // ...and no riding while dead either
@@ -25001,6 +25120,7 @@ function tick() {
       player.position.set(ax, terrainHeight(ax, az), az);
       P.vel.set(0, 0, 0); P.vy = 0;
       P.hp = 100; P.dead = false; P.godT = 2; graceStart();   // redeploy restarts spawn grace fresh
+      dmgNumRecycleAll();   // redeploy teardown: no strays
       setHeat(0, true); W.evading = false;   // death always clears the heat
       updateHpHUD(); toast('REDEPLOYED'); closeShop();
       petRejoin();   // Phase 5 wildlife: the pet rejoins at the redeploy point
@@ -25365,7 +25485,7 @@ function loadSave() {
 /* wipe everything and restart at the spawn point. One toast, no other noise. */
 function newGame() {
   if (!playing()) return;
-  emoteCancel();
+  emoteCancel(); dmgNumRecycleAll();   // new game: no strays from the old run
   try {
     localStorage.removeItem(SAVE_KEY);
     localStorage.removeItem(SAVE_JOURNAL);
