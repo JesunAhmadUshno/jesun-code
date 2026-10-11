@@ -5536,7 +5536,51 @@ function squashTick(dt){
        spawnDust classifies the spawn point with
        surfaceAt. New honest limit: the bike, bicycle,
        scooter and horse still do not emit tire or
-       hoof dust yet. --- */
+       hoof dust yet.
+       VEHICLE DUST EXTENSION v2: the motorcycle, the
+       bicycle, the scooter and the horse now reuse
+       this same pooled dust too, so their tire and
+       hoof dust also costs zero new draw calls, zero
+       new Points and zero new arrays. The motorcycle
+       trigger sits in bikeUpdate after the rider glue
+       copy and the bike pose, before the engine audio:
+       it accumulates BIKE.dustDist above a speed gate
+       of 6 and fires one puff every BIKE.dustLen
+       metres (4) at the rear, 0.9 behind the centre
+       along its heading and 0.15 above the bike
+       origin, with strength 6 while boosting and 4
+       while cruising. The bicycle trigger sits in
+       bcUpdate after the rider glue copy and the
+       bicycle pose, before the engine fade: it
+       accumulates BC.dustDist above a gate of 4 and
+       fires one puff every BC.dustLen metres (3.5)
+       at the rear, 0.66 behind the centre along its
+       heading and 0.15 above the bicycle origin,
+       with strength 2. The scooter trigger sits in
+       scUpdate after the rider glue copy and the
+       scooter pose, before the engine fade: it
+       accumulates SC.dustDist above a gate of 4, but
+       only while SC.hopY is at or below 0 (an
+       airborne hop emits nothing and resets the
+       accumulator), and fires one puff every
+       SC.dustLen metres (3) at the rear, 0.32 behind
+       the centre along its heading and 0.15 above
+       the scooter origin, with strength 2. The horse
+       trigger sits in horseUpdate in the riding path
+       after the rider glue, before the camera feel:
+       it accumulates HORSE.dustDist above a gate of
+       3 and fires one puff every HORSE.dustLen metres
+       (3) at the rear, 0.7 behind the centre along
+       its heading and 0.15 above the horse origin,
+       with strength 2 plus the gait, so a trot kicks
+       strength 3, a canter strength 4 and a gallop
+       strength 5. The per-surface profile applies
+       automatically to all four, because spawnDust
+       classifies the spawn point with surfaceAt.
+       New honest limit: all ground vehicles and the
+       horse now emit; the boat, helicopter, plane
+       and train do not emit dust (water, air and
+       rail by design, no dust surface under them). --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -18557,10 +18601,11 @@ worldTickers.push(carUpdate);   // after dayNightTick: weather ordering intact
 /* ---- ride state (tuning up top, runtime below) ---- */
 const HORSE = {
   camDist0: 11, camH: 3.4,               // chase cam wider/farther than on foot
+  dustLen: 3,                            // metres travelled per hoof-dust puff
   riding: false, a: null,                // the ambient horse record under us
   nearA: null, hintOn: false,            // RIDE prompt target
   pos: new THREE.Vector3(), heading: 0,
-  speed: 0, gait: 0, gaitT: 0, gaitPhase: 0, steer: 0,
+  speed: 0, gait: 0, gaitT: 0, gaitPhase: 0, steer: 0, dustDist: 0,
   camDist: 11, fovT: 66, hudT: 0,
 };
 const RIDE_R2 = 2.2 * 2.2;               // mount radius, squared
@@ -18862,6 +18907,19 @@ function horseUpdate(sdt, now) {
   kneeL.rotation.x = 1.85; kneeR.rotation.x = 1.85;
   armL.rotation.set(-0.8, 0, -0.14); armR.rotation.set(-0.8, 0, 0.14);
   elbowL.rotation.x = -0.5; elbowR.rotation.x = -0.5;
+
+  // ---- hoof dust: distance-driven puffs off the rear hooves (VEHICLE DUST EXTENSION v2) ----
+  const horseSpd = Math.abs(HORSE.speed);
+  if (horseSpd > 3) {
+    HORSE.dustDist += horseSpd * sdt;
+    if (HORSE.dustDist >= HORSE.dustLen) {
+      HORSE.dustDist -= HORSE.dustLen;
+      const bx = HORSE.pos.x - Math.sin(HORSE.heading) * 0.7, bz = HORSE.pos.z - Math.cos(HORSE.heading) * 0.7;
+      spawnDust(bx, HORSE.pos.y + 0.15, bz, 2 + gi);
+    }
+  } else {
+    HORSE.dustDist = 0;
+  }
 
   // ---- camera feel: pullback with speed, FOV kick at gallop ----
   HORSE.camDist = HORSE.camDist0 + spdN * 1.6;
@@ -20278,9 +20336,10 @@ const BIKE = {
   camDist: 8.5, camH: 2.8,               // chase cam distance / height
   fovDrive: 70, fovBoost: 78,            // wider FOV while driving, kick on boost
   boardR2: 3.5 * 3.5,                    // enter radius, squared
+  dustLen: 4,                            // metres travelled per tire-dust puff
   // ---- runtime state (not tuning) ----
   driving: false, speed: 0, heading: 0, steer: 0, lean: 0,
-  boostT: 0, boostCd: 0, wheelieT: 0, stoppieT: 0, hitCd: 0,
+  boostT: 0, boostCd: 0, wheelieT: 0, stoppieT: 0, hitCd: 0, dustDist: 0,
   fovT: 70,
   pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1,
   activeIdx: -1, anchorCx: 1e9, anchorCz: 1e9, key: '',
@@ -20526,6 +20585,19 @@ function bikeUpdate(sdt) {
   const i = BIKE.activeIdx;
   if (i >= 0) bikePose(i, BIKE.pos.x, BIKE.pos.y, BIKE.pos.z, BIKE.heading, roll, pitch);
 
+  // ---- tire dust: distance-driven puffs off the rear wheel (VEHICLE DUST EXTENSION v2) ----
+  const bikeSpd = Math.abs(BIKE.speed);
+  if (bikeSpd > 6) {
+    BIKE.dustDist += bikeSpd * sdt;
+    if (BIKE.dustDist >= BIKE.dustLen) {
+      BIKE.dustDist -= BIKE.dustLen;
+      const bx = BIKE.pos.x - Math.sin(BIKE.heading) * 0.9, bz = BIKE.pos.z - Math.cos(BIKE.heading) * 0.9;
+      spawnDust(bx, BIKE.pos.y + 0.15, bz, boosting ? 6 : 4);
+    }
+  } else {
+    BIKE.dustDist = 0;
+  }
+
   // ---- engine audio: the car's oscillator stack, pitched higher for the bike.
   //      Nodes are created once by ensureEngineAudio; the tick only retunes. ----
   if (engGain) {
@@ -20662,10 +20734,11 @@ const BC = {
   camDist: 8.0, camH: 2.7,               // chase cam distance / height
   fovDrive: 68, fovT: 68,
   boardR2: 3.5 * 3.5,                    // enter radius, squared
+  dustLen: 3.5,                          // metres travelled per tire-dust puff
   // ---- runtime state (not tuning) ----
   driving: false, speed: 0, heading: 0, steer: 0, lean: 0,
   stam: 1, exhausted: false, mashT: 0, prevShift: false,   // pedal-mash stamina loop
-  cadT: 0, wobT: 0, wheelieT: 0, hitCd: 0,                 // cadence, wobble, wheelie, crash
+  cadT: 0, wobT: 0, wheelieT: 0, hitCd: 0, dustDist: 0,    // cadence, wobble, wheelie, crash
   pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1,
   activeIdx: -1, anchorCx: 1e9, anchorCz: 1e9, key: '',
   slots: [
@@ -20930,6 +21003,19 @@ function bcUpdate(sdt) {
   let bcPoseD = false;   // PERF-7: dirty-once
   if (i >= 0) { bcPose(i, BC.pos.x, BC.pos.y, BC.pos.z, BC.heading + wob, roll, pitch); bcPoseD = true; }
 
+  // ---- tire dust: distance-driven puffs off the rear wheel (VEHICLE DUST EXTENSION v2) ----
+  const bcSpd = Math.abs(BC.speed);
+  if (bcSpd > 4) {
+    BC.dustDist += bcSpd * sdt;
+    if (BC.dustDist >= BC.dustLen) {
+      BC.dustDist -= BC.dustLen;
+      const bx = BC.pos.x - Math.sin(BC.heading) * 0.66, bz = BC.pos.z - Math.cos(BC.heading) * 0.66;
+      spawnDust(bx, BC.pos.y + 0.15, bz, 2);
+    }
+  } else {
+    BC.dustDist = 0;
+  }
+
   // ---- no engine on a bicycle: fade the shared engine gain out ----
   if (engGain) engGain.gain.value *= 0.9;
 
@@ -21030,11 +21116,12 @@ const SC = {
   camDist: 7.5, camH: 2.5,            // chase cam distance / height
   fovDrive: 66, fovT: 66,
   boardR2: 3.5 * 3.5,                 // enter radius, squared
+  dustLen: 3,                         // metres travelled per tire-dust puff
   // ---- runtime state (not tuning) ----
   driving: false, speed: 0, heading: 0, steer: 0, lean: 0,
   kickCd: 0, prevKick: false, prevJump: false,   // kick press edge, hop press edge
   hopY: 0, hopVy: 0,                             // bunny-hop vertical
-  wobT: 0, hitCd: 0,                             // wobble, crash
+  wobT: 0, hitCd: 0, dustDist: 0,                // wobble, crash
   pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1,
   activeIdx: -1, anchorCx: 1e9, anchorCz: 1e9, key: '',
   slots: [
@@ -21288,6 +21375,19 @@ function scUpdate(sdt) {
   const i = SC.activeIdx;
   let scPoseD = false;   // PERF-7: dirty-once
   if (i >= 0) { scPose(i, SC.pos.x, SC.pos.y + SC.hopY, SC.pos.z, SC.heading + wob, roll, pitch); scPoseD = true; }
+
+  // ---- tire dust: distance-driven puffs off the rear wheel (VEHICLE DUST EXTENSION v2) ----
+  const scSpd = Math.abs(SC.speed);
+  if (scSpd > 4 && SC.hopY <= 0) {
+    SC.dustDist += scSpd * sdt;
+    if (SC.dustDist >= SC.dustLen) {
+      SC.dustDist -= SC.dustLen;
+      const bx = SC.pos.x - Math.sin(SC.heading) * 0.32, bz = SC.pos.z - Math.cos(SC.heading) * 0.32;
+      spawnDust(bx, SC.pos.y + 0.15, bz, 2);
+    }
+  } else {
+    SC.dustDist = 0;
+  }
 
   // ---- no engine on a scooter: fade the shared engine gain out ----
   if (engGain) engGain.gain.value *= 0.9;

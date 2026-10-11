@@ -14996,6 +14996,457 @@ globalThis.__R3D2 = {
 }
 
 
+/* ================= VEHICLE DUST EXTENSION v2 =================
+   The pooled dust now serves the remaining ground movers in
+   the exact car idiom. The motorcycle: one block in
+   bikeUpdate after the rider glue copy and the bike pose,
+   before the engine audio: BIKE.dustDist above the gate of
+   6, one puff every BIKE.dustLen metres (4) at the rear
+   (0.9 behind along the heading, 0.15 up), strength 6 while
+   boosting and 4 while cruising. The bicycle: one block in
+   bcUpdate after the glue copy and pose, before the engine
+   fade: BC.dustDist above 4, one puff every BC.dustLen
+   metres (3.5) at the rear (0.66 behind), strength 2. The
+   scooter: one block in scUpdate after the glue copy, the
+   hop-height add and the pose, before the engine fade:
+   SC.dustDist above 4 and only while SC.hopY is at or
+   below 0 (an airborne hop emits nothing and resets the
+   accumulator), one puff every SC.dustLen metres (3) at
+   the rear (0.32 behind), strength 2. The horse: one hoof
+   dust block in horseUpdate in the riding path after the
+   rider glue, before the camera feel: HORSE.dustDist above
+   3, one puff every HORSE.dustLen metres (3) at the rear
+   (0.7 behind), strength 2 plus the gait (trot 3, canter 4,
+   gallop 5). Burst sizes follow spawnDust: strength 2
+   bursts 6, 3 bursts 8, 4 bursts 9, 5 bursts 10 and 6
+   bursts 11. Zero new draw calls, Points, arrays or nodes.
+   New honest limit: all ground vehicles and the horse now
+   emit; the boat, helicopter, plane and train do not emit
+   dust (water, air and rail by design). The harness CAN
+   drive all four here (BIKE, BC, SC and HORSE are exposed
+   and their tickers run in the real tick), so the behavior
+   checks run the real updates via the real tick, not just
+   source shapes. */
+{
+  const probsV2 = consoleProblems.length;
+  const liveV2 = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const linesV2 = html.split('\n');
+  const lineHasV2 = sub => linesV2.filter(l => l.includes(sub)).length;
+  const htmlNV2 = html.replace(/\s+/g, ' ');
+  const segBikeV2 = html.indexOf('function bikeUpdate') >= 0 ? html.slice(html.indexOf('function bikeUpdate'), html.indexOf('/* ================= PHASE 5: BICYCLE')) : '';
+  const segBcV2 = html.indexOf('function bcUpdate') >= 0 ? html.slice(html.indexOf('function bcUpdate'), html.indexOf('queueMicrotask(() => worldTickers.push(bikeUpdate));')) : '';
+  const segScV2 = html.indexOf('function scUpdate') >= 0 ? html.slice(html.indexOf('function scUpdate'), html.indexOf('worldTickers.push(scUpdate);')) : '';
+  const segHorseV2 = html.indexOf('function horseUpdate') >= 0 ? html.slice(html.indexOf('function horseUpdate'), html.indexOf('worldTickers.push(horseUpdate);')) : '';
+  const segBikeObjV2 = html.indexOf('const BIKE = {') >= 0 ? html.slice(html.indexOf('const BIKE = {'), html.indexOf('const BIKE_SCAN')) : '';
+  const segBcObjV2 = html.indexOf('const BC = {') >= 0 ? html.slice(html.indexOf('const BC = {'), html.indexOf('const BC_SCAN')) : '';
+  const segScObjV2 = html.indexOf('const SC = {') >= 0 ? html.slice(html.indexOf('const SC = {'), html.indexOf('const SC_SCAN')) : '';
+  const segHorseObjV2 = html.indexOf('const HORSE = {') >= 0 ? html.slice(html.indexOf('const HORSE = {'), html.indexOf('const RIDE_R2')) : '';
+  /* source: extension v2 header and the new honest limit */
+  check('vehdustx2: source carries the VEHICLE DUST EXTENSION v2 header',
+    html.includes('VEHICLE DUST EXTENSION v2: the motorcycle, the'));
+  check('vehdustx2: header states the extension reuses the pool at zero new draw calls',
+    htmlNV2.includes('their tire and hoof dust also costs zero new draw calls, zero new Points and zero new arrays'));
+  check('vehdustx2: header states the per-surface profile applies automatically via surfaceAt',
+    htmlNV2.includes('The per-surface profile applies automatically to all four, because spawnDust classifies the spawn point with surfaceAt'));
+  check('vehdustx2: header states the scooter airborne limit (hop emits nothing and resets)',
+    htmlNV2.includes('only while SC.hopY is at or below 0 (an airborne hop emits nothing and resets the accumulator)'));
+  check('vehdustx2: header states the new honest limit (ground vehicles and horse emit, boat, helicopter, plane and train do not)',
+    htmlNV2.includes('New honest limit: all ground vehicles and the horse now emit; the boat, helicopter, plane and train do not emit dust (water, air and rail by design, no dust surface under them)'));
+  /* source: BIKE tuning/runtime fields, scoped to the BIKE object */
+  check('vehdustx2: BIKE tuning source carries dustLen 4',
+    segBikeObjV2.includes('dustLen: 4,'));
+  check('vehdustx2: BIKE runtime source carries dustDist 0',
+    segBikeObjV2.includes('dustDist: 0,'));
+  check('vehdustx2: runtime BIKE.dustLen is exactly 4',
+    G.BIKE.dustLen === 4, 'dustLen=' + G.BIKE.dustLen);
+  check('vehdustx2: runtime BIKE.dustDist is a number (the accumulator field)',
+    typeof G.BIKE.dustDist === 'number', 'dustDist=' + G.BIKE.dustDist);
+  /* source: the exact tire-dust block inside bikeUpdate */
+  check('vehdustx2: bikeUpdate source derives bikeSpd from Math.abs(BIKE.speed)',
+    segBikeV2.includes('const bikeSpd = Math.abs(BIKE.speed);'));
+  check('vehdustx2: bikeUpdate source gates on bikeSpd above 6',
+    segBikeV2.includes('if (bikeSpd > 6) {'));
+  check('vehdustx2: bikeUpdate source accumulates BIKE.dustDist by bikeSpd times sdt',
+    segBikeV2.includes('BIKE.dustDist += bikeSpd * sdt;'));
+  check('vehdustx2: bikeUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segBikeV2.includes('if (BIKE.dustDist >= BIKE.dustLen) {')
+    && segBikeV2.includes('BIKE.dustDist -= BIKE.dustLen;'));
+  check('vehdustx2: bikeUpdate source computes the rear point 0.9 behind along the heading',
+    segBikeV2.includes('const bx = BIKE.pos.x - Math.sin(BIKE.heading) * 0.9, bz = BIKE.pos.z - Math.cos(BIKE.heading) * 0.9;'));
+  check('vehdustx2: bikeUpdate source spawns at the rear point plus 0.15 with boost 6 versus cruise 4',
+    segBikeV2.includes('spawnDust(bx, BIKE.pos.y + 0.15, bz, boosting ? 6 : 4);'));
+  check('vehdustx2: bikeUpdate source resets BIKE.dustDist to 0 in the slow branch',
+    segBikeV2.includes('BIKE.dustDist = 0;'));
+  check('vehdustx2: the bike tire-dust spawn is the only spawnDust call inside bikeUpdate',
+    (segBikeV2.split('spawnDust(').length - 1) === 1,
+    'n=' + (segBikeV2.split('spawnDust(').length - 1));
+  check('vehdustx2: the bike spawn call site sits after the glue copy and bike pose, before the engine audio block',
+    segBikeV2.indexOf('player.position.copy(BIKE.pos);') >= 0
+    && segBikeV2.indexOf('player.position.copy(BIKE.pos);') < segBikeV2.indexOf('spawnDust(bx,')
+    && segBikeV2.indexOf('bikePose(i, BIKE.pos.x') < segBikeV2.indexOf('spawnDust(bx,')
+    && segBikeV2.indexOf('spawnDust(bx,') < segBikeV2.indexOf("engine audio: the car's oscillator stack, pitched higher for the bike"));
+  /* source: BC tuning/runtime fields, scoped to the BC object */
+  check('vehdustx2: BC tuning source carries dustLen 3.5',
+    segBcObjV2.includes('dustLen: 3.5,'));
+  check('vehdustx2: BC runtime source carries dustDist 0',
+    segBcObjV2.includes('dustDist: 0,'));
+  check('vehdustx2: runtime BC.dustLen is exactly 3.5',
+    G.BC.dustLen === 3.5, 'dustLen=' + G.BC.dustLen);
+  check('vehdustx2: runtime BC.dustDist is a number (the accumulator field)',
+    typeof G.BC.dustDist === 'number', 'dustDist=' + G.BC.dustDist);
+  /* source: the exact tire-dust block inside bcUpdate */
+  check('vehdustx2: bcUpdate source derives bcSpd from Math.abs(BC.speed)',
+    segBcV2.includes('const bcSpd = Math.abs(BC.speed);'));
+  check('vehdustx2: bcUpdate source gates on bcSpd above 4',
+    segBcV2.includes('if (bcSpd > 4) {'));
+  check('vehdustx2: bcUpdate source accumulates BC.dustDist by bcSpd times sdt',
+    segBcV2.includes('BC.dustDist += bcSpd * sdt;'));
+  check('vehdustx2: bcUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segBcV2.includes('if (BC.dustDist >= BC.dustLen) {')
+    && segBcV2.includes('BC.dustDist -= BC.dustLen;'));
+  check('vehdustx2: bcUpdate source computes the rear point 0.66 behind along the heading',
+    segBcV2.includes('const bx = BC.pos.x - Math.sin(BC.heading) * 0.66, bz = BC.pos.z - Math.cos(BC.heading) * 0.66;'));
+  check('vehdustx2: bcUpdate source spawns at the rear point plus 0.15 with constant strength 2',
+    segBcV2.includes('spawnDust(bx, BC.pos.y + 0.15, bz, 2);'));
+  check('vehdustx2: bcUpdate source resets BC.dustDist to 0 in the slow branch',
+    segBcV2.includes('BC.dustDist = 0;'));
+  check('vehdustx2: the bicycle tire-dust spawn is the only spawnDust call inside bcUpdate',
+    (segBcV2.split('spawnDust(').length - 1) === 1,
+    'n=' + (segBcV2.split('spawnDust(').length - 1));
+  check('vehdustx2: the bicycle spawn call site sits after the glue copy and pose, before the no-engine fade block',
+    segBcV2.indexOf('player.position.copy(BC.pos);') >= 0
+    && segBcV2.indexOf('player.position.copy(BC.pos);') < segBcV2.indexOf('spawnDust(bx,')
+    && segBcV2.indexOf('bcPose(i, BC.pos.x') < segBcV2.indexOf('spawnDust(bx,')
+    && segBcV2.indexOf('spawnDust(bx,') < segBcV2.indexOf('no engine on a bicycle'));
+  /* source: SC tuning/runtime fields, scoped to the SC object */
+  check('vehdustx2: SC tuning source carries dustLen 3',
+    segScObjV2.includes('dustLen: 3,'));
+  check('vehdustx2: SC runtime source carries dustDist 0',
+    segScObjV2.includes('dustDist: 0,'));
+  check('vehdustx2: runtime SC.dustLen is exactly 3',
+    G.SC.dustLen === 3, 'dustLen=' + G.SC.dustLen);
+  check('vehdustx2: runtime SC.dustDist is a number (the accumulator field)',
+    typeof G.SC.dustDist === 'number', 'dustDist=' + G.SC.dustDist);
+  /* source: the exact tire-dust block inside scUpdate */
+  check('vehdustx2: scUpdate source derives scSpd from Math.abs(SC.speed)',
+    segScV2.includes('const scSpd = Math.abs(SC.speed);'));
+  check('vehdustx2: scUpdate source gates on scSpd above 4 and hopY at or below 0',
+    segScV2.includes('if (scSpd > 4 && SC.hopY <= 0) {'));
+  check('vehdustx2: scUpdate source accumulates SC.dustDist by scSpd times sdt',
+    segScV2.includes('SC.dustDist += scSpd * sdt;'));
+  check('vehdustx2: scUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segScV2.includes('if (SC.dustDist >= SC.dustLen) {')
+    && segScV2.includes('SC.dustDist -= SC.dustLen;'));
+  check('vehdustx2: scUpdate source computes the rear point 0.32 behind along the heading',
+    segScV2.includes('const bx = SC.pos.x - Math.sin(SC.heading) * 0.32, bz = SC.pos.z - Math.cos(SC.heading) * 0.32;'));
+  check('vehdustx2: scUpdate source spawns at the rear point plus 0.15 with constant strength 2',
+    segScV2.includes('spawnDust(bx, SC.pos.y + 0.15, bz, 2);'));
+  check('vehdustx2: scUpdate source resets SC.dustDist to 0 in the slow or airborne branch',
+    segScV2.includes('SC.dustDist = 0;'));
+  check('vehdustx2: the scooter tire-dust spawn is the only spawnDust call inside scUpdate',
+    (segScV2.split('spawnDust(').length - 1) === 1,
+    'n=' + (segScV2.split('spawnDust(').length - 1));
+  check('vehdustx2: the scooter spawn call site sits after the glue copy, hop add and pose, before the no-engine fade block',
+    segScV2.indexOf('player.position.copy(SC.pos);') >= 0
+    && segScV2.indexOf('player.position.copy(SC.pos);') < segScV2.indexOf('spawnDust(bx,')
+    && segScV2.indexOf('player.position.y += SC.hopY;') < segScV2.indexOf('spawnDust(bx,')
+    && segScV2.indexOf('scPose(i, SC.pos.x') < segScV2.indexOf('spawnDust(bx,')
+    && segScV2.indexOf('spawnDust(bx,') < segScV2.indexOf('no engine on a scooter'));
+  /* source: HORSE tuning/runtime fields, scoped to the HORSE object */
+  check('vehdustx2: HORSE tuning source carries dustLen 3 near the camDist0 line',
+    segHorseObjV2.includes('dustLen: 3,'));
+  check('vehdustx2: HORSE runtime source carries dustDist 0 on the speed and gait line',
+    segHorseObjV2.includes('dustDist: 0,'));
+  check('vehdustx2: runtime HORSE.dustLen is exactly 3',
+    G.HORSE.dustLen === 3, 'dustLen=' + G.HORSE.dustLen);
+  check('vehdustx2: runtime HORSE.dustDist is a number (the accumulator field)',
+    typeof G.HORSE.dustDist === 'number', 'dustDist=' + G.HORSE.dustDist);
+  /* source: the exact hoof-dust block inside horseUpdate */
+  check('vehdustx2: horseUpdate source derives horseSpd from Math.abs(HORSE.speed)',
+    segHorseV2.includes('const horseSpd = Math.abs(HORSE.speed);'));
+  check('vehdustx2: horseUpdate source gates on horseSpd above 3',
+    segHorseV2.includes('if (horseSpd > 3) {'));
+  check('vehdustx2: horseUpdate source accumulates HORSE.dustDist by horseSpd times sdt',
+    segHorseV2.includes('HORSE.dustDist += horseSpd * sdt;'));
+  check('vehdustx2: horseUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segHorseV2.includes('if (HORSE.dustDist >= HORSE.dustLen) {')
+    && segHorseV2.includes('HORSE.dustDist -= HORSE.dustLen;'));
+  check('vehdustx2: horseUpdate source computes the rear point 0.7 behind along the heading',
+    segHorseV2.includes('const bx = HORSE.pos.x - Math.sin(HORSE.heading) * 0.7, bz = HORSE.pos.z - Math.cos(HORSE.heading) * 0.7;'));
+  check('vehdustx2: horseUpdate source spawns at the rear point plus 0.15 with strength 2 plus the gait',
+    segHorseV2.includes('spawnDust(bx, HORSE.pos.y + 0.15, bz, 2 + gi);'));
+  check('vehdustx2: horseUpdate source resets HORSE.dustDist to 0 in the slow branch',
+    segHorseV2.includes('HORSE.dustDist = 0;'));
+  check('vehdustx2: the hoof-dust spawn is the only spawnDust call inside horseUpdate',
+    (segHorseV2.split('spawnDust(').length - 1) === 1,
+    'n=' + (segHorseV2.split('spawnDust(').length - 1));
+  check('vehdustx2: the hoof-dust spawn call site sits after the rider glue and before the camera feel block',
+    segHorseV2.indexOf('player.position.set(HORSE.pos.x') >= 0
+    && segHorseV2.indexOf('player.position.set(HORSE.pos.x') < segHorseV2.indexOf('spawnDust(bx,')
+    && segHorseV2.indexOf('spawnDust(bx,') < segHorseV2.indexOf('camera feel: pullback with speed'));
+  /* behavior: drive all four movers through the real tick. Every setup
+     parks every other dust emitter first (the bus AI is held inactive
+     with its anchor on chunk 0,0, the vehdustx setup idiom), so each
+     burst below can only come from the vehicle under test. */
+  const resetKeysV2 = () => {
+    G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false;
+    G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+    G.keys.Space = false; G.keys.ShiftLeft = false; G.keys.ShiftRight = false;
+  };
+  const parkAllV2 = () => {
+    resetKeysV2();
+    G.P.dead = false; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0;
+    G.CAR.driving = false; G.CAR.speed = 0; G.CAR.dustDist = 0;
+    G.BUS.driving = false; G.BUS.riding = false; G.BUS.speed = 0; G.BUS.dustDist = 0;
+    G.BUS.active = false; G.BUS.anchorCx = 0; G.BUS.anchorCz = 0; G.BUS.routeKey = '0,0';
+    G.FT.driving = false; G.FT.speed = 0; G.FT.dustDist = 0;
+    G.TX.riding = false;
+    G.BIKE.driving = false; G.BIKE.speed = 0; G.BIKE.dustDist = 0; G.BIKE.boostT = 0;
+    G.BC.driving = false; G.BC.speed = 0; G.BC.dustDist = 0;
+    G.SC.driving = false; G.SC.speed = 0; G.SC.dustDist = 0; G.SC.hopY = 0; G.SC.hopVy = 0;
+    G.HORSE.riding = false; G.HORSE.speed = 0; G.HORSE.dustDist = 0;
+    G.player.position.set(0, groundY(0, 0), 0); G.player.visible = true;
+  };
+  const nearRearV2 = (veh, off) => {
+    const bx = veh.pos.x - Math.sin(veh.heading) * off;
+    const bz = veh.pos.z - Math.cos(veh.heading) * off;
+    let near = 0;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] > 0 && Math.hypot(G.dustPos[i * 3] - bx, G.dustPos[i * 3 + 2] - bz) < 0.6
+        && Math.abs(G.dustPos[i * 3 + 1] - (veh.pos.y + 0.15)) < 0.6) near++;
+    }
+    return near;
+  };
+  /* motorcycle */
+  const setupBikeV2 = (speed, dustDist, boostT) => {
+    parkAllV2();
+    G.BIKE.driving = true; G.BIKE.activeIdx = 0;
+    G.BIKE.pos.set(0, groundY(0, 0), 0); G.BIKE.heading = 0; G.BIKE.steer = 0; G.BIKE.lean = 0;
+    G.BIKE.hitCd = 10; G.BIKE.wheelieT = 0; G.BIKE.stoppieT = 0;
+    G.BIKE.boostT = boostT; G.BIKE.boostCd = boostT > 0 ? 4 : 0;
+    G.BIKE.speed = speed; G.BIKE.dustDist = dustDist;
+    G.player.visible = false;
+    G.clearDust();
+  };
+  setupBikeV2(20, 3.9, 0);
+  const headBikeV2 = G.dustHead;
+  frame(1);
+  const bikeCruiseV2 = liveV2();
+  check('vehdustx2: motorcycle cruising above the gate spawns live dust (strength 4 burst of 9)',
+    bikeCruiseV2 === 9, 'live=' + bikeCruiseV2);
+  check('vehdustx2: motorcycle puffs spawn at the rear point (0.9 behind, 0.15 up)',
+    nearRearV2(G.BIKE, 0.9) === liveV2() && liveV2() > 0, 'near=' + nearRearV2(G.BIKE, 0.9) + ' live=' + liveV2());
+  check('vehdustx2: the motorcycle puff advances the pool head by exactly the burst count',
+    G.dustHead === (headBikeV2 + 9) % G.DUST_N, 'head ' + headBikeV2 + ' to ' + G.dustHead);
+  check('vehdustx2: after the motorcycle puff the accumulator keeps only the remainder under dustLen',
+    G.BIKE.dustDist >= 0 && G.BIKE.dustDist < G.BIKE.dustLen, 'dustDist=' + G.BIKE.dustDist);
+  setupBikeV2(20, 0, 0);
+  frame(1);
+  check('vehdustx2: one fast motorcycle frame below the threshold accumulates dustDist and spawns nothing',
+    G.BIKE.dustDist > 0.1 && G.BIKE.dustDist < G.BIKE.dustLen && liveV2() === 0,
+    'dustDist=' + G.BIKE.dustDist + ' live=' + liveV2());
+  setupBikeV2(3, 2.5, 0);
+  frame(3);
+  check('vehdustx2: motorcycle driving slow (speed 3, at or below the gate) spawns no dust and resets dustDist',
+    liveV2() === 0 && G.BIKE.dustDist === 0, 'live=' + liveV2() + ' dustDist=' + G.BIKE.dustDist);
+  setupBikeV2(0, 1.5, 0);
+  frame(2);
+  check('vehdustx2: motorcycle at rest spawns no dust and resets dustDist',
+    liveV2() === 0 && G.BIKE.dustDist === 0, 'live=' + liveV2() + ' dustDist=' + G.BIKE.dustDist);
+  setupBikeV2(20, 3.9, 1);
+  frame(1);
+  check('vehdustx2: boosted motorcycle spawns the strength 6 burst of 11, larger than the cruise burst of 9',
+    liveV2() === 11 && liveV2() > bikeCruiseV2, 'live=' + liveV2() + ' cruise=' + bikeCruiseV2);
+  parkAllV2();
+  G.clearDust();
+  G.BIKE.dustDist = 1.25;
+  frame(2);
+  check('vehdustx2: parked motorcycle emits nothing and leaves dustDist untouched',
+    liveV2() === 0 && G.BIKE.dustDist === 1.25, 'live=' + liveV2() + ' dustDist=' + G.BIKE.dustDist);
+  /* bicycle */
+  const setupBcV2 = (speed, dustDist) => {
+    parkAllV2();
+    G.BC.driving = true; G.BC.activeIdx = 0;
+    G.BC.pos.set(0, groundY(0, 0), 0); G.BC.heading = 0; G.BC.steer = 0; G.BC.lean = 0;
+    G.BC.hitCd = 10; G.BC.stam = 1; G.BC.exhausted = false; G.BC.mashT = 0; G.BC.prevShift = false;
+    G.BC.cadT = 0; G.BC.wheelieT = 0;
+    G.BC.speed = speed; G.BC.dustDist = dustDist;
+    G.player.visible = false;
+    G.clearDust();
+  };
+  setupBcV2(12, 3.4);
+  const headBcV2 = G.dustHead;
+  frame(1);
+  check('vehdustx2: bicycle riding above the gate spawns live dust (strength 2 burst of 6)',
+    liveV2() === 6, 'live=' + liveV2());
+  check('vehdustx2: bicycle puffs spawn at the rear point (0.66 behind, 0.15 up)',
+    nearRearV2(G.BC, 0.66) === liveV2() && liveV2() > 0, 'near=' + nearRearV2(G.BC, 0.66) + ' live=' + liveV2());
+  check('vehdustx2: the bicycle puff advances the pool head by exactly the burst count',
+    G.dustHead === (headBcV2 + 6) % G.DUST_N, 'head ' + headBcV2 + ' to ' + G.dustHead);
+  check('vehdustx2: after the bicycle puff the accumulator keeps only the remainder under dustLen',
+    G.BC.dustDist >= 0 && G.BC.dustDist < G.BC.dustLen, 'dustDist=' + G.BC.dustDist);
+  setupBcV2(12, 0);
+  frame(1);
+  check('vehdustx2: one fast bicycle frame below the threshold accumulates dustDist and spawns nothing',
+    G.BC.dustDist > 0.1 && G.BC.dustDist < G.BC.dustLen && liveV2() === 0,
+    'dustDist=' + G.BC.dustDist + ' live=' + liveV2());
+  setupBcV2(3, 2.5);
+  frame(3);
+  check('vehdustx2: bicycle riding slow (speed 3, at or below the gate) spawns no dust and resets dustDist',
+    liveV2() === 0 && G.BC.dustDist === 0, 'live=' + liveV2() + ' dustDist=' + G.BC.dustDist);
+  setupBcV2(0, 1.5);
+  frame(2);
+  check('vehdustx2: bicycle at rest spawns no dust and resets dustDist',
+    liveV2() === 0 && G.BC.dustDist === 0, 'live=' + liveV2() + ' dustDist=' + G.BC.dustDist);
+  parkAllV2();
+  G.clearDust();
+  G.BC.dustDist = 1.25;
+  frame(2);
+  check('vehdustx2: parked bicycle emits nothing and leaves dustDist untouched',
+    liveV2() === 0 && G.BC.dustDist === 1.25, 'live=' + liveV2() + ' dustDist=' + G.BC.dustDist);
+  /* scooter */
+  const setupScV2 = (speed, dustDist, hopY) => {
+    parkAllV2();
+    G.SC.driving = true; G.SC.activeIdx = 0;
+    G.SC.pos.set(0, groundY(0, 0), 0); G.SC.heading = 0; G.SC.steer = 0; G.SC.lean = 0;
+    G.SC.hitCd = 10; G.SC.kickCd = 0; G.SC.prevKick = false; G.SC.prevJump = false;
+    G.SC.hopY = hopY; G.SC.hopVy = 0;
+    G.SC.speed = speed; G.SC.dustDist = dustDist;
+    G.player.visible = false;
+    G.clearDust();
+  };
+  setupScV2(12, 2.9, 0);
+  const headScV2 = G.dustHead;
+  frame(1);
+  check('vehdustx2: scooter riding above the gate spawns live dust (strength 2 burst of 6)',
+    liveV2() === 6, 'live=' + liveV2());
+  check('vehdustx2: scooter puffs spawn at the rear point (0.32 behind, 0.15 up)',
+    nearRearV2(G.SC, 0.32) === liveV2() && liveV2() > 0, 'near=' + nearRearV2(G.SC, 0.32) + ' live=' + liveV2());
+  check('vehdustx2: the scooter puff advances the pool head by exactly the burst count',
+    G.dustHead === (headScV2 + 6) % G.DUST_N, 'head ' + headScV2 + ' to ' + G.dustHead);
+  check('vehdustx2: after the scooter puff the accumulator keeps only the remainder under dustLen',
+    G.SC.dustDist >= 0 && G.SC.dustDist < G.SC.dustLen, 'dustDist=' + G.SC.dustDist);
+  setupScV2(12, 0, 0);
+  frame(1);
+  check('vehdustx2: one fast scooter frame below the threshold accumulates dustDist and spawns nothing',
+    G.SC.dustDist > 0.1 && G.SC.dustDist < G.SC.dustLen && liveV2() === 0,
+    'dustDist=' + G.SC.dustDist + ' live=' + liveV2());
+  setupScV2(12, 1.5, 0.5);
+  frame(1);
+  check('vehdustx2: airborne scooter (hopY above 0) emits nothing and resets dustDist',
+    liveV2() === 0 && G.SC.dustDist === 0 && G.SC.hopY > 0,
+    'live=' + liveV2() + ' dustDist=' + G.SC.dustDist + ' hopY=' + G.SC.hopY);
+  setupScV2(3, 2.5, 0);
+  frame(3);
+  check('vehdustx2: scooter riding slow (speed 3, at or below the gate) spawns no dust and resets dustDist',
+    liveV2() === 0 && G.SC.dustDist === 0, 'live=' + liveV2() + ' dustDist=' + G.SC.dustDist);
+  setupScV2(0, 1.5, 0);
+  frame(2);
+  check('vehdustx2: scooter at rest spawns no dust and resets dustDist',
+    liveV2() === 0 && G.SC.dustDist === 0, 'live=' + liveV2() + ' dustDist=' + G.SC.dustDist);
+  parkAllV2();
+  G.clearDust();
+  G.SC.dustDist = 1.25;
+  frame(2);
+  check('vehdustx2: parked scooter emits nothing and leaves dustDist untouched',
+    liveV2() === 0 && G.SC.dustDist === 1.25, 'live=' + liveV2() + ' dustDist=' + G.SC.dustDist);
+  /* horse */
+  const setupHorseV2 = (speed, gait, dustDist) => {
+    parkAllV2();
+    G.HORSE.riding = true;
+    G.HORSE.pos.set(0, groundY(0, 0), 0); G.HORSE.heading = 0; G.HORSE.steer = 0;
+    G.HORSE.gait = gait; G.HORSE.gaitT = 0; G.HORSE.gaitPhase = 0;
+    G.HORSE.speed = speed; G.HORSE.dustDist = dustDist;
+    G.clearDust();
+  };
+  setupHorseV2(8, 1, 2.9);
+  const headHorseV2 = G.dustHead;
+  frame(1);
+  const trotLiveV2 = liveV2();
+  check('vehdustx2: horse at a trot spawns live hoof dust (strength 3 burst of 8)',
+    trotLiveV2 === 8, 'live=' + trotLiveV2);
+  check('vehdustx2: hoof puffs spawn at the rear point (0.7 behind, 0.15 up)',
+    nearRearV2(G.HORSE, 0.7) === liveV2() && liveV2() > 0, 'near=' + nearRearV2(G.HORSE, 0.7) + ' live=' + liveV2());
+  check('vehdustx2: the trot puff advances the pool head by exactly the burst count',
+    G.dustHead === (headHorseV2 + 8) % G.DUST_N, 'head ' + headHorseV2 + ' to ' + G.dustHead);
+  check('vehdustx2: after the trot puff the accumulator keeps only the remainder under dustLen',
+    G.HORSE.dustDist >= 0 && G.HORSE.dustDist < G.HORSE.dustLen, 'dustDist=' + G.HORSE.dustDist);
+  setupHorseV2(8, 1, 0);
+  frame(1);
+  check('vehdustx2: one trot frame below the threshold accumulates dustDist and spawns nothing',
+    G.HORSE.dustDist > 0.05 && G.HORSE.dustDist < G.HORSE.dustLen && liveV2() === 0,
+    'dustDist=' + G.HORSE.dustDist + ' live=' + liveV2());
+  setupHorseV2(18, 3, 2.9);
+  G.keys.ShiftLeft = true;   // sprint held: gallop (gait 3) is only unlocked while sprinting
+  frame(1);
+  G.keys.ShiftLeft = false;
+  check('vehdustx2: horse at a gallop spawns the strength 5 burst of 10, larger than the trot burst of 8',
+    liveV2() === 10 && liveV2() > trotLiveV2, 'live=' + liveV2() + ' trot=' + trotLiveV2);
+  setupHorseV2(2, 0, 2.5);
+  frame(3);
+  check('vehdustx2: horse moving slow (speed 2, at or below the gate) spawns no dust and resets dustDist',
+    liveV2() === 0 && G.HORSE.dustDist === 0, 'live=' + liveV2() + ' dustDist=' + G.HORSE.dustDist);
+  setupHorseV2(0, 0, 1.5);
+  frame(2);
+  check('vehdustx2: horse at rest spawns no dust and resets dustDist',
+    liveV2() === 0 && G.HORSE.dustDist === 0, 'live=' + liveV2() + ' dustDist=' + G.HORSE.dustDist);
+  parkAllV2();
+  G.clearDust();
+  G.HORSE.dustDist = 1.25;
+  frame(2);
+  check('vehdustx2: unridden horse emits nothing and leaves dustDist untouched',
+    liveV2() === 0 && G.HORSE.dustDist === 1.25, 'live=' + liveV2() + ' dustDist=' + G.HORSE.dustDist);
+  /* spawnDust equivalence: the exact strengths the four movers pass burst the same directly */
+  G.clearDust(); G.spawnDust(0, groundY(0, 0) + 0.15, 0, 2);
+  check('vehdustx2: direct spawnDust at strength 2 bursts exactly 6 (bicycle, scooter and walk equivalence)',
+    liveV2() === 6, 'live=' + liveV2());
+  G.clearDust(); G.spawnDust(0, groundY(0, 0) + 0.15, 0, 3);
+  check('vehdustx2: direct spawnDust at strength 3 bursts exactly 8 (trot equivalence)',
+    liveV2() === 8, 'live=' + liveV2());
+  G.clearDust(); G.spawnDust(0, groundY(0, 0) + 0.15, 0, 4);
+  check('vehdustx2: direct spawnDust at strength 4 bursts exactly 9 (motorcycle cruise and canter equivalence)',
+    liveV2() === 9, 'live=' + liveV2());
+  G.clearDust(); G.spawnDust(0, groundY(0, 0) + 0.15, 0, 5);
+  check('vehdustx2: direct spawnDust at strength 5 bursts exactly 10 (gallop equivalence)',
+    liveV2() === 10, 'live=' + liveV2());
+  G.clearDust(); G.spawnDust(0, groundY(0, 0) + 0.15, 0, 6);
+  check('vehdustx2: direct spawnDust at strength 6 bursts exactly 11 (motorcycle boost equivalence)',
+    liveV2() === 11, 'live=' + liveV2());
+  /* cleanup: park all four movers and leave the pool empty */
+  parkAllV2();
+  G.BUS.active = true;
+  G.clearDust();
+  check('vehdustx2: cleanup leaves all four accumulators at 0 and no live dust',
+    G.BIKE.dustDist === 0 && G.BC.dustDist === 0 && G.SC.dustDist === 0 && G.HORSE.dustDist === 0 && liveV2() === 0,
+    'bike=' + G.BIKE.dustDist + ' bc=' + G.BC.dustDist + ' sc=' + G.SC.dustDist + ' horse=' + G.HORSE.dustDist + ' live=' + liveV2());
+  /* static pins re-checked: extension v2 adds zero of everything */
+  check('vehdustx2-pins: 49 InstancedMesh literals', lineHasV2('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasV2('new THREE.InstancedMesh'));
+  check('vehdustx2-pins: 92 Math.random lines', lineHasV2('Math.random') === 92,
+    'n=' + lineHasV2('Math.random'));
+  check('vehdustx2-pins: 72 setTimeout lines', lineHasV2('setTimeout') === 72,
+    'n=' + lineHasV2('setTimeout'));
+  check('vehdustx2-pins: 6 lights',
+    linesV2.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('vehdustx2-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('vehdustx2-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('vehdustx2-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasV2('new THREE.Points(') === 2, 'n=' + lineHasV2('new THREE.Points('));
+  check('vehdustx2-pins: no em dashes', !html.includes('\u2014'));
+  check('vehdustx2-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('vehdustx2-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('vehdustx2: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsV2, consoleProblems.slice(probsV2).join(' | '));
+}
+
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
