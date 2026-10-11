@@ -345,6 +345,8 @@ globalThis.__R3D = {
   STEP_LEN, surfaceAt, sfxStep,
   /* SQUASH-AND-STRETCH v1: squash helpers + constants (test-only exposure) */
   squashImpulse, squashTick, SQ_MAX, SQ_DECAY, punchConnectFX,
+  /* TERRAIN LOD v1: chunk pool + band rule + constants (test-only exposure) */
+  chunkPool, chunkLodBand, LOD_FAR_SEG, LOD_FAR_RING,
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
@@ -11500,6 +11502,146 @@ globalThis.__R3D2 = {
   check('squash-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('squash: the run leaves zero console errors/warnings',
     consoleProblems.length === probsQ, consoleProblems.slice(probsQ).join(' | '));
+}
+
+/* ================= TERRAIN LOD v1 =================
+   Distance-banded terrain chunk geometry: chunks at Chebyshev distance
+   LOD_FAR_RING (3) or more from the player chunk build and render from a
+   low geometry (LOD_FAR_SEG 8, 81 verts, 128 tris) instead of the high
+   geometry (CSEG 16, 289 verts, 512 tris). At any anchor the 7x7 pool
+   splits 25 near + 24 far, so active terrain tris drop from 25088 to
+   15872. Visual only: heights in both bands still come from the analytic
+   terrainHeight function, so physics and raycast are untouched. */
+{
+  const probsL = consoleProblems.length;
+  const setupOnFootL = (x, z) => {
+    for (const k in G.keys) G.keys[k] = false;
+    G.touch.jump = false; G.touch.moveX = 0; G.touch.moveY = 0; G.touch.sprint = false;
+    G.P.dead = false; G.P.deadT = 0; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0; G.P.grounded = true;
+    G.player.position.set(x, groundY(x, z), z);
+  };
+  const heightsOkL = (c, stride) => {
+    const pos = c.geo.attributes.position;
+    const idx = [];
+    for (let i = 0; i < pos.count; i += stride) idx.push(i);
+    if (idx[idx.length - 1] !== pos.count - 1) idx.push(pos.count - 1);
+    for (const i of idx) {
+      const wx = c.lx[i] + c.cx * 48, wz = c.lz[i] + c.cz * 48;
+      if (Math.abs(pos.getY(i) - G.terrainHeight(wx, wz)) > 1e-4) return false;
+      if (pos.getX(i) !== c.lx[i] || pos.getZ(i) !== c.lz[i]) return false;
+    }
+    return true;
+  };
+  const triTotalL = () => G.chunkPool.reduce((s, c) => s + c.geo.index.count / 3, 0);
+  const bandCountsL = () => [
+    G.chunkPool.filter(c => c.band === 0).length,
+    G.chunkPool.filter(c => c.band === 1).length];
+
+  /* pure band rule: Chebyshev distance 0/1/2 near, 3 far (straight + diagonal) */
+  check('lod: chunkLodBand is 0 at Chebyshev distance 0, 1 and 2',
+    G.chunkLodBand(0, 0, 0, 0) === 0 && G.chunkLodBand(1, -1, 0, 0) === 0
+    && G.chunkLodBand(2, 1, 0, 0) === 0 && G.chunkLodBand(-2, -2, 0, 0) === 0
+    && G.chunkLodBand(12, -4, 10, -6) === 0);
+  check('lod: chunkLodBand is 1 at Chebyshev distance 3, straight and diagonal',
+    G.chunkLodBand(3, 0, 0, 0) === 1 && G.chunkLodBand(0, -3, 0, 0) === 1
+    && G.chunkLodBand(3, -3, 0, 0) === 1 && G.chunkLodBand(-3, 2, 0, 0) === 1
+    && G.chunkLodBand(7, -6, 10, -6) === 1);
+  check('lod: constants LOD_FAR_SEG and LOD_FAR_RING are 8 and 3',
+    G.LOD_FAR_SEG === 8 && G.LOD_FAR_RING === 3,
+    'seg=' + G.LOD_FAR_SEG + ' ring=' + G.LOD_FAR_RING);
+  check('lod: source carries the band rule, the swap helper and the update wiring',
+    html.includes('const LOD_FAR_SEG = 8, LOD_FAR_RING = 3;')
+    && html.includes('function chunkLodBand(cx, cz, pcx, pcz)')
+    && html.includes('function setChunkBand(c, band)')
+    && html.includes('if (moved || band !== c.band) { setChunkBand(c, band); buildChunk(c); }'));
+
+  /* boot state at the spawn anchor (0,0): settle there first so the
+     counts are history-independent, exactly as at first boot */
+  setupOnFootL(0, 0); frame(1);
+  check('lod: chunkPool still holds exactly 49 chunks', G.chunkPool.length === 49,
+    'n=' + G.chunkPool.length);
+  const countsBootL = bandCountsL();
+  check('lod: at spawn exactly 25 near chunks and 24 far chunks',
+    countsBootL[0] === 25 && countsBootL[1] === 24,
+    'near=' + countsBootL[0] + ' far=' + countsBootL[1]);
+  check('lod: near chunks use the 289-vert high geometry, far chunks the 81-vert low geometry',
+    G.chunkPool.every(c => c.geo.attributes.position.count === (c.band === 1 ? 81 : 289)));
+  check('lod: total active terrain triangles at spawn are 25*512 + 24*128 = 15872',
+    triTotalL() === 15872, 'tris=' + triTotalL());
+  check('lod: every mesh renders its active geometry and every band matches the rule vs spawn',
+    G.chunkPool.every(c => c.mesh.geometry === c.geo
+      && c.geo === (c.band === 1 ? c.geoLo : c.geoHi)
+      && c.lx === (c.band === 1 ? c.lxLo : c.lxHi)
+      && c.band === G.chunkLodBand(c.cx, c.cz, 0, 0)));
+  const nearBootL = G.chunkPool.find(c => c.cx === 1 && c.cz === -1);
+  const farBootL = G.chunkPool.find(c => c.cx === 3 && c.cz === 3);
+  check('lod: sampled heights in a near chunk equal terrainHeight at those world coords',
+    !!nearBootL && nearBootL.band === 0 && heightsOkL(nearBootL, 29),
+    nearBootL ? 'band=' + nearBootL.band : 'missing');
+  check('lod: sampled heights in a far chunk equal terrainHeight at those world coords',
+    !!farBootL && farBootL.band === 1 && heightsOkL(farBootL, 7),
+    farBootL ? 'band=' + farBootL.band : 'missing');
+
+  /* teleport: the anchor chunk changes to (10,-6); bands re-evaluate on
+     the chunk-border crossing driven by the real tick path */
+  const farBeforeL = G.chunkPool.find(c => c.cx === 3 && c.cz === 0);
+  const nearBeforeL = G.chunkPool.find(c => c.cx === 0 && c.cz === 0);
+  check('lod: teleport fixtures exist (a far chunk at (3,0), the near spawn chunk at (0,0))',
+    !!farBeforeL && farBeforeL.band === 1 && !!nearBeforeL && nearBeforeL.band === 0);
+  setupOnFootL(10 * 48 + 24, -6 * 48 + 24); frame(1);
+  check('lod: after teleport the pool still holds exactly 49 chunks',
+    G.chunkPool.length === 49, 'n=' + G.chunkPool.length);
+  check('lod: the formerly far chunk near the new anchor is band 0 with 289-vert geometry',
+    farBeforeL.cx === 10 && farBeforeL.cz === -7 && farBeforeL.band === 0
+    && farBeforeL.geo === farBeforeL.geoHi && farBeforeL.mesh.geometry === farBeforeL.geo
+    && farBeforeL.geo.attributes.position.count === 289,
+    'at=' + farBeforeL.cx + ',' + farBeforeL.cz + ' band=' + farBeforeL.band);
+  check('lod: the re-banded near chunk heights equal terrainHeight at its new coords',
+    heightsOkL(farBeforeL, 29));
+  check('lod: the old spawn chunk is now far and low (band 1, 81-vert geometry)',
+    nearBeforeL.cx === 7 && nearBeforeL.cz === -7 && nearBeforeL.band === 1
+    && nearBeforeL.geo === nearBeforeL.geoLo && nearBeforeL.mesh.geometry === nearBeforeL.geo
+    && nearBeforeL.geo.attributes.position.count === 81,
+    'at=' + nearBeforeL.cx + ',' + nearBeforeL.cz + ' band=' + nearBeforeL.band);
+  check('lod: the re-banded far chunk heights equal terrainHeight at its new coords',
+    heightsOkL(nearBeforeL, 7));
+  const countsTeleL = bandCountsL();
+  check('lod: after teleport the split is again 25 near + 24 far, 15872 active tris, bands match the rule vs (10,-6)',
+    countsTeleL[0] === 25 && countsTeleL[1] === 24 && triTotalL() === 15872
+    && G.chunkPool.every(c => c.band === G.chunkLodBand(c.cx, c.cz, 10, -6)
+      && c.mesh.geometry === c.geo),
+    'near=' + countsTeleL[0] + ' far=' + countsTeleL[1] + ' tris=' + triTotalL());
+
+  /* cleanup: back at spawn, bands restore against anchor (0,0) */
+  setupOnFootL(0, 0); frame(1);
+  const countsBackL = bandCountsL();
+  check('lod: back at spawn the split restores to 25 near + 24 far with bands matching the rule',
+    countsBackL[0] === 25 && countsBackL[1] === 24 && triTotalL() === 15872
+    && G.chunkPool.every(c => c.band === G.chunkLodBand(c.cx, c.cz, 0, 0)
+      && c.mesh.geometry === c.geo),
+    'near=' + countsBackL[0] + ' far=' + countsBackL[1]);
+
+  /* static pins still hold: the feature adds zero of each */
+  const linesL = html.split('\n');
+  const lineHasL = sub => linesL.filter(l => l.includes(sub)).length;
+  check('lod-pins: 49 InstancedMesh literals', lineHasL('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasL('new THREE.InstancedMesh'));
+  check('lod-pins: 92 Math.random lines', lineHasL('Math.random') === 92,
+    'n=' + lineHasL('Math.random'));
+  check('lod-pins: 72 setTimeout lines', lineHasL('setTimeout') === 72,
+    'n=' + lineHasL('setTimeout'));
+  check('lod-pins: 6 lights',
+    linesL.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('lod-pins: 18 osc, 32 gain (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 32,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length
+    + ' gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('lod-pins: no em dashes', !html.includes('—'));
+  check('lod-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('lod: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
