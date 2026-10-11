@@ -359,7 +359,7 @@ globalThis.__R3D = {
   skidStep, skidTick, skidReset, clearSkid, SKID_N, SKID_LIFE, SKID_MIN_SEG,
   skidWriteQuad,
   skidStep1, skidReset1, skidStep2, skidReset2, skidStep3, skidReset3,
-  skidStep4, skidReset4, skidStep5, skidReset5,
+  skidStep4, skidReset4, skidStep5, skidReset5, skidStep6, skidReset6,
   skidPos, skidCol, skidLife, skidLifeMax, skidAlpha, skidGeo, skidMesh,
   get skidHead() { return skidHead; },
   get skidPrev() { return skidPrev; },
@@ -368,6 +368,7 @@ globalThis.__R3D = {
   get skid3Prev() { return skid3Prev; },
   get skid4Prev() { return skid4Prev; },
   get skid5Prev() { return skid5Prev; },
+  get skid6Prev() { return skid6Prev; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
@@ -15487,8 +15488,10 @@ globalThis.__R3D2 = {
   /* source: header, honest limit and placement after clearDust, before trauma */
   check('skid: source carries the SKID MARKS v1 header',
     html.includes('SKID MARKS v1'));
-  check('skid: header states the extension honest limit (horse still lays no marks yet)',
-    htmlNSk.includes('horse still lays no marks yet'));
+  check('skid: header states the extension v5 horse scuff (horse now lays a single rear-hoof scuff ribbon, no horse no-marks limit remains)',
+    htmlNSk.includes('horse now lays a single 0.10-wide rear-hoof scuff ribbon')
+    && !htmlNSk.includes('horse still lays no marks yet')
+    && !htmlNSk.includes('the horse still lays no marks'));
   check('skid: header states quads conform along their length via the two end heights and across their width via SKID LATERAL CONFORM v1, with the ridge honest limit kept',
     htmlNSk.includes('quads conform along their length via the two end heights and across their width via SKID LATERAL CONFORM v1')
     && !htmlNSk.includes('still uses the end height')
@@ -15709,8 +15712,10 @@ globalThis.__R3D2 = {
     htmlNSm.includes('from the same pooled mesh (zero new draw calls, zero new Mesh)'));
   check('skidmoto: header states the gate (hard lean over 0.25, speed over 8, rear 0.9 behind centre)',
     htmlNSm.includes('gated by hard lean over 0.25 and speed over 8, rear 0.9 behind centre'));
-  check('skidmoto: header states the new honest limit (horse still lays no marks yet)',
-    htmlNSm.includes('horse still lays no marks yet'));
+  check('skidmoto: header states the new v5 horse scuff (horse now lays a single rear-hoof scuff ribbon, no horse no-marks limit remains)',
+    htmlNSm.includes('horse now lays a single 0.10-wide rear-hoof scuff ribbon')
+    && !htmlNSm.includes('horse still lays no marks yet')
+    && !htmlNSm.includes('the horse still lays no marks'));
   check('skidmoto: header states the flat-quad slope clipping limit still applies',
     htmlNSm.includes('flat-quad slope clipping limit still applies'));
   check('skidmoto: header no longer states the old car-only limit',
@@ -15936,8 +15941,10 @@ globalThis.__R3D2 = {
     htmlNSb.includes('half-width 0.04'));
   check('skidbike: header states the gate (hard lean over 0.20, speed over 6, rear 0.66 behind centre)',
     htmlNSb.includes('gated by hard lean over 0.20 and speed over 6, rear 0.66 behind centre'));
-  check('skidbike: header states the new honest limit (horse still lays no marks yet)',
-    htmlNSb.includes('horse still lays no marks yet'));
+  check('skidbike: header states the new v5 horse scuff (horse now lays a single rear-hoof scuff ribbon, no horse no-marks limit remains)',
+    htmlNSb.includes('horse now lays a single 0.10-wide rear-hoof scuff ribbon')
+    && !htmlNSb.includes('horse still lays no marks yet')
+    && !htmlNSb.includes('the horse still lays no marks'));
   check('skidbike: header states the flat-quad slope clipping limit still applies',
     htmlNSb.includes('flat-quad slope clipping limit still applies'));
   check('skidbike: header no longer states the old honest limit with bicycle',
@@ -16187,8 +16194,10 @@ globalThis.__R3D2 = {
     htmlNSs.includes('gated by hard lean over 0.25 and speed over 6, rear 0.32 behind centre'));
   check('skidscoot: header states the gate is grounded only',
     htmlNSs.includes('rear 0.32 behind centre, grounded only'));
-  check('skidscoot: header states the new honest limit (horse still lays no marks yet)',
-    htmlNSs.includes('horse still lays no marks yet'));
+  check('skidscoot: header states the new v5 horse scuff (horse now lays a single rear-hoof scuff ribbon, no horse no-marks limit remains)',
+    htmlNSs.includes('horse now lays a single 0.10-wide rear-hoof scuff ribbon')
+    && !htmlNSs.includes('horse still lays no marks yet')
+    && !htmlNSs.includes('the horse still lays no marks'));
   check('skidscoot: header states the flat-quad slope clipping limit still applies',
     htmlNSs.includes('flat-quad slope clipping limit still applies'));
   check('skidscoot: header no longer states the old honest limit with scooter',
@@ -16484,8 +16493,10 @@ globalThis.__R3D2 = {
     htmlNBd.includes('rear 3.5, lateral +/-0.85, half-width 0.15'));
   check('skidbus: header states the fire truck uses the same steer/speed gates',
     htmlNBd.includes('half-width 0.15, same steer/speed gates'));
-  check('skidbus: header states the new honest limit (horse still lays no marks yet)',
-    htmlNBd.includes('horse still lays no marks yet'));
+  check('skidbus: header states the new v5 horse scuff (horse now lays a single rear-hoof scuff ribbon, no horse no-marks limit remains)',
+    htmlNBd.includes('horse now lays a single 0.10-wide rear-hoof scuff ribbon')
+    && !htmlNBd.includes('horse still lays no marks yet')
+    && !htmlNBd.includes('the horse still lays no marks'));
   check('skidbus: header states the flat-quad slope clipping limit still applies',
     htmlNBd.includes('flat-quad slope clipping limit still applies'));
   check('skidbus: header no longer states the old honest limit with bus and fire truck',
@@ -16907,6 +16918,204 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidbus: the run leaves zero console errors/warnings',
     consoleProblems.length === probsBd, consoleProblems.slice(probsBd).join(' | '));
+}
+
+
+/* ================= SKID MARKS EXTENSION v5: HORSE =================
+   The horse lays a single-track rear-hoof scuff from the same
+   pooled ribbon as the car and the other mounts: skidStep6
+   tracks one rear point 0.5 behind the centre along the
+   heading, the first call stores only, a step of at least
+   SKID_MIN_SEG writes exactly ONE quad of half-width 0.05
+   (0.10 wide, per-surface colour, y = ground+0.03, life
+   SKID_LIFE), a shorter step writes nothing, and skidReset6 /
+   clearSkid keep the horse prev state independent except that
+   clearSkid clears all seven prevs. The horse gate sits in
+   horseUpdate in the riding path after the hoof-dust block and
+   before the camera feel, gated by |steer| over 0.4 and speed
+   over 8 (canter and gallop only), and horseExit resets the
+   stepper so a dismount never connects a stale segment. */
+{
+  const probsSh = consoleProblems.length;
+  const linesSh = html.split('\n');
+  const lineHasSh = sub => linesSh.filter(l => l.includes(sub)).length;
+  const htmlNSh = html.replace(/\s+/g, ' ');
+  const approxSh = (a, b) => Math.abs(a - b) < 1e-4;
+  const liveSh = () => { let n = 0; for (let i = 0; i < G.SKID_N; i++) if (G.skidLife[i] > 0) n++; return n; };
+  const segHorseSh = html.indexOf('function horseUpdate') >= 0 ? html.slice(html.indexOf('function horseUpdate'), html.indexOf('worldTickers.push(horseUpdate);')) : '';
+  const segExitSh = html.indexOf('function horseExit()') >= 0 ? html.slice(html.indexOf('function horseExit()'), html.indexOf('function horseUpdate')) : '';
+  const segStep6Sh = html.indexOf('function skidStep6') >= 0 ? html.slice(html.indexOf('function skidStep6'), html.indexOf('function skidReset6')) : '';
+  const segClearSh = html.indexOf('function clearSkid()') >= 0 ? html.slice(html.indexOf('function clearSkid()'), html.indexOf('const TRAUMA_DECAY')) : '';
+  const gateSh = 'if (Math.abs(HORSE.steer) > 0.4 && Math.abs(HORSE.speed) > 8) skidStep6(HORSE.pos.x, HORSE.pos.z, HORSE.heading, HORSE.pos.y); else skidReset6();';
+  /* source: header extension v5 text and the removed honest limits */
+  check('skidhorse: source carries the SKID MARKS EXTENSION v5 header',
+    html.includes('SKID MARKS EXTENSION v5'));
+  check('skidhorse: header states horse now lays a single 0.10-wide rear-hoof scuff ribbon',
+    htmlNSh.includes('horse now lays a single 0.10-wide rear-hoof scuff ribbon'));
+  check('skidhorse: header states the ribbon comes from the same pooled mesh with zero new draw calls and zero new Mesh',
+    htmlNSh.includes('rear-hoof scuff ribbon from the same pooled mesh (zero new draw calls, zero new Mesh)'));
+  check('skidhorse: header states the half-width 0.05',
+    htmlNSh.includes('half-width 0.05, gated by |steer| over 0.4'));
+  check('skidhorse: header states the gate (steer over 0.4, speed over 8, canter and gallop only)',
+    htmlNSh.includes('gated by |steer| over 0.4 and speed over 8 (canter and gallop only)'));
+  check('skidhorse: header states rear 0.5 behind centre and dismount resets the stepper',
+    htmlNSh.includes('rear 0.5 behind centre, dismount resets the stepper'));
+  check('skidhorse: header no longer states the old horse no-marks honest limits',
+    !htmlNSh.includes('horse still lays no marks yet')
+    && !htmlNSh.includes('the horse still lays no marks'));
+  check('skidhorse: header keeps the other honest limits (ridge clip, per-quad centre classification, flat-quad slope clipping)',
+    htmlNSh.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
+    && htmlNSh.includes('surface classification stays per-quad centre only')
+    && htmlNSh.includes('flat-quad slope clipping limit still applies'));
+  /* source: writer signature, separate state and the single-track step */
+  check('skidhorse: skidWriteQuad source keeps halfW defaulting to 0.14 and prevY defaulting to y',
+    html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
+  check('skidhorse: source declares the separate single-track state (skid6Prev, skid6PrevY, skid6Px, skid6Pz, skid6Cx, skid6Cz)',
+    html.includes('let skid6Prev = null;')
+    && html.includes('let skid6PrevY = 0;')
+    && html.includes('let skid6Px = 0, skid6Pz = 0, skid6Cx = 0, skid6Cz = 0;'));
+  check('skidhorse: skidStep6 and skidReset6 are exposed functions and skid6Prev starts null after clearSkid',
+    typeof G.skidStep6 === 'function' && typeof G.skidReset6 === 'function'
+    && (() => { G.clearSkid(); return G.skid6Prev === null; })());
+  check('skidhorse: skidStep6 source computes forward and lateral from the heading',
+    segStep6Sh.includes('const fx = Math.sin(heading), fz = Math.cos(heading);')
+    && segStep6Sh.includes('const lx = fz, lz = -fx;'));
+  check('skidhorse: skidStep6 source puts the rear point 0.5 behind the centre along the heading',
+    segStep6Sh.includes('const rx = x - fx * 0.5, rz = z - fz * 0.5;'));
+  check('skidhorse: skidStep6 source stores only on the first call (prev and centre set, skid6Prev set, return)',
+    segStep6Sh.includes('if (skid6Prev === null) {')
+    && segStep6Sh.includes('skid6Px = rx; skid6Pz = rz; skid6Cx = rx; skid6Cz = rz; skid6Prev = 1; skid6PrevY = y;'));
+  check('skidhorse: skidStep6 source gates on SKID_MIN_SEG from the stored centre',
+    segStep6Sh.includes('const dx = rx - skid6Cx, dz = rz - skid6Cz;')
+    && segStep6Sh.includes('if (Math.sqrt(dx * dx + dz * dz) < SKID_MIN_SEG) return;'));
+  check('skidhorse: skidStep6 source writes exactly ONE quad with half-width 0.05 and skid6PrevY',
+    segStep6Sh.split('skidWriteQuad(').length - 1 === 1
+    && segStep6Sh.includes('skidWriteQuad(skid6Px, skid6Pz, rx, rz, lx, lz, y, 0.05, skid6PrevY);'),
+    'writes=' + (segStep6Sh.split('skidWriteQuad(').length - 1));
+  check('skidhorse: skidStep6 source flags both attributes for update after a write',
+    segStep6Sh.includes('skidPosAttr.needsUpdate = true;') && segStep6Sh.includes('skidColAttr.needsUpdate = true;'));
+  check('skidhorse: skidReset6 source is exact (clears only skid6Prev)',
+    html.includes('function skidReset6(){ skid6Prev = null; }'));
+  check('skidhorse: clearSkid source clears all seven prevs including skid6Prev',
+    segClearSh.includes('skidPrev = null;') && segClearSh.includes('skid1Prev = null;')
+    && segClearSh.includes('skid2Prev = null;') && segClearSh.includes('skid3Prev = null;')
+    && segClearSh.includes('skid4Prev = null;') && segClearSh.includes('skid5Prev = null;')
+    && segClearSh.includes('skid6Prev = null;'));
+  /* source: the horse gate, its exact placement and the dismount reset */
+  check('skidhorse: horseUpdate source contains the exact gate line',
+    segHorseSh.includes(gateSh));
+  check('skidhorse: the horse skid gate sits after the hoof-dust block',
+    segHorseSh.indexOf('spawnDust(bx, HORSE.pos.y + 0.15, bz, 2 + gi);') >= 0
+    && segHorseSh.indexOf('spawnDust(bx, HORSE.pos.y + 0.15, bz, 2 + gi);') < segHorseSh.indexOf(gateSh));
+  check('skidhorse: the horse skid gate sits before the camera-feel block',
+    segHorseSh.indexOf(gateSh) >= 0
+    && segHorseSh.indexOf(gateSh) < segHorseSh.indexOf('camera feel: pullback with speed'));
+  check('skidhorse: horseUpdate carries exactly one skidStep6 call site',
+    segHorseSh.split('skidStep6(').length - 1 === 1, 'n=' + (segHorseSh.split('skidStep6(').length - 1));
+  check('skidhorse: horseUpdate carries exactly one skidReset6 call site',
+    segHorseSh.split('skidReset6(').length - 1 === 1, 'n=' + (segHorseSh.split('skidReset6(').length - 1));
+  check('skidhorse: horseExit source calls skidReset6 after clearing riding and before reading HORSE.a',
+    segExitSh.indexOf('HORSE.riding = false;') >= 0
+    && segExitSh.indexOf('HORSE.riding = false;') < segExitSh.indexOf('skidReset6();')
+    && segExitSh.indexOf('skidReset6();') < segExitSh.indexOf('const a = HORSE.a;'));
+  check('skidhorse: the horseExit segment carries exactly one skidReset6 call site',
+    segExitSh.split('skidReset6(').length - 1 === 1, 'n=' + (segExitSh.split('skidReset6(').length - 1));
+  /* direct behaviour: first call store-only, then exactly one quad */
+  G.clearSkid();
+  check('skidhorse: clearSkid leaves no live quads and all seven prevs null',
+    liveSh() === 0 && G.skidPrev === null && G.skid1Prev === null && G.skid2Prev === null
+    && G.skid3Prev === null && G.skid4Prev === null && G.skid5Prev === null && G.skid6Prev === null,
+    'live=' + liveSh());
+  const head0Sh = G.skidHead;
+  G.skidStep6(10, 19.6, 0, 5);
+  check('skidhorse: first skidStep6 writes nothing (head unchanged, 0 live)',
+    G.skidHead === head0Sh && liveSh() === 0, 'head ' + head0Sh + ' to ' + G.skidHead + ' live=' + liveSh());
+  check('skidhorse: first skidStep6 sets skid6Prev non-null',
+    G.skid6Prev !== null, 'skid6Prev=' + G.skid6Prev);
+  G.skidStep6(10, 20.6, 0, 5);
+  check('skidhorse: a step of at least 0.9m writes exactly ONE quad (head advances 1, 1 live)',
+    G.skidHead === (head0Sh + 1) % G.SKID_N && liveSh() === 1,
+    'head=' + G.skidHead + ' live=' + liveSh());
+  {
+    const s0 = head0Sh, p0 = s0 * 12;
+    /* SKID LATERAL CONFORM v1: corner Y is 5.03 plus its own
+       centre-relative terrainHeight delta; X/Z are the rear-hoof
+       maths (rear 0.5 behind, half-width 0.05, heading 0). */
+    const THSh = (x, z) => G.terrainHeight(x, z);
+    const expSh = [
+      9.95, 5.03 + (THSh(9.95, 19.1) - THSh(10, 19.1)), 19.1,
+      10.05, 5.03 + (THSh(10.05, 19.1) - THSh(10, 19.1)), 19.1,
+      10.05, 5.03 + (THSh(10.05, 20.1) - THSh(10, 20.1)), 20.1,
+      9.95, 5.03 + (THSh(9.95, 20.1) - THSh(10, 20.1)), 20.1];
+    let posOk = true;
+    for (let i = 0; i < 12; i++) { if (!approxSh(G.skidPos[p0 + i], expSh[i])) posOk = false; }
+    check('skidhorse: written quad positions match the single-track maths with half-width 0.05, y = end base plus per-corner lateral delta',
+      posOk, 'q=' + [...G.skidPos.slice(p0, p0 + 12)].join(','));
+    check('skidhorse: written quad width is exactly 0.10 (0.05 half-width on each side)',
+      approxSh(G.skidPos[p0 + 3] - G.skidPos[p0], 0.10) && approxSh(G.skidPos[p0 + 6] - G.skidPos[p0 + 9], 0.10),
+      'w0=' + (G.skidPos[p0 + 3] - G.skidPos[p0]) + ' w1=' + (G.skidPos[p0 + 6] - G.skidPos[p0 + 9]));
+    let colOk = true;
+    for (let v = 0; v < 4; v++) {
+      const c = s0 * 16 + v * 4;
+      if (!approxSh(G.skidCol[c], 0.10) || !approxSh(G.skidCol[c + 1], 0.13) || !approxSh(G.skidCol[c + 2], 0.05) || !approxSh(G.skidCol[c + 3], 0.38)) colOk = false;
+    }
+    check('skidhorse: written quad carries grass RGB 0.10/0.13/0.05 and peak alpha 0.38 on all verts (centre (10,19.6) is grass)',
+      colOk && G.surfaceAt(10, 19.6) === 'grass');
+    check('skidhorse: written quad life and lifeMax are SKID_LIFE',
+      G.skidLife[s0] === G.SKID_LIFE && G.skidLifeMax[s0] === G.SKID_LIFE,
+      'life=' + G.skidLife[s0] + ' max=' + G.skidLifeMax[s0]);
+  }
+  const head1Sh = G.skidHead;
+  G.skidStep6(10, 21.0, 0, 5);
+  check('skidhorse: a step under 0.9m writes nothing',
+    G.skidHead === head1Sh && liveSh() === 1, 'head=' + G.skidHead + ' live=' + liveSh());
+  G.skidStep6(10, 21.6, 0, 5);
+  check('skidhorse: a big step after the sub-segment step writes exactly one more quad',
+    G.skidHead === (head1Sh + 1) % G.SKID_N && liveSh() === 2,
+    'head=' + G.skidHead + ' live=' + liveSh());
+  /* reset independence and re-store: skidReset6 clears only skid6 */
+  G.skidStep(0, 0, 0, 2);
+  check('skidhorse: setup for reset checks leaves car and horse prevs set',
+    G.skidPrev !== null && G.skid6Prev !== null, 'car=' + G.skidPrev + ' horse=' + G.skid6Prev);
+  G.skidReset6();
+  check('skidhorse: skidReset6 clears skid6Prev', G.skid6Prev === null);
+  check('skidhorse: skidReset6 does not clear the car skidPrev',
+    G.skidPrev !== null, 'car=' + G.skidPrev);
+  const head2Sh = G.skidHead;
+  G.skidStep6(50, 50, 0, 2);
+  check('skidhorse: after skidReset6 the next skidStep6 stores only and sets skid6Prev again',
+    G.skidHead === head2Sh && liveSh() === 2 && G.skid6Prev !== null,
+    'head=' + G.skidHead + ' live=' + liveSh());
+  G.clearSkid();
+  check('skidhorse: clearSkid clears skid6Prev and all live quads (cleanup)',
+    G.skid6Prev === null && G.skidPrev === null && liveSh() === 0,
+    'horse=' + G.skid6Prev + ' live=' + liveSh());
+  /* static pins re-checked: the extension adds zero of everything pinned */
+  check('skidhorse-pins: 50 InstancedMesh literals', lineHasSh('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasSh('new THREE.InstancedMesh'));
+  check('skidhorse-pins: 92 Math.random lines', lineHasSh('Math.random') === 92,
+    'n=' + lineHasSh('Math.random'));
+  check('skidhorse-pins: 72 setTimeout lines', lineHasSh('setTimeout') === 72,
+    'n=' + lineHasSh('setTimeout'));
+  check('skidhorse-pins: 6 lights',
+    linesSh.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('skidhorse-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('skidhorse-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('skidhorse-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasSh('new THREE.Points(') === 2, 'n=' + lineHasSh('new THREE.Points('));
+  check('skidhorse-pins: exactly one skid Mesh construction (no new Mesh for the horse)',
+    lineHasSh('new THREE.Mesh(skidGeo') === 1, 'n=' + lineHasSh('new THREE.Mesh(skidGeo'));
+  check('skidhorse-pins: no em dashes', !html.includes('\u2014'));
+  check('skidhorse-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('skidhorse-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('skidhorse: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSh, consoleProblems.slice(probsSh).join(' | '));
 }
 
 
@@ -18087,8 +18296,10 @@ globalThis.__R3D2 = {
   check('skidsurf: header states the new honest limit (per-quad centre only, a boundary quad takes one surface)',
     htmlNSSu.includes('classification is per-quad centre only')
     && htmlNSSu.includes('quad crossing a surface boundary takes one surface'));
-  check('skidsurf: header keeps the horse and flat-quad slope clipping sentences',
-    htmlNSSu.includes('horse still lays no marks yet')
+  check('skidsurf: header keeps the flat-quad slope clipping sentence and replaces the horse no-marks sentence with the v5 horse scuff',
+    htmlNSSu.includes('horse now lays a single 0.10-wide rear-hoof scuff ribbon')
+    && !htmlNSSu.includes('horse still lays no marks yet')
+    && !htmlNSSu.includes('the horse still lays no marks')
     && htmlNSSu.includes('flat-quad slope clipping limit still applies'));
   /* source: writer, tick and clear wiring */
   check('skidsurf: skidWriteQuad source carries the surfaceAt classification line exactly once',
@@ -18255,10 +18466,11 @@ globalThis.__R3D2 = {
   check('skidlat: header no longer lists lateral slope as using the end height',
     !htmlNSL.includes('still uses the end height')
     && !htmlNSL.includes('lateral slope across the track width (at most 0.32m)'));
-  check('skidlat: header keeps the remaining honest limits (ridge clip, per-quad centre classification, horse lays no marks)',
+  check('skidlat: header keeps the remaining honest limits (ridge clip, per-quad centre classification, horse clause removed)',
     segHeadSL.includes('a sharp ridge inside one 0.9m segment can still clip slightly')
     && segHeadSL.includes('surface classification stays per-quad centre only')
-    && segHeadSL.includes('the horse still lays no marks'));
+    && !segHeadSL.includes('the horse still lays no marks')
+    && !segHeadSL.includes('horse still lays no marks'));
   /* source: writer wiring */
   check('skidlat: skidWriteQuad signature is unchanged (halfW defaults to 0.14, prevY defaults to y)',
     html.includes('function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y){'));
