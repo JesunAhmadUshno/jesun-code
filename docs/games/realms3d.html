@@ -5382,7 +5382,34 @@ function squashTick(dt){
        limit: the profile is two scalars per surface (grow
        plus ramp); gravity and drag stay water-versus-rest,
        and point size is still sizeAttenuation-scaled by
-       distance in the material. --- */
+       distance in the material.
+       PER-SURFACE DUST PHYSICS v1: gravity and drag are now
+       a full per-surface profile too, selected in spawnDust
+       by two if and else-if chains in the same style as the
+       growF and rampF chains above, writing the existing
+       preallocated dustGrav and dustDrag arrays with no new
+       arrays, no new Points and no new draw calls. The table
+       is: grass grav 0.85 and dragF 1.15 (light leafy dust:
+       floaty, drag-dominated), dirt grav 1 and dragF 1 (the
+       old default values, behavior byte-equivalent), rock
+       grav 1.35 and dragF 0.65 (dense mineral grit:
+       ballistic, falls fast), gravel grav 1.20 and dragF
+       0.80, and water grav 1.8 and dragF 0.35 (unchanged).
+       Any other surface string falls back to grav 1 and
+       dragF 1, which are also the values the arrays are
+       filled with at declaration and the values clearDust
+       resets to. Birth size (base * 0.6), birth alpha (0),
+       radialScale and upScale, and the dustRand order and
+       count per particle (exactly four) are unchanged for
+       every surface, and the dustTick formulas are
+       unchanged: they already read dustGrav[i] and
+       dustDrag[i] per particle. This supersedes the
+       gravity and drag stay water-versus-rest limit from
+       PER-SURFACE DUST PROFILES v1 above. New honest
+       limit: the profile is now four scalars per surface
+       (grow, ramp, grav and drag); radialScale and upScale
+       stay water-versus-rest, and point size is still
+       sizeAttenuation-scaled by distance in the material. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -5440,8 +5467,20 @@ function spawnDust(x, y, z, strength){
   else if (surf === 'rock') { pr = 0.60; pg = 0.61; pb = 0.64; }
   else if (surf === 'gravel') { pr = 0.71; pg = 0.69; pb = 0.63; }
   else if (surf === 'water') { pr = 0.62; pg = 0.79; pb = 0.90; }
-  let radialScale = 1, upScale = 1, grav = 1, dragF = 1;
-  if (surf === 'water') { radialScale = 0.55; upScale = 1.9; grav = 1.8; dragF = 0.35; }
+  let radialScale = 1, upScale = 1;
+  if (surf === 'water') { radialScale = 0.55; upScale = 1.9; }
+  let grav = 1;
+  if (surf === 'grass') { grav = 0.85; }
+  else if (surf === 'dirt') { grav = 1; }
+  else if (surf === 'rock') { grav = 1.35; }
+  else if (surf === 'gravel') { grav = 1.20; }
+  else if (surf === 'water') { grav = 1.8; }
+  let dragF = 1;
+  if (surf === 'grass') { dragF = 1.15; }
+  else if (surf === 'dirt') { dragF = 1; }
+  else if (surf === 'rock') { dragF = 0.65; }
+  else if (surf === 'gravel') { dragF = 0.80; }
+  else if (surf === 'water') { dragF = 0.35; }
   let growF = 0.8;
   if (surf === 'grass') { growF = 0.95; }
   else if (surf === 'dirt') { growF = 0.8; }

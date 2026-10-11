@@ -11842,10 +11842,10 @@ globalThis.__R3D2 = {
       && approxD(G.dustPos[s0 * 3 + 1], py + vy * 0.1, 1e-6)
       && approxD(G.dustPos[s0 * 3 + 2], pz + vz * 0.1, 1e-6),
       'pos=' + G.dustPos[s0 * 3] + ',' + G.dustPos[s0 * 3 + 1] + ',' + G.dustPos[s0 * 3 + 2]);
-    check('dust: dustTick applies gravity -3.5 * dt to vy and drag 1 - 3 * dt horizontally',
-      approxD(G.dustVel[s0 * 3 + 1], vy - 0.35, 1e-6)
-      && approxD(G.dustVel[s0 * 3], vx * 0.7, 1e-6)
-      && approxD(G.dustVel[s0 * 3 + 2], vz * 0.7, 1e-6),
+    check('dust: dustTick applies gravity -3.5 * 0.85 * dt to vy and drag 1 - 3 * 1.15 * dt horizontally (grass at the spawn point)',
+      approxD(G.dustVel[s0 * 3 + 1], vy - 0.2975, 1e-6)
+      && approxD(G.dustVel[s0 * 3], vx * 0.655, 1e-6)
+      && approxD(G.dustVel[s0 * 3 + 2], vz * 0.655, 1e-6),
       'vel=' + G.dustVel[s0 * 3] + ',' + G.dustVel[s0 * 3 + 1] + ',' + G.dustVel[s0 * 3 + 2]);
     check('dust: dustTick spends life by dt (life - 0.1)',
       approxD(G.dustLife[s0], life0 - 0.1, 1e-6), 'life=' + G.dustLife[s0] + ' before=' + life0);
@@ -12331,10 +12331,13 @@ globalThis.__R3D2 = {
   {
     const segStartW = html.indexOf('function spawnDust');
     const segW = segStartW >= 0 ? html.slice(segStartW, html.indexOf('function dustTick')) : '';
-    check('dustsplash: spawnDust source carries the default scales line (1, 1, 1, 1)',
-      segW.includes('let radialScale = 1, upScale = 1, grav = 1, dragF = 1;'));
-    check('dustsplash: spawnDust source carries the exact water constants',
-      segW.includes("if (surf === 'water') { radialScale = 0.55; upScale = 1.9; grav = 1.8; dragF = 0.35; }"));
+    check('dustsplash: spawnDust source carries the default scales lines (radial/up 1, grav 1, dragF 1)',
+      segW.includes('let radialScale = 1, upScale = 1;')
+      && segW.includes('let grav = 1;') && segW.includes('let dragF = 1;'));
+    check('dustsplash: spawnDust source carries the exact water constants (radial/up in the water line, grav/drag in the per-surface chains)',
+      segW.includes("if (surf === 'water') { radialScale = 0.55; upScale = 1.9; }")
+      && segW.includes("else if (surf === 'water') { grav = 1.8; }")
+      && segW.includes("else if (surf === 'water') { dragF = 0.35; }"));
     check('dustsplash: spawnDust source writes dustGrav and dustDrag per slot',
       segW.includes('dustGrav[slot] = grav; dustDrag[slot] = dragF;'));
     check('dustsplash: spawnDust source applies the scales to velocity',
@@ -12383,8 +12386,8 @@ globalThis.__R3D2 = {
     grassRec = spawnRecW(foundW.grass);
     check('dustsplash: paired grass spawn bursts exactly 10 at strength 5',
       grassRec.live === 10 && grassRec.vel.length === 10, 'live=' + grassRec.live);
-    check('dustsplash: every grass slot carries dustGrav 1 and dustDrag 1',
-      grassRec.grav.every(v => v === 1) && grassRec.drag.every(v => v === 1),
+    check('dustsplash: every grass slot carries dustGrav 0.85 and dustDrag 1.15',
+      grassRec.grav.every(v => approxW(v, 0.85, 1e-6)) && grassRec.drag.every(v => approxW(v, 1.15, 1e-6)),
       'grav=' + grassRec.grav.join(',') + ' drag=' + grassRec.drag.join(','));
   }
   if (foundW.water) {
@@ -12415,10 +12418,10 @@ globalThis.__R3D2 = {
   };
   if (foundW.grass) {
     const tmG = tickMeasW(foundW.grass);
-    check('dustsplash: one dustTick(0.1) drops grass velY by approx 0.35',
-      approxW(tmG.vyDrop, 0.35, 0.02), 'drop=' + tmG.vyDrop);
-    check('dustsplash: one dustTick(0.1) leaves grass with approx 0.7 of horizontal speed',
-      approxW(tmG.retain, 0.7, 0.02), 'retain=' + tmG.retain);
+    check('dustsplash: one dustTick(0.1) drops grass velY by approx 0.2975',
+      approxW(tmG.vyDrop, 0.2975, 0.02), 'drop=' + tmG.vyDrop);
+    check('dustsplash: one dustTick(0.1) leaves grass with approx 0.655 of horizontal speed',
+      approxW(tmG.retain, 0.655, 0.02), 'retain=' + tmG.retain);
   }
   if (foundW.water) {
     const tmW = tickMeasW(foundW.water);
@@ -12427,12 +12430,13 @@ globalThis.__R3D2 = {
     check('dustsplash: one dustTick(0.1) leaves water with approx 0.895 of horizontal speed',
       approxW(tmW.retain, 0.895, 0.02), 'retain=' + tmW.retain);
   }
-  /* non-water, non-grass surfaces keep the default physics scalars */
+  /* dirt keeps the default physics scalars; rock and gravel carry their per-surface physics scalars */
   for (const surfW of ['dirt', 'rock', 'gravel']) {
     if (foundW[surfW]) {
       const recS = spawnRecW(foundW[surfW]);
-      check('dustsplash: ' + surfW + ' spawn carries dustGrav 1 and dustDrag 1 on every slot',
-        recS.grav.every(v => v === 1) && recS.drag.every(v => v === 1),
+      const expW = { dirt: [1, 1], rock: [1.35, 0.65], gravel: [1.20, 0.80] }[surfW];
+      check('dustsplash: ' + surfW + ' spawn carries dustGrav ' + expW[0] + ' and dustDrag ' + expW[1] + ' on every slot',
+        recS.grav.every(v => approxW(v, expW[0], 1e-6)) && recS.drag.every(v => approxW(v, expW[1], 1e-6)),
         'grav=' + recS.grav.join(',') + ' drag=' + recS.drag.join(','));
     }
   }
@@ -13772,6 +13776,223 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustprof: the run leaves zero console errors/warnings',
     consoleProblems.length === probsP, consoleProblems.slice(probsP).join(' | '));
+}
+
+
+/* ================= PER-SURFACE DUST PHYSICS v1 =================
+   Gravity and drag are now a full per-surface profile table.
+   spawnDust selects grav and dragF in two if and else-if chains:
+   grass 0.85 / 1.15, dirt 1 / 1 (the old defaults, behavior
+   byte-equivalent), rock 1.35 / 0.65, gravel 1.20 / 0.80 and
+   water 1.8 / 0.35 (unchanged), with any other surface falling
+   back to the defaults 1 / 1. Both factors write the existing
+   preallocated dustGrav and dustDrag arrays; radialScale and
+   upScale stay water-versus-rest, birth size stays base * 0.6,
+   birth alpha stays 0, the dustRand order and count per particle
+   stay exactly four, dustTick formulas are unchanged and
+   clearDust still resets grav and drag to 1. The profile is now
+   four scalars per surface (grow, ramp, grav, drag); point size
+   is still sizeAttenuation-scaled by distance. No new Points,
+   draw calls or nodes. */
+{
+  const probsPh = consoleProblems.length;
+  const approxPh = (a, b, tol) => Math.abs(a - b) <= tol;
+  const livePh = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
+  const linesPh = html.split('\n');
+  const lineHasPh = sub => linesPh.filter(l => l.includes(sub)).length;
+  /* source: header and the full physics table in spawnDust */
+  check('dustphys: source carries the PER-SURFACE DUST PHYSICS v1 header',
+    html.includes('PER-SURFACE DUST PHYSICS v1'));
+  {
+    const segSPh = html.indexOf('function spawnDust') >= 0 ? html.slice(html.indexOf('function spawnDust'), html.indexOf('function dustTick')) : '';
+    check('dustphys: spawnDust source carries the grass physics lines (grav 0.85, drag 1.15)',
+      segSPh.includes("if (surf === 'grass') { grav = 0.85; }")
+      && segSPh.includes("if (surf === 'grass') { dragF = 1.15; }"));
+    check('dustphys: spawnDust source carries the dirt physics lines (grav 1, drag 1)',
+      segSPh.includes("else if (surf === 'dirt') { grav = 1; }")
+      && segSPh.includes("else if (surf === 'dirt') { dragF = 1; }"));
+    check('dustphys: spawnDust source carries the rock physics lines (grav 1.35, drag 0.65)',
+      segSPh.includes("else if (surf === 'rock') { grav = 1.35; }")
+      && segSPh.includes("else if (surf === 'rock') { dragF = 0.65; }"));
+    check('dustphys: spawnDust source carries the gravel physics lines (grav 1.20, drag 0.80)',
+      segSPh.includes("else if (surf === 'gravel') { grav = 1.20; }")
+      && segSPh.includes("else if (surf === 'gravel') { dragF = 0.80; }"));
+    check('dustphys: spawnDust source carries the water physics lines (grav 1.8, drag 0.35)',
+      segSPh.includes("else if (surf === 'water') { grav = 1.8; }")
+      && segSPh.includes("else if (surf === 'water') { dragF = 0.35; }"));
+    check('dustphys: spawnDust source keeps the fallback defaults (grav 1, drag 1)',
+      segSPh.includes('let grav = 1;') && segSPh.includes('let dragF = 1;'));
+    check('dustphys: spawnDust source writes dustGrav and dustDrag per slot',
+      segSPh.includes('dustGrav[slot] = grav; dustDrag[slot] = dragF;'));
+    check('dustphys: spawnDust source keeps radialScale and upScale water-versus-rest (1 and 1, water 0.55 and 1.9)',
+      segSPh.includes('let radialScale = 1, upScale = 1;')
+      && segSPh.includes("if (surf === 'water') { radialScale = 0.55; upScale = 1.9; }"));
+    const segTPh = html.indexOf('function dustTick') >= 0 ? html.slice(html.indexOf('function dustTick'), html.indexOf('function clearDust')) : '';
+    check('dustphys: dustTick source keeps the per-particle gravity and drag formulas',
+      segTPh.includes('dustVel[i * 3 + 1] -= 3.5 * dustGrav[i] * dt;')
+      && segTPh.includes('const drag = Math.max(0, 1 - 3 * dustDrag[i] * dt);'));
+    const segCPh = html.indexOf('function clearDust') >= 0 ? html.slice(html.indexOf('function clearDust'), html.indexOf('function clearDust') + 500) : '';
+    check('dustphys: clearDust source resets grav and drag to 1',
+      segCPh.includes('dustGrav[i] = 1; dustDrag[i] = 1;'));
+  }
+  /* buffers: both physics arrays stay preallocated at 48 slots */
+  check('dustphys: dustGrav is a preallocated Float32Array of 48',
+    !!G.dustGrav && G.dustGrav instanceof Float32Array && G.dustGrav.length === 48,
+    'len=' + (G.dustGrav && G.dustGrav.length));
+  check('dustphys: dustDrag is a preallocated Float32Array of 48',
+    !!G.dustDrag && G.dustDrag instanceof Float32Array && G.dustDrag.length === 48,
+    'len=' + (G.dustDrag && G.dustDrag.length));
+  /* probe one location per surface from the classifier itself */
+  const foundPh = {};
+  for (let x = -360; x <= 360 && Object.keys(foundPh).length < 5; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      const surf = G.surfaceAt(x, z);
+      if ((surf === 'grass' || surf === 'dirt' || surf === 'rock' || surf === 'gravel' || surf === 'water') && !foundPh[surf]) foundPh[surf] = { x, z };
+      if (Object.keys(foundPh).length >= 5) break;
+    }
+  }
+  check('dustphys: probe finds grass, dirt, rock and gravel locations',
+    !!foundPh.grass && !!foundPh.dirt && !!foundPh.rock && !!foundPh.gravel,
+    JSON.stringify(foundPh));
+  check('dustphys: probe finds a water location', !!foundPh.water, JSON.stringify(foundPh.water || null));
+  /* deterministic spawn recorder: same seed, slots in spawn order */
+  const spawnRecPh = (loc) => {
+    G.clearDust(); G.dustSeed = 987654321;
+    const head = G.dustHead;
+    G.spawnDust(loc.x, 1, loc.z, 5);
+    const slots = [];
+    for (let n = 0; n < 10; n++) slots.push((head + n) % G.DUST_N);
+    return {
+      slots,
+      grav: slots.map(s => G.dustGrav[s]),
+      drag: slots.map(s => G.dustDrag[s]),
+      vel: slots.map(s => [G.dustVel[s * 3], G.dustVel[s * 3 + 1], G.dustVel[s * 3 + 2]]),
+      base: slots.map(s => G.dustSizeBase[s]),
+      size: slots.map(s => G.dustSize[s]),
+      alpha: slots.map(s => G.dustCol[s * 4 + 3]),
+      live: livePh().length,
+    };
+  };
+  const profPh = { grass: [0.85, 1.15], dirt: [1, 1], rock: [1.35, 0.65], gravel: [1.20, 0.80], water: [1.8, 0.35] };
+  const recsPh = {};
+  for (const surf of Object.keys(profPh)) if (foundPh[surf]) recsPh[surf] = spawnRecPh(foundPh[surf]);
+  for (const surf of Object.keys(profPh)) {
+    const rec = recsPh[surf];
+    check('dustphys: ' + surf + ' spawn bursts exactly 10 and writes grav ' + profPh[surf][0] + ' and drag ' + profPh[surf][1] + ' for every live slot',
+      !!rec && rec.live === 10
+      && rec.grav.every(v => approxPh(v, profPh[surf][0], 1e-6))
+      && rec.drag.every(v => approxPh(v, profPh[surf][1], 1e-6)),
+      'live=' + (rec && rec.live) + ' grav=' + (rec && rec.grav[0]) + ' drag=' + (rec && rec.drag[0]));
+  }
+  check('dustphys: every surface keeps birth size at base * 0.6 and birth alpha at 0',
+    Object.keys(profPh).every(surf => !!recsPh[surf]
+      && recsPh[surf].size.every((v, k) => approxPh(v, recsPh[surf].base[k] * 0.6, 1e-6))
+      && recsPh[surf].alpha.every(v => v === 0)));
+  /* tick behavior per surface: vertical velocity and horizontal drag match the dustTick formulas with the new values */
+  const tickCheckPh = (surf, dt) => {
+    if (!foundPh[surf]) return false;
+    const rec = spawnRecPh(foundPh[surf]);
+    const before = rec.vel.map(v => v.slice());
+    G.dustTick(dt);
+    const dragFPh = Math.max(0, 1 - 3 * profPh[surf][1] * dt);
+    return livePh().length > 0 && rec.slots.every((s, k) => {
+      return approxPh(G.dustVel[s * 3 + 1], before[k][1] - 3.5 * profPh[surf][0] * dt, 1e-5)
+        && approxPh(G.dustVel[s * 3], before[k][0] * dragFPh, 1e-5)
+        && approxPh(G.dustVel[s * 3 + 2], before[k][2] * dragFPh, 1e-5);
+    });
+  };
+  check('dustphys: after a tick grass vertical velocity and horizontal drag match the 0.85 grav and 1.15 drag formulas within 1e-5',
+    tickCheckPh('grass', 0.1));
+  check('dustphys: after a tick dirt vertical velocity and horizontal drag match the unchanged 1 grav and 1 drag formulas within 1e-5',
+    tickCheckPh('dirt', 0.1));
+  check('dustphys: after a tick rock vertical velocity and horizontal drag match the 1.35 grav and 0.65 drag formulas within 1e-5',
+    tickCheckPh('rock', 0.1));
+  check('dustphys: after a tick gravel vertical velocity and horizontal drag match the 1.20 grav and 0.80 drag formulas within 1e-5',
+    tickCheckPh('gravel', 0.1));
+  check('dustphys: after a tick water vertical velocity and horizontal drag match the unchanged 1.8 grav and 0.35 drag formulas within 1e-5',
+    tickCheckPh('water', 0.1));
+  /* paired same-seed comparison: rock falls faster and keeps more horizontal speed than grass */
+  {
+    const measPh = (surf) => {
+      const rec = spawnRecPh(foundPh[surf]);
+      const before = rec.vel.map(v => v.slice());
+      G.dustTick(0.1);
+      const after = rec.slots.map(s => [G.dustVel[s * 3], G.dustVel[s * 3 + 1], G.dustVel[s * 3 + 2]]);
+      const drop = before.reduce((a, v, i) => a + (v[1] - after[i][1]), 0) / before.length;
+      const hB = before.reduce((a, v) => a + Math.hypot(v[0], v[2]), 0) / before.length;
+      const hA = after.reduce((a, v) => a + Math.hypot(v[0], v[2]), 0) / after.length;
+      return { drop, retain: hA / hB };
+    };
+    const mGrassPh = foundPh.grass ? measPh('grass') : null;
+    const mRockPh = foundPh.rock ? measPh('rock') : null;
+    check('dustphys: paired same-seed rock drops faster and retains more horizontal speed than grass after the same tick',
+      !!mGrassPh && !!mRockPh && mRockPh.drop > mGrassPh.drop && mRockPh.retain > mGrassPh.retain,
+      'rockDrop=' + (mRockPh && mRockPh.drop) + ' grassDrop=' + (mGrassPh && mGrassPh.drop)
+      + ' rockRetain=' + (mRockPh && mRockPh.retain) + ' grassRetain=' + (mGrassPh && mGrassPh.retain));
+  }
+  /* determinism: same-seed respawn reproduces the physics exactly */
+  if (foundPh.rock) {
+    const r1Ph = spawnRecPh(foundPh.rock);
+    const r2Ph = spawnRecPh(foundPh.rock);
+    check('dustphys: same-seed respawn reproduces grav and drag exactly',
+      r1Ph.grav.length === 10 && r1Ph.grav.every((v, i) => v === r2Ph.grav[i]) && r1Ph.drag.every((v, i) => v === r2Ph.drag[i]));
+  }
+  if (foundPh.gravel) {
+    const recTickPh = () => {
+      const r = spawnRecPh(foundPh.gravel);
+      G.dustTick(0.1);
+      return { grav: r.grav, drag: r.drag, vel: r.slots.map(s => [G.dustVel[s * 3], G.dustVel[s * 3 + 1], G.dustVel[s * 3 + 2]]) };
+    };
+    const t1Ph = recTickPh(), t2Ph = recTickPh();
+    check('dustphys: same-seed respawn plus tick reproduces grav, drag and velocity exactly',
+      t1Ph.grav.every((v, i) => v === t2Ph.grav[i]) && t1Ph.drag.every((v, i) => v === t2Ph.drag[i])
+      && t1Ph.vel.every((v, i) => v.every((w, j) => w === t2Ph.vel[i][j])));
+  }
+  /* expiry still zeroes size and alpha and parks the particle */
+  {
+    if (foundPh.grass) spawnRecPh(foundPh.grass);
+    const expPh = livePh(); const expSlotPh = expPh.length ? expPh[0] : -1;
+    G.dustTick(10);
+    check('dustphys: expiry still zeroes size and alpha and parks y at -999 with nothing live',
+      expSlotPh >= 0 && G.dustSize[expSlotPh] === 0 && G.dustCol[expSlotPh * 4 + 3] === 0 && G.dustPos[expSlotPh * 3 + 1] === -999 && livePh().length === 0,
+      'slot=' + expSlotPh);
+  }
+  /* clearDust resets both physics arrays to the fallback defaults */
+  {
+    if (foundPh.rock) spawnRecPh(foundPh.rock);
+    G.clearDust();
+    check('dustphys: clearDust resets every dustGrav slot to 1',
+      Array.from(G.dustGrav).every(v => v === 1));
+    check('dustphys: clearDust resets every dustDrag slot to 1',
+      Array.from(G.dustDrag).every(v => v === 1));
+    check('dustphys: after clearDust nothing is live',
+      livePh().length === 0, 'live=' + livePh().length);
+  }
+  G.clearDust();
+  /* static pins re-checked: the physics table adds zero of everything */
+  check('dustphys-pins: 49 InstancedMesh literals', lineHasPh('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasPh('new THREE.InstancedMesh'));
+  check('dustphys-pins: 92 Math.random lines', lineHasPh('Math.random') === 92,
+    'n=' + lineHasPh('Math.random'));
+  check('dustphys-pins: 72 setTimeout lines', lineHasPh('setTimeout') === 72,
+    'n=' + lineHasPh('setTimeout'));
+  check('dustphys-pins: 6 lights',
+    linesPh.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustphys-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustphys-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustphys-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasPh('new THREE.Points(') === 2, 'n=' + lineHasPh('new THREE.Points('));
+  check('dustphys-pins: no em dashes', !html.includes('\u2014'));
+  check('dustphys-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustphys-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustphys: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsPh, consoleProblems.slice(probsPh).join(' | '));
 }
 
 
