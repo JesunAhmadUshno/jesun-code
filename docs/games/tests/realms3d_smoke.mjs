@@ -939,7 +939,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
          count below asserts the real +5 (11 -> 16). */
   const imCount = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-  check('perf6: 49 IM literals (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 49, 'count=' + imCount);
+  check('perf6: 50 IM literals (50 = 49 + 1 Phase 1 lamp light pools; 49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)', imCount === 50, 'count=' + imCount);
 
   /* PERF-6 merge regression: slot maps, Y-band lifts, identity colors */
   {
@@ -1442,7 +1442,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   const imCount2 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 48 IM literals (bike section)',
-    imCount2 === 49, 'count=' + imCount2);
+    imCount2 === 50, 'count=' + imCount2);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const poses = G.BIKE.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1543,7 +1543,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   const imCount3 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 48 IM literals (bicycle section)',
-    imCount3 === 49, 'count=' + imCount3);
+    imCount3 === 50, 'count=' + imCount3);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const bcPoses = G.BC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1645,7 +1645,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   const imCount4 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
   /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
   check('perf6: 48 IM literals (scooter section)',
-    imCount4 === 49, 'count=' + imCount4);
+    imCount4 === 50, 'count=' + imCount4);
 
   /* determinism on revisit: same player spot, forced rebuild, identical pads */
   const scPoses = G.SC.slots.map(s => [s.x, s.z, s.yaw]);
@@ -1962,7 +1962,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     const imCount5 = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
     check('perf6: 48 IM literals (wildlife5 section)',
-      imCount5 === 49, 'count=' + imCount5);
+      imCount5 === 50, 'count=' + imCount5);
   }
   {
     /* lioness silhouette: instances 1-2 are slimmer than the male */
@@ -2310,8 +2310,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   {
     const n = (html.match(/new THREE\.InstancedMesh/g) || []).length;
     /* 2026-10-09 farming: +1 crop InstancedMesh literal (45 = 44 + 1 farming crops); pads reuse ZONE_PADS, zero new draws */
-    check('perf6: 49 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
-      n === 49 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
+    check('perf6: 50 IM literals, 6 runtime building meshes (apartment owns its fleet; the def loop adds one runtime mesh with zero new literals)',
+      n === 50 && G.bldgMeshes.length === 6, 'literals=' + n + ' meshes=' + G.bldgMeshes.length);
   }
 
   /* one render per tick still holds with the new meshes */
@@ -2455,8 +2455,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.foodSaveStr() === '0:0:0:0:0:0:0:0:0' && G.foodChipEl.style.display === 'none', G.foodSaveStr());
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('food-static: InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('food-static: InstancedMesh literal sites pin at 50 (50 = 49 + 1 Phase 1 lamp light pools; 49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('food-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('food-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -2685,8 +2685,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins: zero new draw calls / meshes / lights / keybinds / audio nodes */
-  check('farmv1-static: InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('farmv1-static: InstancedMesh literal sites pin at 50 (50 = 49 + 1 Phase 1 lamp light pools; 49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('farmv1-static: single renderer.render call site',
     (html.match(/renderer\.render\(/g) || []).length === 1);
   check('farmv1-static: Math.random lines pin at 92 (91 + 1 boat splash noise, one-shot audio)',
@@ -3057,8 +3057,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the tennis block */
-  check('tennis-static: whole-file InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('tennis-static: whole-file InstancedMesh literal sites pin at 50 (50 = 49 + 1 Phase 1 lamp light pools; 49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('tennis-static: tennis block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== TENNIS MINI-GAME'),
@@ -3277,8 +3277,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   }
 
   /* static pins for the basketball block */
-  check('hoops-static: whole-file InstancedMesh literal sites pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('hoops-static: whole-file InstancedMesh literal sites pin at 50 (50 = 49 + 1 Phase 1 lamp light pools; 49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('hoops-static: basketball block creates no lights and no audio nodes',
     !/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/.test(
       html.slice(html.indexOf('/* ================== BASKETBALL MINI-GAME'),
@@ -4075,7 +4075,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('casino-static: no external URLs in the casino block', !/https?:\/\//.test(casinoSrc));
   check('casino-static: no TODO markers in the casino block', !/\bTODO\b/.test(casinoSrc));
   check('casino-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('casino-static: 6 runtime building meshes (casino rides the store mesh, civic types share the civic fleet, church/mosque share the worship fleet, apartment owns its fleet)',
     G.bldgMeshes.length === 6);
   check('casino-static: casino def shares the store fleet mesh',
@@ -4204,7 +4204,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('theater-static: no external URLs in the theater block', !/https?:\/\//.test(theaterSrc));
   check('theater-static: no TODO markers in the theater block', !/\bTODO\b/.test(theaterSrc));
   check('theater-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('theater-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('theater-static: audio nodes pin unchanged (18 osc, 32 gain: music reuses sfxBlip; poker sting schedules on the audio clock: +1 osc, +1 gain, +1 footstep gain)',
@@ -4338,7 +4338,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('civic-static: no external URLs in the civic block', !/https?:\/\//.test(civicSrc));
   check('civic-static: no TODO markers in the civic block', !/\bTODO\b/.test(civicSrc));
   check('civic-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6 consolidation: copTorso+copHead+copArms->copFleet, eBodyRus+eBodySho->eBodyAll Y-band, theater+stadium+amuse->venueBoxIM; civic fleet rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('civic-static: the civic fleet is a live InstancedMesh (+1 runtime draw call)',
     G.BLDG_DEF.civic.mesh.isInstancedMesh === true && G.BLDG_DEF.civic.mesh.instanceMatrix.count === 8);
   check('civic-static: 6 runtime building meshes (house, barn, store, civic, worship, apartment)',
@@ -4615,7 +4615,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('stadium-static: no external URLs in the stadium block', !/https?:\/\//.test(stadiumSrc));
   check('stadium-static: no TODO markers in the stadium block', !/\bTODO\b/.test(stadiumSrc));
   check('stadium-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: stadium+amuse ride the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('stadium-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('stadium-static: audio nodes pin unchanged (18 osc, 32 gain: cheer reuses sfxBlip; poker sting: +1 osc, +1 gain, +1 footstep gain)',
@@ -4760,7 +4760,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('amuse-static: no external URLs in the amusement block', !/https?:\/\//.test(amuseSrc));
   check('amuse-static: no TODO markers in the amusement block', !/\bTODO\b/.test(amuseSrc));
   check('amuse-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 landmark-amuse ride fleets; 42 = 41 + 1 signglyph v1 board fleet; 41 - PERF-6: amuse rides the shared venueBoxIM)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('amuse-static: light count pins at 6 (zero new lights)',
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('amuse-static: audio nodes pin unchanged (18 osc, 32 gain: chimes reuse sfxBlip; poker sting: +1 osc, +1 gain, +1 footstep gain)',
@@ -5451,7 +5451,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmstad-static: stad residue is checked after all existing amenity types (never displaces them)',
     html.indexOf("if (h % 10 === 6) return 'park';") < html.indexOf("if (h % 37 === 13) return 'stad';"));
   check('lmstad-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; stad rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('lmstad-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmstad-static: single keydown listener (zero new keybinds)',
@@ -5597,8 +5597,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmause-static: no TODO markers in the park block', lmauseSrc.indexOf('TODO') === -1);
   check('lmause-static: amuse residue is checked after stad (never displaces existing types)',
     html.indexOf("if (h % 37 === 13) return 'stad';") < html.indexOf("if (h % 41 === 29) return 'amuse';"));
-  check('lmause-static: whole-file IM literals pin at 49 (49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 46 + 1 fire truck v1; 46 = 42 + 4 ride fleets)',
-    (html.split('new THREE.InstancedMesh').length - 1) === 49);
+  check('lmause-static: whole-file IM literals pin at 50 (50 = 49 + 1 Phase 1 lamp light pools; 49 = 48 + 1 theater audience fleet; 48 = 47 + 1 fire-crew helmet fleet; 46 + 1 fire truck v1; 46 = 42 + 4 ride fleets)',
+    (html.split('new THREE.InstancedMesh').length - 1) === 50);
   check('lmause-static: Math.random lines pin at 92',
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
   check('lmause-static: single keydown listener (zero new keybinds)',
@@ -5829,7 +5829,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmhosp-static: hosp residue is checked after all existing amenity types (never displaces them)',
     html.indexOf("if (h % 41 === 29) return 'amuse';") < html.indexOf("if (h % 47 === 23) return 'hosp';"));
   check('lmhosp-static: whole-file IM literals pin at 48 (48 = 47 + 1 fire-crew helmet fleet; 47 = 46 + 1 fire truck v1; 46 = 42 + 4 lmause ride fleets; hosp rides the shared def-loop literal)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('lmhosp-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmhosp-static: single keydown listener (zero new keybinds)',
@@ -6043,8 +6043,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmth-static: no TODO markers in the theater block', !/\bTODO\b/.test(lmthSrc));
   check('lmth-static: theater residue is checked after hosp (never displaces existing types)',
     html.indexOf("if (h % 47 === 23) return 'hosp';") < html.indexOf("if (h % 53 === 31) return 'theater';"));
-  check('lmth-static: whole-file IM literals pin at 49 (49 = 48 + 1 theater audience fleet; room is plain Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+  check('lmth-static: whole-file IM literals pin at 50 (50 = 49 + 1 Phase 1 lamp light pools; 49 = 48 + 1 theater audience fleet; room is plain Mesh)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('lmth-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmth-static: single keydown listener (zero new keybinds)',
@@ -6397,7 +6397,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmcs-static: casino residue is checked after theater (never displaces existing types)',
     html.indexOf("if (h % 53 === 31) return 'theater';") < html.indexOf("if (h % 61 === 37) return 'casino';"));
   check('lmcs-static: whole-file IM literals pin at 48 (casino rides the shared def-loop literal; hall is plain Mesh)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('lmcs-static: Math.random lines pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('lmcs-static: single keydown listener (zero new keybinds)',
@@ -6723,7 +6723,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bj-static: no external URLs in the blackjack block', !/https?:\/\//.test(bjSrc));
   check('bj-static: no TODO markers in the blackjack block', !/\bTODO\b/.test(bjSrc));
   check('bj-static: whole-file InstancedMesh literals still pin at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('bj-static: Math.random lines still pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('bj-static: single keydown listener (Q rides the existing one)',
@@ -6931,7 +6931,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('roul-static: no external URLs in the roulette block', !/https?:\/\//.test(roulSrc));
   check('roul-static: no TODO markers in the roulette block', !/\bTODO\b/.test(roulSrc));
   check('roul-static: whole-file InstancedMesh literals still pin at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('roul-static: Math.random lines still pin at 92',
     (html.match(/^.*Math\.random.*$/gm) || []).length === 92);
   check('roul-static: single renderer.render call site',
@@ -7138,7 +7138,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('dice: the dice block holds zero Math.random lines (seeded idiom only)',
     diceSrc.length > 5000 && !/Math\.random/.test(diceSrc), diceSrc.length + ' chars');
   check('dice: the dice block adds zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('dice: #dicechip owns the next free top-left slot (786px, no overlap)',
     (html.match(/top: 786px; left: 18px/g) || []).length === 1);
   check('dice: no placeholder or em dash text in the dice block',
@@ -7353,7 +7353,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('poker: the poker block holds zero Math.random lines (seeded idiom only)',
     pokerSrc.length > 8000 && !/Math\.random/.test(pokerSrc), pokerSrc.length + ' chars');
   check('poker: the poker block adds zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('poker: #pokerchip owns the next free top-left slot (819px, no overlap)',
     (html.match(/top: 819px; left: 18px/g) || []).length === 1);
   check('poker: no placeholder or em dash text in the poker block',
@@ -7601,7 +7601,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bacc: the baccarat block holds zero Math.random lines (seeded idiom only)',
     baccSrc.length > 8000 && !/Math\.random/.test(baccSrc), baccSrc.length + ' chars');
   check('bacc: the baccarat block adds zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('bacc: #baccchip owns the next free top-left slot (852px, no overlap)',
     (html.match(/top: 852px; left: 18px/g) || []).length === 1);
   check('bacc: no placeholder or em dash text in the baccarat block',
@@ -7888,7 +7888,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('keno: the keno block holds zero Math.random lines (seeded idiom only)',
     kenoSrc.length > 8000 && !/Math\.random/.test(kenoSrc), kenoSrc.length + ' chars');
   check('keno: the keno block adds zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('keno: #kenochip owns the next free top-left slot (885px, no overlap)',
     (html.match(/top: 885px; left: 18px/g) || []).length === 1);
   check('keno: no placeholder or em dash text in the keno block',
@@ -8531,7 +8531,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('lmfirest-static: no external URLs in the fire station block', !/https?:\/\//.test(lmfsSrc));
   check('lmfirest-static: no TODO markers in the fire station block', !/\bTODO\b/.test(lmfsSrc));
   check('lmfirest-static: whole-file IM literals pin at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('lmfirest-static: 92 Math.random lines pin holds',
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
   check('lmfirest-static: single keydown listener (zero new keybinds)',
@@ -8838,7 +8838,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       && G.FROZEN_STATICS.includes(d.mesh) && !('meshes' in d));
   }
   check('perf7-cb: whole-file InstancedMesh literal pin still 48 (one amenIM constructor)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
 
   /* find a chunk with at least one active landmark site, and one with none */
   let lmChunk = null;
@@ -8949,7 +8949,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('firecrew-static: no external URLs in the fire-crew block', !/https?:\/\//.test(ffSrc));
   check('firecrew-static: no markers in the fire-crew block', !/\bTODO\b/.test(ffSrc));
   check('firecrew-static: whole-file IM literals pin at 48 (47 + 1 fire-crew helmet fleet)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('firecrew-static: 92 Math.random lines pin holds',
     html.split('\n').filter(l => l.indexOf('Math.random') !== -1).length === 92);
 
@@ -9308,7 +9308,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('heist-static: zero new Math.random lines in the heist code',
     !/Math\.random/.test(html.slice(html.indexOf('Phase 5 bank heist: rob the bank'), html.indexOf('queueMicrotask(() => worldTickers.push(heistTick))'))));
   check('heist-static: InstancedMesh literal sites stay at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('heist-static: #heistchip element exists in the HUD',
     html.includes('<div id="heistchip"></div>'));
 
@@ -9960,7 +9960,7 @@ globalThis.__R3D2 = {
   check('conch-static: no external URLs in the concession block', !/https?:\/\//.test(conchSrc));
   check('conch-static: no new renderer.render in the concession block', !/renderer\.render\(/.test(conchSrc));
   check('conch-static: whole-file InstancedMesh literal sites pin at 48',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('conch-static: Math.random lines pin at 92',
     html.split('\n').filter(l => l.includes('Math.random')).length === 92);
   check('conch-static: light count pins at 6 (zero new lights)',
@@ -10111,7 +10111,7 @@ globalThis.__R3D2 = {
   check('loyal: the hi-roller block holds zero Math.random lines (the honest shoe is reused)',
     hiSrc.length > 1500 && !/Math\.random/.test(hiSrc), hiSrc.length + ' chars');
   check('loyal: the new blocks add zero InstancedMesh literals (pin holds at 48)',
-    (html.match(/new THREE\.InstancedMesh/g) || []).length === 49);
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
   check('loyal: #hirollchip owns 951px and #loyalchip owns 984px (no overlap)',
     (html.match(/top: 951px; left: 18px/g) || []).length === 1
     && (html.match(/top: 984px; left: 18px/g) || []).length === 1);
@@ -10497,7 +10497,7 @@ globalThis.__R3D2 = {
   /* pins: the feature adds zero draw calls / lights / RNG / timers / assets */
   const lines = html.split('\n');
   const lineHas = sub => lines.filter(l => l.includes(sub)).length;
-  check('pins: 49 InstancedMesh literals', lineHas('new THREE.InstancedMesh') === 49,
+  check('pins: 50 InstancedMesh literals', lineHas('new THREE.InstancedMesh') === 50,
     'n=' + lineHas('new THREE.InstancedMesh'));
   check('pins: 92 Math.random lines', lineHas('Math.random') === 92, 'n=' + lineHas('Math.random'));
   check('pins: 72 setTimeout lines', lineHas('setTimeout') === 72, 'n=' + lineHas('setTimeout'));
@@ -10576,7 +10576,7 @@ globalThis.__R3D2 = {
   /* (d) static pins still hold: the feature adds zero of each */
   const linesH = html.split('\n');
   const lineHasH = sub => linesH.filter(l => l.includes(sub)).length;
-  check('hitstop-pins: 49 InstancedMesh literals', lineHasH('new THREE.InstancedMesh') === 49,
+  check('hitstop-pins: 50 InstancedMesh literals', lineHasH('new THREE.InstancedMesh') === 50,
     'n=' + lineHasH('new THREE.InstancedMesh'));
   check('hitstop-pins: 92 Math.random lines', lineHasH('Math.random') === 92,
     'n=' + lineHasH('Math.random'));
@@ -10704,7 +10704,7 @@ globalThis.__R3D2 = {
   /* (h) static pins still hold: the feature adds zero of each */
   const linesC = html.split('\n');
   const lineHasC = sub => linesC.filter(l => l.includes(sub)).length;
-  check('coyote-pins: 49 InstancedMesh literals', lineHasC('new THREE.InstancedMesh') === 49,
+  check('coyote-pins: 50 InstancedMesh literals', lineHasC('new THREE.InstancedMesh') === 50,
     'n=' + lineHasC('new THREE.InstancedMesh'));
   check('coyote-pins: 92 Math.random lines', lineHasC('Math.random') === 92, 'n=' + lineHasC('Math.random'));
   check('coyote-pins: 72 setTimeout lines', lineHasC('setTimeout') === 72, 'n=' + lineHasC('setTimeout'));
@@ -10871,7 +10871,7 @@ globalThis.__R3D2 = {
   /* static pins still hold: the feature adds zero of each */
   const linesT = html.split('\n');
   const lineHasT = sub => linesT.filter(l => l.includes(sub)).length;
-  check('trauma-pins: 49 InstancedMesh literals', lineHasT('new THREE.InstancedMesh') === 49,
+  check('trauma-pins: 50 InstancedMesh literals', lineHasT('new THREE.InstancedMesh') === 50,
     'n=' + lineHasT('new THREE.InstancedMesh'));
   check('trauma-pins: 92 Math.random lines', lineHasT('Math.random') === 92,
     'n=' + lineHasT('Math.random'));
@@ -11100,7 +11100,7 @@ globalThis.__R3D2 = {
   /* static pins still hold: the feature adds zero of each */
   const linesM = html.split('\n');
   const lineHasM = sub => linesM.filter(l => l.includes(sub)).length;
-  check('magnetism-pins: 49 InstancedMesh literals', lineHasM('new THREE.InstancedMesh') === 49,
+  check('magnetism-pins: 50 InstancedMesh literals', lineHasM('new THREE.InstancedMesh') === 50,
     'n=' + lineHasM('new THREE.InstancedMesh'));
   check('magnetism-pins: 92 Math.random lines', lineHasM('Math.random') === 92,
     'n=' + lineHasM('Math.random'));
@@ -11182,7 +11182,7 @@ globalThis.__R3D2 = {
   G.camYaw = savedYawP;
   const linesP = html.split('\n');
   const lineHasP = sub => linesP.filter(l => l.includes(sub)).length;
-  check('pan-pins: 49 InstancedMesh literals', lineHasP('new THREE.InstancedMesh') === 49,
+  check('pan-pins: 50 InstancedMesh literals', lineHasP('new THREE.InstancedMesh') === 50,
     'n=' + lineHasP('new THREE.InstancedMesh'));
   check('pan-pins: 92 Math.random lines', lineHasP('Math.random') === 92,
     'n=' + lineHasP('Math.random'));
@@ -11315,7 +11315,7 @@ globalThis.__R3D2 = {
   /* static pins: the feature adds exactly one gain and nothing else */
   const linesS = html.split('\n');
   const lineHasS = sub => linesS.filter(l => l.includes(sub)).length;
-  check('step-pins: 49 InstancedMesh literals', lineHasS('new THREE.InstancedMesh') === 49,
+  check('step-pins: 50 InstancedMesh literals', lineHasS('new THREE.InstancedMesh') === 50,
     'n=' + lineHasS('new THREE.InstancedMesh'));
   check('step-pins: 92 Math.random lines', lineHasS('Math.random') === 92,
     'n=' + lineHasS('Math.random'));
@@ -11506,7 +11506,7 @@ globalThis.__R3D2 = {
   /* static pins still hold: the feature adds zero of each */
   const linesQ = html.split('\n');
   const lineHasQ = sub => linesQ.filter(l => l.includes(sub)).length;
-  check('squash-pins: 49 InstancedMesh literals', lineHasQ('new THREE.InstancedMesh') === 49,
+  check('squash-pins: 50 InstancedMesh literals', lineHasQ('new THREE.InstancedMesh') === 50,
     'n=' + lineHasQ('new THREE.InstancedMesh'));
   check('squash-pins: 92 Math.random lines', lineHasQ('Math.random') === 92,
     'n=' + lineHasQ('Math.random'));
@@ -11646,7 +11646,7 @@ globalThis.__R3D2 = {
   /* static pins still hold: the feature adds zero of each */
   const linesL = html.split('\n');
   const lineHasL = sub => linesL.filter(l => l.includes(sub)).length;
-  check('lod-pins: 49 InstancedMesh literals', lineHasL('new THREE.InstancedMesh') === 49,
+  check('lod-pins: 50 InstancedMesh literals', lineHasL('new THREE.InstancedMesh') === 50,
     'n=' + lineHasL('new THREE.InstancedMesh'));
   check('lod-pins: 92 Math.random lines', lineHasL('Math.random') === 92,
     'n=' + lineHasL('Math.random'));
@@ -11716,7 +11716,7 @@ globalThis.__R3D2 = {
   /* static pins still hold: the feature adds zero of each */
   const linesS = html.split('\n');
   const lineHasS = sub => linesS.filter(l => l.includes(sub)).length;
-  check('sprfov-pins: 49 InstancedMesh literals', lineHasS('new THREE.InstancedMesh') === 49,
+  check('sprfov-pins: 50 InstancedMesh literals', lineHasS('new THREE.InstancedMesh') === 50,
     'n=' + lineHasS('new THREE.InstancedMesh'));
   check('sprfov-pins: 92 Math.random lines', lineHasS('Math.random') === 92,
     'n=' + lineHasS('Math.random'));
@@ -11915,7 +11915,7 @@ globalThis.__R3D2 = {
   /* static pins still hold: exactly +1 Points draw, zero of everything else */
   const linesD = html.split('\n');
   const lineHasD = sub => linesD.filter(l => l.includes(sub)).length;
-  check('dust-pins: 49 InstancedMesh literals', lineHasD('new THREE.InstancedMesh') === 49,
+  check('dust-pins: 50 InstancedMesh literals', lineHasD('new THREE.InstancedMesh') === 50,
     'n=' + lineHasD('new THREE.InstancedMesh'));
   check('dust-pins: 92 Math.random lines', lineHasD('Math.random') === 92,
     'n=' + lineHasD('Math.random'));
@@ -12057,7 +12057,7 @@ globalThis.__R3D2 = {
   /* static pins still hold exactly: the extension adds zero of everything */
   const linesX = html.split('\n');
   const lineHasX = sub => linesX.filter(l => l.includes(sub)).length;
-  check('dustx-pins: 49 InstancedMesh literals', lineHasX('new THREE.InstancedMesh') === 49,
+  check('dustx-pins: 50 InstancedMesh literals', lineHasX('new THREE.InstancedMesh') === 50,
     'n=' + lineHasX('new THREE.InstancedMesh'));
   check('dustx-pins: 92 Math.random lines', lineHasX('Math.random') === 92,
     'n=' + lineHasX('Math.random'));
@@ -12280,7 +12280,7 @@ globalThis.__R3D2 = {
   /* static pins still hold exactly: the color route adds zero of everything */
   const linesC = html.split('\n');
   const lineHasC2 = sub => linesC.filter(l => l.includes(sub)).length;
-  check('dustcol-pins: 49 InstancedMesh literals', lineHasC2('new THREE.InstancedMesh') === 49,
+  check('dustcol-pins: 50 InstancedMesh literals', lineHasC2('new THREE.InstancedMesh') === 50,
     'n=' + lineHasC2('new THREE.InstancedMesh'));
   check('dustcol-pins: 92 Math.random lines', lineHasC2('Math.random') === 92,
     'n=' + lineHasC2('Math.random'));
@@ -12485,7 +12485,7 @@ globalThis.__R3D2 = {
   /* static pins still hold exactly: splash physics adds zero of everything */
   const linesW = html.split('\n');
   const lineHasW = sub => linesW.filter(l => l.includes(sub)).length;
-  check('dustsplash-pins: 49 InstancedMesh literals', lineHasW('new THREE.InstancedMesh') === 49,
+  check('dustsplash-pins: 50 InstancedMesh literals', lineHasW('new THREE.InstancedMesh') === 50,
     'n=' + lineHasW('new THREE.InstancedMesh'));
   check('dustsplash-pins: 92 Math.random lines', lineHasW('Math.random') === 92,
     'n=' + lineHasW('Math.random'));
@@ -12644,7 +12644,7 @@ globalThis.__R3D2 = {
   /* static pins still hold exactly: per-particle life adds zero of everything */
   const linesL = html.split('\n');
   const lineHasL = sub => linesL.filter(l => l.includes(sub)).length;
-  check('dustlife-pins: 49 InstancedMesh literals', lineHasL('new THREE.InstancedMesh') === 49,
+  check('dustlife-pins: 50 InstancedMesh literals', lineHasL('new THREE.InstancedMesh') === 50,
     'n=' + lineHasL('new THREE.InstancedMesh'));
   check('dustlife-pins: 92 Math.random lines', lineHasL('Math.random') === 92,
     'n=' + lineHasL('Math.random'));
@@ -12824,7 +12824,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins still hold exactly: the fade adds zero of everything */
-  check('dustfade-pins: 49 InstancedMesh literals', lineHasF('new THREE.InstancedMesh') === 49,
+  check('dustfade-pins: 50 InstancedMesh literals', lineHasF('new THREE.InstancedMesh') === 50,
     'n=' + lineHasF('new THREE.InstancedMesh'));
   check('dustfade-pins: 92 Math.random lines', lineHasF('Math.random') === 92,
     'n=' + lineHasF('Math.random'));
@@ -12993,7 +12993,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins re-checked: the curve adds zero of everything */
-  check('dustcurve-pins: 49 InstancedMesh literals', lineHasC('new THREE.InstancedMesh') === 49,
+  check('dustcurve-pins: 50 InstancedMesh literals', lineHasC('new THREE.InstancedMesh') === 50,
     'n=' + lineHasC('new THREE.InstancedMesh'));
   check('dustcurve-pins: 92 Math.random lines', lineHasC('Math.random') === 92,
     'n=' + lineHasC('Math.random'));
@@ -13187,7 +13187,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins re-checked: the size feature adds zero of everything */
-  check('dustsize-pins: 49 InstancedMesh literals', lineHasS('new THREE.InstancedMesh') === 49,
+  check('dustsize-pins: 50 InstancedMesh literals', lineHasS('new THREE.InstancedMesh') === 50,
     'n=' + lineHasS('new THREE.InstancedMesh'));
   check('dustsize-pins: 92 Math.random lines', lineHasS('Math.random') === 92,
     'n=' + lineHasS('Math.random'));
@@ -13371,7 +13371,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins re-checked: the growth feature adds zero of everything */
-  check('dustgrow-pins: 49 InstancedMesh literals', lineHasGr('new THREE.InstancedMesh') === 49,
+  check('dustgrow-pins: 50 InstancedMesh literals', lineHasGr('new THREE.InstancedMesh') === 50,
     'n=' + lineHasGr('new THREE.InstancedMesh'));
   check('dustgrow-pins: 92 Math.random lines', lineHasGr('Math.random') === 92,
     'n=' + lineHasGr('Math.random'));
@@ -13576,7 +13576,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins re-checked: the fade-in feature adds zero of everything */
-  check('dustramp-pins: 49 InstancedMesh literals', lineHasRa('new THREE.InstancedMesh') === 49,
+  check('dustramp-pins: 50 InstancedMesh literals', lineHasRa('new THREE.InstancedMesh') === 50,
     'n=' + lineHasRa('new THREE.InstancedMesh'));
   check('dustramp-pins: 92 Math.random lines', lineHasRa('Math.random') === 92,
     'n=' + lineHasRa('Math.random'));
@@ -13790,7 +13790,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins re-checked: the profile table adds zero of everything */
-  check('dustprof-pins: 49 InstancedMesh literals', lineHasP('new THREE.InstancedMesh') === 49,
+  check('dustprof-pins: 50 InstancedMesh literals', lineHasP('new THREE.InstancedMesh') === 50,
     'n=' + lineHasP('new THREE.InstancedMesh'));
   check('dustprof-pins: 92 Math.random lines', lineHasP('Math.random') === 92,
     'n=' + lineHasP('Math.random'));
@@ -14018,7 +14018,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins re-checked: the physics table adds zero of everything */
-  check('dustphys-pins: 49 InstancedMesh literals', lineHasPh('new THREE.InstancedMesh') === 49,
+  check('dustphys-pins: 50 InstancedMesh literals', lineHasPh('new THREE.InstancedMesh') === 50,
     'n=' + lineHasPh('new THREE.InstancedMesh'));
   check('dustphys-pins: 92 Math.random lines', lineHasPh('Math.random') === 92,
     'n=' + lineHasPh('Math.random'));
@@ -14186,7 +14186,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins re-checked: the launch table adds zero of everything */
-  check('dustlaunch-pins: 49 InstancedMesh literals', lineHasLa('new THREE.InstancedMesh') === 49,
+  check('dustlaunch-pins: 50 InstancedMesh literals', lineHasLa('new THREE.InstancedMesh') === 50,
     'n=' + lineHasLa('new THREE.InstancedMesh'));
   check('dustlaunch-pins: 92 Math.random lines', lineHasLa('Math.random') === 92,
     'n=' + lineHasLa('Math.random'));
@@ -14357,7 +14357,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins re-checked: the size table adds zero of everything */
-  check('dustsurfsize-pins: 49 InstancedMesh literals', lineHasSz('new THREE.InstancedMesh') === 49,
+  check('dustsurfsize-pins: 50 InstancedMesh literals', lineHasSz('new THREE.InstancedMesh') === 50,
     'n=' + lineHasSz('new THREE.InstancedMesh'));
   check('dustsurfsize-pins: 92 Math.random lines', lineHasSz('Math.random') === 92,
     'n=' + lineHasSz('Math.random'));
@@ -14557,7 +14557,7 @@ globalThis.__R3D2 = {
   }
   G.clearDust();
   /* static pins re-checked: the opacity table adds zero of everything */
-  check('dustopac-pins: 49 InstancedMesh literals', lineHasOp('new THREE.InstancedMesh') === 49,
+  check('dustopac-pins: 50 InstancedMesh literals', lineHasOp('new THREE.InstancedMesh') === 50,
     'n=' + lineHasOp('new THREE.InstancedMesh'));
   check('dustopac-pins: 92 Math.random lines', lineHasOp('Math.random') === 92,
     'n=' + lineHasOp('Math.random'));
@@ -14726,7 +14726,7 @@ globalThis.__R3D2 = {
   check('vehicledust: cleanup leaves dustDist at 0 and no live dust',
     G.CAR.dustDist === 0 && liveVd() === 0, 'dustDist=' + G.CAR.dustDist + ' live=' + liveVd());
   /* static pins re-checked: vehicle dust adds zero of everything */
-  check('vehicledust-pins: 49 InstancedMesh literals', lineHasVd('new THREE.InstancedMesh') === 49,
+  check('vehicledust-pins: 50 InstancedMesh literals', lineHasVd('new THREE.InstancedMesh') === 50,
     'n=' + lineHasVd('new THREE.InstancedMesh'));
   check('vehicledust-pins: 92 Math.random lines', lineHasVd('Math.random') === 92,
     'n=' + lineHasVd('Math.random'));
@@ -14983,7 +14983,7 @@ globalThis.__R3D2 = {
     G.BUS.dustDist === 0 && G.FT.dustDist === 0 && liveVx() === 0,
     'bus=' + G.BUS.dustDist + ' ft=' + G.FT.dustDist + ' live=' + liveVx());
   /* static pins re-checked: the extension adds zero of everything */
-  check('vehdustx-pins: 49 InstancedMesh literals', lineHasVx('new THREE.InstancedMesh') === 49,
+  check('vehdustx-pins: 50 InstancedMesh literals', lineHasVx('new THREE.InstancedMesh') === 50,
     'n=' + lineHasVx('new THREE.InstancedMesh'));
   check('vehdustx-pins: 92 Math.random lines', lineHasVx('Math.random') === 92,
     'n=' + lineHasVx('Math.random'));
@@ -15435,7 +15435,7 @@ globalThis.__R3D2 = {
     G.BIKE.dustDist === 0 && G.BC.dustDist === 0 && G.SC.dustDist === 0 && G.HORSE.dustDist === 0 && liveV2() === 0,
     'bike=' + G.BIKE.dustDist + ' bc=' + G.BC.dustDist + ' sc=' + G.SC.dustDist + ' horse=' + G.HORSE.dustDist + ' live=' + liveV2());
   /* static pins re-checked: extension v2 adds zero of everything */
-  check('vehdustx2-pins: 49 InstancedMesh literals', lineHasV2('new THREE.InstancedMesh') === 49,
+  check('vehdustx2-pins: 50 InstancedMesh literals', lineHasV2('new THREE.InstancedMesh') === 50,
     'n=' + lineHasV2('new THREE.InstancedMesh'));
   check('vehdustx2-pins: 92 Math.random lines', lineHasV2('Math.random') === 92,
     'n=' + lineHasV2('Math.random'));
@@ -15649,7 +15649,7 @@ globalThis.__R3D2 = {
     G.clearSkid(); G.clearDust();
   }
   /* static pins re-checked: skid adds exactly one Mesh and nothing pinned */
-  check('skid-pins: 49 InstancedMesh literals', lineHasSk('new THREE.InstancedMesh') === 49,
+  check('skid-pins: 50 InstancedMesh literals', lineHasSk('new THREE.InstancedMesh') === 50,
     'n=' + lineHasSk('new THREE.InstancedMesh'));
   check('skid-pins: 92 Math.random lines', lineHasSk('Math.random') === 92,
     'n=' + lineHasSk('Math.random'));
@@ -15666,7 +15666,7 @@ globalThis.__R3D2 = {
   check('skid-pins: exactly 2 Points objects (stars + the one dust pool)',
     lineHasSk('new THREE.Points(') === 2, 'n=' + lineHasSk('new THREE.Points('));
   check('skid-pins: zero new InstancedMesh literals for skid (still 49 total)',
-    lineHasSk('new THREE.InstancedMesh') === 49);
+    lineHasSk('new THREE.InstancedMesh') === 50);
   check('skid-pins: no em dashes', !html.includes('\u2014'));
   check('skid-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('skid-pins: allowed CDN URLs (Phase 1 set)',
@@ -15873,7 +15873,7 @@ globalThis.__R3D2 = {
     G.clearSkid(); G.clearDust();
   }
   /* static pins re-checked: the extension adds zero of everything pinned */
-  check('skidmoto-pins: 49 InstancedMesh literals', lineHasSm('new THREE.InstancedMesh') === 49,
+  check('skidmoto-pins: 50 InstancedMesh literals', lineHasSm('new THREE.InstancedMesh') === 50,
     'n=' + lineHasSm('new THREE.InstancedMesh'));
   check('skidmoto-pins: 92 Math.random lines', lineHasSm('Math.random') === 92,
     'n=' + lineHasSm('Math.random'));
@@ -16120,7 +16120,7 @@ globalThis.__R3D2 = {
     G.clearSkid(); G.clearDust();
   }
   /* static pins re-checked: the extension adds zero of everything pinned */
-  check('skidbike-pins: 49 InstancedMesh literals', lineHasSb('new THREE.InstancedMesh') === 49,
+  check('skidbike-pins: 50 InstancedMesh literals', lineHasSb('new THREE.InstancedMesh') === 50,
     'n=' + lineHasSb('new THREE.InstancedMesh'));
   check('skidbike-pins: 92 Math.random lines', lineHasSb('Math.random') === 92,
     'n=' + lineHasSb('Math.random'));
@@ -16407,7 +16407,7 @@ globalThis.__R3D2 = {
     G.clearSkid(); G.clearDust();
   }
   /* static pins re-checked: the extension adds zero of everything pinned */
-  check('skidscoot-pins: 49 InstancedMesh literals', lineHasSs('new THREE.InstancedMesh') === 49,
+  check('skidscoot-pins: 50 InstancedMesh literals', lineHasSs('new THREE.InstancedMesh') === 50,
     'n=' + lineHasSs('new THREE.InstancedMesh'));
   check('skidscoot-pins: 92 Math.random lines', lineHasSs('Math.random') === 92,
     'n=' + lineHasSs('Math.random'));
@@ -16882,7 +16882,7 @@ globalThis.__R3D2 = {
     G.clearSkid(); G.clearDust();
   }
   /* static pins re-checked: the extension adds zero of everything pinned */
-  check('skidbus-pins: 49 InstancedMesh literals', lineHasBd('new THREE.InstancedMesh') === 49,
+  check('skidbus-pins: 50 InstancedMesh literals', lineHasBd('new THREE.InstancedMesh') === 50,
     'n=' + lineHasBd('new THREE.InstancedMesh'));
   check('skidbus-pins: 92 Math.random lines', lineHasBd('Math.random') === 92,
     'n=' + lineHasBd('Math.random'));
@@ -17010,7 +17010,7 @@ globalThis.__R3D2 = {
   G.BOAT.speed = 0; G.BOAT.steer = 0;
 
   /* pins: this change adds zero of everything pinned */
-  check('boatheave-pins: 49 InstancedMesh literals', lineHasHeave('new THREE.InstancedMesh') === 49,
+  check('boatheave-pins: 50 InstancedMesh literals', lineHasHeave('new THREE.InstancedMesh') === 50,
     'n=' + lineHasHeave('new THREE.InstancedMesh'));
   check('boatheave-pins: 92 Math.random lines', lineHasHeave('Math.random') === 92,
     'n=' + lineHasHeave('Math.random'));
@@ -17235,7 +17235,7 @@ globalThis.__R3D2 = {
     G.BOAT.dustDist === 0 && liveSpray() === 0 && G.BOAT.driving === false && G.player.visible === true,
     'dustDist=' + G.BOAT.dustDist + ' live=' + liveSpray() + ' driving=' + G.BOAT.driving);
   /* static pins re-checked: boat spray adds zero of everything */
-  check('boatspray-pins: 49 InstancedMesh literals', lineHasSpray('new THREE.InstancedMesh') === 49,
+  check('boatspray-pins: 50 InstancedMesh literals', lineHasSpray('new THREE.InstancedMesh') === 50,
     'n=' + lineHasSpray('new THREE.InstancedMesh'));
   check('boatspray-pins: 92 Math.random lines', lineHasSpray('Math.random') === 92,
     'n=' + lineHasSpray('Math.random'));
@@ -17462,7 +17462,7 @@ globalThis.__R3D2 = {
     G.BOAT.bowDist === 0 && liveBow() === 0 && G.BOAT.driving === false && G.player.visible === true,
     'bowDist=' + G.BOAT.bowDist + ' live=' + liveBow() + ' driving=' + G.BOAT.driving);
   /* static pins re-checked: bow spray adds zero of everything */
-  check('bowspray-pins: 49 InstancedMesh literals', lineHasBow('new THREE.InstancedMesh') === 49,
+  check('bowspray-pins: 50 InstancedMesh literals', lineHasBow('new THREE.InstancedMesh') === 50,
     'n=' + lineHasBow('new THREE.InstancedMesh'));
   check('bowspray-pins: 92 Math.random lines', lineHasBow('Math.random') === 92,
     'n=' + lineHasBow('Math.random'));
@@ -17736,7 +17736,7 @@ globalThis.__R3D2 = {
     G.HELI.dustDist === 0 && liveHeliDust() === 0 && G.HELI.flying === false && G.player.visible === true,
     'dustDist=' + G.HELI.dustDist + ' live=' + liveHeliDust() + ' flying=' + G.HELI.flying);
   /* static pins re-checked: heli downwash adds zero of everything */
-  check('helidust-pins: 49 InstancedMesh literals', lineHasHeliDust('new THREE.InstancedMesh') === 49,
+  check('helidust-pins: 50 InstancedMesh literals', lineHasHeliDust('new THREE.InstancedMesh') === 50,
     'n=' + lineHasHeliDust('new THREE.InstancedMesh'));
   check('helidust-pins: 92 Math.random lines', lineHasHeliDust('Math.random') === 92,
     'n=' + lineHasHeliDust('Math.random'));
@@ -18019,7 +18019,7 @@ globalThis.__R3D2 = {
     G.PLANE.dustDist === 0 && livePlaneDust() === 0 && G.PLANE.flying === false && G.player.visible === true,
     'dustDist=' + G.PLANE.dustDist + ' live=' + livePlaneDust() + ' flying=' + G.PLANE.flying);
   /* static pins re-checked: plane ground-roll dust adds zero of everything */
-  check('planedust-pins: 49 InstancedMesh literals', lineHasPlaneDust('new THREE.InstancedMesh') === 49,
+  check('planedust-pins: 50 InstancedMesh literals', lineHasPlaneDust('new THREE.InstancedMesh') === 50,
     'n=' + lineHasPlaneDust('new THREE.InstancedMesh'));
   check('planedust-pins: 92 Math.random lines', lineHasPlaneDust('Math.random') === 92,
     'n=' + lineHasPlaneDust('Math.random'));
@@ -18187,7 +18187,7 @@ globalThis.__R3D2 = {
     Array.from(G.skidAlpha).every(v => approxSSu(v, 0.55)) && liveSSu() === 0,
     'live=' + liveSSu());
   /* static pins re-checked: surface-aware skid colour adds zero of everything pinned */
-  check('skidsurf-pins: 49 InstancedMesh literals', lineHasSSu('new THREE.InstancedMesh') === 49,
+  check('skidsurf-pins: 50 InstancedMesh literals', lineHasSSu('new THREE.InstancedMesh') === 50,
     'n=' + lineHasSSu('new THREE.InstancedMesh'));
   check('skidsurf-pins: 92 Math.random lines', lineHasSSu('Math.random') === 92,
     'n=' + lineHasSSu('Math.random'));
@@ -18421,7 +18421,7 @@ globalThis.__R3D2 = {
     && G.skidPos[1] === -999 && Array.from(G.skidAlpha).every(v => approxTightSL(v, 0.55)),
     'live=' + liveSL());
   /* static pins re-checked: lateral conform adds zero of everything pinned */
-  check('skidlat-pins: 49 InstancedMesh literals', lineHasSL('new THREE.InstancedMesh') === 49,
+  check('skidlat-pins: 50 InstancedMesh literals', lineHasSL('new THREE.InstancedMesh') === 50,
     'n=' + lineHasSL('new THREE.InstancedMesh'));
   check('skidlat-pins: 92 Math.random lines', lineHasSL('Math.random') === 92,
     'n=' + lineHasSL('Math.random'));
