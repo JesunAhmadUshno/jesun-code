@@ -349,6 +349,11 @@ globalThis.__R3D = {
   chunkPool, chunkLodBand, LOD_FAR_SEG, LOD_FAR_RING,
   /* SPRINT FOV KICK v1: sprint FOV helper + constant (test-only exposure) */
   footFov, FOV_SPRINT,
+  /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
+  spawnDust, dustTick, clearDust, DUST_N, DUST_LIFE,
+  dustPos, dustVel, dustLife, dustPts,
+  get dustHead() { return dustHead; },
+  get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
@@ -11714,6 +11719,204 @@ globalThis.__R3D2 = {
   check('sprfov-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('sprfov: the run leaves zero console errors/warnings',
     consoleProblems.length === probsS, consoleProblems.slice(probsS).join(' | '));
+}
+
+/* ================= LANDING DUST v1 =================
+   One pooled THREE.Points burst on real landings only. Preallocated
+   ring buffer (DUST_N 48, DUST_LIFE 0.45), deterministic LCG spread,
+   dead particles parked at y = -999. spawnDust scales burst count by
+   |fallVy| (clamp 4..12); dustTick runs on sdt beside squashTick, so
+   hit-stop freezes dust; death and newGame clear the pool. */
+{
+  const probsD = consoleProblems.length;
+  const DTD = 16.667 / 1000;
+  const approxD = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveD = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const parkedD = () => { let ok = true; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] <= 0 && G.dustPos[i * 3 + 1] !== -999) ok = false; return ok; };
+  const setupOnFootD = () => {
+    for (const k in G.keys) G.keys[k] = false;
+    G.touch.jump = false; G.touch.moveX = 0; G.touch.moveY = 0; G.touch.sprint = false;
+    G.P.dead = false; G.P.deadT = 0; G.P.hp = 100; G.P.godT = 9999; G.P.hitstop = 0;
+    G.P.trauma = 0; G.P.graceT = 0;
+    G.P.vel.set(0, 0, 0); G.P.vy = 0; G.P.grounded = true;
+    G.P.coyoteT = 0; G.P.jumpBufT = 0; G.P.prevJump = false;
+    G.P.punchCd = 0; G.P.punchT = 0; G.P.combo = 0; G.P.comboWin = 0;
+    G.P.squash = 0; G.player.scale.set(1, 1, 1);
+    G.player.rotation.y = 0;
+    G.player.position.set(0, groundY(0, 0), 0);
+    G.clearDust();
+    return groundY(0, 0);
+  };
+  const setupAirborneD = (height, vy) => {
+    const gy = setupOnFootD();
+    G.P.grounded = false; G.P.vy = vy; G.P.coyoteT = 0;
+    G.player.position.y = gy + height;
+    return gy;
+  };
+  /* constants, pool and the single Points object */
+  check('dust: constants DUST_N and DUST_LIFE are 48 and 0.45',
+    G.DUST_N === 48 && G.DUST_LIFE === 0.45,
+    'n=' + G.DUST_N + ' life=' + G.DUST_LIFE);
+  check('dust: spawnDust, dustTick and clearDust are functions',
+    typeof G.spawnDust === 'function' && typeof G.dustTick === 'function' && typeof G.clearDust === 'function');
+  check('dust: pool arrays are preallocated (pos/vel 144, life 48)',
+    G.dustPos.length === 144 && G.dustVel.length === 144 && G.dustLife.length === 48,
+    'pos=' + G.dustPos.length + ' vel=' + G.dustVel.length + ' life=' + G.dustLife.length);
+  check('dust: dustPts is one Points object, frustumCulled false, geometry shares the pool array',
+    !!G.dustPts && G.dustPts.frustumCulled === false
+    && G.dustPts.geometry.attributes.position.array === G.dustPos);
+  check('dust: material is the dusty tan soft point (color, size, opacity, depthWrite)',
+    G.dustPts.material.color.getHex() === 0xc9b18c && G.dustPts.material.size === 0.4
+    && G.dustPts.material.sizeAttenuation === true && G.dustPts.material.transparent === true
+    && approxD(G.dustPts.material.opacity, 0.55, 1e-9) && G.dustPts.material.depthWrite === false
+    && !!G.dustPts.material.map);
+  check('dust: source carries the constants line, the wiring and the tick call',
+    html.includes('const DUST_N = 48, DUST_LIFE = 0.45;')
+    && html.includes('spawnDust(player.position.x, groundY + 0.1, player.position.z, Math.abs(fallVy))')
+    && html.includes('dustTick(sdt)'));
+  /* boot / cleared state: nothing live, everything parked */
+  G.clearDust();
+  check('dust: after clearDust nothing is live and every slot is parked at y -999',
+    liveD() === 0 && parkedD(), 'live=' + liveD());
+  /* burst count scaling + clamp */
+  G.clearDust(); G.spawnDust(10, 2, 20, 0);
+  check('dust: spawn at strength 0 bursts exactly 4', liveD() === 4, 'live=' + liveD());
+  G.clearDust(); G.spawnDust(10, 2, 20, 2);
+  check('dust: spawn at strength 2 bursts exactly 6 (round 4 + 2.4)', liveD() === 6, 'live=' + liveD());
+  G.clearDust(); G.spawnDust(10, 2, 20, 5);
+  check('dust: spawn at strength 5 bursts exactly 10 (4 + 6)', liveD() === 10, 'live=' + liveD());
+  G.clearDust(); G.spawnDust(10, 2, 20, 100);
+  check('dust: spawn at strength 100 clamps to exactly 12', liveD() === 12, 'live=' + liveD());
+  /* spawn placement + velocity ranges + full life */
+  {
+    G.clearDust(); G.spawnDust(10, 2, 20, 5);
+    let placed = true, velOk = true, lifeOk = true;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] <= 0) continue;
+      if (G.dustPos[i * 3] !== 10 || G.dustPos[i * 3 + 1] !== 2 || G.dustPos[i * 3 + 2] !== 20) placed = false;
+      const hs = Math.hypot(G.dustVel[i * 3], G.dustVel[i * 3 + 2]);
+      if (hs < 1.2 - 1e-6 || hs > 2.6 + 1e-6) velOk = false;
+      if (G.dustVel[i * 3 + 1] < 0.6 - 1e-6 || G.dustVel[i * 3 + 1] > 1.6 + 1e-6) velOk = false;
+      if (!approxD(G.dustLife[i], G.DUST_LIFE, 1e-6)) lifeOk = false;
+    }
+    check('dust: every spawned particle starts exactly at the spawn point', placed);
+    check('dust: spawned velocities sit in range (radial 1.2..2.6, up 0.6..1.6)', velOk);
+    check('dust: every spawned particle starts at full DUST_LIFE', lifeOk);
+  }
+  /* determinism: reseeding the LCG reproduces the same velocity stream */
+  {
+    const segVelD = (head, count) => {
+      const out = [];
+      for (let n = 0; n < count; n++) { const s = (head + n) % G.DUST_N; out.push(G.dustVel[s * 3], G.dustVel[s * 3 + 1], G.dustVel[s * 3 + 2]); }
+      return out;
+    };
+    G.clearDust(); G.dustSeed = 987654321;
+    const h1 = G.dustHead; G.spawnDust(0, 1, 0, 5); const v1 = segVelD(h1, 10);
+    G.clearDust(); G.dustSeed = 987654321;
+    const h2 = G.dustHead; G.spawnDust(0, 1, 0, 5); const v2 = segVelD(h2, 10);
+    check('dust: the same LCG seed reproduces the same burst velocities exactly',
+      v1.length === v2.length && v1.every((v, i) => v === v2[i]));
+  }
+  /* ring-buffer wrap: 5 bursts of 12 fill and reuse all 48 slots */
+  {
+    G.clearDust();
+    const h0 = G.dustHead;
+    for (let b = 0; b < 5; b++) G.spawnDust(0, 1, 0, 100);
+    check('dust: ring buffer wraps (60 spawns leave all 48 slots live, head advanced 60 mod 48)',
+      liveD() === 48 && G.dustHead === (h0 + 60) % 48,
+      'live=' + liveD() + ' head=' + G.dustHead + ' h0=' + h0);
+  }
+  /* tick: integration, gravity and drag */
+  {
+    G.clearDust(); G.spawnDust(0, 1, 0, 0);
+    let s0 = -1; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) { s0 = i; break; }
+    const px = G.dustPos[s0 * 3], py = G.dustPos[s0 * 3 + 1], pz = G.dustPos[s0 * 3 + 2];
+    const vx = G.dustVel[s0 * 3], vy = G.dustVel[s0 * 3 + 1], vz = G.dustVel[s0 * 3 + 2];
+    G.dustTick(0.1);
+    check('dust: dustTick moves positions by velocity * dt',
+      approxD(G.dustPos[s0 * 3], px + vx * 0.1, 1e-6)
+      && approxD(G.dustPos[s0 * 3 + 1], py + vy * 0.1, 1e-6)
+      && approxD(G.dustPos[s0 * 3 + 2], pz + vz * 0.1, 1e-6),
+      'pos=' + G.dustPos[s0 * 3] + ',' + G.dustPos[s0 * 3 + 1] + ',' + G.dustPos[s0 * 3 + 2]);
+    check('dust: dustTick applies gravity -3.5 * dt to vy and drag 1 - 3 * dt horizontally',
+      approxD(G.dustVel[s0 * 3 + 1], vy - 0.35, 1e-6)
+      && approxD(G.dustVel[s0 * 3], vx * 0.7, 1e-6)
+      && approxD(G.dustVel[s0 * 3 + 2], vz * 0.7, 1e-6),
+      'vel=' + G.dustVel[s0 * 3] + ',' + G.dustVel[s0 * 3 + 1] + ',' + G.dustVel[s0 * 3 + 2]);
+    check('dust: dustTick spends life by dt (0.45 - 0.1 = 0.35)',
+      approxD(G.dustLife[s0], 0.35, 1e-6), 'life=' + G.dustLife[s0]);
+  }
+  /* expiry parks particles; tick at rest is a no-op */
+  {
+    G.clearDust(); G.spawnDust(0, 1, 0, 5);
+    G.dustTick(0.5);
+    check('dust: a tick past DUST_LIFE expires every particle and parks it at y -999',
+      liveD() === 0 && parkedD(), 'live=' + liveD());
+    G.dustTick(DTD); G.dustTick(0);
+    check('dust: dustTick at rest is a safe no-op (still nothing live, all parked)',
+      liveD() === 0 && parkedD());
+  }
+  /* wiring: a real landing through the tick spawns dust */
+  {
+    setupAirborneD(2.5, -6);
+    let landedD = false;
+    for (let i = 0; i < 60 && !landedD; i++) { frame(1); if (G.P.grounded) landedD = true; }
+    check('dust: a real fall + landing via the tick path spawns live dust',
+      landedD && liveD() > 0, 'landed=' + landedD + ' live=' + liveD());
+  }
+  /* wiring: standing on the ground never spawns dust */
+  {
+    setupOnFootD();
+    frame(30);
+    check('dust: standing on ground for 30 ticks spawns no dust',
+      G.P.grounded === true && liveD() === 0, 'live=' + liveD() + ' grounded=' + G.P.grounded);
+  }
+  /* death clears the pool */
+  {
+    setupOnFootD();
+    G.P.godT = 0; G.shopArmor = 0;
+    G.spawnDust(0, groundY(0, 0) + 0.1, 0, 5);
+    const preDeathD = liveD();
+    G.hurtPlayer(9999);
+    check('dust: death clears the pool (nothing live, all parked)',
+      preDeathD > 0 && G.P.dead === true && liveD() === 0 && parkedD(),
+      'pre=' + preDeathD + ' dead=' + G.P.dead + ' live=' + liveD());
+    G.P.deadT = 1.1; frame(15);
+    check('dust: redeploy hook revives the player after the death check',
+      !G.P.dead && G.P.hp === 100, 'dead=' + G.P.dead + ' hp=' + G.P.hp);
+  }
+  /* newGame clears the pool */
+  {
+    G.spawnDust(0, groundY(0, 0) + 0.1, 0, 5);
+    const preNewD = liveD();
+    G.newGame();
+    check('dust: newGame clears the pool (nothing live, all parked)',
+      preNewD > 0 && liveD() === 0 && parkedD(), 'pre=' + preNewD + ' live=' + liveD());
+  }
+  /* cleanup: back on foot, alive, no dust, no god mode left */
+  setupOnFootD(); G.P.godT = 0; frame(1);
+  /* static pins still hold: exactly +1 Points draw, zero of everything else */
+  const linesD = html.split('\n');
+  const lineHasD = sub => linesD.filter(l => l.includes(sub)).length;
+  check('dust-pins: 49 InstancedMesh literals', lineHasD('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasD('new THREE.InstancedMesh'));
+  check('dust-pins: 92 Math.random lines', lineHasD('Math.random') === 92,
+    'n=' + lineHasD('Math.random'));
+  check('dust-pins: 72 setTimeout lines', lineHasD('setTimeout') === 72,
+    'n=' + lineHasD('setTimeout'));
+  check('dust-pins: 6 lights',
+    linesD.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dust-pins: 18 osc, 32 gain (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 32,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length
+    + ' gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dust-pins: exactly 2 Points objects (stars + dust, +1 draw call)',
+    lineHasD('new THREE.Points(') === 2, 'n=' + lineHasD('new THREE.Points('));
+  check('dust-pins: no em dashes', !html.includes('—'));
+  check('dust-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dust: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsD, consoleProblems.slice(probsD).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
