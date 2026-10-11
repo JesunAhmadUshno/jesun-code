@@ -351,7 +351,7 @@ globalThis.__R3D = {
   footFov, FOV_SPRINT,
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
   spawnDust, dustTick, clearDust, DUST_N, DUST_LIFE,
-  dustPos, dustVel, dustLife, dustCol, dustPts,
+  dustPos, dustVel, dustLife, dustCol, dustGrav, dustDrag, dustPts,
   get dustHead() { return dustHead; },
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
@@ -12286,6 +12286,200 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustcol: the run leaves zero console errors/warnings',
     consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
+}
+
+/* ================= WATER SPLASH PHYSICS v1 =================
+   Water bursts in the pooled landing dust system now move like
+   splash droplets instead of dust. Two preallocated per-particle
+   arrays (dustGrav and dustDrag, 48 slots, initialized to 1) carry
+   the physics per slot. spawnDust derives radialScale, upScale,
+   grav and dragF from the surface once per burst: water gets
+   radialScale 0.55, upScale 1.9, grav 1.8, dragF 0.35, and every
+   other surface keeps 1, 1, 1, 1. dustTick applies gravity as
+   3.5 * dustGrav[i] * dt and horizontal drag as
+   1 - 3 * dustDrag[i] * dt. Splash droplets are dense and
+   ballistic (narrow cone, high launch, strong gravity, low drag);
+   dust is light and drag-dominated (wide, floaty). Non-water
+   bursts are unchanged. No new Points, draw calls or nodes. */
+{
+  const probsW = consoleProblems.length;
+  const approxW = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveW = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  /* arrays exist and reset to 1 on clearDust */
+  check('dustsplash: dustGrav is a preallocated Float32Array of 48',
+    !!G.dustGrav && G.dustGrav instanceof Float32Array && G.dustGrav.length === 48,
+    'len=' + (G.dustGrav && G.dustGrav.length));
+  check('dustsplash: dustDrag is a preallocated Float32Array of 48',
+    !!G.dustDrag && G.dustDrag instanceof Float32Array && G.dustDrag.length === 48,
+    'len=' + (G.dustDrag && G.dustDrag.length));
+  G.clearDust();
+  check('dustsplash: after clearDust every dustGrav slot is initialized to 1',
+    Array.from(G.dustGrav).every(v => v === 1));
+  check('dustsplash: after clearDust every dustDrag slot is initialized to 1',
+    Array.from(G.dustDrag).every(v => v === 1));
+  /* source declarations and exact water constants */
+  check('dustsplash: source declares both preallocated arrays beside dustLife',
+    html.includes('const dustGrav = new Float32Array(DUST_N);')
+    && html.includes('const dustDrag = new Float32Array(DUST_N);'));
+  check('dustsplash: source initializes both arrays to 1 at declaration time',
+    html.includes('dustGrav.fill(1); dustDrag.fill(1);'));
+  check('dustsplash: source carries the WATER SPLASH PHYSICS v1 header',
+    html.includes('WATER SPLASH PHYSICS v1'));
+  {
+    const segStartW = html.indexOf('function spawnDust');
+    const segW = segStartW >= 0 ? html.slice(segStartW, html.indexOf('function dustTick')) : '';
+    check('dustsplash: spawnDust source carries the default scales line (1, 1, 1, 1)',
+      segW.includes('let radialScale = 1, upScale = 1, grav = 1, dragF = 1;'));
+    check('dustsplash: spawnDust source carries the exact water constants',
+      segW.includes("if (surf === 'water') { radialScale = 0.55; upScale = 1.9; grav = 1.8; dragF = 0.35; }"));
+    check('dustsplash: spawnDust source writes dustGrav and dustDrag per slot',
+      segW.includes('dustGrav[slot] = grav; dustDrag[slot] = dragF;'));
+    check('dustsplash: spawnDust source applies the scales to velocity',
+      segW.includes('Math.cos(ang) * radial * radialScale')
+      && segW.includes('dustVel[slot * 3 + 1] = up * upScale;')
+      && segW.includes('Math.sin(ang) * radial * radialScale'));
+  }
+  check('dustsplash: dustTick source applies per-particle gravity and drag',
+    html.includes('dustVel[i * 3 + 1] -= 3.5 * dustGrav[i] * dt;')
+    && html.includes('const drag = Math.max(0, 1 - 3 * dustDrag[i] * dt);'));
+  check('dustsplash: clearDust source resets dustGrav and dustDrag slots to 1',
+    html.includes('dustGrav[i] = 1; dustDrag[i] = 1;'));
+  /* probe one location per surface type from the classifier itself */
+  const foundW = {};
+  for (let x = -360; x <= 360 && Object.keys(foundW).length < 5; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      const surf = G.surfaceAt(x, z);
+      if (!foundW[surf]) foundW[surf] = { x, z };
+      if (Object.keys(foundW).length >= 5) break;
+    }
+  }
+  check('dustsplash: probe finds a grass location', !!foundW.grass, JSON.stringify(foundW.grass || null));
+  check('dustsplash: probe finds a water location', !!foundW.water, JSON.stringify(foundW.water || null));
+  check('dustsplash: probe finds dirt, rock and gravel locations',
+    !!foundW.dirt && !!foundW.rock && !!foundW.gravel,
+    JSON.stringify(foundW));
+  /* paired deterministic spawns: same seed, slots recorded in spawn order */
+  const spawnRecW = (loc) => {
+    G.clearDust(); G.dustSeed = 987654321;
+    const head = G.dustHead;
+    G.spawnDust(loc.x, G.terrainHeight(loc.x, loc.z) + 0.1, loc.z, 5);
+    const slots = [];
+    for (let n = 0; n < 10; n++) slots.push((head + n) % G.DUST_N);
+    return {
+      slots,
+      vel: slots.map(s => [G.dustVel[s * 3], G.dustVel[s * 3 + 1], G.dustVel[s * 3 + 2]]),
+      grav: slots.map(s => G.dustGrav[s]),
+      drag: slots.map(s => G.dustDrag[s]),
+      live: liveW(),
+    };
+  };
+  const meanUpW = rec => rec.vel.reduce((a, v) => a + v[1], 0) / rec.vel.length;
+  const meanHorizW = rec => rec.vel.reduce((a, v) => a + Math.hypot(v[0], v[2]), 0) / rec.vel.length;
+  let grassRec = null, waterRec = null;
+  if (foundW.grass) {
+    grassRec = spawnRecW(foundW.grass);
+    check('dustsplash: paired grass spawn bursts exactly 10 at strength 5',
+      grassRec.live === 10 && grassRec.vel.length === 10, 'live=' + grassRec.live);
+    check('dustsplash: every grass slot carries dustGrav 1 and dustDrag 1',
+      grassRec.grav.every(v => v === 1) && grassRec.drag.every(v => v === 1),
+      'grav=' + grassRec.grav.join(',') + ' drag=' + grassRec.drag.join(','));
+  }
+  if (foundW.water) {
+    waterRec = spawnRecW(foundW.water);
+    check('dustsplash: paired water spawn bursts exactly 10 at strength 5',
+      waterRec.live === 10 && waterRec.vel.length === 10, 'live=' + waterRec.live);
+    check('dustsplash: every water slot carries dustGrav 1.8',
+      waterRec.grav.every(v => approxW(v, 1.8, 1e-6)), 'grav=' + waterRec.grav.join(','));
+    check('dustsplash: every water slot carries dustDrag 0.35',
+      waterRec.drag.every(v => approxW(v, 0.35, 1e-6)), 'drag=' + waterRec.drag.join(','));
+  }
+  check('dustsplash: water mean up-velocity over grass mean up-velocity is approx 1.9',
+    !!grassRec && !!waterRec && approxW(meanUpW(waterRec) / meanUpW(grassRec), 1.9, 0.05),
+    'water=' + (waterRec && meanUpW(waterRec)) + ' grass=' + (grassRec && meanUpW(grassRec)));
+  check('dustsplash: water mean horizontal speed over grass is approx 0.55',
+    !!grassRec && !!waterRec && approxW(meanHorizW(waterRec) / meanHorizW(grassRec), 0.55, 0.05),
+    'water=' + (waterRec && meanHorizW(waterRec)) + ' grass=' + (grassRec && meanHorizW(grassRec)));
+  /* one tick: gravity drop and horizontal retention per surface */
+  const tickMeasW = (loc) => {
+    const rec = spawnRecW(loc);
+    const before = rec.vel.map(v => v.slice());
+    G.dustTick(0.1);
+    const after = rec.slots.map(s => [G.dustVel[s * 3], G.dustVel[s * 3 + 1], G.dustVel[s * 3 + 2]]);
+    const vyDrop = before.reduce((a, v, i) => a + (v[1] - after[i][1]), 0) / before.length;
+    const hBefore = before.reduce((a, v) => a + Math.hypot(v[0], v[2]), 0) / before.length;
+    const hAfter = after.reduce((a, v) => a + Math.hypot(v[0], v[2]), 0) / after.length;
+    return { vyDrop, retain: hAfter / hBefore };
+  };
+  if (foundW.grass) {
+    const tmG = tickMeasW(foundW.grass);
+    check('dustsplash: one dustTick(0.1) drops grass velY by approx 0.35',
+      approxW(tmG.vyDrop, 0.35, 0.02), 'drop=' + tmG.vyDrop);
+    check('dustsplash: one dustTick(0.1) leaves grass with approx 0.7 of horizontal speed',
+      approxW(tmG.retain, 0.7, 0.02), 'retain=' + tmG.retain);
+  }
+  if (foundW.water) {
+    const tmW = tickMeasW(foundW.water);
+    check('dustsplash: one dustTick(0.1) drops water velY by approx 0.63',
+      approxW(tmW.vyDrop, 0.63, 0.02), 'drop=' + tmW.vyDrop);
+    check('dustsplash: one dustTick(0.1) leaves water with approx 0.895 of horizontal speed',
+      approxW(tmW.retain, 0.895, 0.02), 'retain=' + tmW.retain);
+  }
+  /* non-water, non-grass surfaces keep the default physics scalars */
+  for (const surfW of ['dirt', 'rock', 'gravel']) {
+    if (foundW[surfW]) {
+      const recS = spawnRecW(foundW[surfW]);
+      check('dustsplash: ' + surfW + ' spawn carries dustGrav 1 and dustDrag 1 on every slot',
+        recS.grav.every(v => v === 1) && recS.drag.every(v => v === 1),
+        'grav=' + recS.grav.join(',') + ' drag=' + recS.drag.join(','));
+    }
+  }
+  /* same-seed water respawn reproduces velocities exactly */
+  if (foundW.water) {
+    const r1W = spawnRecW(foundW.water);
+    const r2W = spawnRecW(foundW.water);
+    const flat1W = r1W.vel.flat(), flat2W = r2W.vel.flat();
+    check('dustsplash: same-seed water respawn reproduces velocities exactly',
+      flat1W.length === 30 && flat1W.every((v, i) => v === flat2W[i]));
+    check('dustsplash: same-seed water respawn reproduces grav and drag exactly',
+      r1W.grav.every((v, i) => v === r2W.grav[i]) && r1W.drag.every((v, i) => v === r2W.drag[i]));
+  }
+  /* expiry still works for splash particles */
+  {
+    if (foundW.water) spawnRecW(foundW.water);
+    const preExpW = liveW();
+    G.dustTick(0.5);
+    check('dustsplash: a tick past DUST_LIFE still expires every splash particle',
+      preExpW > 0 && liveW() === 0, 'pre=' + preExpW + ' live=' + liveW());
+  }
+  G.clearDust();
+  check('dustsplash: clearDust after a water burst resets every grav and drag slot to 1',
+    Array.from(G.dustGrav).every(v => v === 1) && Array.from(G.dustDrag).every(v => v === 1));
+  /* static pins still hold exactly: splash physics adds zero of everything */
+  const linesW = html.split('\n');
+  const lineHasW = sub => linesW.filter(l => l.includes(sub)).length;
+  check('dustsplash-pins: 49 InstancedMesh literals', lineHasW('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasW('new THREE.InstancedMesh'));
+  check('dustsplash-pins: 92 Math.random lines', lineHasW('Math.random') === 92,
+    'n=' + lineHasW('Math.random'));
+  check('dustsplash-pins: 72 setTimeout lines', lineHasW('setTimeout') === 72,
+    'n=' + lineHasW('setTimeout'));
+  check('dustsplash-pins: 6 lights',
+    linesW.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustsplash-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustsplash-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustsplash-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasW('new THREE.Points(') === 2, 'n=' + lineHasW('new THREE.Points('));
+  check('dustsplash-pins: no em dashes', !html.includes('\u2014'));
+  check('dustsplash-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustsplash-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustsplash: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsW, consoleProblems.slice(probsW).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
