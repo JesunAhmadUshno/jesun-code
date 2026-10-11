@@ -5244,8 +5244,9 @@ function squashTick(dt){
   player.scale.set(sx, sy, sx);
 }
 
-/* --- LANDING DUST v1: one pooled THREE.Points burst on real landings
-       only. Preallocated ring buffer (DUST_N slots, no allocation in
+/* --- LANDING DUST v1: one pooled THREE.Points burst on real landings.
+       DUST EXTENSION v1: the same pool also serves takeoff bursts and
+       sprint-step puffs. Preallocated ring buffer (DUST_N slots, no allocation in
        spawn or tick), deterministic LCG spread (the sfxStep idiom, so
        the random pin never moves), dead particles parked at
        y = -999. Exactly one new Points object: +1 draw call. --- */
@@ -25310,7 +25311,7 @@ function tick() {
       if (jumpPressed) P.jumpBufT = JUMP_BUF_T;
       else if (P.jumpBufT > 0) P.jumpBufT -= sdt;
       const canJump = P.grounded || P.coyoteT > 0;
-      if (canJump && P.jumpBufT > 0) { P.vy = JUMP_V; P.grounded = false; P.coyoteT = 0; P.jumpBufT = 0; squashImpulse(0.22); }
+      if (canJump && P.jumpBufT > 0) { P.vy = JUMP_V; P.grounded = false; P.coyoteT = 0; P.jumpBufT = 0; squashImpulse(0.22); spawnDust(player.position.x, groundY + 0.1, player.position.z, 0); }
     }
     P.vy += GRAV * sdt;
     player.position.y += P.vy * sdt;
@@ -25318,7 +25319,7 @@ function tick() {
       const wasAirborne = !P.grounded; const fallVy = P.vy;
       player.position.y = groundY; P.vy = 0; P.grounded = true;
       if (wasAirborne) { squashImpulse(-Math.min(0.28, 0.10 + Math.abs(fallVy) * 0.02)); spawnDust(player.position.x, groundY + 0.1, player.position.z, Math.abs(fallVy)); }
-      if (P.jumpBufT > 0 && !P.dead) { P.vy = JUMP_V; P.grounded = false; P.jumpBufT = 0; P.coyoteT = 0; squashImpulse(0.22); }
+      if (P.jumpBufT > 0 && !P.dead) { P.vy = JUMP_V; P.grounded = false; P.jumpBufT = 0; P.coyoteT = 0; squashImpulse(0.22); spawnDust(player.position.x, groundY + 0.1, player.position.z, 0); }
     }
   }
 
@@ -25328,7 +25329,7 @@ function tick() {
   P.walkPhase += sdt * (4 + speed * 1.6);
   if (P.grounded && !P.dead && speed > 0.8) {
     P.stepDist += speed * sdt;
-    if (P.stepDist >= STEP_LEN) { P.stepDist -= STEP_LEN; sfxStep(surfaceAt(player.position.x, player.position.z), sprint, P.stepAlt); P.stepAlt ^= 1; P.stepCount++; }
+    if (P.stepDist >= STEP_LEN) { P.stepDist -= STEP_LEN; sfxStep(surfaceAt(player.position.x, player.position.z), sprint, P.stepAlt); if (sprint) spawnDust(player.position.x, player.position.y + 0.1, player.position.z, 0); P.stepAlt ^= 1; P.stepCount++; }
   }
   const swing = Math.min(1, speed / WALK) * 0.65;
   const s = Math.sin(P.walkPhase) * swing;
