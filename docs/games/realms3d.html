@@ -5462,7 +5462,34 @@ function squashTick(dt){
        radialScale, upScale and sizeScale); the only
        remaining globals are the material-level size 0.4,
        opacity 0.55, and sizeAttenuation distance scaling
-       itself (perspective behavior, correct by design). --- */
+       itself (perspective behavior, correct by design).
+       PER-SURFACE DUST OPACITY v1: alpha peak is now
+       per-surface too, via one more preallocated array
+       (dustAlpha, 48 entries, one float per particle peak
+       alpha scale, filled with 1 at declaration, written
+       by spawnDust and reset to 1 by clearDust, with no
+       allocation in spawn or tick). The table is: grass
+       alphaF 0.75 (loose leafy dust: translucent soft
+       puffs), dirt alphaF 1 (the old default value,
+       behavior byte-equivalent), rock alphaF 0.95 (dense
+       mineral grit: near-opaque specks), gravel alphaF
+       0.90, and water alphaF 0.65 (splash droplets: the
+       most translucent). Any other surface string falls
+       back to alphaF 1. dustTick multiplies by
+       dustAlpha[i]: alpha = dustAlpha[i] * inRamp *
+       fRem * fRem * (3 - 2 * fRem), so each surface
+       peaks at its own ceiling under the material
+       opacity. Birth alpha stays 0, and the dustRand
+       order and count per particle stay exactly four.
+       This supersedes the opacity part of the prior
+       limit. New honest limit: the profile is now eight
+       scalars per surface (grow, ramp, grav, drag,
+       radialScale, upScale, sizeScale and alphaScale);
+       the only remaining globals are material size 0.4
+       and sizeAttenuation perspective scaling itself
+       (material opacity 0.55 remains as a global ceiling
+       multiplier that the per-particle alpha scales
+       under). --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -5475,11 +5502,13 @@ const dustSize = new Float32Array(DUST_N);
 const dustSizeBase = new Float32Array(DUST_N);
 const dustGrow = new Float32Array(DUST_N);
 const dustRamp = new Float32Array(DUST_N);
+const dustAlpha = new Float32Array(DUST_N);
 dustGrav.fill(1); dustDrag.fill(1);
 dustLifeMax.fill(DUST_LIFE);
 dustSizeBase.fill(1);
 dustGrow.fill(0.8);
 dustRamp.fill(0.15);
+dustAlpha.fill(1);
 let dustHead = 0;
 let dustSeed = 987654321;
 for (let i = 0; i < DUST_N; i++) dustPos[i * 3 + 1] = -999;
@@ -5562,6 +5591,12 @@ function spawnDust(x, y, z, strength){
   else if (surf === 'rock') { sizeF = 0.70; }
   else if (surf === 'gravel') { sizeF = 0.85; }
   else if (surf === 'water') { sizeF = 0.60; }
+  let alphaF = 1;
+  if (surf === 'grass') { alphaF = 0.75; }
+  else if (surf === 'dirt') { alphaF = 1; }
+  else if (surf === 'rock') { alphaF = 0.95; }
+  else if (surf === 'gravel') { alphaF = 0.90; }
+  else if (surf === 'water') { alphaF = 0.65; }
   for (let n = 0; n < count; n++) {
     const slot = dustHead; dustHead = (dustHead + 1) % DUST_N;
     const ang = dustRand() * Math.PI * 2;
@@ -5579,6 +5614,7 @@ function spawnDust(x, y, z, strength){
     dustGrav[slot] = grav; dustDrag[slot] = dragF;
     dustGrow[slot] = growF;
     dustRamp[slot] = rampF;
+    dustAlpha[slot] = alphaF;
     dustCol[slot * 4] = Math.min(1, pr * jit);
     dustCol[slot * 4 + 1] = Math.min(1, pg * jit);
     dustCol[slot * 4 + 2] = Math.min(1, pb * jit);
@@ -5603,7 +5639,7 @@ function dustTick(dt){
     const growth = 0.6 + dustGrow[i] * (1 - fRem);
     dustSize[i] = dustSizeBase[i] * growth;
     const inRamp = Math.min(1, (1 - fRem) / dustRamp[i]);
-    dustCol[i * 4 + 3] = inRamp * fRem * fRem * (3 - 2 * fRem);
+    dustCol[i * 4 + 3] = dustAlpha[i] * inRamp * fRem * fRem * (3 - 2 * fRem);
     dustPos[i * 3] += dustVel[i * 3] * dt;
     dustPos[i * 3 + 1] += dustVel[i * 3 + 1] * dt;
     dustPos[i * 3 + 2] += dustVel[i * 3 + 2] * dt;
@@ -5615,7 +5651,7 @@ function dustTick(dt){
   if (changed) { dustPosAttr.needsUpdate = true; dustColAttr.needsUpdate = true; dustSizeAttr.needsUpdate = true; }
 }
 function clearDust(){
-  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; dustLifeMax[i] = DUST_LIFE; dustCol[i * 4 + 3] = 0; dustSize[i] = 0; dustSizeBase[i] = 1; dustGrow[i] = 0.8; dustRamp[i] = 0.15; }
+  for (let i = 0; i < DUST_N; i++) { dustLife[i] = 0; dustPos[i * 3 + 1] = -999; dustGrav[i] = 1; dustDrag[i] = 1; dustLifeMax[i] = DUST_LIFE; dustCol[i * 4 + 3] = 0; dustSize[i] = 0; dustSizeBase[i] = 1; dustGrow[i] = 0.8; dustRamp[i] = 0.15; dustAlpha[i] = 1; }
   dustPosAttr.needsUpdate = true;
   dustColAttr.needsUpdate = true;
   dustSizeAttr.needsUpdate = true;

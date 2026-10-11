@@ -352,7 +352,7 @@ globalThis.__R3D = {
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
   spawnDust, dustTick, clearDust, DUST_N, DUST_LIFE,
   dustPos, dustVel, dustLife, dustCol, dustGrav, dustDrag, dustLifeMax, dustPts,
-  dustSize, dustSizeBase, dustGrow, dustRamp,
+  dustSize, dustSizeBase, dustGrow, dustRamp, dustAlpha,
   get dustHead() { return dustHead; },
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
@@ -12693,10 +12693,11 @@ globalThis.__R3D2 = {
   {
     const segStartT = html.indexOf('function dustTick');
     const segT = segStartT >= 0 ? html.slice(segStartT, html.indexOf('function clearDust')) : '';
+    /* superseded by PER-SURFACE DUST OPACITY v1: the tick alpha line now multiplies by dustAlpha[i] */
     check('dustfade: dustTick source writes alpha as the eased fade curve',
       segT.includes('const fRem = Math.max(0, dustLife[i] / dustLifeMax[i]);')
       && segT.includes('const inRamp = Math.min(1, (1 - fRem) / dustRamp[i]);')
-      && segT.includes('dustCol[i * 4 + 3] = inRamp * fRem * fRem * (3 - 2 * fRem);'));
+      && segT.includes('dustCol[i * 4 + 3] = dustAlpha[i] * inRamp * fRem * fRem * (3 - 2 * fRem);'));
     check('dustfade: dustTick source zeroes alpha on expiry and flags the color attribute',
       segT.includes('dustCol[i * 4 + 3] = 0;')
       && segT.includes('dustColAttr.needsUpdate = true;'));
@@ -12752,11 +12753,12 @@ globalThis.__R3D2 = {
     const vBeforeF = G.dustPts.geometry.attributes.color.version;
     G.dustTick(0.15);
     const liveAfter = liveF();
+    /* superseded by PER-SURFACE DUST OPACITY v1: grass alphaF 0.75 scales the curve */
     check('dustfade: after dustTick(0.15) every live alpha approx the eased curve value within 1e-5',
       liveAfter.length > 0 && liveAfter.every(i => {
         const fR = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
         const inR = Math.min(1, (1 - fR) / 0.20);
-        return approxF(G.dustCol[i * 4 + 3], inR * fR * fR * (3 - 2 * fR), 1e-5);
+        return approxF(G.dustCol[i * 4 + 3], 0.75 * inR * fR * fR * (3 - 2 * fR), 1e-5);
       }),
       'live=' + liveAfter.length);
     check('dustfade: after dustTick(0.15) every live alpha is strictly less than 1',
@@ -12847,7 +12849,8 @@ globalThis.__R3D2 = {
   const probsC = consoleProblems.length;
   const approxC = (a, b, tol) => Math.abs(a - b) <= tol;
   const liveC = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
-  const curveC = (life, max) => { const fR = Math.max(0, life / max); const inR = Math.min(1, (1 - fR) / 0.20); return inR * fR * fR * (3 - 2 * fR); };
+  /* superseded by PER-SURFACE DUST OPACITY v1: the grass curve now carries the 0.75 alphaF factor */
+  const curveC = (life, max) => { const fR = Math.max(0, life / max); const inR = Math.min(1, (1 - fR) / 0.20); return 0.75 * inR * fR * fR * (3 - 2 * fR); };
   const linesC = html.split('\n');
   const lineHasC = sub => linesC.filter(l => l.includes(sub)).length;
   /* source: header and the curve write sites */
@@ -12862,8 +12865,9 @@ globalThis.__R3D2 = {
       segTC.includes('const fRem = Math.max(0, dustLife[i] / dustLifeMax[i]);'));
     check('dustcurve: dustTick source carries the inRamp line',
       segTC.includes('const inRamp = Math.min(1, (1 - fRem) / dustRamp[i]);'));
+    /* superseded by PER-SURFACE DUST OPACITY v1: the alpha line now multiplies by dustAlpha[i] */
     check('dustcurve: dustTick source carries the smoothstep alpha line',
-      segTC.includes('dustCol[i * 4 + 3] = inRamp * fRem * fRem * (3 - 2 * fRem);'));
+      segTC.includes('dustCol[i * 4 + 3] = dustAlpha[i] * inRamp * fRem * fRem * (3 - 2 * fRem);'));
     check('dustcurve: old spawn alpha 1 and old linear tick writes are gone',
       !segSC.includes('dustCol[slot * 4 + 3] = 1;')
       && !segTC.includes('dustCol[i * 4 + 3] = Math.max(0, dustLife[i] / dustLifeMax[i]);'));
@@ -12906,12 +12910,13 @@ globalThis.__R3D2 = {
     G.dustTick(0.01);
     return G.dustCol[s * 4 + 3];
   };
-  check('dustcurve: exact curve at remaining fraction 0.5 gives alpha 0.5',
-    approxC(exactAtC(0.5), 0.5, 1e-5), 'a=' + exactAtC(0.5));
-  check('dustcurve: exact curve at remaining fraction 0.25 gives alpha 0.15625',
-    approxC(exactAtC(0.25), 0.15625, 1e-5), 'a=' + exactAtC(0.25));
-  check('dustcurve: exact curve at remaining fraction 0.925 gives alpha about 0.375 times smoothstep(0.925)',
-    approxC(exactAtC(0.925), 0.375 * 0.925 * 0.925 * (3 - 2 * 0.925), 1e-5), 'a=' + exactAtC(0.925));
+  /* superseded by PER-SURFACE DUST OPACITY v1: grass alphaF 0.75 scales every exact value */
+  check('dustcurve: exact curve at remaining fraction 0.5 gives alpha 0.375 (0.75 grass alphaF times 0.5)',
+    approxC(exactAtC(0.5), 0.75 * 0.5, 1e-5), 'a=' + exactAtC(0.5));
+  check('dustcurve: exact curve at remaining fraction 0.25 gives alpha 0.1171875 (0.75 grass alphaF times 0.15625)',
+    approxC(exactAtC(0.25), 0.75 * 0.15625, 1e-5), 'a=' + exactAtC(0.25));
+  check('dustcurve: exact curve at remaining fraction 0.925 gives alpha about 0.75 times 0.375 times smoothstep(0.925)',
+    approxC(exactAtC(0.925), 0.75 * 0.375 * 0.925 * 0.925 * (3 - 2 * 0.925), 1e-5), 'a=' + exactAtC(0.925));
   /* alpha rises through the ramp into the peak, then falls monotonically */
   let riseC = null;
   {
@@ -13466,11 +13471,12 @@ globalThis.__R3D2 = {
     G.dustTick(0.03);
     const liveGrassRa = liveRa();
     grassAlphaRa = grassRecRa.slots.map(s => G.dustCol[s * 4 + 3]);
+    /* superseded by PER-SURFACE DUST OPACITY v1: grass alphaF 0.75 scales the formula */
     check('dustramp: after a tick in the ramp window grass alpha matches the 0.20 inRamp formula within 1e-5',
       liveGrassRa.length > 0 && liveGrassRa.every(i => {
         const fRemRa = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
         return (1 - fRemRa) > 0.03 && (1 - fRemRa) < 0.20
-          && approxRa(G.dustCol[i * 4 + 3], Math.min(1, (1 - fRemRa) / 0.20) * smoothRa(fRemRa), 1e-5);
+          && approxRa(G.dustCol[i * 4 + 3], 0.75 * Math.min(1, (1 - fRemRa) / 0.20) * smoothRa(fRemRa), 1e-5);
       }), 'live=' + liveGrassRa.length);
     check('dustramp: after a tick in the ramp window grass alpha is strictly below the smoothstep fade-out',
       liveGrassRa.length > 0 && liveGrassRa.every(i => {
@@ -13490,11 +13496,12 @@ globalThis.__R3D2 = {
       !!grassRecRa && waterRecRa.lifeMax.every((v, k) => v === grassRecRa.lifeMax[k]));
     G.dustTick(0.03);
     const liveWaterRa = liveRa();
+    /* superseded by PER-SURFACE DUST OPACITY v1: water alphaF 0.65 scales the full smoothstep */
     check('dustramp: after a tick in the ramp window water alpha equals the full smoothstep fade-out within 1e-5',
       liveWaterRa.length > 0 && liveWaterRa.every(i => {
         const fRemRa = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
         return (1 - fRemRa) > 0.03 && (1 - fRemRa) < 0.15
-          && approxRa(G.dustCol[i * 4 + 3], smoothRa(fRemRa), 1e-5);
+          && approxRa(G.dustCol[i * 4 + 3], 0.65 * smoothRa(fRemRa), 1e-5);
       }), 'live=' + liveWaterRa.length);
     check('dustramp: after a tick in the ramp window water alpha is above its paired grass alpha',
       !!grassAlphaRa && waterRecRa.slots.every((s, k) => G.dustCol[s * 4 + 3] > grassAlphaRa[k]),
@@ -13510,15 +13517,16 @@ globalThis.__R3D2 = {
     G.dustTick(0.01);
     return G.dustCol[s * 4 + 3];
   };
+  /* superseded by PER-SURFACE DUST OPACITY v1: water alphaF 0.65 and grass alphaF 0.75 scale the exact values */
   if (foundRa.water) {
-    check('dustramp: exact water curve at remaining fraction 0.93 gives alpha about smoothstep(0.93)',
-      approxRa(exactAtRa(foundRa.water, 0.93), smoothRa(0.93), 1e-5), 'a=' + exactAtRa(foundRa.water, 0.93));
+    check('dustramp: exact water curve at remaining fraction 0.93 gives alpha about 0.65 times smoothstep(0.93)',
+      approxRa(exactAtRa(foundRa.water, 0.93), 0.65 * smoothRa(0.93), 1e-5), 'a=' + exactAtRa(foundRa.water, 0.93));
   }
   if (foundRa.grass) {
-    check('dustramp: exact grass curve at remaining fraction 0.93 gives alpha about (0.07 / 0.20) times smoothstep(0.93)',
-      approxRa(exactAtRa(foundRa.grass, 0.93), (0.07 / 0.20) * smoothRa(0.93), 1e-5), 'a=' + exactAtRa(foundRa.grass, 0.93));
-    check('dustramp: exact grass curve at remaining fraction 0.5 gives alpha 0.5 (ramp saturated, non-water unchanged)',
-      approxRa(exactAtRa(foundRa.grass, 0.5), 0.5, 1e-5), 'a=' + exactAtRa(foundRa.grass, 0.5));
+    check('dustramp: exact grass curve at remaining fraction 0.93 gives alpha about 0.75 times (0.07 / 0.20) times smoothstep(0.93)',
+      approxRa(exactAtRa(foundRa.grass, 0.93), 0.75 * (0.07 / 0.20) * smoothRa(0.93), 1e-5), 'a=' + exactAtRa(foundRa.grass, 0.93));
+    check('dustramp: exact grass curve at remaining fraction 0.5 gives alpha 0.375 (ramp saturated, grass alphaF 0.75)',
+      approxRa(exactAtRa(foundRa.grass, 0.5), 0.75 * 0.5, 1e-5), 'a=' + exactAtRa(foundRa.grass, 0.5));
   }
   /* determinism: same-seed respawn reproduces ramp and tick alpha exactly */
   if (foundRa.water) {
@@ -13674,7 +13682,8 @@ globalThis.__R3D2 = {
       live: liveP().length,
     };
   };
-  const profP = { grass: [0.95, 0.20], dirt: [0.8, 0.15], rock: [0.35, 0.08], gravel: [0.5, 0.10], water: [-0.2, 0.03] };
+  /* third entry added by PER-SURFACE DUST OPACITY v1: per-surface alphaF (grass 0.75, dirt 1, rock 0.95, gravel 0.90, water 0.65) */
+  const profP = { grass: [0.95, 0.20, 0.75], dirt: [0.8, 0.15, 1], rock: [0.35, 0.08, 0.95], gravel: [0.5, 0.10, 0.90], water: [-0.2, 0.03, 0.65] };
   const recsP = {};
   for (const surf of Object.keys(profP)) if (foundP[surf]) recsP[surf] = spawnRecP(foundP[surf]);
   for (const surf of Object.keys(profP)) {
@@ -13698,7 +13707,8 @@ globalThis.__R3D2 = {
     return live.length > 0 && live.every(i => {
       const fRemP = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
       return approxP(G.dustSize[i], G.dustSizeBase[i] * (0.6 + profP[surf][0] * (1 - fRemP)), 1e-5)
-        && approxP(G.dustCol[i * 4 + 3], Math.min(1, (1 - fRemP) / profP[surf][1]) * smoothP(fRemP), 1e-5);
+        /* superseded by PER-SURFACE DUST OPACITY v1: alpha now also scales by profP[surf][2] (alphaF) */
+        && approxP(G.dustCol[i * 4 + 3], profP[surf][2] * Math.min(1, (1 - fRemP) / profP[surf][1]) * smoothP(fRemP), 1e-5);
     });
   };
   check('dustprof: after a tick grass size and alpha match the 0.95 grow and 0.20 ramp formulas within 1e-5',
@@ -14357,6 +14367,206 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustsurfsize: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSz, consoleProblems.slice(probsSz).join(' | '));
+}
+
+
+/* ================= PER-SURFACE DUST OPACITY v1 =================
+   Alpha peak is now a full per-surface profile table.
+   spawnDust selects alphaF in one if and else-if chain after
+   the sizeF chain: grass 0.75 (loose leafy dust, translucent),
+   dirt 1 (the old default, behavior byte-equivalent at peak),
+   rock 0.95 (dense grit, near-opaque), gravel 0.90 and water
+   0.65 (splash droplets, the most translucent), with any
+   other surface falling back to 1. The factor writes one new
+   preallocated array (dustAlpha, 48 slots, filled 1), and
+   dustTick multiplies it in: alpha = dustAlpha[i] * inRamp *
+   smoothstep(fRem). clearDust resets every dustAlpha slot to
+   1. Birth alpha stays 0 and the dustRand order and count per
+   particle stay exactly four. The profile is now eight
+   scalars per surface (grow, ramp, grav, drag, radialScale,
+   upScale, sizeScale, alphaScale); the only remaining globals
+   are material size 0.4 and sizeAttenuation, with material
+   opacity 0.55 as a global ceiling the per-particle alpha
+   scales under. No new Points, draw calls or nodes. */
+{
+  const probsOp = consoleProblems.length;
+  const approxOp = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveOp = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
+  const smoothOp = f => f * f * (3 - 2 * f);
+  const linesOp = html.split('\n');
+  const lineHasOp = sub => linesOp.filter(l => l.includes(sub)).length;
+  /* source: header, declaration and the full alpha table in spawnDust */
+  check('dustopac: source carries the PER-SURFACE DUST OPACITY v1 header',
+    html.includes('PER-SURFACE DUST OPACITY v1'));
+  check('dustopac: source declares dustAlpha as Float32Array(DUST_N) and fills it with 1',
+    html.includes('const dustAlpha = new Float32Array(DUST_N);')
+    && html.includes('dustAlpha.fill(1);'));
+  {
+    const segSOp = html.indexOf('function spawnDust') >= 0 ? html.slice(html.indexOf('function spawnDust'), html.indexOf('function dustTick')) : '';
+    check('dustopac: spawnDust source carries the grass alpha line (alphaF 0.75)',
+      segSOp.includes("if (surf === 'grass') { alphaF = 0.75; }"));
+    check('dustopac: spawnDust source carries the dirt alpha line (alphaF 1)',
+      segSOp.includes("else if (surf === 'dirt') { alphaF = 1; }"));
+    check('dustopac: spawnDust source carries the rock alpha line (alphaF 0.95)',
+      segSOp.includes("else if (surf === 'rock') { alphaF = 0.95; }"));
+    check('dustopac: spawnDust source carries the gravel alpha line (alphaF 0.90)',
+      segSOp.includes("else if (surf === 'gravel') { alphaF = 0.90; }"));
+    check('dustopac: spawnDust source carries the water alpha line (alphaF 0.65)',
+      segSOp.includes("else if (surf === 'water') { alphaF = 0.65; }"));
+    check('dustopac: spawnDust source keeps the fallback default (alphaF 1)',
+      segSOp.includes('let alphaF = 1;'));
+    check('dustopac: spawnDust source writes dustAlpha per slot after the dustRamp write',
+      segSOp.includes('dustRamp[slot] = rampF;')
+      && segSOp.includes('dustAlpha[slot] = alphaF;'));
+    const segTOp = html.indexOf('function dustTick') >= 0 ? html.slice(html.indexOf('function dustTick'), html.indexOf('function clearDust')) : '';
+    check('dustopac: dustTick source multiplies the alpha curve by dustAlpha[i]',
+      segTOp.includes('dustCol[i * 4 + 3] = dustAlpha[i] * inRamp * fRem * fRem * (3 - 2 * fRem);'));
+    const segCOp = html.indexOf('function clearDust') >= 0 ? html.slice(html.indexOf('function clearDust'), html.indexOf('function clearDust') + 500) : '';
+    check('dustopac: clearDust source resets dustAlpha to 1 after the dustRamp reset',
+      segCOp.includes('dustRamp[i] = 0.15; dustAlpha[i] = 1;'));
+  }
+  /* buffer shape: the new profile array stays preallocated at 48 slots */
+  check('dustopac: dustAlpha is a preallocated Float32Array of 48',
+    !!G.dustAlpha && G.dustAlpha instanceof Float32Array && G.dustAlpha.length === 48,
+    'len=' + (G.dustAlpha && G.dustAlpha.length));
+  /* probe one location per surface from the classifier itself */
+  const foundOp = {};
+  for (let x = -360; x <= 360 && Object.keys(foundOp).length < 5; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      const surf = G.surfaceAt(x, z);
+      if ((surf === 'grass' || surf === 'dirt' || surf === 'rock' || surf === 'gravel' || surf === 'water') && !foundOp[surf]) foundOp[surf] = { x, z };
+      if (Object.keys(foundOp).length >= 5) break;
+    }
+  }
+  check('dustopac: probe finds grass, dirt, rock and gravel locations',
+    !!foundOp.grass && !!foundOp.dirt && !!foundOp.rock && !!foundOp.gravel,
+    JSON.stringify(foundOp));
+  check('dustopac: probe finds a water location', !!foundOp.water, JSON.stringify(foundOp.water || null));
+  /* deterministic spawn recorder: same seed, slots in spawn order; paired spawns share the raw dustRand rolls, so per-particle alphas differ only by alphaF */
+  const spawnRecOp = (loc) => {
+    G.clearDust(); G.dustSeed = 987654321;
+    const head = G.dustHead;
+    G.spawnDust(loc.x, 1, loc.z, 5);
+    const slots = [];
+    for (let n = 0; n < 10; n++) slots.push((head + n) % G.DUST_N);
+    return {
+      slots,
+      alphaScale: slots.map(s => G.dustAlpha[s]),
+      alpha: slots.map(s => G.dustCol[s * 4 + 3]),
+      live: liveOp().length,
+    };
+  };
+  const profOp = { grass: 0.75, dirt: 1, rock: 0.95, gravel: 0.90, water: 0.65 };
+  const recsOp = {};
+  for (const surf of Object.keys(profOp)) if (foundOp[surf]) recsOp[surf] = spawnRecOp(foundOp[surf]);
+  for (const surf of Object.keys(profOp)) {
+    const rec = recsOp[surf];
+    check('dustopac: ' + surf + ' spawn bursts exactly 10 and writes alphaF ' + profOp[surf] + ' for every live slot',
+      !!rec && rec.live === 10
+      && rec.alphaScale.every(v => approxOp(v, profOp[surf], 1e-6)),
+      'live=' + (rec && rec.live) + ' alpha0=' + (rec && rec.alphaScale[0]));
+  }
+  check('dustopac: every surface keeps birth alpha at 0',
+    Object.keys(profOp).every(surf => !!recsOp[surf] && recsOp[surf].alpha.every(v => v === 0)));
+  /* paired peak alpha at remaining fraction 0.5: every ramp is saturated there, so alpha is alphaF times smoothstep(0.5) */
+  const peakOp = (loc) => {
+    G.clearDust(); G.dustSeed = 987654321;
+    if (loc) G.spawnDust(loc.x, 1, loc.z, 5);
+    const ls = liveOp(); if (!ls.length) return -1;
+    const s = ls[0];
+    G.dustLifeMax[s] = 1; G.dustLife[s] = 0.5 + 0.01;
+    G.dustTick(0.01);
+    return G.dustCol[s * 4 + 3];
+  };
+  const peaksOp = {};
+  for (const surf of Object.keys(profOp)) if (foundOp[surf]) peaksOp[surf] = peakOp(foundOp[surf]);
+  for (const surf of ['grass', 'rock', 'gravel', 'water']) {
+    check('dustopac: paired same-seed ' + surf + ' peak alpha at mid-life scales the dirt peak by alphaF ' + profOp[surf],
+      peaksOp[surf] > 0 && peaksOp.dirt > 0 && approxOp(peaksOp[surf], peaksOp.dirt * profOp[surf], 1e-5),
+      surf + '=' + peaksOp[surf] + ' dirt=' + peaksOp.dirt);
+  }
+  check('dustopac: dirt peak is unchanged (alphaF 1, so mid-life alpha is the inRamp times smoothstep value 0.5)',
+    approxOp(peaksOp.dirt, 0.5, 1e-5), 'dirt=' + peaksOp.dirt);
+  check('dustopac: paired peak ordering is water below grass below gravel below rock below dirt',
+    peaksOp.water > 0 && peaksOp.water < peaksOp.grass && peaksOp.grass < peaksOp.gravel
+    && peaksOp.gravel < peaksOp.rock && peaksOp.rock < peaksOp.dirt,
+    JSON.stringify(peaksOp));
+  /* dirt mid-life formula over a plain tick: alphaF 1 leaves the old curve byte-equivalent */
+  {
+    let dirtOkOp = false;
+    if (foundOp.dirt) {
+      spawnRecOp(foundOp.dirt);
+      G.dustTick(0.1);
+      const live = liveOp();
+      dirtOkOp = live.length > 0 && live.every(i => {
+        const fRemOp = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
+        return approxOp(G.dustCol[i * 4 + 3], Math.min(1, (1 - fRemOp) / 0.15) * smoothOp(fRemOp), 1e-5);
+      });
+    }
+    check('dustopac: after a tick dirt alpha matches the unchanged inRamp times smoothstep formula within 1e-5',
+      dirtOkOp);
+  }
+  /* determinism: same-seed respawn reproduces alphaScale and alpha exactly */
+  if (foundOp.rock) {
+    const r1Op = spawnRecOp(foundOp.rock);
+    const r2Op = spawnRecOp(foundOp.rock);
+    check('dustopac: same-seed respawn reproduces dustAlpha and alpha exactly',
+      r1Op.alphaScale.length === 10 && r1Op.alphaScale.every((v, i) => v === r2Op.alphaScale[i]) && r1Op.alpha.every((v, i) => v === r2Op.alpha[i]));
+  }
+  if (foundOp.gravel) {
+    const recTickOp = () => {
+      const r = spawnRecOp(foundOp.gravel);
+      G.dustTick(0.1);
+      return { alphaScale: r.alphaScale, alpha: r.slots.map(s => G.dustCol[s * 4 + 3]) };
+    };
+    const t1Op = recTickOp(), t2Op = recTickOp();
+    check('dustopac: same-seed respawn plus tick reproduces dustAlpha and alpha exactly',
+      t1Op.alphaScale.every((v, i) => v === t2Op.alphaScale[i]) && t1Op.alpha.every((v, i) => v === t2Op.alpha[i]));
+  }
+  /* expiry still zeroes alpha and parks the particle */
+  {
+    if (foundOp.grass) spawnRecOp(foundOp.grass);
+    const expOp = liveOp(); const expSlotOp = expOp.length ? expOp[0] : -1;
+    G.dustTick(10);
+    check('dustopac: expiry still zeroes alpha and parks y at -999 with nothing live',
+      expSlotOp >= 0 && G.dustCol[expSlotOp * 4 + 3] === 0 && G.dustPos[expSlotOp * 3 + 1] === -999 && liveOp().length === 0,
+      'slot=' + expSlotOp);
+  }
+  /* clearDust resets every dustAlpha slot to the neutral 1 (spawn overwrites it) and zeroes the color alpha */
+  {
+    if (foundOp.water) spawnRecOp(foundOp.water);
+    G.clearDust();
+    check('dustopac: clearDust resets every dustAlpha slot to 1, zeroes every color alpha and leaves nothing live',
+      Array.from(G.dustAlpha).every(v => v === 1)
+      && Array.from({ length: G.DUST_N }, (_, i) => G.dustCol[i * 4 + 3]).every(v => v === 0)
+      && liveOp().length === 0,
+      'live=' + liveOp().length);
+  }
+  G.clearDust();
+  /* static pins re-checked: the opacity table adds zero of everything */
+  check('dustopac-pins: 49 InstancedMesh literals', lineHasOp('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasOp('new THREE.InstancedMesh'));
+  check('dustopac-pins: 92 Math.random lines', lineHasOp('Math.random') === 92,
+    'n=' + lineHasOp('Math.random'));
+  check('dustopac-pins: 72 setTimeout lines', lineHasOp('setTimeout') === 72,
+    'n=' + lineHasOp('setTimeout'));
+  check('dustopac-pins: 6 lights',
+    linesOp.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustopac-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustopac-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustopac-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasOp('new THREE.Points(') === 2, 'n=' + lineHasOp('new THREE.Points('));
+  check('dustopac-pins: no em dashes', !html.includes('\u2014'));
+  check('dustopac-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustopac-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustopac: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsOp, consoleProblems.slice(probsOp).join(' | '));
 }
 
 
