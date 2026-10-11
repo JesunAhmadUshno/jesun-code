@@ -4842,6 +4842,32 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
      distance; saves 1 shadow draw. Heads never cast (emissive fakes). */
   scene.add(freezeStatic(poles), freezeStatic(heads));   // PERF-7: lamp instances baked once, meshes never move
 
+  /* PHASE 1 LOOK: lamp light pools, one additive unlit InstancedMesh (one draw
+     call for every head), ported from the Phase 1 build (world/city.js W4).
+     A soft warm disc under each lamp head sells the night lighting the 4 real
+     PointLights cannot cover; opacity ramps with nightfall in dayNightTick. */
+  const lampPoolMat = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.4, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return new THREE.MeshBasicMaterial({ map: t, color: 0xffb45e, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  })();
+  const lampPools = new THREE.InstancedMesh(new THREE.PlaneGeometry(7, 7).rotateX(-Math.PI / 2), lampPoolMat, lampPos.length);
+  lampPos.forEach(([x, z], i) => {
+    dummy.position.set(x, terrainHeight(x, z) + 0.13, z);   // 3 cm above the lamp base ground offset (0.1)
+    dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    lampPools.setMatrixAt(i, dummy.matrix);
+  });
+  lampPools.instanceMatrix.needsUpdate = true;
+  scene.add(freezeStatic(lampPools));   // PERF-7: pool instances baked once, mesh never moves
+  DNF.lampPoolMat = lampPoolMat;        // opacity ramped by the day/night cycle
+
   /* 4 real point lights at key spots; the rest of the lamps are emissive fakes */
   const cityLamps = [];
   for (const [x, z, dy] of [[70,-70,9],[48,-70,8],[92,-70,8],[70,-48,8]]) {
@@ -18519,6 +18545,8 @@ function dayNightTick(dt, now) {
     DNF.lampHeadMat.emissiveIntensity =
       (2.2 + Math.sin(now * 2.3) * 0.3) * (0.25 + 0.75 * (1 - dayness));
   }
+  /* PHASE 1 LOOK: lamp light pools fade in with the night (Phase 1 value 0.55) */
+  if (DNF.lampPoolMat) DNF.lampPoolMat.opacity = 0.55 * (1 - dayness);
 
   /* rural buildings: baked window glow ramps up at night (emissiveMap only,
      zero new lights) */
@@ -18993,7 +19021,7 @@ const CAR = {
 
 /* ---- car model: tapered body, cabin, 4 wheels (front pair steers),
         emissive headlight quads + taillight bar (no real lights: draw calls) ---- */
-const carPaint = new THREE.MeshStandardMaterial({ color: 0xFF3D2E, roughness: 0.35, metalness: 0.55 });  // Signal Red
+const carPaint = new THREE.MeshPhysicalMaterial({ color: 0xFF3D2E, roughness: 0.42, metalness: 0.2, clearcoat: 1.0, clearcoatRoughness: 0.08, envMapIntensity: 0.9 });  // PHASE 1 LOOK (R18): lacquer over metallic flake, Signal Red; the sky IBL gives it a live clearcoat reflection
 const carGlass = new THREE.MeshStandardMaterial({ color: 0x10161c, roughness: 0.18, metalness: 0.5 });
 const carWheelM = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
 const carLightM = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xfff2c0, emissiveIntensity: 2.6 });
