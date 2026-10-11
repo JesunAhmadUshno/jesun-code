@@ -219,6 +219,11 @@ globalThis.__R3D = {
   wheelBetEl, wheelSpinEl, wheelBigWinEl,
   WHEEL_BETS, WHEEL_MULTS, WHEEL_W, WHEEL_TOTAL_W, WHEEL_N, WHEEL_STEP,
   WHEEL_BIG_MULT, WHEEL_HASH_A, WHEEL_HASH_B, HELP_LMWHEEL,
+  /* Phase 5 casino loyalty v1 + high-roller blackjack v1 (ninth seat) */
+  LOYAL, LOYAL_TIERS, LOYAL_MIN, LOYAL_RATE, LOYAL_FAST, LOYAL_SLOW,
+  loyalTierIdx, loyalCashValue, loyalChipUpdate, loyalRedeem, loyalTick,
+  loyalChipEl, loyalChipBtn,
+  HI_BETS, casinoHiSit, casinoHiStand, hirollChipEl, casinoSeatToggle,
   LMCASINO_COL, LMCAS_R, LMCAS_SEGS, LMCAS_GATE_K, LMCAS_CHIP_R2, LMCAS_DOOR, LMCAS_DOOR_R2,
   CASINO_ROOM_Y, LMCS_BETS, LMCS_SYMS, LMCS_WILD, LMCS_SEVEN, LMCS_LINES, LMCS_TAPE, LMCS_OUT_AT,
   redistributeGlyphBoards, glyphBoardIM, GLYPH_BOARD_CAP, GLYPH_MOUNTS, glyphShiftAttr,  /* Phase 5 sign glyphs v1 */
@@ -6890,7 +6895,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6);
   check('roul-static: single keydown listener (Q rides the existing one)',
     (html.match(/addEventListener\('keydown'/g) || []).length === 1
-    && html.includes("switch the table seat: slots, cards, roulette, dice, poker, baccarat, keno or wheel"));
+    && html.includes("switch the table seat: slots, cards, roulette, dice, poker, baccarat, keno, wheel or hi-roller"));
   check('roul-static: #roulchip pins its own top-left slot (no chip overlap)',
     html.includes('#roulchip {') && html.includes('top: 720px'));
 
@@ -7154,7 +7159,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
   G.closeShop(); G.casinoHallEnter();
   check('dice: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
-  /* the 8-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> wheel -> slots */
+  /* the 9-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> wheel -> hi-roller -> slots */
   G.CASINOHALL.seatKind = 'slots';
   G.casinoSeatToggle();
   check('dice: seat cycle slots -> cards', G.CASINOHALL.seatKind === 'bj');
@@ -7167,11 +7172,13 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.casinoSeatToggle();
   check('dice: seat cycle poker -> baccarat', G.CASINOHALL.seatKind === 'bacc');
   G.casinoSeatToggle();
-  check('dice: seat cycle baccarat -> keno (the 8-cycle)', G.CASINOHALL.seatKind === 'keno');
+  check('dice: seat cycle baccarat -> keno (the 9-cycle)', G.CASINOHALL.seatKind === 'keno');
   G.casinoSeatToggle();
-  check('dice: seat cycle keno -> wheel (the 8-cycle)', G.CASINOHALL.seatKind === 'wheel');
+  check('dice: seat cycle keno -> wheel (the 9-cycle)', G.CASINOHALL.seatKind === 'wheel');
   G.casinoSeatToggle();
-  check('dice: seat cycle wheel -> slots (the 8-cycle closes)', G.CASINOHALL.seatKind === 'slots');
+  check('dice: seat cycle wheel -> hi-roller (the 9-cycle)', G.CASINOHALL.seatKind === 'hiroll');
+  G.casinoSeatToggle();
+  check('dice: seat cycle hi-roller -> slots (the 9-cycle closes)', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 4 && G.CASINOHALL.seatKind !== 'dice'; q++) G.casinoSeatToggle();
   frame(20);
   check('dice: PLAY DICE prompt shows inside',
@@ -7386,11 +7393,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
   G.closeShop(); G.casinoHallEnter();
   check('poker: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
-  /* the 8-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> wheel -> slots */
+  /* the 9-cycle: slots -> cards -> roulette -> dice -> poker -> baccarat -> keno -> wheel -> hi-roller -> slots */
   G.CASINOHALL.seatKind = 'slots';
-  const pCyc = ['bj', 'roul', 'dice', 'poker', 'bacc', 'keno', 'wheel', 'slots'];
-  const pCycNames = ['cards', 'roulette', 'dice', 'poker', 'baccarat', 'keno', 'wheel', 'slots'];
-  for (let q = 0; q < 8; q++) {
+  const pCyc = ['bj', 'roul', 'dice', 'poker', 'bacc', 'keno', 'wheel', 'hiroll', 'slots'];
+  const pCycNames = ['cards', 'roulette', 'dice', 'poker', 'baccarat', 'keno', 'wheel', 'hi-roller', 'slots'];
+  for (let q = 0; q < 9; q++) {
     G.casinoSeatToggle();
     check('poker: seat cycle lands ' + pCycNames[q], G.CASINOHALL.seatKind === pCyc[q]);
   }
@@ -7614,7 +7621,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bacc: the shoe reshuffles when under 15 cards',
     G.CASINOBACC.shoe.length === 51, 'shoe=' + G.CASINOBACC.shoe.length);
 
-  /* --- enter the hall and ride the 8-cycle to the baccarat seat --- */
+  /* --- enter the hall and ride the 9-cycle to the baccarat seat --- */
   let baccd = null;
   baccouter: for (let gx = -60; gx <= 60; gx++)
     for (let gz = -60; gz <= 60; gz++) {
@@ -7632,13 +7639,15 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('bacc: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
   G.CASINOHALL.seatKind = 'slots';
   for (let q = 0; q < 5; q++) G.casinoSeatToggle();
-  check('bacc: five toggles land the baccarat seat (the 8-cycle)', G.CASINOHALL.seatKind === 'bacc');
+  check('bacc: five toggles land the baccarat seat (the 9-cycle)', G.CASINOHALL.seatKind === 'bacc');
   G.casinoSeatToggle();
-  check('bacc: the 8-cycle moves baccarat -> keno', G.CASINOHALL.seatKind === 'keno');
+  check('bacc: the 9-cycle moves baccarat -> keno', G.CASINOHALL.seatKind === 'keno');
   G.casinoSeatToggle();
-  check('bacc: the 8-cycle moves keno -> wheel', G.CASINOHALL.seatKind === 'wheel');
+  check('bacc: the 9-cycle moves keno -> wheel', G.CASINOHALL.seatKind === 'wheel');
   G.casinoSeatToggle();
-  check('bacc: the 8-cycle closes wheel -> slots', G.CASINOHALL.seatKind === 'slots');
+  check('bacc: the 9-cycle moves wheel -> hi-roller', G.CASINOHALL.seatKind === 'hiroll');
+  G.casinoSeatToggle();
+  check('bacc: the 9-cycle closes hi-roller -> slots', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 5; q++) G.casinoSeatToggle();
   frame(20);
   check('bacc: PLAY BACCARAT prompt shows inside',
@@ -7876,7 +7885,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('keno: one short of 2/2 counts as one-short', G.kenoOneShort() === true);
   G.CASINOKENO.hits = 0; G.CASINOKENO.picks = [];
 
-  /* --- enter the hall and ride the 8-cycle to the keno seat --- */
+  /* --- enter the hall and ride the 9-cycle to the keno seat --- */
   let kenod = null;
   kenoouter: for (let gx = -60; gx <= 60; gx++)
     for (let gz = -60; gz <= 60; gz++) {
@@ -7894,11 +7903,13 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('keno: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
   G.CASINOHALL.seatKind = 'slots';
   for (let q = 0; q < 6; q++) G.casinoSeatToggle();
-  check('keno: six toggles land the keno seat (the 8-cycle)', G.CASINOHALL.seatKind === 'keno');
+  check('keno: six toggles land the keno seat (the 9-cycle)', G.CASINOHALL.seatKind === 'keno');
   G.casinoSeatToggle();
-  check('keno: the 8-cycle moves keno -> wheel', G.CASINOHALL.seatKind === 'wheel');
+  check('keno: the 9-cycle moves keno -> wheel', G.CASINOHALL.seatKind === 'wheel');
   G.casinoSeatToggle();
-  check('keno: the 8-cycle closes wheel -> slots', G.CASINOHALL.seatKind === 'slots');
+  check('keno: the 9-cycle moves wheel -> hi-roller', G.CASINOHALL.seatKind === 'hiroll');
+  G.casinoSeatToggle();
+  check('keno: the 9-cycle closes hi-roller -> slots', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 6; q++) G.casinoSeatToggle();
   frame(20);
   check('keno: PLAY KENO prompt shows inside',
@@ -8110,7 +8121,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     (() => { const rows = G.wheelPayRows(); return rows.length === 6 && rows[0].name === '1x x5 SECTORS' && rows[0].val === 'W 30 EA' && rows[5].name === '50x SECTOR' && rows[5].val === 'W 1 EA'; })(),
     G.wheelPayRows().map(r => r.name + '=' + r.val).join(' | '));
 
-  /* --- enter the hall and ride the 8-cycle to the wheel seat --- */
+  /* --- enter the hall and ride the 9-cycle to the wheel seat --- */
   let wheeld = null;
   wheelouter: for (let gx = -60; gx <= 60; gx++)
     for (let gz = -60; gz <= 60; gz++) {
@@ -8127,9 +8138,11 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('wheel: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
   G.CASINOHALL.seatKind = 'slots';
   for (let q = 0; q < 7; q++) G.casinoSeatToggle();
-  check('wheel: seven toggles land the wheel seat (the 8-cycle)', G.CASINOHALL.seatKind === 'wheel');
+  check('wheel: seven toggles land the wheel seat (the 9-cycle)', G.CASINOHALL.seatKind === 'wheel');
   G.casinoSeatToggle();
-  check('wheel: the 8-cycle closes wheel -> slots', G.CASINOHALL.seatKind === 'slots');
+  check('wheel: the 9-cycle moves wheel -> hi-roller', G.CASINOHALL.seatKind === 'hiroll');
+  G.casinoSeatToggle();
+  check('wheel: the 9-cycle closes hi-roller -> slots', G.CASINOHALL.seatKind === 'slots');
   for (let q = 0; q < 7; q++) G.casinoSeatToggle();
   frame(20);
   check('wheel: PLAY WHEEL prompt shows inside',
@@ -10039,6 +10052,208 @@ globalThis.__R3D2 = {
   G.closeShop();
   check('conch: prompt and panel leave zero console errors/warnings',
     consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
+}
+
+/* ================= PHASE 5: CASINO LOYALTY v1 + HIGH-ROLLER BLACKJACK v1 ================= */
+{
+  /* --- static pins: the new blocks are seeded-only, DOM-only, chip-clean --- */
+  const loyalSrc = html.slice(html.indexOf('casino loyalty v1'),
+    html.indexOf("casinohallhintEl.textContent = 'ENTER [E]';"));
+  const hiSrc = html.slice(html.indexOf('high-roller blackjack v1'),
+    html.indexOf("const casinobjselEl = document.getElementById('casinobjsel');"));
+  check('loyal: the loyalty block holds zero Math.random lines (seeded idiom only)',
+    loyalSrc.length > 3000 && !/Math\.random/.test(loyalSrc), loyalSrc.length + ' chars');
+  check('loyal: the hi-roller block holds zero Math.random lines (the honest shoe is reused)',
+    hiSrc.length > 1500 && !/Math\.random/.test(hiSrc), hiSrc.length + ' chars');
+  check('loyal: the new blocks add zero InstancedMesh literals (pin holds at 48)',
+    (html.match(/new THREE\.InstancedMesh/g) || []).length === 48);
+  check('loyal: #hirollchip owns 951px and #loyalchip owns 984px (no overlap)',
+    (html.match(/top: 951px; left: 18px/g) || []).length === 1
+    && (html.match(/top: 984px; left: 18px/g) || []).length === 1);
+  check('loyal: no placeholder or em dash text in the new blocks',
+    !/\b(TODO|FIXME|placeholder)\b/i.test(loyalSrc + hiSrc) && !(loyalSrc + hiSrc).includes('—'));
+  check('loyal: one keydown listener only (R extends it, no new listener)',
+    (html.match(/addEventListener\('keydown'/g) || []).length === 1);
+  check('loyal: zero setTimeout in the new blocks (tick loop only)',
+    !/setTimeout/.test(loyalSrc + hiSrc));
+  check('loyal: zero new lights, zero new audio nodes (pins hold)',
+    (html.match(/new THREE\.(PointLight|SpotLight|DirectionalLight|HemisphereLight|AmbientLight|RectAreaLight)/g) || []).length === 6
+    && (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 31);
+  check('loyal: the seat toggle is the 9-cycle (wheel -> hiroll -> slots)',
+    /'wheel' \? 'hiroll' : 'slots'/.test(html));
+  check('loyal: the tier table is sane (4 tiers, rising thresholds and rates)',
+    G.LOYAL_TIERS.join(',') === 'BRONZE,SILVER,GOLD,PLATINUM'
+    && G.LOYAL_MIN.join(',') === '0,250,1000,2500'
+    && G.LOYAL_RATE.join(',') === '0.1,0.12,0.15,0.2');
+  check('loyal: the hi-roller bet tiers are $50/$100/$250', G.HI_BETS.join(',') === '50,100,250');
+  check('loyal: tier lookup is monotone', G.loyalTierIdx(0) === 0 && G.loyalTierIdx(249) === 0
+    && G.loyalTierIdx(250) === 1 && G.loyalTierIdx(999) === 1 && G.loyalTierIdx(1000) === 2
+    && G.loyalTierIdx(2499) === 2 && G.loyalTierIdx(2500) === 3 && G.loyalTierIdx(99999) === 3);
+
+  /* --- enter the hall and ride the 9-cycle to the hi-roller seat --- */
+  let loyald = null;
+  loyalouter: for (let gx = -60; gx <= 60; gx++)
+    for (let gz = -60; gz <= 60; gz++) {
+      if (G.amenityTypeFor(gx, gz) !== 'casino' || !G.amenityAccepted(gx, gz)) continue;
+      const a = G.amenityCenterFor(gx, gz);
+      if (a && a.type === 'casino') { loyald = a; break loyalouter; }
+    }
+  check('loyal: a seeded casino chunk exists in the scan window', !!loyald);
+  const probsL = consoleProblems.length;
+  G.P.dead = false; G.P.godT = 0;
+  const loyaldoor = G.casinoHallDoorWorld(loyald);
+  G.player.position.set(loyaldoor.x, groundY(loyaldoor.x, loyaldoor.z), loyaldoor.z);
+  frame(20);   // chunk redistribute + the 0.25s prompt cadence arms hintEnter
+  G.closeShop(); G.casinoHallEnter();
+  check('loyal: ENTER teleports into the cached hall', G.CASINOHALL.inHall === true);
+  G.LOYAL.points = 0; G.LOYAL.tier = 'BRONZE'; G.LOYAL.flashT = 0; G.LOYAL.stingQ.length = 0;   // earlier casino blocks banked points; start the drill clean
+  G.CASINOHALL.seatKind = 'slots';
+  for (let q = 0; q < 8; q++) G.casinoSeatToggle();
+  check('loyal: eight toggles land the hi-roller seat (the 9-cycle)', G.CASINOHALL.seatKind === 'hiroll');
+  frame(20);
+  check('loyal: PLAY HIGH-ROLLER prompt shows inside',
+    G.casinoslothintEl.style.opacity == 1 && /PLAY HIGH-ROLLER/.test(G.casinoslothintEl.textContent),
+    G.casinoslothintEl.textContent);
+  check('loyal: the toggle chip names the seat',
+    /TABLE: HI-ROLL/.test(G.casinobjselEl.textContent), G.casinobjselEl.textContent);
+  check('loyal: the cashier chip shows tier + points in the hall',
+    G.loyalChipEl.style.display === 'block' && /^BRONZE 0 PTS/.test(G.loyalChipEl.textContent),
+    G.loyalChipEl.textContent);
+
+  /* --- E sits at the gold VIP chair --- */
+  G.CIVIC.hintOn = false; G.HOSP.hintOn = false; G.WORSHIP.hintOn = false; G.APARTMENT.hintOn = false;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('loyal: KeyE sits at the VIP chair (panel opens, hi mode on)',
+    G.CASINOHALL.seated === true && G.CASINOBJ.playing === true && G.CASINOBJ.hi === true
+    && G.bjPanelEl.style.display === 'block',
+    'seated=' + G.CASINOHALL.seated + ' hi=' + G.CASINOBJ.hi);
+  check('loyal: sit parks the player at the VIP chair, facing the table',
+    Math.abs(G.player.position.x - G.CASINOHALL.hiSeatX) < 0.01
+    && Math.abs(G.player.position.z - G.CASINOHALL.hiSeatZ) < 0.01
+    && Math.abs(G.player.rotation.y - Math.PI) < 0.01,
+    'x=' + G.player.position.x.toFixed(2) + ' z=' + G.player.position.z.toFixed(2));
+  check('loyal: the VIP bet button opens at $100', G.bjBetEl.textContent === 'BET $100', G.bjBetEl.textContent);
+  check('loyal: #hirollchip shows with the HI-ROLL tag, #bjchip stays hidden',
+    G.hirollChipEl.style.display === 'block' && /^HI-ROLL /.test(G.hirollChipEl.textContent)
+    && G.bjChipEl.style.display === 'none', G.hirollChipEl.textContent);
+
+  /* --- BET cycles 100 -> 250 -> 50 -> 100 --- */
+  G.bjCycleBet();
+  check('loyal: BET cycles 100 -> 250', G.HI_BETS[G.CASINOBJ.betIdx] === 250);
+  G.bjCycleBet();
+  check('loyal: BET cycles 250 -> 50', G.HI_BETS[G.CASINOBJ.betIdx] === 50);
+  G.bjCycleBet();
+  check('loyal: BET cycles 50 -> 100', G.HI_BETS[G.CASINOBJ.betIdx] === 100);
+
+  /* --- DEAL on the rigged shoe: $100 debited, 2x comps post --- */
+  G.cash = 10000; G.LOYAL.points = 0; G.LOYAL.tier = 'BRONZE';
+  G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = new Array(11).fill(0).concat([5, 7, 8, 9]);   // pops: 9,8 (player 19), 7,5 (dealer 14): no naturals
+  G.bjDeal();
+  check('loyal: DEAL debits the $100 VIP bet (phase player)',
+    G.cash === 9900 && G.CASINOBJ.bet === 100 && G.CASINOBJ.phase === 'player', 'cash=' + G.cash);
+  check('loyal: the VIP seat earns 2x comps (100/10 x2 = 20 pts)',
+    Math.abs(G.LOYAL.points - 20) < 1e-9, 'points=' + G.LOYAL.points);
+  check('loyal: the cashier chip shows tier + points', /^BRONZE 20 PTS/.test(G.loyalChipEl.textContent),
+    G.loyalChipEl.textContent);
+  check('loyal: earn flashes the chip (tick-driven)', G.LOYAL.flashT > 0, 'flashT=' + G.LOYAL.flashT.toFixed(2));
+  frame(80);   // ~1.33s of tick time: the 1.2s flash drains
+  check('loyal: the flash drains on the tick', G.LOYAL.flashT <= 0, 'flashT=' + G.LOYAL.flashT.toFixed(2));
+
+  /* --- E stands mid-round: the VIP stake refunds, never traps --- */
+  const cashPreStand = G.cash;
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('loyal: E stands mid-round and the $100 stake refunds',
+    G.cash === cashPreStand + 100 && G.CASINOBJ.playing === false && G.CASINOBJ.hi === false
+    && G.CASINOHALL.seated === false && G.CASINOHALL.inHall === false,
+    'cash=' + G.cash);
+  check('loyal: the stand hides the panel and both chips',
+    G.bjPanelEl.style.display === 'none' && G.hirollChipEl.style.display === 'none'
+    && G.loyalChipEl.style.display === 'none');
+
+  /* --- the felt table earns 1x: the hi flag is what doubles --- */
+  G.player.position.set(loyaldoor.x, groundY(loyaldoor.x, loyaldoor.z), loyaldoor.z);
+  frame(20);
+  G.casinoHallEnter();
+  G.CASINOHALL.seatKind = 'bj';
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('loyal: the felt seat is not hi mode', G.CASINOBJ.playing === true && G.CASINOBJ.hi === false);
+  G.cash = 10000; G.LOYAL.points = 0;
+  G.CASINOBJ.betIdx = 1;   // $10
+  G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = new Array(11).fill(0).concat([5, 7, 8, 9]);
+  G.bjDeal();
+  check('loyal: the felt table earns 1x (10/10 = 1 pt)', Math.abs(G.LOYAL.points - 1) < 1e-9,
+    'points=' + G.LOYAL.points);
+  check('loyal: #bjchip shows on the felt, #hirollchip stays hidden',
+    G.bjChipEl.style.display === 'block' && /^BJ /.test(G.bjChipEl.textContent)
+    && G.hirollChipEl.style.display === 'none', G.bjChipEl.textContent);
+  G.bjStand();   // stand the felt hand down: phase player -> dealer -> done
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });   // E stands and exits
+  check('loyal: E exits the hall from the felt seat', G.CASINOHALL.inHall === false);
+
+  /* --- tier-up: crossing 250 fires the toast + the tick-drained sting --- */
+  G.player.position.set(loyaldoor.x, groundY(loyaldoor.x, loyaldoor.z), loyaldoor.z);
+  frame(20);
+  G.casinoHallEnter();
+  G.LOYAL.points = 249; G.LOYAL.tier = 'BRONZE'; G.LOYAL.stingQ.length = 0;
+  G.LOYAL.earn(10, G.LOYAL_SLOW);   // +1 pt: table rate, no hi flag
+  check('loyal: crossing 250 tiers up to SILVER', G.LOYAL.tier === 'SILVER'
+    && /LOYALTY TIER UP: SILVER/.test(G.toastEl.textContent), G.toastEl.textContent);
+  check('loyal: the tier sting queues three notes (no setTimeout)',
+    G.LOYAL.stingQ.join(',') === '880,1174,1568', G.LOYAL.stingQ.join(','));
+  frame(30);
+  check('loyal: the sting drains on the tick', G.LOYAL.stingQ.length === 0,
+    'queued=' + G.LOYAL.stingQ.length);
+  check('loyal: the cashier chip names the redeem rate while off the tables',
+    /REDEEM -> \$30 \[R\]/.test(G.loyalChipEl.textContent), G.loyalChipEl.textContent);
+
+  /* --- REDEEM at the cashier: SILVER 250 pts -> $30, fraction kept --- */
+  G.LOYAL.points = 250.7;
+  const cashPreRedeem = G.cash;
+  stubs.fireGlobal('keydown', { code: 'KeyR', preventDefault() {} });
+  check('loyal: KeyR redeems 250 SILVER pts -> $30 (floor of 250 x $0.12)',
+    G.cash === cashPreRedeem + 30 && Math.abs(G.LOYAL.points - 0.7) < 1e-9,
+    'cash=' + G.cash + ' points=' + G.LOYAL.points);
+  check('loyal: the redeem toasts the tier and the amount',
+    /CASHIER: SILVER REDEEM \+\$30/.test(G.toastEl.textContent), G.toastEl.textContent);
+
+  /* --- redeem with no points is denied, never traps --- */
+  G.LOYAL.points = 0;
+  stubs.fireGlobal('keydown', { code: 'KeyR', preventDefault() {} });
+  check('loyal: redeem with zero points is denied (cash untouched)',
+    G.cash === cashPreRedeem + 30 && /NO COMP POINTS/.test(G.toastEl.textContent), G.toastEl.textContent);
+
+  /* --- death ejects from the VIP seat: the hi flag resets, chips hide --- */
+  G.CASINOHALL.seatKind = 'hiroll';
+  stubs.fireGlobal('keydown', { code: 'KeyE', preventDefault() {} });
+  check('loyal: re-sat at the VIP seat for the death drill', G.CASINOBJ.hi === true);
+  G.cash = 10000;
+  G.CASINOBJ.phase = 'idle';
+  G.CASINOBJ.shoe = new Array(11).fill(0).concat([5, 7, 8, 9]);
+  G.bjDeal();
+  G.P.dead = true;
+  frame(10);   // the tick death-ejects: casinoHallExit routes through casinoHiStand
+  check('loyal: death ejects the VIP seat (hi resets, chips hide)',
+    G.CASINOBJ.playing === false && G.CASINOBJ.hi === false && G.CASINOHALL.inHall === false
+    && G.hirollChipEl.style.display === 'none' && G.loyalChipEl.style.display === 'none',
+    'hi=' + G.CASINOBJ.hi);
+  G.P.dead = false;
+
+  /* --- session-only: save/load round trip carries zero loyalty keys --- */
+  G.saveGame();
+  G.loadSave();
+  const svStrL = JSON.stringify(G.collectSave());
+  check('loyal: save schema carries zero loyalty keys',
+    !/loyal/i.test(svStrL) && !/LOYAL/.test(svStrL) && !/hiroll/i.test(svStrL), svStrL.slice(0, 120));
+
+  /* leave the world as the next block expects: player at origin */
+  if (G.CASINOHALL.inHall) G.casinoHallExit();
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.LOYAL.points = 0; G.LOYAL.tier = 'BRONZE';
+  check('loyal: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */

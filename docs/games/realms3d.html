@@ -854,6 +854,20 @@
     background: rgba(10,12,10,.72); border: 1px solid #7a6a3a; padding: 6px 10px;
     letter-spacing: 2px; display: none; pointer-events: none;
   }
+  /* ---- landmark casino: LOYALTY v1 + HIGH-ROLLER BLACKJACK v1 HUD. #hirollchip
+         mirrors #wheelchip in the top-left stack (951px sits below #wheelchip
+         918px, no overlap). #loyalchip sits below it (984px) and doubles as
+         the cashier chip: tappable in the hall to redeem comp points. ---- */
+  #hirollchip {
+    position: absolute; top: 951px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #c9a227; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none;
+  }
+  #loyalchip {
+    position: absolute; top: 984px; left: 18px; color: #ffe9a8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #c9a227; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: auto; cursor: pointer;
+  }
   #lmwheelpanel {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: rgba(8,6,4,.94); border: 2px solid #c9a227; border-radius: 10px;
@@ -1440,6 +1454,8 @@
   <div id="baccchip"></div>
   <div id="kenochip"></div>
   <div id="wheelchip"></div>
+  <div id="hirollchip"></div>
+  <div id="loyalchip"></div>
   <div id="lmcasinopanel">
     <div id="lmcs-title">ROYAL REELS</div>
     <div id="lmcs-reels">
@@ -8843,6 +8859,15 @@ function buildCasinoHallGeo() {
   /* cashier counter */
   amenPart(parts, 0, 4, 1.2, 1.2, 10, 0.6, -4, WOOD);
   amenPart(parts, 0, 4.2, 0.12, 1.4, 10, 1.26, -4, CREAM);
+  /* high-roller VIP table (casino loyalty v1): a gold-trimmed card table with
+     the gold VIP chair south of it, east of the keno lounge. Merged into the
+     cached hall mesh (the card-table idiom): zero net new draw calls, zero new
+     lights, existing materials only (TABLE/WOOD/TRIMH). */
+  amenPart(parts, 1, 1.6, 1.7, 0.15, 3.5, 0.9, -5.5, TABLE);
+  amenPart(parts, 1, 1.7, 1.78, 0.08, 3.5, 0.78, -5.5, TRIMH);   // the gold trim band under the top
+  amenPart(parts, 1, 0.18, 0.18, 0.9, 3.5, 0.45, -5.5, WOOD);
+  amenPart(parts, 0, 0.6, 0.9, 0.6, 3.5, 0.45, -3.2, TRIMH);     // the gold VIP chair
+  amenPart(parts, 0, 0.7, 0.5, 0.12, 3.5, 1.15, -2.8, TRIMH);    // the chair back
   return mergeAmenGeos(parts);
 }
 const casinoHallMesh = new THREE.Mesh(buildCasinoHallGeo(),
@@ -8861,8 +8886,8 @@ const CASINOHALL = {
   inHall: false, hintEnter: false, sitOn: false, nearIdx: -1,
   doorX: 0, doorZ: 0,
   standX: 0, standZ: 0, seatX: 0, seatZ: 0, seatYaw: Math.PI,   // face the machines (-Z)
-  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0, pokerSeatX: 0, pokerSeatZ: 0, baccSeatX: 0, baccSeatZ: 0, kenoSeatX: 0, kenoSeatZ: 0, wheelSeatX: 0, wheelSeatZ: 0,   // the eight table seats
-  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice' | 'poker' | 'bacc' | 'keno' | 'wheel': which seat E plays at
+  slotSeatX: 0, slotSeatZ: 0, bjSeatX: 0, bjSeatZ: 0, roulSeatX: 0, roulSeatZ: 0, diceSeatX: 0, diceSeatZ: 0, pokerSeatX: 0, pokerSeatZ: 0, baccSeatX: 0, baccSeatZ: 0, kenoSeatX: 0, kenoSeatZ: 0, wheelSeatX: 0, wheelSeatZ: 0, hiSeatX: 0, hiSeatZ: 0,   // the nine table seats
+  seatKind: 'slots',                                          // 'slots' | 'bj' | 'roul' | 'dice' | 'poker' | 'bacc' | 'keno' | 'wheel' | 'hiroll': which seat E plays at
   seated: false,
   hallCamAng: Math.PI, hallCamDist: 5, hallCamH: 2.4,
   hallPos: new THREE.Vector3(),
@@ -8896,6 +8921,77 @@ for (let i = 0; i < 3; i++) {
     row.push(d);
   }
   CASINOSLOT.cellEls.push(row);
+}
+/* ---- casino loyalty v1: a comp-point economy across the hall. Every casino
+        wager posts comp points through the single central LOYAL.earn(amount,
+        rate) helper: slots, keno and wheel earn fast (1 pt per $5 wagered);
+        table games (cards, roulette, dice, poker, baccarat) earn slower
+        (1 pt per $10 wagered); the high-roller seat earns 2x. Four tiers with
+        a rising point-to-cash conversion at the cashier:
+          BRONZE     0+ pts  -> $0.10 per point
+          SILVER   250+ pts  -> $0.12 per point
+          GOLD    1000+ pts  -> $0.15 per point
+          PLATINUM 2500+ pts -> $0.20 per point
+        REDEEM: in the hall, off the tables, tap #loyalchip or press R. The
+        redeem is fire-and-forget (never traps). Points are session-only; the
+        save schema is untouched; zero new unseeded RNG. ---- */
+const LOYAL_TIERS = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'];
+const LOYAL_MIN = [0, 250, 1000, 2500];
+const LOYAL_RATE = [0.10, 0.12, 0.15, 0.20];   // $ per point at the cashier, by tier
+const LOYAL_FAST = 5, LOYAL_SLOW = 10;         // $ wagered per comp point: fast (slots/keno/wheel) vs table games
+const LOYAL = {
+  points: 0, tier: 'BRONZE', flashT: 0, stingT: 0, stingQ: [],
+  earn(amount, rate) {
+    let pts = amount / rate;
+    if (CASINOBJ.hi) pts *= 2;                // the high-roller 2x comp perk
+    if (!(pts > 0)) return;
+    this.points += pts;
+    this.flashT = 1.2;                        // the #loyalchip flash, drained on the hall tick
+    const ti = loyalTierIdx(Math.floor(this.points));
+    if (LOYAL_TIERS[ti] !== this.tier) {
+      this.tier = LOYAL_TIERS[ti];
+      toast('LOYALTY TIER UP: ' + this.tier);
+      this.stingQ.push(880, 1174, 1568);      // the tier-up sting, one note per tick beat
+    }
+    loyalChipUpdate();
+  },
+};
+function loyalTierIdx(pts) {
+  let ti = 0;
+  for (let i = 0; i < LOYAL_TIERS.length; i++) if (pts >= LOYAL_MIN[i]) ti = i;
+  return ti;
+}
+function loyalCashValue() {   // whole-point conversion at the current tier rate
+  return Math.floor(Math.floor(LOYAL.points) * LOYAL_RATE[LOYAL_TIERS.indexOf(LOYAL.tier)]);
+}
+function loyalChipUpdate() {
+  const pts = Math.floor(LOYAL.points);
+  let txt = LOYAL.tier + ' ' + pts + ' PTS';
+  if (CASINOHALL.inHall && !CASINOHALL.seated && pts > 0)
+    txt += ' - REDEEM -> $' + loyalCashValue() + ' [R]';
+  loyalChipEl.textContent = txt;
+  loyalChipEl.style.display = CASINOHALL.inHall ? 'block' : 'none';
+}
+function loyalRedeem() {
+  if (!CASINOHALL.inHall || CASINOHALL.seated) return;   // the cashier serves players off the tables
+  if (Math.floor(LOYAL.points) <= 0) { sfxDenied(); toast('NO COMP POINTS'); return; }   // the shop denied idiom
+  const val = loyalCashValue();
+  LOYAL.points -= Math.floor(LOYAL.points);   // the fractional remainder stays in the bank
+  cash += val; updateCashHUD(); floatCash('+$' + val);   // the cash idiom
+  toast('CASHIER: ' + LOYAL.tier + ' REDEEM +$' + val);
+  sfxBlip(990, 0.1, 'triangle', 0.2);
+  loyalChipUpdate();
+}
+function loyalTick(dt) {   // the flash + sting drain on the hall tick (the tick-loop idiom)
+  if (LOYAL.flashT > 0) {
+    LOYAL.flashT -= dt;
+    loyalChipEl.style.boxShadow = (Math.floor(Math.max(LOYAL.flashT, 0) * 10) % 2 === 0) ? '0 0 12px #ffd24a' : 'none';
+    if (LOYAL.flashT <= 0) loyalChipEl.style.boxShadow = 'none';
+  }
+  if (LOYAL.stingQ.length > 0) {
+    LOYAL.stingT -= dt;
+    if (LOYAL.stingT <= 0) { LOYAL.stingT = 0.12; sfxBlip(LOYAL.stingQ.shift(), 0.12, 'triangle', 0.22); }
+  }
 }
 casinohallhintEl.textContent = 'ENTER [E]';
 casinohallhintEl.addEventListener('click', () => { if (CASINOHALL.hintEnter) casinoHallEnter(); });
@@ -8966,6 +9062,7 @@ function lmcsSpin() {
   const bet = LMCS_BETS[CASINOSLOT.betIdx];
   if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
   cash -= bet; updateCashHUD(); floatCash('-$' + bet);            // the cash idiom
+  LOYAL.earn(bet, LOYAL_FAST);   // comp points: slots earn fast
   CASINOSLOT.spins++;
   CASINOSLOT.spinning = true; CASINOSLOT.spinT = 0; CASINOSLOT.lastWin = 0;
   lmcsWinEl.textContent = 'GOOD LUCK';
@@ -9091,7 +9188,7 @@ function casinoHallKeyE() {
   else if (CASINOKENO.playing && (CASINOKENO.phase === 'draw' || CASINOKENO.phase === 'resolve')) { casinoKenoStand(); casinoHallExit(); }   // E stands mid-draw: the bet refunds, the pending draw/settle no-ops
   else if (CASINOWHEEL.playing && (CASINOWHEEL.phase === 'spin' || CASINOWHEEL.phase === 'resolve')) { casinoWheelStand(); casinoHallExit(); }   // E stands mid-spin: the bet refunds, the pending spin/settle no-ops
   else if (CASINOSLOT.playing) { casinoSlotStand(); casinoHallExit(); }
-  else if (CASINOBJ.playing) { casinoBjStand(); casinoHallExit(); }
+  else if (CASINOBJ.playing) { if (CASINOBJ.hi) casinoHiStand(); else casinoBjStand(); casinoHallExit(); }   // the hi-roller's mid-round stake refunds; the felt bet does not
   else if (CASINOROUL.playing) { casinoRoulStand(); casinoHallExit(); }
   else if (CASINODICE.playing) { casinoDiceStand(); casinoHallExit(); }
   else if (CASINOPOKER.playing) { casinoPokerStand(); casinoHallExit(); }
@@ -9104,7 +9201,7 @@ function casinoHallKeyE() {
     if (CASINOWHEEL.phase === 'idle' || CASINOWHEEL.phase === 'done') wheelSpin();
     else { casinoWheelStand(); casinoHallExit(); }
   }
-  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else if (CASINOHALL.seatKind === 'poker') casinoPokerSit(); else if (CASINOHALL.seatKind === 'bacc') casinoBaccSit(); else if (CASINOHALL.seatKind === 'keno') casinoKenoSit(); else if (CASINOHALL.seatKind === 'wheel') casinoWheelSit(); else casinoSlotSit(); }
+  else if (CASINOHALL.sitOn) { if (CASINOHALL.seatKind === 'dice') casinoDiceSit(); else if (CASINOHALL.seatKind === 'roul') casinoRoulSit(); else if (CASINOHALL.seatKind === 'bj') casinoBjSit(); else if (CASINOHALL.seatKind === 'poker') casinoPokerSit(); else if (CASINOHALL.seatKind === 'bacc') casinoBaccSit(); else if (CASINOHALL.seatKind === 'keno') casinoKenoSit(); else if (CASINOHALL.seatKind === 'wheel') casinoWheelSit(); else if (CASINOHALL.seatKind === 'hiroll') casinoHiSit(); else casinoSlotSit(); }
   else casinoHallExit();
 }
 function casinoHallEnter() {
@@ -9132,6 +9229,7 @@ function casinoHallEnter() {
   CASINOHALL.baccSeatX = a.x + 9.5; CASINOHALL.baccSeatZ = a.z + 4.5;     // baccarat: the east baccarat-table chair, faces the table (-Z)
   CASINOHALL.kenoSeatX = a.x; CASINOHALL.kenoSeatZ = a.z - 5.0;             // keno: the north-side lounge spot (all keno play is DOM)
   CASINOHALL.wheelSeatX = a.x - 9.5; CASINOHALL.wheelSeatZ = a.z - 4.5;      // wheel: the south-west lounge spot (all wheel play is DOM)
+  CASINOHALL.hiSeatX = a.x + 3.5; CASINOHALL.hiSeatZ = a.z - 3.2;               // high-roller: the gold VIP chair south of the VIP table, faces the table (-Z)
   CASINOHALL.seatX = CASINOHALL.slotSeatX; CASINOHALL.seatZ = CASINOHALL.slotSeatZ; CASINOHALL.seatYaw = Math.PI;
   CASINOHALL.hallPos.set(a.x, CASINO_ROOM_Y, a.z - 6.0);
   player.position.set(CASINOHALL.standX, CASINO_ROOM_Y, CASINOHALL.standZ);
@@ -9177,13 +9275,14 @@ function casinoHallEnter() {
 }
 function casinoHallExit() {
   if (!CASINOHALL.inHall) return;
-  if (CASINOHALL.seated) { if (CASINOWHEEL.playing) casinoWheelStand(); else if (CASINOKENO.playing) casinoKenoStand(); else if (CASINOPOKER.playing) casinoPokerStand(); else if (CASINOBACC.playing) casinoBaccStand(); else if (CASINOBJ.playing) casinoBjStand(); else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
+  if (CASINOHALL.seated) { if (CASINOWHEEL.playing) casinoWheelStand(); else if (CASINOKENO.playing) casinoKenoStand(); else if (CASINOPOKER.playing) casinoPokerStand(); else if (CASINOBACC.playing) casinoBaccStand(); else if (CASINOBJ.playing) { if (CASINOBJ.hi) casinoHiStand(); else casinoBjStand(); } else if (CASINOROUL.playing) casinoRoulStand(); else if (CASINODICE.playing) casinoDiceStand(); else casinoSlotStand(); }
   CASINOHALL.inHall = false; CASINOHALL.sitOn = false; CASINOHALL.nearIdx = -1;
   casinoHallMesh.visible = false;
   casinoslothintEl.style.opacity = 0;
   casinobjselEl.style.opacity = 0;
   lmcsPanelEl.style.display = 'none';
   bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
+  hirollChipEl.style.display = 'none'; loyalChipEl.style.display = 'none';
   roulPanelEl.style.display = 'none'; roulChipEl.style.display = 'none';
   dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none'; diceBigWinEl.style.display = 'none';
   pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
@@ -9210,7 +9309,7 @@ function casinoHallTick(dt) {
     if (CASINOHALL.inHall) casinoHallExit();   // death always ejects: no gambling while dead
     CASINOHALL.hintEnter = false; casinohallhintEl.style.opacity = 0;
     CASINOSLOT.playing = false; casinoslothintEl.style.opacity = 0;
-    CASINOBJ.playing = false; casinobjselEl.style.opacity = 0;
+    CASINOBJ.playing = false; CASINOBJ.hi = false; casinobjselEl.style.opacity = 0;   // death always ejects: the VIP seat resets too
     CASINOROUL.playing = false; roulPanelEl.style.display = 'none'; roulChipEl.style.display = 'none';
     CASINODICE.playing = false; dicePanelEl.style.display = 'none'; diceChipEl.style.display = 'none';
     CASINOPOKER.playing = false; pokerPanelEl.style.display = 'none'; pokerChipEl.style.display = 'none'; pokerBigWinEl.style.display = 'none';
@@ -9219,6 +9318,7 @@ function casinoHallTick(dt) {
     CASINOWHEEL.playing = false; wheelPanelEl.style.display = 'none'; wheelChipEl.style.display = 'none'; wheelBigWinEl.style.display = 'none';
     lmcsPanelEl.style.display = 'none';
     bjPanelEl.style.display = 'none'; bjChipEl.style.display = 'none';
+    hirollChipEl.style.display = 'none'; loyalChipEl.style.display = 'none';
     casinChipEl.style.display = 'none';
     return;
   }
@@ -9262,15 +9362,17 @@ function casinoHallTick(dt) {
       const playBacc = IS_TOUCH ? 'TAP TO PLAY BACCARAT' : 'PLAY BACCARAT [E]';
       const playKeno = IS_TOUCH ? 'TAP TO PLAY KENO' : 'PLAY KENO [E]';
       const playWheel = IS_TOUCH ? 'TAP TO PLAY WHEEL' : 'PLAY WHEEL [E]';
-      const playTxt = CASINOHALL.seatKind === 'wheel' ? playWheel : (CASINOHALL.seatKind === 'keno' ? playKeno : (CASINOHALL.seatKind === 'bacc' ? playBacc : (CASINOHALL.seatKind === 'poker' ? playPoker : (CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots))))));
+      const playHi = IS_TOUCH ? 'TAP TO PLAY HIGH-ROLLER' : 'PLAY HIGH-ROLLER [E]';
+      const playTxt = CASINOHALL.seatKind === 'hiroll' ? playHi : (CASINOHALL.seatKind === 'wheel' ? playWheel : (CASINOHALL.seatKind === 'keno' ? playKeno : (CASINOHALL.seatKind === 'bacc' ? playBacc : (CASINOHALL.seatKind === 'poker' ? playPoker : (CASINOHALL.seatKind === 'dice' ? playDice : (CASINOHALL.seatKind === 'roul' ? playRoul : (CASINOHALL.seatKind === 'bj' ? playCards : playSlots)))))));
       const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
       const txt = CASINOHALL.seated ? exitTxt : (CASINOHALL.sitOn ? playTxt : exitTxt);
       if (casinoslothintEl.textContent !== txt) casinoslothintEl.textContent = txt;
       casinoslothintEl.style.opacity = 1;
       /* seat toggle chip (touch-friendly): which table E plays at next */
-      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'wheel' ? 'WHEEL' : (CASINOHALL.seatKind === 'keno' ? 'KENO' : (CASINOHALL.seatKind === 'bacc' ? 'BACCARAT' : (CASINOHALL.seatKind === 'poker' ? 'POKER' : (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS')))))));
+      const selTxt = 'TABLE: ' + (CASINOHALL.seatKind === 'hiroll' ? 'HI-ROLL' : (CASINOHALL.seatKind === 'wheel' ? 'WHEEL' : (CASINOHALL.seatKind === 'keno' ? 'KENO' : (CASINOHALL.seatKind === 'bacc' ? 'BACCARAT' : (CASINOHALL.seatKind === 'poker' ? 'POKER' : (CASINOHALL.seatKind === 'dice' ? 'DICE' : (CASINOHALL.seatKind === 'roul' ? 'ROULETTE' : (CASINOHALL.seatKind === 'bj' ? 'CARDS' : 'SLOTS'))))))));
       if (casinobjselEl.textContent !== selTxt) casinobjselEl.textContent = selTxt;
       casinobjselEl.style.opacity = CASINOHALL.seated ? 0 : 1;
+      loyalChipUpdate();   // the cashier chip stays fresh (tier + points + the redeem prompt)
     }
     lmcsUpdate(dt);   // reel animation + big-win overlay timer
     roulUpdate(dt);   // wheel + ball animation + win-flash timer
@@ -9279,6 +9381,7 @@ function casinoHallTick(dt) {
     baccUpdate(dt);   // baccarat squeeze cascade + win headline + delayed settle
     kenoUpdate(dt);   // keno draw beats + meters + delayed settle
     wheelUpdate(dt);   // wheel spin ritual + land glow + delayed settle
+    loyalTick(dt);     // loyalty chip flash + tier-up sting drain (the tick-loop idiom)
     casinChipEl.style.display = 'none';
     return;
   }
@@ -9338,10 +9441,11 @@ function casinoHallTick(dt) {
         or cards. DOM panel only: zero draw calls, zero new lights. Session
         only: standing up resets the table; the save schema is untouched. ---- */
 const BJ_BETS = [5, 10, 25];
+const HI_BETS = [50, 100, 250];   // the high-roller VIP seat: the same honest shoe, raised minimums
 const BJ_SUIT_CH = ['\u2660', '\u2665', '\u2666', '\u2663'];   // spades hearts diamonds clubs
 const BJ_RANK_CH = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const CASINOBJ = {
-  playing: false, betIdx: 1, hands: 0,
+  playing: false, betIdx: 1, hands: 0, hi: false,   // hi: the high-roller VIP seat (HI_BETS, 2x comps)
   shoe: [], phase: 'idle',          // idle | player | dealer | done
   player: [], dealer: [],           // card ids 0..51
   bet: 0, doubled: false, lastDelta: 0,
@@ -9415,9 +9519,10 @@ function bjResolve() {
 }
 function bjDeal() {
   if (!CASINOBJ.playing || CASINOBJ.phase !== 'idle') return;
-  const bet = BJ_BETS[CASINOBJ.betIdx];
+  const bet = (CASINOBJ.hi ? HI_BETS : BJ_BETS)[CASINOBJ.betIdx];   // the VIP seat plays the raised tiers
   if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
   cash -= bet; updateCashHUD(); floatCash('-$' + bet);            // the cash idiom
+  LOYAL.earn(bet, LOYAL_SLOW);   // comp points: table games earn slow (the hi-roller seat doubles)
   CASINOBJ.hands++;
   CASINOBJ.bet = bet; CASINOBJ.doubled = false; CASINOBJ.lastDelta = 0;
   if (CASINOBJ.shoe.length < 15) {   // reshuffle point: a fresh honest shoe
@@ -9450,6 +9555,7 @@ function bjDouble() {
   if (!CASINOBJ.playing || CASINOBJ.phase !== 'player' || CASINOBJ.player.length !== 2) return;
   if (cash < CASINOBJ.bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
   cash -= CASINOBJ.bet; updateCashHUD(); floatCash('-$' + CASINOBJ.bet);   // the stake doubles
+  LOYAL.earn(CASINOBJ.bet, LOYAL_SLOW);   // comp points on the added stake
   CASINOBJ.bet *= 2; CASINOBJ.doubled = true;
   CASINOBJ.player.push(bjDraw());
   sfxBlip(990, 0.08, 'square', 0.16);
@@ -9460,7 +9566,7 @@ function bjDouble() {
 function bjCycleBet() {
   if (!CASINOBJ.playing || CASINOBJ.phase !== 'idle') return;
   CASINOBJ.betIdx = (CASINOBJ.betIdx + 1) % BJ_BETS.length;
-  const b = BJ_BETS[CASINOBJ.betIdx];
+  const b = (CASINOBJ.hi ? HI_BETS : BJ_BETS)[CASINOBJ.betIdx];
   bjBetEl.textContent = 'BET $' + b;
   bjStatusEl.textContent = 'BET $' + b;
   sfxBlip(990, 0.07, 'square', 0.16);
@@ -9480,19 +9586,23 @@ function bjRender() {
   for (const c of CASINOBJ.player) bjPlayerEl.appendChild(bjCardEl(c, false));
   const pv = bjHandValue(CASINOBJ.player), dv = bjHandValue(CASINOBJ.dealer);
   let st;
-  if (CASINOBJ.phase === 'idle') st = 'BET $' + BJ_BETS[CASINOBJ.betIdx];
+  if (CASINOBJ.phase === 'idle') st = 'BET $' + (CASINOBJ.hi ? HI_BETS : BJ_BETS)[CASINOBJ.betIdx];
   else if (CASINOBJ.phase === 'player') st = 'YOU ' + pv + ' - DEALER ' + bjHandValue([CASINOBJ.dealer[0]]) + ' UP';
   else if (CASINOBJ.phase === 'done') st = 'YOU ' + pv + ' - DEALER ' + dv;
   else st = 'DEALER ' + dv;
   bjStatusEl.textContent = st;
-  /* the HUD status chip (the chip idiom): hand state plus the last balance delta */
+  /* the HUD status chip (the chip idiom): hand state plus the last balance delta.
+     The VIP seat shows on #hirollchip with the HI-ROLL tag; the felt table
+     keeps #bjchip. One chip visible at a time, never both. */
   const delta = CASINOBJ.lastDelta;
-  bjChipEl.textContent = 'BJ ' + st + (delta !== 0 ? ' | ' + (delta > 0 ? '+$' : '-$') + Math.abs(delta) : '');
-  bjChipEl.style.display = CASINOBJ.playing ? 'block' : 'none';
+  const chipTxt = (CASINOBJ.hi ? 'HI-ROLL ' : 'BJ ') + st + (delta !== 0 ? ' | ' + (delta > 0 ? '+$' : '-$') + Math.abs(delta) : '');
+  bjChipEl.style.display = (CASINOBJ.playing && !CASINOBJ.hi) ? 'block' : 'none';
+  hirollChipEl.style.display = (CASINOBJ.playing && CASINOBJ.hi) ? 'block' : 'none';
+  if (CASINOBJ.hi) hirollChipEl.textContent = chipTxt; else bjChipEl.textContent = chipTxt;
 }
 function casinoSeatToggle() {
   if (!CASINOHALL.inHall || CASINOHALL.seated) return;
-  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : (CASINOHALL.seatKind === 'dice' ? 'poker' : (CASINOHALL.seatKind === 'poker' ? 'bacc' : (CASINOHALL.seatKind === 'bacc' ? 'keno' : (CASINOHALL.seatKind === 'keno' ? 'wheel' : 'slots'))))));
+  CASINOHALL.seatKind = CASINOHALL.seatKind === 'slots' ? 'bj' : (CASINOHALL.seatKind === 'bj' ? 'roul' : (CASINOHALL.seatKind === 'roul' ? 'dice' : (CASINOHALL.seatKind === 'dice' ? 'poker' : (CASINOHALL.seatKind === 'poker' ? 'bacc' : (CASINOHALL.seatKind === 'bacc' ? 'keno' : (CASINOHALL.seatKind === 'keno' ? 'wheel' : (CASINOHALL.seatKind === 'wheel' ? 'hiroll' : 'slots')))))));
   sfxBlip(760, 0.06, 'square', 0.14);
 }
 function casinoBjSit() {
@@ -9527,6 +9637,43 @@ function casinoBjStand() {
   helpEl.innerHTML = HELP_CASINOHALL;
   sfxBlip(330, 0.09, 'square', 0.18);
 }
+/* ---- high-roller blackjack v1: the ninth seat on the Q/TABLE cycle. It runs
+        the SAME honest-shoe engine as the felt table (bjBuildShoe, bjShoeSeed,
+        bjDraw, bjHandValue, bjNetFor, bjResolve: no second shoe), the same
+        DOM panel and touch buttons, but $50/$100/$250 tiers, 2x comp points,
+        and the gold VIP chair. E sits, E stands and exits (never traps); a
+        mid-round stand refunds the stake (the keno/wheel refund idiom);
+        death-eject and hall-exit route through casinoHiStand. Session-only;
+        the save schema is untouched. ---- */
+function casinoHiSit() {
+  if (CASINOHALL.seated || !CASINOHALL.inHall) return;
+  emoteCancel();   // no emotes while gambling
+  CASINOHALL.seated = true; CASINOHALL.sitOn = false;
+  CASINOHALL.seatX = CASINOHALL.hiSeatX; CASINOHALL.seatZ = CASINOHALL.hiSeatZ; CASINOHALL.seatYaw = Math.PI;   // face the VIP table (-Z)
+  CASINOBJ.playing = true; CASINOBJ.hi = true; CASINOBJ.betIdx = 1; CASINOBJ.hands = 0;
+  CASINOBJ.shoe = bjBuildShoe(bjShoeSeed());
+  CASINOBJ.phase = 'idle'; CASINOBJ.player = []; CASINOBJ.dealer = [];
+  CASINOBJ.bet = 0; CASINOBJ.doubled = false; CASINOBJ.lastDelta = 0;
+  player.position.set(CASINOHALL.seatX, CASINO_ROOM_Y, CASINOHALL.seatZ);
+  player.rotation.y = CASINOHALL.seatYaw;
+  P.vel.set(0, 0, 0); P.vy = 0;
+  bjBetEl.textContent = 'BET $' + HI_BETS[CASINOBJ.betIdx];
+  bjRender();
+  bjPanelEl.style.display = 'block';
+  casinoslothintEl.style.opacity = 0; casinobjselEl.style.opacity = 0;
+  helpEl.innerHTML = HELP_LMBJ;
+  toast('HIGH-ROLLER BLACKJACK');
+  sfxBlip(660, 0.09, 'triangle', 0.2);
+}
+function casinoHiStand() {
+  if (!CASINOHALL.seated) return;
+  if (CASINOBJ.phase === 'player' && CASINOBJ.bet > 0) {   // a mid-round stand refunds the hi-roller's stake
+    cash += CASINOBJ.bet; updateCashHUD(); floatCash('+$' + CASINOBJ.bet);   // the cash idiom
+    toast('BET REFUNDED');
+  }
+  CASINOBJ.hi = false;
+  casinoBjStand();
+}
 const casinobjselEl = document.getElementById('casinobjsel');
 const bjPanelEl = document.getElementById('lmcobjpanel');
 const bjStatusEl = document.getElementById('lmbj-status');
@@ -9538,7 +9685,12 @@ const bjHitEl = document.getElementById('lmbj-hit');
 const bjStandEl = document.getElementById('lmbj-stand');
 const bjDoubleEl = document.getElementById('lmbj-double');
 const bjChipEl = document.getElementById('bjchip');
+const hirollChipEl = document.getElementById('hirollchip');
+const loyalChipEl = document.getElementById('loyalchip');
 casinobjselEl.addEventListener('click', () => { casinoSeatToggle(); });
+function loyalChipBtn(e) { e.preventDefault(); e.stopPropagation(); loyalRedeem(); }   // the touch-guard idiom: tap the cashier chip to redeem
+loyalChipEl.addEventListener('touchstart', loyalChipBtn, { passive: false });
+loyalChipEl.addEventListener('click', loyalChipBtn);
 function bjBetBtn(e) { e.preventDefault(); e.stopPropagation(); bjCycleBet(); }   // the touch-guard idiom
 bjBetEl.addEventListener('touchstart', bjBetBtn, { passive: false });
 bjBetEl.addEventListener('click', bjBetBtn);
@@ -9679,6 +9831,7 @@ function roulPlace(zone) {
   const bet = ROUL_BETS[CASINOROUL.betIdx];
   if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
   cash -= bet; updateCashHUD(); floatCash('-$' + bet);                // the cash idiom
+  LOYAL.earn(bet, LOYAL_SLOW);   // comp points: table games earn slow
   CASINOROUL.bets[zone] = (CASINOROUL.bets[zone] || 0) + bet;
   CASINOROUL.totalBet += bet;
   sfxBlip(880, 0.06, 'square', 0.14);   // chip tap
@@ -10027,6 +10180,7 @@ function dicePlace(zone) {
   const bet = DICE_BETS[CASINODICE.betIdx];
   if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
   cash -= bet; updateCashHUD(); floatCash('-$' + bet);                // the cash idiom
+  LOYAL.earn(bet, LOYAL_SLOW);   // comp points: table games earn slow
   CASINODICE.bets[zone] = (CASINODICE.bets[zone] || 0) + bet;
   CASINODICE.totalBet += bet;
   sfxBlip(880, 0.06, 'square', 0.14);   // chip tap
@@ -10380,6 +10534,7 @@ function pokerDeal() {
   if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
   CASINOPOKER.hands++;
   cash -= bet; updateCashHUD(); floatCash('-$' + bet);                 // the cash idiom
+  LOYAL.earn(bet, LOYAL_SLOW);   // comp points: table games earn slow
   CASINOPOKER.bet = bet; CASINOPOKER.lastDelta = 0; CASINOPOKER.lastHand = '';
   CASINOPOKER.hand = [pokerDraw(), pokerDraw(), pokerDraw(), pokerDraw(), pokerDraw()];
   CASINOPOKER.holds = [false, false, false, false, false];
@@ -10712,6 +10867,7 @@ function baccPlace(side) {
   if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }   // the shop denied idiom
   if (B.phase === 'done') { baccClearBoard(); B.phase = 'idle'; }   // a fresh felt for the next round
   cash -= bet; updateCashHUD(); floatCash('-$' + bet);              // the cash idiom
+  LOYAL.earn(bet, LOYAL_SLOW);   // comp points: table games earn slow
   B.bets[side] += bet;
   sfxBlip(880, 0.07, 'square', 0.16);
   baccRender();
@@ -11153,6 +11309,7 @@ function kenoDraw() {
   if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }
   K.draws++;
   cash -= bet; updateCashHUD(); floatCash('-$' + bet);              // the cash idiom
+  LOYAL.earn(bet, LOYAL_FAST);   // comp points: keno earns fast
   K.bet = bet;
   K.balls = kenoBuildDraw(kenoDrawSeed());
   K.ballIdx = 0; K.hits = 0; K.lastBall = -1; K.tension = false;
@@ -11462,6 +11619,7 @@ function wheelSpin() {
   if (cash < bet) { sfxDenied(); toast('NOT ENOUGH CASH'); return; }
   K.spins++;
   cash -= bet; updateCashHUD(); floatCash('-$' + bet);              // the cash idiom
+  LOYAL.earn(bet, LOYAL_FAST);   // comp points: the wheel earns fast
   K.bet = bet;
   /* the outcome is decided FIRST: a weighted sector on the seeded stream. */
   const seed = wheelSpinSeed();
@@ -14395,7 +14553,8 @@ addEventListener('keydown', e => {
     else if (e.code === 'Digit5') buyItem(4);
     return;                                           // no weapon select, no car toggle while shopping
   }
-  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette, dice, poker, baccarat, keno or wheel
+  if (e.code === 'KeyQ' && CASINOHALL.inHall && !CASINOHALL.seated) { casinoSeatToggle(); e.preventDefault(); }   // switch the table seat: slots, cards, roulette, dice, poker, baccarat, keno, wheel or hi-roller
+  if (e.code === 'KeyR' && CASINOHALL.inHall && !CASINOHALL.seated) { loyalRedeem(); e.preventDefault(); }   // the cashier: redeem comp points for cash
   if (CASINOPOKER.playing) {   // video poker captures 1-5 for card holds while seated (the shop-capture idiom)
     if (e.code === 'Digit1') { pokerToggleHold(0); return; }
     else if (e.code === 'Digit2') { pokerToggleHold(1); return; }
