@@ -12647,12 +12647,13 @@ globalThis.__R3D2 = {
    The pooled dust color buffer is now 4-component (dustCol,
    192 floats, attribute itemSize 4), so three r160 turns on
    USE_COLOR_ALPHA and each particle carries its own alpha.
-   spawnDust writes alpha 1; dustTick writes alpha as the
-   remaining life fraction (dustLife / dustLifeMax) each tick
-   and 0 on expiry; clearDust resets every alpha to 0. Final
-   on-screen alpha is the global opacity 0.55 times the
-   per-particle alpha. Size still stays global. No new Points,
-   draw calls or nodes. */
+   spawnDust writes alpha 0 (DUST FADE CURVE v1: invisible until
+   the first tick ramps it in); dustTick writes alpha with the
+   eased curve (fade in over the first 15 percent of life, then
+   smoothstep fade-out over the rest) and 0 on expiry;
+   clearDust resets every alpha to 0. Final on-screen alpha is
+   the global opacity 0.55 times the per-particle alpha. Size
+   still stays global. No new Points, draw calls or nodes. */
 {
   const probsF = consoleProblems.length;
   const approxF = (a, b, tol) => Math.abs(a - b) <= tol;
@@ -12673,14 +12674,16 @@ globalThis.__R3D2 = {
       segF.includes('dustCol[slot * 4] = Math.min(1, pr * jit);')
       && segF.includes('dustCol[slot * 4 + 1] = Math.min(1, pg * jit);')
       && segF.includes('dustCol[slot * 4 + 2] = Math.min(1, pb * jit);'));
-    check('dustfade: spawnDust source writes alpha 1 at spawn',
-      segF.includes('dustCol[slot * 4 + 3] = 1;'));
+    check('dustfade: spawnDust source writes alpha 0 at spawn',
+      segF.includes('dustCol[slot * 4 + 3] = 0;'));
   }
   {
     const segStartT = html.indexOf('function dustTick');
     const segT = segStartT >= 0 ? html.slice(segStartT, html.indexOf('function clearDust')) : '';
-    check('dustfade: dustTick source writes alpha as the remaining life fraction',
-      segT.includes('dustCol[i * 4 + 3] = Math.max(0, dustLife[i] / dustLifeMax[i]);'));
+    check('dustfade: dustTick source writes alpha as the eased fade curve',
+      segT.includes('const fRem = Math.max(0, dustLife[i] / dustLifeMax[i]);')
+      && segT.includes('const inRamp = Math.min(1, (1 - fRem) / 0.15);')
+      && segT.includes('dustCol[i * 4 + 3] = inRamp * fRem * fRem * (3 - 2 * fRem);'));
     check('dustfade: dustTick source zeroes alpha on expiry and flags the color attribute',
       segT.includes('dustCol[i * 4 + 3] = 0;')
       && segT.includes('dustColAttr.needsUpdate = true;'));
@@ -12710,15 +12713,15 @@ globalThis.__R3D2 = {
       if (G.surfaceAt(x, z) === 'grass') { grassF = { x, z }; break; }
     }
   }
-  /* alpha is exactly 1 right after spawn, RGB stays in the grass palette */
+  /* alpha is exactly 0 right after spawn, RGB stays in the grass palette */
   let slotsF = [];
   {
     G.clearDust(); G.dustSeed = 987654321;
     const headF = G.dustHead;
     if (grassF) G.spawnDust(grassF.x, 1, grassF.z, 5);
     slotsF = liveF();
-    check('dustfade: alpha is exactly 1 for every live particle right after spawn',
-      slotsF.length === 10 && slotsF.every(i => G.dustCol[i * 4 + 3] === 1),
+    check('dustfade: alpha is exactly 0 for every live particle right after spawn',
+      slotsF.length === 10 && slotsF.every(i => G.dustCol[i * 4 + 3] === 0),
       'live=' + slotsF.length + ' head=' + headF);
     const palG = [0.52, 0.60, 0.34];
     check('dustfade: grass spawn RGB values stay in the unchanged palette jitter range',
@@ -12730,14 +12733,18 @@ globalThis.__R3D2 = {
         return true;
       }));
   }
-  /* after a tick alpha tracks the life fraction and drops below 1 */
+  /* after a tick alpha tracks the eased curve and drops below 1 */
   let alphaAfterTick1 = null;
   {
     const vBeforeF = G.dustPts.geometry.attributes.color.version;
     G.dustTick(0.1);
     const liveAfter = liveF();
-    check('dustfade: after dustTick(0.1) every live alpha approx dustLife/dustLifeMax within 1e-5',
-      liveAfter.length > 0 && liveAfter.every(i => approxF(G.dustCol[i * 4 + 3], G.dustLife[i] / G.dustLifeMax[i], 1e-5)),
+    check('dustfade: after dustTick(0.1) every live alpha approx the eased curve value within 1e-5',
+      liveAfter.length > 0 && liveAfter.every(i => {
+        const fR = Math.max(0, G.dustLife[i] / G.dustLifeMax[i]);
+        const inR = Math.min(1, (1 - fR) / 0.15);
+        return approxF(G.dustCol[i * 4 + 3], inR * fR * fR * (3 - 2 * fR), 1e-5);
+      }),
       'live=' + liveAfter.length);
     check('dustfade: after dustTick(0.1) every live alpha is strictly less than 1',
       liveAfter.length > 0 && liveAfter.every(i => G.dustCol[i * 4 + 3] < 1));
@@ -12812,6 +12819,172 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustfade: the run leaves zero console errors/warnings',
     consoleProblems.length === probsF, consoleProblems.slice(probsF).join(' | '));
+}
+
+
+/* ================= DUST FADE CURVE v1 =================
+   Dust no longer pops in at full opacity or fades linearly.
+   spawnDust writes alpha 0; dustTick eases alpha with a fade
+   in over the first 15 percent of life and a smoothstep
+   fade-out (f * f * (3 - 2 * f), f = remaining life fraction)
+   over the rest. Expiry and clearDust still zero the alpha.
+   Honest limit: particle size still stays global to the one
+   shared material. No new Points, draw calls or nodes. */
+{
+  const probsC = consoleProblems.length;
+  const approxC = (a, b, tol) => Math.abs(a - b) <= tol;
+  const liveC = () => { const out = []; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i); return out; };
+  const curveC = (life, max) => { const fR = Math.max(0, life / max); const inR = Math.min(1, (1 - fR) / 0.15); return inR * fR * fR * (3 - 2 * fR); };
+  const linesC = html.split('\n');
+  const lineHasC = sub => linesC.filter(l => l.includes(sub)).length;
+  /* source: header and the curve write sites */
+  check('dustcurve: source carries the DUST FADE CURVE v1 header',
+    html.includes('DUST FADE CURVE v1'));
+  {
+    const segSC = html.indexOf('function spawnDust') >= 0 ? html.slice(html.indexOf('function spawnDust'), html.indexOf('function dustTick')) : '';
+    check('dustcurve: spawnDust source writes alpha 0 at spawn',
+      segSC.includes('dustCol[slot * 4 + 3] = 0;'));
+    const segTC = html.indexOf('function dustTick') >= 0 ? html.slice(html.indexOf('function dustTick'), html.indexOf('function clearDust')) : '';
+    check('dustcurve: dustTick source carries the fRem line',
+      segTC.includes('const fRem = Math.max(0, dustLife[i] / dustLifeMax[i]);'));
+    check('dustcurve: dustTick source carries the inRamp line',
+      segTC.includes('const inRamp = Math.min(1, (1 - fRem) / 0.15);'));
+    check('dustcurve: dustTick source carries the smoothstep alpha line',
+      segTC.includes('dustCol[i * 4 + 3] = inRamp * fRem * fRem * (3 - 2 * fRem);'));
+    check('dustcurve: old spawn alpha 1 and old linear tick writes are gone',
+      !segSC.includes('dustCol[slot * 4 + 3] = 1;')
+      && !segTC.includes('dustCol[i * 4 + 3] = Math.max(0, dustLife[i] / dustLifeMax[i]);'));
+  }
+  /* probe a grass location for spawn checks */
+  let grassC = null;
+  for (let x = -360; x <= 360 && !grassC; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      if (G.surfaceAt(x, z) === 'grass') { grassC = { x, z }; break; }
+    }
+  }
+  /* alpha is exactly 0 right after spawn: no pop-in frame */
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    if (grassC) G.spawnDust(grassC.x, 1, grassC.z, 5);
+    const slotsC = liveC();
+    check('dustcurve: alpha is exactly 0 for every live particle right after spawn',
+      slotsC.length === 10 && slotsC.every(i => G.dustCol[i * 4 + 3] === 0),
+      'live=' + slotsC.length);
+  }
+  /* a first small tick ramps alpha in: above 0, below 0.5, on curve */
+  {
+    G.dustTick(0.01);
+    const slotsC = liveC();
+    check('dustcurve: first small tick (0.01) gives alpha greater than 0 for every live particle',
+      slotsC.length > 0 && slotsC.every(i => G.dustCol[i * 4 + 3] > 0),
+      'live=' + slotsC.length);
+    check('dustcurve: first small tick (0.01) gives alpha less than 0.5 for every live particle (ramp-in in progress)',
+      slotsC.length > 0 && slotsC.every(i => G.dustCol[i * 4 + 3] < 0.5));
+    check('dustcurve: first small tick alpha matches the curve value within 1e-5',
+      slotsC.length > 0 && slotsC.every(i => approxC(G.dustCol[i * 4 + 3], curveC(G.dustLife[i], G.dustLifeMax[i]), 1e-5)));
+  }
+  /* exact curve values at set preconditions on a live slot */
+  const exactAtC = target => {
+    G.clearDust(); G.dustSeed = 987654321;
+    if (grassC) G.spawnDust(grassC.x, 1, grassC.z, 5);
+    const ls = liveC(); if (!ls.length) return -1;
+    const s = ls[0];
+    G.dustLifeMax[s] = 1; G.dustLife[s] = target + 0.01;
+    G.dustTick(0.01);
+    return G.dustCol[s * 4 + 3];
+  };
+  check('dustcurve: exact curve at remaining fraction 0.5 gives alpha 0.5',
+    approxC(exactAtC(0.5), 0.5, 1e-5), 'a=' + exactAtC(0.5));
+  check('dustcurve: exact curve at remaining fraction 0.25 gives alpha 0.15625',
+    approxC(exactAtC(0.25), 0.15625, 1e-5), 'a=' + exactAtC(0.25));
+  check('dustcurve: exact curve at remaining fraction 0.925 gives alpha about 0.5 times smoothstep(0.925)',
+    approxC(exactAtC(0.925), 0.5 * 0.925 * 0.925 * (3 - 2 * 0.925), 1e-5), 'a=' + exactAtC(0.925));
+  /* alpha rises through the ramp into the peak, then falls monotonically */
+  let riseC = null;
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    if (grassC) G.spawnDust(grassC.x, 1, grassC.z, 5);
+    const ls = liveC(); const s = ls.length ? ls[0] : -1;
+    if (s >= 0) {
+      G.dustLifeMax[s] = 0.45; G.dustLife[s] = 0.45;
+      G.dustTick(0.01); const a1 = G.dustCol[s * 4 + 3];
+      G.dustTick(0.02); const a2 = G.dustCol[s * 4 + 3];
+      G.dustTick(0.04); const a3 = G.dustCol[s * 4 + 3];
+      G.dustTick(0.05); const a4 = G.dustCol[s * 4 + 3];
+      G.dustTick(0.05); const a5 = G.dustCol[s * 4 + 3];
+      G.dustTick(0.05); const a6 = G.dustCol[s * 4 + 3];
+      riseC = { a1, a2, a3, a4, a5, a6 };
+    }
+    check('dustcurve: alpha rises from the first tick through the ramp',
+      !!riseC && riseC.a2 > riseC.a1 && riseC.a1 > 0,
+      'a=' + (riseC && [riseC.a1, riseC.a2].map(v => v.toFixed(3)).join(',')));
+    check('dustcurve: alpha rises from the ramp into the peak region',
+      !!riseC && riseC.a3 > riseC.a2 && riseC.a3 < 1,
+      'a=' + (riseC && [riseC.a2, riseC.a3].map(v => v.toFixed(3)).join(',')));
+    check('dustcurve: alpha falls monotonically on successive ticks after the ramp',
+      !!riseC && riseC.a4 < riseC.a3 && riseC.a5 < riseC.a4 && riseC.a6 < riseC.a5,
+      'a=' + (riseC && [riseC.a3, riseC.a4, riseC.a5, riseC.a6].map(v => v.toFixed(3)).join(',')));
+  }
+  /* expiry still zeroes alpha and parks the particle */
+  {
+    G.clearDust(); G.dustSeed = 987654321;
+    if (grassC) G.spawnDust(grassC.x, 1, grassC.z, 5);
+    const expC = liveC(); const expS = expC.length ? expC[0] : -1;
+    G.dustTick(10);
+    check('dustcurve: expiry still zeroes alpha and parks y at -999 with nothing live',
+      expS >= 0 && G.dustCol[expS * 4 + 3] === 0 && G.dustPos[expS * 3 + 1] === -999 && liveC().length === 0,
+      'slot=' + expS);
+  }
+  /* clearDust zeroes every alpha */
+  {
+    if (grassC) G.spawnDust(grassC.x, 1, grassC.z, 5);
+    G.clearDust();
+    check('dustcurve: clearDust zeroes all alphas and leaves nothing live',
+      Array.from({ length: G.DUST_N }, (_, i) => G.dustCol[i * 4 + 3]).every(v => v === 0) && liveC().length === 0);
+  }
+  /* determinism: same seed respawn reproduces RGB and alpha, at spawn and after a tick */
+  {
+    const recC = withTick => {
+      G.clearDust(); G.dustSeed = 987654321;
+      const h = G.dustHead;
+      if (grassC) G.spawnDust(grassC.x, 1, grassC.z, 5);
+      if (withTick) G.dustTick(0.01);
+      const out = [];
+      for (let n = 0; n < 10; n++) { const s = (h + n) % G.DUST_N; out.push(G.dustCol[s * 4], G.dustCol[s * 4 + 1], G.dustCol[s * 4 + 2], G.dustCol[s * 4 + 3]); }
+      return out;
+    };
+    const r1C = recC(false), r2C = recC(false);
+    check('dustcurve: same-seed respawn reproduces RGB and alpha exactly (alpha 0 at spawn on both runs)',
+      r1C.length === 40 && r1C.every((v, i) => v === r2C[i]) && r1C.filter((_, i) => i % 4 === 3).every(v => v === 0));
+    const t1C = recC(true), t2C = recC(true);
+    check('dustcurve: same-seed respawn plus tick reproduces RGB and alpha exactly',
+      t1C.length === 40 && t1C.every((v, i) => v === t2C[i]) && t1C.filter((_, i) => i % 4 === 3).every(v => v > 0));
+  }
+  G.clearDust();
+  /* static pins re-checked: the curve adds zero of everything */
+  check('dustcurve-pins: 49 InstancedMesh literals', lineHasC('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasC('new THREE.InstancedMesh'));
+  check('dustcurve-pins: 92 Math.random lines', lineHasC('Math.random') === 92,
+    'n=' + lineHasC('Math.random'));
+  check('dustcurve-pins: 72 setTimeout lines', lineHasC('setTimeout') === 72,
+    'n=' + lineHasC('setTimeout'));
+  check('dustcurve-pins: 6 lights',
+    linesC.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustcurve-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('dustcurve-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustcurve-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasC('new THREE.Points(') === 2, 'n=' + lineHasC('new THREE.Points('));
+  check('dustcurve-pins: no em dashes', !html.includes('\u2014'));
+  check('dustcurve-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustcurve-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustcurve: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
 }
 
 
