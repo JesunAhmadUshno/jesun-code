@@ -5577,10 +5577,29 @@ function squashTick(dt){
        strength 5. The per-surface profile applies
        automatically to all four, because spawnDust
        classifies the spawn point with surfaceAt.
-       New honest limit: all ground vehicles and the
-       horse now emit; the boat, helicopter, plane
-       and train do not emit dust (water, air and
-       rail by design, no dust surface under them). --- */
+       New honest limit at that step: all ground vehicles and the
+       horse now emit; the helicopter, plane
+       and train do not emit dust (air and
+       rail by design, no dust surface under them).
+       BOAT SPRAY v1: the driven boat now reuses this
+       same pooled dust for stern spray too, so spray
+       costs zero new draw calls, zero new Points and
+       zero new arrays. The trigger sits in boatUpdate
+       in the driving path only, after the boatPose
+       block and before the motor audio: it accumulates
+       BOAT.dustDist above a speed gate of 3 and fires
+       one puff every BOAT.dustLen metres (3.5) at the
+       stern, 2.6 behind the centre along its heading
+       and 0.15 above the boat origin, with strength 4
+       while cruising and 7 above 8. The per-surface
+       profile applies automatically, because spawnDust
+       classifies the spawn point with surfaceAt: a stern
+       on water gets the water profile (radial 0.55, up
+       1.9, grav 1.8, drag 0.35, grow -0.2, ramp 0.03,
+       size 0.60, alpha 0.65). New honest limit: spray
+       is stern-only, no bow spray and no wake trail
+       mesh; the helicopter, plane and train still do
+       not emit. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
 const dustVel = new Float32Array(DUST_N * 3);
@@ -21653,8 +21672,9 @@ worldTickers.push(scUpdate);
    rising bow wave costs speed. Beaching stops the boat with a thud and a
    push back toward water; boats never drive on land. E boards near a moored
    boat on water and disembarks on the nearest shore. v1 simplifications:
-   session-only (save v3 untouched), no wake particles (the file has no
-   particle system), no boat-vs-boat collision. Guard twins mirror the SC
+   session-only (save v3 untouched), stern spray via the pooled dust
+   system in the BOAT SPRAY v1 extension (no wake trail mesh), no
+   boat-vs-boat collision. Guard twins mirror the SC
    pattern at every vehicle touchpoint. */
 
 /* ---- HUD refs: BOARD prompt mirrors the scooter hint pattern ---- */
@@ -21724,10 +21744,11 @@ const BOAT = {
   camDist: 10.5, camH: 3.6,              // chase cam distance / height
   fovDrive: 68, fovT: 68,
   boardR2: 5 * 5,                        // board radius, squared
+  dustLen: 3.5,                          // metres travelled per spray puff
   // ---- runtime state (not tuning) ----
   driving: false, speed: 0, heading: 0, steer: 0,
   y: 0, yVel: 0, pitch: 0, pitchVel: 0, roll: 0, rollVel: 0,   // buoyancy springs
-  pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1,
+  pos: new THREE.Vector3(), hudT: 0, hintOn: false, nearIdx: -1, dustDist: 0,
   activeIdx: -1, anchorCx: 1e9, anchorCz: 1e9, key: '',
   groundT: 0,                            // run-aground toast/thud cooldown
   slots: [
@@ -21988,6 +22009,17 @@ function boatUpdate(sdt, now) {
   let boatDriveD = false;   // PERF-7: dirty-once (boatPose writes the hull instance)
   boatPose(BOAT.activeIdx, BOAT.pos.x, BOAT.pos.y, BOAT.pos.z, BOAT.heading, BOAT.pitch, BOAT.roll); boatDriveD = true;
   if (boatDriveD) boatBodyIM.instanceMatrix.needsUpdate = true;
+
+  // ---- stern spray: distance-driven puffs off the stern (BOAT SPRAY v1) ----
+  const boatSpd = Math.abs(BOAT.speed);
+  if (boatSpd > 3) {
+    BOAT.dustDist += boatSpd * sdt;
+    if (BOAT.dustDist >= BOAT.dustLen) {
+      BOAT.dustDist -= BOAT.dustLen;
+      const bx = BOAT.pos.x - Math.sin(BOAT.heading) * 2.6, bz = BOAT.pos.z - Math.cos(BOAT.heading) * 2.6;
+      spawnDust(bx, BOAT.pos.y + 0.15, bz, boatSpd > 8 ? 7 : 4);
+    }
+  } else { BOAT.dustDist = 0; }
 
   // ---- motor audio: gain rides throttle, pitch rides speed ----
   if (boatGain) {

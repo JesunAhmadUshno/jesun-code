@@ -15032,9 +15032,10 @@ globalThis.__R3D2 = {
    gallop 5). Burst sizes follow spawnDust: strength 2
    bursts 6, 3 bursts 8, 4 bursts 9, 5 bursts 10 and 6
    bursts 11. Zero new draw calls, Points, arrays or nodes.
-   New honest limit: all ground vehicles and the horse now
-   emit; the boat, helicopter, plane and train do not emit
-   dust (water, air and rail by design). The harness CAN
+   New honest limit at that step: all ground vehicles and the horse now
+   emit; the helicopter, plane and train do not emit
+   dust (air and rail by design). The boat joins in
+   BOAT SPRAY v1 below. The harness CAN
    drive all four here (BIKE, BC, SC and HORSE are exposed
    and their tickers run in the real tick), so the behavior
    checks run the real updates via the real tick, not just
@@ -15062,8 +15063,8 @@ globalThis.__R3D2 = {
     htmlNV2.includes('The per-surface profile applies automatically to all four, because spawnDust classifies the spawn point with surfaceAt'));
   check('vehdustx2: header states the scooter airborne limit (hop emits nothing and resets)',
     htmlNV2.includes('only while SC.hopY is at or below 0 (an airborne hop emits nothing and resets the accumulator)'));
-  check('vehdustx2: header states the new honest limit (ground vehicles and horse emit, boat, helicopter, plane and train do not)',
-    htmlNV2.includes('New honest limit: all ground vehicles and the horse now emit; the boat, helicopter, plane and train do not emit dust (water, air and rail by design, no dust surface under them)'));
+  check('vehdustx2: header states the honest limit at that step (ground vehicles and horse emit, helicopter, plane and train do not; the boat joins in BOAT SPRAY v1)',
+    htmlNV2.includes('New honest limit at that step: all ground vehicles and the horse now emit; the helicopter, plane and train do not emit dust (air and rail by design, no dust surface under them)'));
   /* source: BIKE tuning/runtime fields, scoped to the BIKE object */
   check('vehdustx2: BIKE tuning source carries dustLen 4',
     segBikeObjV2.includes('dustLen: 4,'));
@@ -17013,6 +17014,230 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('boatheave: the block leaves zero console errors/warnings',
     consoleProblems.length === probsHeave, consoleProblems.slice(probsHeave).join(' | '));
+}
+
+
+/* ================= BOAT SPRAY v1 =================
+   The driven boat reuses the pooled landing dust for stern
+   spray: zero new draw calls, Points, arrays or nodes. The
+   trigger is distance-driven in the VEHICLE DUST idiom:
+   boatUpdate accumulates BOAT.dustDist while the boat speed
+   is above the gate of 3 and fires one spawnDust puff every
+   BOAT.dustLen metres (3.5) at the stern (2.6 behind the
+   centre along the heading, 0.15 above the origin), strength
+   4 while cruising and 7 above 8. At or below the gate the
+   accumulator resets to 0. The per-surface profile applies
+   automatically because spawnDust classifies the spawn
+   point with surfaceAt: a stern on water gets the water
+   profile (radial 0.55, up 1.9, grav 1.8, drag 0.35, grow
+   -0.2, ramp 0.03, size 0.60, alpha 0.65). Honest limit:
+   spray is stern-only, no bow spray and no wake trail mesh;
+   the helicopter, plane and train still do not emit. The
+   harness CAN drive the boat here (BOAT, boatEnter and
+   boatExit are exposed and boatUpdate runs in the real
+   tick), so the behavior checks run the real boatUpdate
+   via the real tick, plus a direct spawnDust check at the
+   stern for the water profile. */
+{
+  const probsSpray = consoleProblems.length;
+  const liveSpray = () => { let n = 0; for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) n++; return n; };
+  const linesSpray = html.split('\n');
+  const lineHasSpray = sub => linesSpray.filter(l => l.includes(sub)).length;
+  const htmlNSpray = html.replace(/\s+/g, ' ');
+  const segBoatSpray = html.indexOf('function boatUpdate') >= 0
+    ? html.slice(html.indexOf('function boatUpdate'), html.indexOf('worldTickers.push(boatUpdate)')) : '';
+  const segBoatObjSpray = html.indexOf('const BOAT = {') >= 0
+    ? html.slice(html.indexOf('const BOAT = {'), html.indexOf('const BOAT_SCAN')) : '';
+  const segBoatHeadSpray = html.indexOf('/* ================= PHASE 5: BOATS') >= 0
+    ? html.slice(html.indexOf('/* ================= PHASE 5: BOATS'), html.indexOf('/* ================= PHASE 5: HELICOPTERS')) : '';
+  /* source: dust header and the BOATS header */
+  check('boatspray: source carries the BOAT SPRAY v1 header in the dust header',
+    html.includes('BOAT SPRAY v1: the driven boat now reuses this'));
+  check('boatspray: dust header states stern spray reuses the pool at zero new draw calls',
+    htmlNSpray.includes('same pooled dust for stern spray too, so spray costs zero new draw calls, zero new Points and zero new arrays'));
+  check('boatspray: dust header states the new honest limit (stern-only, no bow spray, no wake trail mesh)',
+    htmlNSpray.includes('New honest limit: spray is stern-only, no bow spray and no wake trail mesh; the helicopter, plane and train still do not emit'));
+  check('boatspray: BOATS header no longer claims no wake particles and states stern spray via the pooled dust',
+    segBoatHeadSpray.includes('stern spray via the pooled dust')
+    && !segBoatHeadSpray.includes('no wake particles')
+    && !segBoatHeadSpray.includes('particle system'));
+  /* source: BOAT tuning/runtime fields, scoped to the BOAT object */
+  check('boatspray: BOAT tuning source carries dustLen 3.5',
+    segBoatObjSpray.includes('dustLen: 3.5,'));
+  check('boatspray: BOAT runtime source carries dustDist 0',
+    segBoatObjSpray.includes('dustDist: 0,'));
+  check('boatspray: runtime BOAT.dustLen is exactly 3.5',
+    G.BOAT.dustLen === 3.5, 'dustLen=' + G.BOAT.dustLen);
+  check('boatspray: runtime BOAT.dustDist is a number (the spray accumulator field)',
+    typeof G.BOAT.dustDist === 'number', 'dustDist=' + G.BOAT.dustDist);
+  /* source: the exact stern-spray block inside boatUpdate */
+  check('boatspray: boatUpdate source carries the stern spray comment',
+    segBoatSpray.includes('stern spray: distance-driven puffs off the stern (BOAT SPRAY v1)'));
+  check('boatspray: boatUpdate source derives boatSpd from Math.abs(BOAT.speed)',
+    segBoatSpray.includes('const boatSpd = Math.abs(BOAT.speed);'));
+  check('boatspray: boatUpdate source gates on boatSpd above 3',
+    segBoatSpray.includes('if (boatSpd > 3) {'));
+  check('boatspray: boatUpdate source accumulates dustDist by boatSpd times sdt',
+    segBoatSpray.includes('BOAT.dustDist += boatSpd * sdt;'));
+  check('boatspray: boatUpdate source fires at dustDist reaching dustLen and subtracts one puff length',
+    segBoatSpray.includes('if (BOAT.dustDist >= BOAT.dustLen) {')
+    && segBoatSpray.includes('BOAT.dustDist -= BOAT.dustLen;'));
+  check('boatspray: boatUpdate source computes the stern point 2.6 behind along the heading',
+    segBoatSpray.includes('const bx = BOAT.pos.x - Math.sin(BOAT.heading) * 2.6, bz = BOAT.pos.z - Math.cos(BOAT.heading) * 2.6;'));
+  check('boatspray: boatUpdate source spawns at the stern point plus 0.15 with fast 7 versus cruise 4',
+    segBoatSpray.includes('spawnDust(bx, BOAT.pos.y + 0.15, bz, boatSpd > 8 ? 7 : 4);'));
+  check('boatspray: boatUpdate source resets dustDist to 0 in the slow branch',
+    segBoatSpray.includes('BOAT.dustDist = 0;'));
+  check('boatspray: the stern-spray spawn is the only spawnDust call inside boatUpdate',
+    (segBoatSpray.split('spawnDust(').length - 1) === 1,
+    'n=' + (segBoatSpray.split('spawnDust(').length - 1));
+  check('boatspray: the spawn call site sits after the boatPose block and before the motor audio block',
+    segBoatSpray.indexOf('boatPose(BOAT.activeIdx') >= 0
+    && segBoatSpray.indexOf('boatPose(BOAT.activeIdx') < segBoatSpray.indexOf('spawnDust(bx,')
+    && segBoatSpray.indexOf('spawnDust(bx,') < segBoatSpray.indexOf('motor audio: gain rides throttle'));
+  /* behavior: board a moored boat through the real entry path */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.P.hitstop = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  let dockChunkSpray = null;
+  for (let gx = -10; gx <= 10 && !dockChunkSpray; gx++)
+    for (let gz = -10; gz <= 10 && !dockChunkSpray; gz++) {
+      const d = G.dockFor(gx, gz);
+      if (d) dockChunkSpray = { gx, gz, d };
+    }
+  check('boatspray: seeded docks exist in the world', !!dockChunkSpray,
+    dockChunkSpray ? 'chunk ' + dockChunkSpray.gx + ',' + dockChunkSpray.gz : 'none in -10..10');
+  const dcxSpray = (dockChunkSpray.gx + 0.5) * 48, dczSpray = (dockChunkSpray.gz + 0.5) * 48;
+  G.player.position.set(dcxSpray, groundY(dcxSpray, dczSpray), dczSpray);
+  frame(3);
+  const sSpray = G.BOAT.slots.find(s => s.placed);
+  check('boatspray: a moored boat is placed at the dock', !!sSpray,
+    'placed=' + G.BOAT.slots.filter(s => s.placed).length);
+  G.player.position.set(sSpray.x, 0.5, sSpray.z);
+  frame(2);
+  check('boatspray: BOARD hint appears near the moored boat',
+    G.BOAT.hintOn === true && G.BOAT.nearIdx >= 0, 'hintOn=' + G.BOAT.hintOn);
+  G.boatEnter();
+  check('boatspray: boarding enters the driving state',
+    G.BOAT.driving === true && G.BOAT.activeIdx >= 0 && G.player.visible === false,
+    'driving=' + G.BOAT.driving + ' activeIdx=' + G.BOAT.activeIdx);
+  /* deep-water arena: centre, bow and stern all sit on water, so the
+     drive checks below cannot beach or classify the stern as land */
+  let deepSpray = null;
+  for (let x = -180; x <= 180 && !deepSpray; x += 3)
+    for (let z = -180; z <= 180 && !deepSpray; z += 3) {
+      if (G.surfaceAt(x, z) !== 'water') continue;
+      if (G.terrainHeight(x, z) > -1.2) continue;
+      if (G.surfaceAt(x, z - 2.6) !== 'water') continue;
+      if (G.terrainHeight(x, z + 2.2) > -0.8) continue;
+      if (G.terrainHeight(x, z + 3) > -0.8) continue;
+      if (G.terrainHeight(x, z - 3) > -0.8) continue;
+      deepSpray = [x, z];
+    }
+  check('boatspray: a deep-water arena exists for the drive checks', !!deepSpray,
+    deepSpray ? 'at ' + deepSpray[0] + ',' + deepSpray[1] : 'none in -180..180');
+  const setupBoatSpray = (speed, dustDist) => {
+    G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false;
+    G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+    G.keys.Space = false;
+    G.P.hitstop = 0;
+    G.BOAT.pos.set(deepSpray[0], G.BOAT.y, deepSpray[1]);
+    G.BOAT.heading = 0; G.BOAT.steer = 0; G.BOAT.groundT = 0; G.BOAT.yVel = 0;
+    G.BOAT.speed = speed; G.BOAT.dustDist = dustDist;
+    G.clearDust();
+  };
+  const nearSternSpray = () => {
+    const bxS = G.BOAT.pos.x - Math.sin(G.BOAT.heading) * 2.6;
+    const bzS = G.BOAT.pos.z - Math.cos(G.BOAT.heading) * 2.6;
+    let n = 0;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] > 0 && Math.hypot(G.dustPos[i * 3] - bxS, G.dustPos[i * 3 + 2] - bzS) < 0.6
+        && Math.abs(G.dustPos[i * 3 + 1] - (G.BOAT.pos.y + 0.15)) < 0.6) n++;
+    }
+    return n;
+  };
+  /* cruise: one frame across the threshold spawns the strength 4 burst (9 particles) at the stern */
+  setupBoatSpray(5, 3.45);
+  frame(1);
+  check('boatspray: fast cruise across the threshold spawns live spray (strength 4 burst of 9)',
+    liveSpray() === 9, 'live=' + liveSpray());
+  check('boatspray: cruise spray spawns at the stern point (2.6 behind, 0.15 up)',
+    nearSternSpray() === liveSpray() && liveSpray() > 0, 'near=' + nearSternSpray() + ' live=' + liveSpray());
+  check('boatspray: after the puff the accumulator keeps only the remainder under dustLen',
+    G.BOAT.dustDist >= 0 && G.BOAT.dustDist < G.BOAT.dustLen, 'dustDist=' + G.BOAT.dustDist);
+  /* accumulation below the threshold: distance accrues, nothing spawns yet */
+  setupBoatSpray(5, 0);
+  frame(1);
+  check('boatspray: one cruise frame below the threshold accumulates dustDist and spawns nothing',
+    G.BOAT.dustDist > 0.03 && G.BOAT.dustDist < G.BOAT.dustLen && liveSpray() === 0,
+    'dustDist=' + G.BOAT.dustDist + ' live=' + liveSpray());
+  /* fast: above 8 the same frame spawns the larger strength 7 burst (12 particles) */
+  setupBoatSpray(10, 3.45);
+  frame(1);
+  check('boatspray: fast drive across the threshold spawns the strength 7 burst of 12, larger than cruise',
+    liveSpray() === 12, 'live=' + liveSpray());
+  check('boatspray: fast spray spawns at the stern point (2.6 behind, 0.15 up)',
+    nearSternSpray() === liveSpray() && liveSpray() > 0, 'near=' + nearSternSpray() + ' live=' + liveSpray());
+  /* slow and at rest: no spray, and the accumulator resets to 0 */
+  setupBoatSpray(2, 2.5);
+  frame(3);
+  check('boatspray: driving slow (speed 2, at or below the gate) spawns no spray and resets dustDist',
+    liveSpray() === 0 && G.BOAT.dustDist === 0, 'live=' + liveSpray() + ' dustDist=' + G.BOAT.dustDist);
+  setupBoatSpray(0, 1.5);
+  frame(2);
+  check('boatspray: at rest spawns no spray and resets dustDist',
+    liveSpray() === 0 && G.BOAT.dustDist === 0, 'live=' + liveSpray() + ' dustDist=' + G.BOAT.dustDist);
+  /* direct spawnDust at the stern: the water profile lands on every slot */
+  setupBoatSpray(0, 0);
+  {
+    const bxW = G.BOAT.pos.x - Math.sin(G.BOAT.heading) * 2.6;
+    const bzW = G.BOAT.pos.z - Math.cos(G.BOAT.heading) * 2.6;
+    check('boatspray: the stern point classifies as water',
+      G.surfaceAt(bxW, bzW) === 'water', 'surf=' + G.surfaceAt(bxW, bzW));
+    G.spawnDust(bxW, G.BOAT.pos.y + 0.15, bzW, 4);
+    check('boatspray: direct spawnDust at the stern at cruise strength 4 bursts exactly 9',
+      liveSpray() === 9, 'live=' + liveSpray());
+    let profOk = liveSpray() > 0;
+    const approxSpray = (a, b) => Math.abs(a - b) < 1e-6;
+    for (let i = 0; i < G.DUST_N; i++) {
+      if (G.dustLife[i] <= 0) continue;
+      if (!approxSpray(G.dustGrav[i], 1.8) || !approxSpray(G.dustDrag[i], 0.35) || !approxSpray(G.dustGrow[i], -0.2)
+        || !approxSpray(G.dustRamp[i], 0.03) || !approxSpray(G.dustAlpha[i], 0.65)) profOk = false;
+      if (!(G.dustSizeBase[i] >= 0.45 - 1e-6 && G.dustSizeBase[i] <= 0.75 + 1e-6)) profOk = false;
+    }
+    check('boatspray: stern spray carries the water profile on every slot (grav 1.8, drag 0.35, grow -0.2, ramp 0.03, alpha 0.65, size scale 0.60)',
+      profOk, 'live=' + liveSpray());
+  }
+  /* cleanup: disembark and leave the pool empty */
+  G.boatExit();
+  G.BOAT.speed = 0; G.BOAT.steer = 0; G.BOAT.dustDist = 0;
+  G.clearDust();
+  check('boatspray: cleanup leaves dustDist at 0, no live spray and the player restored',
+    G.BOAT.dustDist === 0 && liveSpray() === 0 && G.BOAT.driving === false && G.player.visible === true,
+    'dustDist=' + G.BOAT.dustDist + ' live=' + liveSpray() + ' driving=' + G.BOAT.driving);
+  /* static pins re-checked: boat spray adds zero of everything */
+  check('boatspray-pins: 49 InstancedMesh literals', lineHasSpray('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasSpray('new THREE.InstancedMesh'));
+  check('boatspray-pins: 92 Math.random lines', lineHasSpray('Math.random') === 92,
+    'n=' + lineHasSpray('Math.random'));
+  check('boatspray-pins: 72 setTimeout lines', lineHasSpray('setTimeout') === 72,
+    'n=' + lineHasSpray('setTimeout'));
+  check('boatspray-pins: 6 lights',
+    linesSpray.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('boatspray-pins: 18 osc (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length);
+  check('boatspray-pins: 32 gain (unchanged)',
+    (html.match(/\.createGain\(/g) || []).length === 32,
+    'gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('boatspray-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasSpray('new THREE.Points(') === 2, 'n=' + lineHasSpray('new THREE.Points('));
+  check('boatspray-pins: no em dashes', !html.includes('\u2014'));
+  check('boatspray-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('boatspray-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('boatspray: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSpray, consoleProblems.slice(probsSpray).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
