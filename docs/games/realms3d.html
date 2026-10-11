@@ -5886,6 +5886,17 @@ function clearDust(){
        dual-track ribbon from the same pooled mesh (zero new draw
        calls, zero new Mesh), rear 3.5, lateral +/-0.85,
        half-width 0.15, same steer/speed gates.
+       SURFACE-AWARE SKID COLOR v1: skidWriteQuad classifies
+       once per quad via surfaceAt at the quad centre and
+       writes a per-surface colour: rock 0.07, 0.07, 0.07 at
+       peak 0.55; gravel 0.13, 0.12, 0.10 at peak 0.50; dirt
+       0.16, 0.11, 0.06 at peak 0.48; grass 0.10, 0.13, 0.05
+       at peak 0.38; water 0.20, 0.22, 0.20 at peak 0.12;
+       fallback 0.07, 0.07, 0.07 at peak 0.55. skidAlpha
+       stores the per-slot peak and skidTick fades from it.
+       Zero new draw calls, zero new Mesh. New honest limit:
+       classification is per-quad centre only so a quad
+       crossing a surface boundary takes one surface.
        New honest limit: horse still lays no marks yet;
        flat-quad slope clipping limit still applies. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
@@ -5894,6 +5905,7 @@ const skidCol = new Float32Array(SKID_N * 4 * 4);
 const skidLife = new Float32Array(SKID_N);
 const skidLifeMax = new Float32Array(SKID_N);
 skidLifeMax.fill(SKID_LIFE);
+const skidAlpha = new Float32Array(SKID_N); skidAlpha.fill(0.55);
 for (let i = 0; i < SKID_N * 4; i++) skidPos[i * 3 + 1] = -999;
 const skidIdx = new Uint32Array(SKID_N * 6);
 for (let q = 0; q < SKID_N; q++) {
@@ -5931,10 +5943,17 @@ function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14){
   skidPos[p + 3] = px + lx * halfW; skidPos[p + 4] = yy; skidPos[p + 5] = pz + lz * halfW;
   skidPos[p + 6] = cx + lx * halfW; skidPos[p + 7] = yy; skidPos[p + 8] = cz + lz * halfW;
   skidPos[p + 9] = cx - lx * halfW; skidPos[p + 10] = yy; skidPos[p + 11] = cz - lz * halfW;
+  const surf = surfaceAt((px + cx) / 2, (pz + cz) / 2);
+  let sr = 0.07, sg = 0.07, sb = 0.07, peak = 0.55;
+  if (surf === 'gravel') { sr = 0.13; sg = 0.12; sb = 0.10; peak = 0.50; }
+  else if (surf === 'dirt') { sr = 0.16; sg = 0.11; sb = 0.06; peak = 0.48; }
+  else if (surf === 'grass') { sr = 0.10; sg = 0.13; sb = 0.05; peak = 0.38; }
+  else if (surf === 'water') { sr = 0.20; sg = 0.22; sb = 0.20; peak = 0.12; }
   const c = slot * 4 * 4;
   for (let v = 0; v < 4; v++) {
-    skidCol[c + v * 4] = 0.07; skidCol[c + v * 4 + 1] = 0.07; skidCol[c + v * 4 + 2] = 0.07; skidCol[c + v * 4 + 3] = 0.55;
+    skidCol[c + v * 4] = sr; skidCol[c + v * 4 + 1] = sg; skidCol[c + v * 4 + 2] = sb; skidCol[c + v * 4 + 3] = peak;
   }
+  skidAlpha[slot] = peak;
   skidLife[slot] = SKID_LIFE; skidLifeMax[slot] = SKID_LIFE;
 }
 function skidStep4(x, z, heading, y){
@@ -6053,7 +6072,7 @@ function skidTick(dt){
       for (let v = 0; v < 4; v++) { skidPos[p + v * 3 + 1] = -999; skidCol[c + v * 4 + 3] = 0; }
       colChanged = true; posChanged = true; continue;
     }
-    const a = 0.55 * Math.max(0, skidLife[i] / SKID_LIFE);
+    const a = skidAlpha[i] * Math.max(0, skidLife[i] / SKID_LIFE);
     const c = i * 4 * 4;
     for (let v = 0; v < 4; v++) skidCol[c + v * 4 + 3] = a;
     colChanged = true;
@@ -6067,6 +6086,7 @@ function clearSkid(){
     const p = i * 4 * 3, c = i * 4 * 4;
     for (let v = 0; v < 4; v++) { skidPos[p + v * 3 + 1] = -999; skidCol[c + v * 4 + 3] = 0; }
   }
+  skidAlpha.fill(0.55);
   skidPrev = null;
   skid1Prev = null;
   skid2Prev = null;
