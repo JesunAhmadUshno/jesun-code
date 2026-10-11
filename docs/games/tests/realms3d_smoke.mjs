@@ -347,6 +347,8 @@ globalThis.__R3D = {
   squashImpulse, squashTick, SQ_MAX, SQ_DECAY, punchConnectFX,
   /* TERRAIN LOD v1: chunk pool + band rule + constants (test-only exposure) */
   chunkPool, chunkLodBand, LOD_FAR_SEG, LOD_FAR_RING,
+  /* SPRINT FOV KICK v1: sprint FOV helper + constant (test-only exposure) */
+  footFov, FOV_SPRINT,
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
   get shopArmor() { return shopArmor; }, set shopArmor(v) { shopArmor = v; },
 };
@@ -11642,6 +11644,76 @@ globalThis.__R3D2 = {
   check('lod-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('lod: the run leaves zero console errors/warnings',
     consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
+}
+
+/* ================= SPRINT FOV KICK v1 =================
+   On-foot sprint gets the FOV kick every fast mode already had: the
+   camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
+   to FOV_SPRINT (68) at full sprint, scaled by speed between WALK and
+   SPRINT. Pure helper footFov(sprinting, spd): not sprinting or at or
+   below WALK always returns 62, sprinting above WALK lerps with a
+   clamped t, so sprint at 7.5 returns 65 and at or above 9.5 returns
+   68. Wired only as the final fallback of the fovT chain in tick. */
+{
+  const probsS = consoleProblems.length;
+  const approxS = (a, b, tol) => Math.abs(a - b) <= tol;
+  check('sprfov: constant FOV_SPRINT is 68', G.FOV_SPRINT === 68, 'fovSprint=' + G.FOV_SPRINT);
+  check('sprfov: CAR.fovWalk is 62', G.CAR && G.CAR.fovWalk === 62, 'fovWalk=' + (G.CAR && G.CAR.fovWalk));
+  check('sprfov: footFov is a function', typeof G.footFov === 'function', 'type=' + typeof G.footFov);
+  check('sprfov: not sprinting at speed 0 returns 62', G.footFov(false, 0) === 62, 'v=' + G.footFov(false, 0));
+  check('sprfov: not sprinting at speed 5.5 returns 62', G.footFov(false, 5.5) === 62, 'v=' + G.footFov(false, 5.5));
+  check('sprfov: not sprinting at speed 9.5 returns 62', G.footFov(false, 9.5) === 62, 'v=' + G.footFov(false, 9.5));
+  check('sprfov: not sprinting at speed 20 returns 62', G.footFov(false, 20) === 62, 'v=' + G.footFov(false, 20));
+  check('sprfov: sprinting at speed 0 returns 62', G.footFov(true, 0) === 62, 'v=' + G.footFov(true, 0));
+  check('sprfov: sprinting at speed 5.5 returns 62', G.footFov(true, 5.5) === 62, 'v=' + G.footFov(true, 5.5));
+  check('sprfov: sprinting at speed 7.5 returns 65', approxS(G.footFov(true, 7.5), 65, 1e-9), 'v=' + G.footFov(true, 7.5));
+  check('sprfov: sprinting at speed 6.5 returns 63.5', approxS(G.footFov(true, 6.5), 63.5, 1e-9), 'v=' + G.footFov(true, 6.5));
+  check('sprfov: sprinting at speed 9.5 returns 68', G.footFov(true, 9.5) === 68, 'v=' + G.footFov(true, 9.5));
+  check('sprfov: sprinting at speed 20 returns 68 (clamp)', G.footFov(true, 20) === 68, 'v=' + G.footFov(true, 20));
+  check('sprfov: source carries the FOV_SPRINT constant line',
+    html.includes('const FOV_SPRINT = 68;'));
+  check('sprfov: helper body carries the clamp rule',
+    html.includes('function footFov(sprinting, spd)')
+    && html.includes('if (!sprinting || spd <= WALK) return CAR.fovWalk;')
+    && html.includes('const t = Math.min(1, Math.max(0, (spd - WALK) / (SPRINT - WALK)));')
+    && html.includes('return CAR.fovWalk + (FOV_SPRINT - CAR.fovWalk) * t;'));
+  check('sprfov: fovT chain tail uses footFov(sprint, speed)',
+    html.includes('(HORSE.riding ? HORSE.fovT : footFov(sprint, speed))'));
+  {
+    const fovLineS = (html.split('\n').find(l => l.includes('const fovT =')) || '');
+    check('sprfov: no other fovT branch changed',
+      fovLineS.includes('THEATERHALL.inHall ? CAR.fovWalk')
+      && fovLineS.includes('CAR.driving ? CAR.fovDrive')
+      && fovLineS.includes('BIKE.driving ? BIKE.fovT')
+      && fovLineS.includes('BC.driving ? BC.fovT')
+      && fovLineS.includes('SC.driving ? SC.fovT')
+      && fovLineS.includes('HORSE.riding ? HORSE.fovT : footFov(sprint, speed)')
+      && !fovLineS.includes('HORSE.riding ? HORSE.fovT : CAR.fovWalk'));
+  }
+  check('sprfov: FOV lerp stays untouched (4*dt ease, update only above 0.05)',
+    html.includes('if (Math.abs(camera.fov - fovT) > 0.05)')
+    && html.includes('camera.fov += (fovT - camera.fov) * Math.min(1, 4 * dt);')
+    && html.includes('camera.updateProjectionMatrix();'));
+  /* static pins still hold: the feature adds zero of each */
+  const linesS = html.split('\n');
+  const lineHasS = sub => linesS.filter(l => l.includes(sub)).length;
+  check('sprfov-pins: 49 InstancedMesh literals', lineHasS('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasS('new THREE.InstancedMesh'));
+  check('sprfov-pins: 92 Math.random lines', lineHasS('Math.random') === 92,
+    'n=' + lineHasS('Math.random'));
+  check('sprfov-pins: 72 setTimeout lines', lineHasS('setTimeout') === 72,
+    'n=' + lineHasS('setTimeout'));
+  check('sprfov-pins: 6 lights',
+    linesS.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('sprfov-pins: 18 osc, 32 gain (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 32,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length
+    + ' gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('sprfov-pins: no em dashes', !html.includes('—'));
+  check('sprfov-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('sprfov: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsS, consoleProblems.slice(probsS).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
