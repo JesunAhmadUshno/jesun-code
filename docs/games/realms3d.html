@@ -5409,6 +5409,31 @@ function squashTick(dt){
        limit: the profile is now four scalars per surface
        (grow, ramp, grav and drag); radialScale and upScale
        stay water-versus-rest, and point size is still
+       sizeAttenuation-scaled by distance in the material.
+       PER-SURFACE DUST LAUNCH v1: launch velocity is now
+       a full per-surface profile too, selected in spawnDust
+       by two if and else-if chains in the same style as the
+       grav and dragF chains above, scaling the launch
+       velocity already rolled per particle with no new
+       arrays, no new Points and no new draw calls. The
+       table is: grass radialScale 1.15 and upScale 0.85
+       (loose leafy dust spreads wide, low loft), dirt
+       radialScale 1 and upScale 1 (the old default values,
+       behavior byte-equivalent), rock radialScale 0.80 and
+       upScale 1.25 (dense grit: tighter cone, sharper pop),
+       gravel radialScale 0.90 and upScale 1.10, and water
+       radialScale 0.55 and upScale 1.9 (unchanged). Any
+       other surface string falls back to radialScale 1 and
+       upScale 1. Birth size (base * 0.6), birth alpha (0)
+       and the dustRand order and count per particle
+       (exactly four) are unchanged for every surface, and
+       the dustTick formulas are unchanged: the launch
+       scales apply only at spawn in the dustVel writes.
+       This supersedes the radialScale and upScale stay
+       water-versus-rest limit from PER-SURFACE DUST
+       PHYSICS v1 above. New honest limit: the profile is
+       now six scalars per surface (grow, ramp, grav, drag,
+       radialScale and upScale); point size is still
        sizeAttenuation-scaled by distance in the material. --- */
 const DUST_N = 48, DUST_LIFE = 0.45;
 const dustPos = new Float32Array(DUST_N * 3);
@@ -5467,8 +5492,18 @@ function spawnDust(x, y, z, strength){
   else if (surf === 'rock') { pr = 0.60; pg = 0.61; pb = 0.64; }
   else if (surf === 'gravel') { pr = 0.71; pg = 0.69; pb = 0.63; }
   else if (surf === 'water') { pr = 0.62; pg = 0.79; pb = 0.90; }
-  let radialScale = 1, upScale = 1;
-  if (surf === 'water') { radialScale = 0.55; upScale = 1.9; }
+  let radialScale = 1;
+  if (surf === 'grass') { radialScale = 1.15; }
+  else if (surf === 'dirt') { radialScale = 1; }
+  else if (surf === 'rock') { radialScale = 0.80; }
+  else if (surf === 'gravel') { radialScale = 0.90; }
+  else if (surf === 'water') { radialScale = 0.55; }
+  let upScale = 1;
+  if (surf === 'grass') { upScale = 0.85; }
+  else if (surf === 'dirt') { upScale = 1; }
+  else if (surf === 'rock') { upScale = 1.25; }
+  else if (surf === 'gravel') { upScale = 1.10; }
+  else if (surf === 'water') { upScale = 1.9; }
   let grav = 1;
   if (surf === 'grass') { grav = 0.85; }
   else if (surf === 'dirt') { grav = 1; }
