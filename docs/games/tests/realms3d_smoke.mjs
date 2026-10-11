@@ -351,7 +351,7 @@ globalThis.__R3D = {
   footFov, FOV_SPRINT,
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
   spawnDust, dustTick, clearDust, DUST_N, DUST_LIFE,
-  dustPos, dustVel, dustLife, dustPts,
+  dustPos, dustVel, dustLife, dustCol, dustPts,
   get dustHead() { return dustHead; },
   get dustSeed() { return dustSeed; }, set dustSeed(v) { dustSeed = v; },
   get camYaw() { return camYaw; }, set camYaw(v) { camYaw = v; },
@@ -11765,8 +11765,9 @@ globalThis.__R3D2 = {
   check('dust: dustPts is one Points object, frustumCulled false, geometry shares the pool array',
     !!G.dustPts && G.dustPts.frustumCulled === false
     && G.dustPts.geometry.attributes.position.array === G.dustPos);
-  check('dust: material is the dusty tan soft point (color, size, opacity, depthWrite)',
-    G.dustPts.material.color.getHex() === 0xc9b18c && G.dustPts.material.size === 0.4
+  check('dust: material is the vertex colored soft point (white base, size, opacity, depthWrite)',
+    G.dustPts.material.vertexColors === true
+    && G.dustPts.material.color.getHex() === 0xffffff && G.dustPts.material.size === 0.4
     && G.dustPts.material.sizeAttenuation === true && G.dustPts.material.transparent === true
     && approxD(G.dustPts.material.opacity, 0.55, 1e-9) && G.dustPts.material.depthWrite === false
     && !!G.dustPts.material.map);
@@ -12062,6 +12063,229 @@ globalThis.__R3D2 = {
       return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
   check('dustx: the run leaves zero console errors/warnings',
     consoleProblems.length === probsX, consoleProblems.slice(probsX).join(' | '));
+}
+
+
+/* ================= SURFACE-AWARE DUST COLOR v1 =================
+   The LANDING DUST v1 pool now carries a preallocated per-particle
+   color buffer (dustCol, 144 floats) bound as the geometry color
+   attribute. The material uses vertexColors with a white base color,
+   so each burst shows the palette of the surface under the spawn
+   point: spawnDust calls surfaceAt(x, z) once per burst and writes
+   palette * jitter (0.88..1.12, from the existing dustRand LCG) into
+   dustCol for each spawned slot. No new Points object, no new draw
+   call, burst count and velocities unchanged. */
+{
+  const probsC = consoleProblems.length;
+  const PALC = {
+    grass: [0.52, 0.60, 0.34],
+    dirt: [0.62, 0.47, 0.30],
+    rock: [0.60, 0.61, 0.64],
+    gravel: [0.71, 0.69, 0.63],
+    water: [0.62, 0.79, 0.90],
+  };
+  const liveColC = () => {
+    const out = [];
+    for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] > 0) out.push(i);
+    return out;
+  };
+  const inPaletteC = (surf) => {
+    const slots = liveColC();
+    if (!slots.length) return false;
+    const base = PALC[surf];
+    for (const i of slots) {
+      for (let c = 0; c < 3; c++) {
+        const v = G.dustCol[i * 3 + c];
+        if (v < base[c] * 0.88 - 1e-4 || v > Math.min(1, base[c] * 1.12) + 1e-4) return false;
+        if (v > 1 || v < 0) return false;
+      }
+    }
+    return true;
+  };
+  const meanColC = () => {
+    const slots = liveColC();
+    const m = [0, 0, 0];
+    for (const i of slots) for (let c = 0; c < 3; c++) m[c] += G.dustCol[i * 3 + c];
+    if (slots.length) for (let c = 0; c < 3; c++) m[c] /= slots.length;
+    return m;
+  };
+  const spawnOnC = (surf, loc, strength) => {
+    G.clearDust();
+    G.spawnDust(loc.x, G.terrainHeight(loc.x, loc.z) + 0.1, loc.z, strength === undefined ? 5 : strength);
+    return G.surfaceAt(loc.x, loc.z) === surf;
+  };
+  /* probe one location per surface type from the classifier itself */
+  const foundC = {};
+  for (let x = -360; x <= 360 && Object.keys(foundC).length < 5; x += 4) {
+    for (let z = -360; z <= 360; z += 4) {
+      const surf = G.surfaceAt(x, z);
+      if (!foundC[surf]) foundC[surf] = { x, z };
+      if (Object.keys(foundC).length >= 5) break;
+    }
+  }
+  check('dustcol: surfaceAt is exposed to the harness as a function',
+    typeof G.surfaceAt === 'function');
+  check('dustcol: dustCol is a preallocated Float32Array of 144 (48 slots x 3)',
+    !!G.dustCol && G.dustCol instanceof Float32Array && G.dustCol.length === 144,
+    'len=' + (G.dustCol && G.dustCol.length));
+  check('dustcol: geometry color attribute shares the dustCol array (itemSize 3, count 48)',
+    !!G.dustPts.geometry.attributes.color
+    && G.dustPts.geometry.attributes.color.array === G.dustCol
+    && G.dustPts.geometry.attributes.color.itemSize === 3
+    && G.dustPts.geometry.attributes.color.count === 48);
+  check('dustcol: material vertexColors is true',
+    G.dustPts.material.vertexColors === true);
+  check('dustcol: material base color is white 0xffffff so vertex color shows true',
+    G.dustPts.material.color.getHex() === 0xffffff,
+    'hex=' + G.dustPts.material.color.getHex().toString(16));
+  check('dustcol: material keeps size 0.4, opacity 0.55, transparent, depthWrite false, map present',
+    G.dustPts.material.size === 0.4 && Math.abs(G.dustPts.material.opacity - 0.55) < 1e-9
+    && G.dustPts.material.transparent === true && G.dustPts.material.depthWrite === false
+    && !!G.dustPts.material.map);
+  check('dustcol: source declares dustCol, the color attribute and vertexColors',
+    html.includes('const dustCol = new Float32Array(DUST_N * 3);')
+    && html.includes("dustGeo.setAttribute('color', dustColAttr);")
+    && html.includes('vertexColors: true')
+    && html.includes('SURFACE-AWARE DUST COLOR v1'));
+  {
+    const segStart = html.indexOf('function spawnDust');
+    const segC = segStart >= 0 ? html.slice(segStart, html.indexOf('function dustTick')) : '';
+    check('dustcol: spawnDust calls surfaceAt(x, z) exactly once per burst',
+      segC.split('surfaceAt(x, z)').length - 1 === 1,
+      'n=' + (segC.split('surfaceAt(x, z)').length - 1));
+    check('dustcol: spawnDust source carries the exact grass and dirt palette rows',
+      segC.includes("if (surf === 'grass') { pr = 0.52; pg = 0.60; pb = 0.34; }")
+      && segC.includes("else if (surf === 'dirt') { pr = 0.62; pg = 0.47; pb = 0.30; }"));
+    check('dustcol: spawnDust source carries the exact rock, gravel and water palette rows',
+      segC.includes("else if (surf === 'rock') { pr = 0.60; pg = 0.61; pb = 0.64; }")
+      && segC.includes("else if (surf === 'gravel') { pr = 0.71; pg = 0.69; pb = 0.63; }")
+      && segC.includes("else if (surf === 'water') { pr = 0.62; pg = 0.79; pb = 0.90; }"));
+    check('dustcol: spawnDust source carries the fallback tan palette and jitter line',
+      segC.includes('let pr = 0.79, pg = 0.69, pb = 0.55;')
+      && segC.includes('const jit = 0.88 + dustRand() * 0.24;'));
+  }
+  check('dustcol: probe finds a grass location', !!foundC.grass, JSON.stringify(foundC.grass || null));
+  check('dustcol: probe finds a dirt location', !!foundC.dirt, JSON.stringify(foundC.dirt || null));
+  check('dustcol: probe finds a rock location', !!foundC.rock, JSON.stringify(foundC.rock || null));
+  check('dustcol: probe finds a gravel location', !!foundC.gravel, JSON.stringify(foundC.gravel || null));
+  check('dustcol: probe finds a water location', !!foundC.water, JSON.stringify(foundC.water || null));
+  /* per-surface palette behavior through the real spawn path */
+  let meanGrassC = null, meanRockC = null, meanWaterC = null, meanDirtC = null;
+  if (foundC.grass) {
+    check('dustcol: spawn on grass classifies as grass and bursts 10 at strength 5',
+      spawnOnC('grass', foundC.grass) && liveColC().length === 10,
+      'live=' + liveColC().length + ' surf=' + (foundC.grass && G.surfaceAt(foundC.grass.x, foundC.grass.z)));
+    check('dustcol: grass particle colors sit in the grass palette jitter range', inPaletteC('grass'));
+    meanGrassC = meanColC();
+  }
+  if (foundC.dirt) {
+    check('dustcol: spawn on dirt classifies as dirt',
+      spawnOnC('dirt', foundC.dirt), 'surf=' + G.surfaceAt(foundC.dirt.x, foundC.dirt.z));
+    check('dustcol: dirt particle colors sit in the dirt palette jitter range', inPaletteC('dirt'));
+    meanDirtC = meanColC();
+  }
+  if (foundC.rock) {
+    check('dustcol: spawn on rock classifies as rock',
+      spawnOnC('rock', foundC.rock), 'surf=' + G.surfaceAt(foundC.rock.x, foundC.rock.z));
+    check('dustcol: rock particle colors sit in the rock palette jitter range', inPaletteC('rock'));
+    meanRockC = meanColC();
+  }
+  if (foundC.gravel) {
+    check('dustcol: spawn on gravel classifies as gravel',
+      spawnOnC('gravel', foundC.gravel), 'surf=' + G.surfaceAt(foundC.gravel.x, foundC.gravel.z));
+    check('dustcol: gravel particle colors sit in the gravel palette jitter range', inPaletteC('gravel'));
+  }
+  if (foundC.water) {
+    check('dustcol: spawn on water classifies as water',
+      spawnOnC('water', foundC.water), 'surf=' + G.surfaceAt(foundC.water.x, foundC.water.z));
+    check('dustcol: water particle colors sit in the water palette jitter range', inPaletteC('water'));
+    meanWaterC = meanColC();
+  }
+  check('dustcol: different surfaces give different colors (grass mean vs rock mean)',
+    !!meanGrassC && !!meanRockC
+    && Math.abs(meanGrassC[0] - meanRockC[0]) + Math.abs(meanGrassC[1] - meanRockC[1]) + Math.abs(meanGrassC[2] - meanRockC[2]) > 0.2,
+    'grass=' + (meanGrassC && meanGrassC.join(',')) + ' rock=' + (meanRockC && meanRockC.join(',')));
+  check('dustcol: different surfaces give different colors (water mean vs dirt mean, blue channel)',
+    !!meanWaterC && !!meanDirtC && meanWaterC[2] - meanDirtC[2] > 0.3,
+    'waterB=' + (meanWaterC && meanWaterC[2]) + ' dirtB=' + (meanDirtC && meanDirtC[2]));
+  /* determinism: same seed and same surface reproduce the same colors exactly */
+  if (foundC.grass) {
+    const segColC = (head, count) => {
+      const out = [];
+      for (let n = 0; n < count; n++) { const sl = (head + n) % G.DUST_N; out.push(G.dustCol[sl * 3], G.dustCol[sl * 3 + 1], G.dustCol[sl * 3 + 2]); }
+      return out;
+    };
+    G.clearDust(); G.dustSeed = 987654321;
+    const h1C = G.dustHead; G.spawnDust(foundC.grass.x, 1, foundC.grass.z, 5); const c1C = segColC(h1C, 10);
+    G.clearDust(); G.dustSeed = 987654321;
+    const h2C = G.dustHead; G.spawnDust(foundC.grass.x, 1, foundC.grass.z, 5); const c2C = segColC(h2C, 10);
+    check('dustcol: same seed and same surface reproduces the same colors exactly',
+      c1C.length === 30 && c1C.every((v, i) => v === c2C[i]));
+    check('dustcol: brightness jitter varies inside one burst (not one flat color)',
+      new Set(c1C.filter((v, i) => i % 3 === 0)).size > 1,
+      'distinctR=' + new Set(c1C.filter((v, i) => i % 3 === 0)).size);
+    check('dustcol: every jittered channel stays within 0..1',
+      c1C.every(v => v >= 0 && v <= 1));
+  }
+  /* needsUpdate flags ride the color attribute on spawn and on clear */
+  {
+    const v0C = G.dustPts.geometry.attributes.color.version;
+    if (foundC.grass) G.spawnDust(foundC.grass.x, 1, foundC.grass.z, 0);
+    check('dustcol: spawnDust flags the color attribute needsUpdate (version increments)',
+      G.dustPts.geometry.attributes.color.version > v0C,
+      'v=' + v0C + '->' + G.dustPts.geometry.attributes.color.version);
+    const v1C = G.dustPts.geometry.attributes.color.version;
+    G.clearDust();
+    check('dustcol: clearDust flags the color attribute needsUpdate (version increments)',
+      G.dustPts.geometry.attributes.color.version > v1C,
+      'v=' + v1C + '->' + G.dustPts.geometry.attributes.color.version);
+  }
+  /* clearDust behavior unchanged: nothing live, all parked, buffer still shared */
+  {
+    if (foundC.rock) G.spawnDust(foundC.rock.x, 1, foundC.rock.z, 5);
+    const preClearC = liveColC().length;
+    G.clearDust();
+    let parkedC = true;
+    for (let i = 0; i < G.DUST_N; i++) if (G.dustLife[i] <= 0 && G.dustPos[i * 3 + 1] !== -999) parkedC = false;
+    check('dustcol: clearDust still clears every live particle and parks all slots',
+      preClearC > 0 && liveColC().length === 0 && parkedC,
+      'pre=' + preClearC + ' live=' + liveColC().length);
+    check('dustcol: clearDust leaves the shared color buffer intact (same array, length 144)',
+      G.dustPts.geometry.attributes.color.array === G.dustCol && G.dustCol.length === 144);
+  }
+  /* tick expiry still works with colors attached */
+  {
+    if (foundC.grass) G.spawnDust(foundC.grass.x, 1, foundC.grass.z, 5);
+    G.dustTick(0.5);
+    check('dustcol: a tick past DUST_LIFE still expires every colored particle',
+      liveColC().length === 0, 'live=' + liveColC().length);
+  }
+  G.clearDust();
+  /* static pins still hold exactly: the color route adds zero of everything */
+  const linesC = html.split('\n');
+  const lineHasC2 = sub => linesC.filter(l => l.includes(sub)).length;
+  check('dustcol-pins: 49 InstancedMesh literals', lineHasC2('new THREE.InstancedMesh') === 49,
+    'n=' + lineHasC2('new THREE.InstancedMesh'));
+  check('dustcol-pins: 92 Math.random lines', lineHasC2('Math.random') === 92,
+    'n=' + lineHasC2('Math.random'));
+  check('dustcol-pins: 72 setTimeout lines', lineHasC2('setTimeout') === 72,
+    'n=' + lineHasC2('setTimeout'));
+  check('dustcol-pins: 6 lights',
+    linesC.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6);
+  check('dustcol-pins: 18 osc, 32 gain (unchanged)',
+    (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 32,
+    'osc=' + (html.match(/\.createOscillator\(/g) || []).length
+    + ' gain=' + (html.match(/\.createGain\(/g) || []).length);
+  check('dustcol-pins: exactly 2 Points objects (stars + the one dust pool)',
+    lineHasC2('new THREE.Points(') === 2, 'n=' + lineHasC2('new THREE.Points('));
+  check('dustcol-pins: no em dashes', !html.includes('\u2014'));
+  check('dustcol-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('dustcol-pins: exactly 1 allowed CDN URL',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length === 1 && u[0] === 'https://unpkg.com/three@0.160.0/build/three.module.js'; })());
+  check('dustcol: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
