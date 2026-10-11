@@ -4,6 +4,30 @@ Newest first. Each entry is one shipped loop iteration (or a pre-loop build).
 
 ## 2026-10-10
 
+### REALMS enemy separation steering (roadmap item 6) (indie dev loop)
+- Chasers (goblin, ogre, warden) blocked by another enemy now sidestep into
+  the tile perpendicular to the chase direction before giving up the move,
+  instead of conga-lining behind each other in corridors.
+- Two new pure-Jesun.Code helpers: `chaser_sidestep` (tries both
+  perpendicular tiles) and `sidestep_step` (reuses the normal move checks:
+  wall blocks, player tile attacks, occupied tile fails). Enemy vs NPC
+  blockers are distinguished by the missing `nkind` key (the interpreter
+  returns `nothing` for missing keys), so NPCs still stop movement cold and
+  non-chasers (bats, rats) never sidestep. Per-tick cost stays O(enemies).
+- Game logic stays 100% Jesun.Code; `deepdelve.jc`/`deepdelve.html` untouched.
+  Driver: `APP_VERSION` bumped to `20261010b` so the new `realms.jc` is
+  cache-busted on the live page.
+- Verified: 16/16 CPython checks green (direct helper unit tests: free
+  perpendicular, occupied-first-then-free, fully walled, vertical chase
+  direction; deterministic `enemy_ai` integration: enemy block sidesteps,
+  NPC block stays put, non-chaser skips; 440-tick randomized pump across
+  overworld/dungeon/FPP and difficulties 1-3 zero exceptions; 50-tick
+  determinism byte-identical on OUT and G). Node+Pyodide exact bridge flow
+  `move_regress` ALL GREEN; FPP dungeon scene build avg 17.3ms/tick, p95
+  26.0ms/tick (budget 120ms). No live browser playtest: the item touches
+  neither rendering nor input.
+  Next up: Ranged enemy: Gloom Spitter (item 7).
+
 ### REALMS E-to-talk reliability vs wandering NPCs (roadmap item 13) (indie dev loop)
 - Bumping an NPC now records a sticky bump memory keyed by a new unique NPC
   id (`G["bump_npc"]`), which survives one successful step (unlike

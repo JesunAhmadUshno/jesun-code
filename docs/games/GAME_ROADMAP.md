@@ -113,7 +113,7 @@ and control DEEPDELVE REALMS (start_run, press_key, read_state, read_screen),
 running against the CPython harness. Player tools (lantern, bedroll) are
 already covered under item 3. Correct this item if he meant something else.
 
-### 6. Enemy separation steering [NEXT UP]
+### 6. Enemy separation steering [DONE 2026-10-10, see Done section]
 Chasers conga-line behind each other in corridors. Add a cheap sidestep: when
 the target tile is occupied by another enemy, try the perpendicular tile before
 giving up. Keeps per-tick cost O(enemies).
@@ -155,6 +155,22 @@ Pure Jesun.Code; verify with the CPython pump + a scripted adjacent-talk
 unit check.
 
 ## Done
+
+### 2026-10-10: Enemy separation steering (roadmap item 6)
+Shipped. Decision: new helpers `chaser_sidestep` (tries both perpendicular
+tiles) and `sidestep_step` (reuses the normal move checks: wall blocks,
+player tile attacks, occupied tile fails). A chaser whose chase-lane target
+is occupied by another enemy now sidesteps instead of skipping the move;
+NPC blockers still stop movement cold (distinguished by missing `nkind`
+key, since the interpreter returns `nothing` for missing keys); non-chasers
+never sidestep. Per-tick cost stays O(enemies). Pure Jesun.Code, no driver
+logic change (APP_VERSION 20261010b for cache bust).
+Verified: 16/16 CPython checks (helper unit tests, deterministic enemy_ai
+integration for enemy/NPC/non-chaser blockers, 440-tick randomized pump
+zero exceptions, 50-tick determinism byte-identical); Node+Pyodide bridge
+move_regress ALL GREEN; FPP dungeon scene build avg 17.3ms/tick, p95
+26.0ms/tick (budget 120ms). No browser playtest: no rendering/input change.
+Next up: Ranged enemy: Gloom Spitter (item 7).
 
 ### 2026-10-10: E-to-talk reliability against wandering NPCs (roadmap item 13)
 Shipped. Decision: sticky bump memory by unique NPC id plus a 120-tick
