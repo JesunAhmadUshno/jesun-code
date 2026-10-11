@@ -559,6 +559,17 @@
     background: rgba(10,12,10,.72); border: 1px solid #8a6a3a; padding: 6px 10px;
     letter-spacing: 2px; display: none; pointer-events: none;
   }
+  /* ---- THEATER AUDIENCE v1: crowd mood chip mirrors #thallchip, stacked in
+         the top-left stack at 1017px (free: 984px is the lowest owned slot, no
+         live chip sits at 1017px) so live chips never overlap. DOM only,
+         zero draw calls. ---- */
+  #crowdchip {
+    position: absolute; top: 1017px; left: 18px; color: #f2e4d8; font-size: 11px;
+    background: rgba(10,12,10,.72); border: 1px solid #8a5a3a; padding: 6px 10px;
+    letter-spacing: 2px; display: none; pointer-events: none; min-width: 170px;
+  }
+  #crowdbar { display: block; height: 5px; background: #3a2a22; margin-top: 4px; }
+  #crowdfill { display: block; height: 5px; background: #d8a04a; width: 0%; }
   #thallhint {
     position: absolute; bottom: 758px; left: 50%; transform: translateX(-50%);
     color: #0c0e0a; background: #e8c8e0; font-size: 13px; letter-spacing: 3px;
@@ -1439,6 +1450,7 @@
   <div id="firechip"><span id="firearr">^</span> <span id="firetxt"></span></div>
   <div id="thallchip"><span id="thallarr">^</span> <span id="thalltxt"></span></div>
   <div id="conchchip"></div>
+  <div id="crowdchip"><span id="crowdtxt"></span><span id="crowdbar"><span id="crowdfill"></span></span></div>
   <div id="hospheal"></div>
   <div id="thallhint"></div>
   <div id="tshowhint"></div>
@@ -8276,6 +8288,10 @@ function buildLandmarkTheaterGeo() {
         curtains, sconces; the NOW SHOWING screen is a second small mesh
         parented to the room. Lit by constant emissive (fully lit, never a
         black doorway); zero new runtime lights. ---- */
+/* ---- THEATER AUDIENCE v1: the seat grid constants are shared between the
+        room builder and the crowd fleet: no seat position is hardcoded twice. ---- */
+const THAUD_ROWS = 3, THAUD_COLS = 8, THAUD_N = 24;
+const THAUD_SX0 = -6.3, THAUD_SDX = 1.8, THAUD_SZ0 = -1, THAUD_SDZ = 2.4;   // seat grid origin + spacing, hall-local
 function buildTheaterHallGeo() {
   const parts = [];
   const CARPET = 0x5a1f28, WALL = 0x3a3230, CEIL = 0x2a2523, STAGEW = 0x6b4a2e,
@@ -8292,9 +8308,9 @@ function buildTheaterHallGeo() {
   amenPart(parts, 0, 2.2, 6.5, 0.7, -7.1, 3.85, -8.9, CURTAIN); // red curtains
   amenPart(parts, 0, 2.2, 6.5, 0.7, 7.1, 3.85, -8.9, CURTAIN);
   amenPart(parts, 0, 16.5, 1.8, 0.7, 0, 7.6, -8.9, CURTAIN);    // valance
-  for (let _r = 0; _r < 3; _r++)                                // three seat rows
-    for (let _i = 0; _i < 8; _i++) {
-      const _sx = -6.3 + _i * 1.8, _sz = -1 + _r * 2.4;
+  for (let _r = 0; _r < THAUD_ROWS; _r++)                        // three seat rows
+    for (let _i = 0; _i < THAUD_COLS; _i++) {
+      const _sx = THAUD_SX0 + _i * THAUD_SDX, _sz = THAUD_SZ0 + _r * THAUD_SDZ;
       amenPart(parts, 0, 0.95, 0.18, 0.95, _sx, 0.62, _sz, SEAT);
       amenPart(parts, 0, 0.95, 1.05, 0.18, _sx, 1.15, _sz + 0.42, SEAT);
       amenPart(parts, 0, 0.8, 0.5, 0.8, _sx, 0.28, _sz, SEATD);
@@ -8355,6 +8371,9 @@ const THEATERHALL = {
   hallPos: new THREE.Vector3(),
   visits: 0, showIdx: 1, show: THEATER_SHOWS[1], showTxt: 'ACTION MOVIE [E]',   // per-visit show pick (session only)
   tickT: 0, chipT: 0,
+  /* THEATER AUDIENCE v1: STAY-FOR-ENCORE state, owned by the hall tick */
+  showing: false, showT: 0, showDur: 0, tipped: false, cheerFired: false,
+  audT: 0, perfT: 0, audSeed: 0, mood: 'QUIET', appl: 0,
 };
 const thallhintEl = document.getElementById('thallhint');
 const tshowhintEl = document.getElementById('tshowhint');
@@ -8421,6 +8440,11 @@ function theaterHallEnter() {
   player.visible = true;
   theaterHallMesh.position.set(a.x, THEATER_ROOM_Y, a.z);   // park the cached room under this theater
   theaterHallMesh.visible = true;
+  /* THEATER AUDIENCE v1: fresh seeded crowd for this visit, settled at their seats */
+  theaudTintAll(THEATERHALL.visits); theaudSettle();
+  THEATERHALL.showing = false; THEATERHALL.showT = 0; THEATERHALL.tipped = false;
+  THEATERHALL.cheerFired = false; THEATERHALL.perfT = 0; THEATERHALL.audT = 0;
+  THEATERHALL.mood = 'QUIET'; THEATERHALL.appl = 0;
   thallhintEl.style.opacity = 0; THEATERHALL.hintEnter = false; THEATERHALL.nearIdx = -1;
   carHintEl.style.opacity = 0; CAR.hintOn = false;
   busHintEl.style.opacity = 0; BUS.hintOn = false;
@@ -8457,6 +8481,13 @@ function theaterHallExit() {
   if (!THEATERHALL.inHall) return;
   THEATERHALL.inHall = false; THEATERHALL.showOn = false; THEATERHALL.nearIdx = -1;
   theaterHallMesh.visible = false;
+  /* THEATER AUDIENCE v1: STAY-FOR-ENCORE: leaving mid-show forfeits the tip.
+     The fleet parks settled and the chip hides (death-eject runs through here). */
+  const _forfeit = THEATERHALL.showing && !THEATERHALL.tipped;
+  THEATERHALL.showing = false; THEATERHALL.showT = 0; THEATERHALL.tipped = false;
+  THEATERHALL.mood = 'QUIET'; THEATERHALL.appl = 0;
+  crowdChipEl.style.display = 'none';
+  theaudSettle();
   tshowhintEl.style.opacity = 0;
   exitBtnEl.style.display = 'none';
   if (IS_TOUCH) {
@@ -8469,6 +8500,7 @@ function theaterHallExit() {
   player.visible = true;
   helpEl.innerHTML = HELP_FOOT;
   toast('ON FOOT');
+  if (_forfeit) toast('LEFT EARLY: NO ENCORE');   // THEATER AUDIENCE v1: the forfeit is the last word
   sfxBlip(330, 0.09, 'square', 0.18);
 }
 function theaterWatchShow() {
@@ -8482,10 +8514,18 @@ function theaterWatchShow() {
     if (THEATERHALL.showIdx === 0) theaterComedySting();
     else if (THEATERHALL.showIdx === 2) theaterConcertSting();
     else theaterJingle();   // ACTION MOVIE keeps the v1 jingle
+    /* THEATER AUDIENCE v1: STAY-FOR-ENCORE: the show runs on the hall tick;
+       sit through to the end for the tip, leave early and it is forfeited */
+    THEATERHALL.showing = true; THEATERHALL.showT = 0;
+    THEATERHALL.showDur = show.hours * THEATER_SHOW_DUR_S;
+    THEATERHALL.tipped = false; THEATERHALL.cheerFired = false;
+    THEATERHALL.audSeed = theaudHash(hash2i(THEATERHALL.showIdx + 1, THEATERHALL.visits), 0x5EED);
     toast('ENJOY ' + show.name);
   }
   THEATERHALL.showOn = false;   // one show per visit: E now exits, never traps
-  tshowhintEl.textContent = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';   // flip now, not on the 0.25s tick
+  /* THEATER AUDIENCE v1: the NO ENCORE suffix names the mid-show forfeit while a show runs */
+  tshowhintEl.textContent = (IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]')
+    + (THEATERHALL.showing ? ' NO ENCORE' : '');   // flip now, not on the 0.25s tick
 }
 const HELP_THEATERHALL = '<b>E</b> show/exit &nbsp; <b>TOUCH</b> tap show/exit';
 function theaterHallTick(dt) {
@@ -8504,6 +8544,7 @@ function theaterHallTick(dt) {
     player.position.set(THEATERHALL.seatX, THEATER_ROOM_Y, THEATERHALL.seatZ);
     player.rotation.y = THEATERHALL.seatYaw;
     P.vel.set(0, 0, 0); P.vy = 0;
+    theaudTick(dt);   // THEATER AUDIENCE v1: the reactive crowd (gated to inHall inside)
     /* the room is exclusive: no other prompt can arm while inside (their
        ticks run before this one and would re-arm on the door x/z) */
     CAR.hintOn = false; BUS.hintOn = false; TX.hintOn = false; HORSE.hintOn = false;
@@ -8526,7 +8567,9 @@ function theaterHallTick(dt) {
     if (THEATERHALL.tickT >= 0.25) {
       THEATERHALL.tickT = 0;
       const showTxt = THEATERHALL.showTxt;   // cached at entry: the picked show name, never placeholder text
-      const exitTxt = IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]';
+      /* THEATER AUDIENCE v1: the NO ENCORE suffix names the mid-show forfeit while a show runs */
+      const exitTxt = (IS_TOUCH ? 'TAP TO EXIT' : 'EXIT [E]')
+        + (THEATERHALL.showing ? ' NO ENCORE' : '');
       const txt = THEATERHALL.showOn ? showTxt : exitTxt;
       if (tshowhintEl.textContent !== txt) tshowhintEl.textContent = txt;
       tshowhintEl.style.opacity = 1;
@@ -8590,6 +8633,159 @@ function theaterHallTick(dt) {
 }
 /* worldTickers is declared later in this module, so register after it exists */
 queueMicrotask(() => worldTickers.push(theaterHallTick));
+
+/* ================= THEATER AUDIENCE v1 (reactive screening-room crowd) =========
+   One 24-instance fleet of seated figures, parented to the cached screening
+   room: zero net draws while cached (the parent hides it), exactly +1 draw
+   when the room is visible. One merged torso-capsule + head-sphere
+   BufferGeometry, per-instance instanceColor clothing tints (muted, no
+   neon), re-tinted per visit from the seeded hash space. The crowd runs on
+   the hall tick: idle sway pre-show, per-show beats (comedy laugh-bob,
+   action gasp lean-back + finale stand/cheer, concert sway/wave), a
+   front-to-back applause ripple near the show end, then settle. Audio is the
+   sfxBlip one-shot idiom only: sparse low-gain murmur, layered applause
+   bursts whose gain rises with show momentum, the stadium goal-cheer idiom
+   at peaks. Zero unseeded RNG, zero new audio nodes, no timer calls, zero new
+   lights, zero new keybinds. STAY-FOR-ENCORE: sit through the whole show for
+   a +$10 tip; leave early and it is forfeited. The audience never collides
+   and never blocks the exit: it sits in the shared seat grid while the
+   player seat stays behind the last row, and exit is the same teleport it
+   always was. Session only; save v3 untouched. ---- */
+const THEATER_SHOW_DUR_S = 30;   // seconds of real show per billed hour (30/60/90)
+const THEATER_ENCORE_TIP = 10;   // STAY-FOR-ENCORE tip, session cash
+function theaudHash(a, b) {   // the audience's own hash space: no unseeded RNG anywhere in this block
+  return hash2i(hash2i(a | 0, 0xA11D1) | 0, (b | 0) ^ 0xC90D1);
+}
+const THAUD_PALETTE = [0x4a5a6a, 0x6a4a3a, 0x3a5a4a, 0x5a4a5a, 0x6b6b5a, 0x445566, 0x7a6a5a, 0x565a60];
+function theaudBuildGeo() {   // one seated figure: torso capsule + head sphere, white paint for the instance tints
+  const torso = amenPaint(new THREE.CapsuleGeometry(0.2, 0.45, 4, 8).translate(0, 1.045, 0), 0xffffff);
+  const head = amenPaint(new THREE.SphereGeometry(0.15, 10, 8).translate(0, 1.55, 0), 0xffffff);
+  return mergeAmenGeos([torso, head]);
+}
+const audIM = new THREE.InstancedMesh(theaudBuildGeo(),
+  new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xfff1d8,
+    emissiveIntensity: 0.55, roughness: 0.95 }), THAUD_N);
+audIM.castShadow = false; audIM.receiveShadow = false;
+audIM.frustumCulled = false;
+theaterHallMesh.add(audIM);   // rides the cached room: hidden with it, zero net draws while cached
+const _audM = new THREE.Matrix4(), _audQ = new THREE.Quaternion(),
+      _audE = new THREE.Euler(), _audP = new THREE.Vector3(),
+      _audS = new THREE.Vector3(1, 1, 1), _audC = new THREE.Color();
+const audPhase = new Float32Array(THAUD_N);
+function theaudTintAll(visits) {   // per-visit clothing tints + sway phases, seeded (session only)
+  const seed = theaudHash(7, visits);
+  for (let i = 0; i < THAUD_N; i++) {
+    _audC.setHex(THAUD_PALETTE[theaudHash(seed, i) % THAUD_PALETTE.length]);
+    audIM.setColorAt(i, _audC);
+    audPhase[i] = (theaudHash(seed ^ 0xBE71, i) % 1000) / 1000 * Math.PI * 2;
+  }
+  if (audIM.instanceColor) audIM.instanceColor.needsUpdate = true;
+}
+function theaudSettle() {   // park every instance at its seat, settled pose (the shared grid)
+  for (let i = 0; i < THAUD_N; i++) {
+    _audP.set(THAUD_SX0 + (i % THAUD_COLS) * THAUD_SDX, 0, THAUD_SZ0 + ((i / THAUD_COLS) | 0) * THAUD_SDZ);
+    _audE.set(0, Math.PI, 0); _audQ.setFromEuler(_audE);
+    _audS.set(1, 1, 1); _audM.compose(_audP, _audQ, _audS);
+    audIM.setMatrixAt(i, _audM);
+  }
+  audIM.instanceMatrix.needsUpdate = true;
+}
+theaudTintAll(0); theaudSettle();   // build-time: visit-0 tints, settled matrices
+const crowdChipEl = document.getElementById('crowdchip');
+const crowdtxtEl = document.getElementById('crowdtxt');
+const crowdfillEl = document.getElementById('crowdfill');
+function theaudCheer() {   // layered one-shot crowd roar: the stadium goal-cheer idiom, tick-driven, no new nodes
+  sfxBlip(660, 0.14, 'sine', 0.14);
+  sfxBlip(880, 0.14, 'sine', 0.14);
+  sfxBlip(990, 0.18, 'sine', 0.12);
+  sfxBlip(1175, 0.22, 'sine', 0.11);
+  sfxBlip(1320, 0.30, 'sine', 0.09);
+}
+function theaudTick(dt) {   // the crowd runs on the hall tick, gated to inHall
+  const H = THEATERHALL;
+  if (!H.inHall) return;
+  H.perfT += dt;
+  const showing = H.showing, dur = H.showDur, idx = H.showIdx, seed = H.audSeed;
+  if (showing) H.showT += dt;
+  const t = H.showT, mom = showing && dur > 0 ? Math.min(1, t / dur) : 0;
+  const enth = Math.min(1, mom * 1.35);   // enthusiasm: applause gain and clap rate rise with it
+  /* beat schedule: seeded fractions of the show, own hash space */
+  let mood = 'QUIET', beatAmp = 0, leanK = 0, standK = 0, applK = 0;
+  if (showing) {
+    const j0 = (theaudHash(seed, 11) % 7) / 100, j1 = (theaudHash(seed, 12) % 7) / 100;
+    if (idx === 0) {   // COMEDY NIGHT: laugh-bob bursts
+      const b0 = (0.22 + j0) * dur, b1 = (0.50 + j1) * dur, b2 = (0.78 + (theaudHash(seed, 13) % 7) / 100) * dur;
+      if ((t >= b0 && t <= b0 + 2.2) || (t >= b1 && t <= b1 + 2.2) || (t >= b2 && t <= b2 + 2.2)) {
+        mood = 'CHUCKLING'; beatAmp = 1;
+      }
+    } else if (idx === 1) {   // ACTION MOVIE: gasp lean-backs, finale stand + cheer
+      const g0 = (0.30 + j0) * dur, g1 = (0.62 + j1) * dur, fin = 0.86 * dur;
+      if ((t >= g0 && t <= g0 + 1.8) || (t >= g1 && t <= g1 + 1.8)) { mood = 'GASPING'; leanK = 1; }
+      else if (t >= fin) { mood = 'CHEERING'; standK = Math.min(1, (t - fin) / 2); beatAmp = 1; }
+    } else {   // LIVE CONCERT: continuous sway/wave, cheers at the seeded peaks
+      beatAmp = 0.6 + 0.4 * mom;
+      const p0 = (0.33 + j0) * dur, p1 = (0.66 + j1) * dur;
+      mood = ((t >= p0 && t <= p0 + 2.4) || (t >= p1 && t <= p1 + 2.4)) ? 'CHEERING' : 'CHUCKLING';
+    }
+    if (mom >= 0.88) { applK = Math.min(1, (mom - 0.88) / 0.12); mood = 'CHEERING'; }   // applause ripple
+  }
+  /* 24 instances: one matrix compose each, zero allocation per frame */
+  const pt = H.perfT;
+  for (let i = 0; i < THAUD_N; i++) {
+    const r = (i / THAUD_COLS) | 0, c = i % THAUD_COLS;
+    const ph = audPhase[i];
+    let y = 0, rx = Math.sin(pt * 1.1 + ph * 1.7) * 0.014, rz = Math.sin(pt * 1.4 + ph) * 0.022;
+    if (beatAmp > 0) {   // laugh-bob / cheer bounce
+      y += Math.abs(Math.sin(pt * 14 + ph)) * 0.06 * beatAmp;
+      rx += Math.sin(pt * 14 + ph * 0.7) * 0.08 * beatAmp;
+    }
+    if (leanK > 0) rx -= 0.28 * leanK * (0.6 + 0.4 * Math.sin(ph * 3));   // gasp lean-back
+    if (standK > 0) {   // finale stand: rise and bounce
+      y += 0.55 * standK + Math.abs(Math.sin(pt * 10 + ph)) * 0.09 * standK;
+      rz += Math.sin(pt * 6 + ph * 2) * 0.06 * standK;
+    }
+    if (idx === 2 && showing)   // concert wave: bigger continuous sway, column-phase
+      rz += Math.sin(pt * 3 + c * 0.8 + r * 0.5) * 0.09 * beatAmp;
+    if (applK > 0) y += Math.max(0, Math.sin(pt * 9 - r * 1.3)) * 0.12 * applK;   // front-to-back ripple
+    _audP.set(THAUD_SX0 + c * THAUD_SDX, y, THAUD_SZ0 + r * THAUD_SDZ);
+    _audE.set(rx, Math.PI, rz); _audQ.setFromEuler(_audE);
+    _audS.set(1, 1, 1); _audM.compose(_audP, _audQ, _audS);
+    audIM.setMatrixAt(i, _audM);
+  }
+  audIM.instanceMatrix.needsUpdate = true;
+  /* audio on the 0.25s cadence: sparse murmur, layered applause, peak cheers */
+  H.audT += dt;
+  if (H.audT >= 0.25) {
+    H.audT = 0;
+    const tickN = (pt * 4) | 0;
+    if ((theaudHash(seed, 2000 + tickN) % 3) === 0)   // idle murmur: sparse low-gain blips
+      sfxBlip(170 + (theaudHash(seed, 2100 + tickN) % 140), 0.09, 'sine', 0.045);
+    if (showing) {
+      if (applK > 0 || mom > 0.75) {   // applause: rapid one-shot bursts, gain rises with momentum
+        const g = 0.04 + 0.09 * enth, ck = theaudHash(seed, 3000 + tickN);
+        sfxBlip(1100 + (ck % 700), 0.05, 'square', g);
+        sfxBlip(1400 + ((ck >> 3) % 800), 0.05, 'square', g * 0.8);
+        sfxBlip(900 + ((ck >> 5) % 600), 0.06, 'square', g * 0.6);
+      }
+      if (mood === 'CHEERING' && !H.cheerFired) { H.cheerFired = true; theaudCheer(); }
+      if (mood !== 'CHEERING') H.cheerFired = false;
+    }
+  }
+  /* STAY-FOR-ENCORE: the full show earns the tip (the cash idiom, no silent mechanics) */
+  if (showing && dur > 0 && t >= dur) {
+    H.showing = false; H.tipped = true;
+    cash += THEATER_ENCORE_TIP; updateCashHUD(); floatCash('+$' + THEATER_ENCORE_TIP);
+    toast('ENCORE TIP +$' + THEATER_ENCORE_TIP);
+    sfxBlip(880, 0.14, 'triangle', 0.22);   // encore sting: immediate harmony, tick-driven only
+    sfxBlip(1175, 0.2, 'triangle', 0.2);
+  }
+  /* HUD: mood readout + applause meter (DOM only, zero draw calls) */
+  H.mood = mood; H.appl = showing ? Math.round(100 * enth) : 0;
+  crowdChipEl.style.display = 'block';
+  if (crowdtxtEl.textContent !== 'AUDIENCE ' + mood) crowdtxtEl.textContent = 'AUDIENCE ' + mood;
+  const _aw = H.appl + '%';
+  if (crowdfillEl.style.width !== _aw) crowdfillEl.style.width = _aw;
+}
 
 /* ================= THEATER CONCESSIONS v1 (Gameplay: snack stand) ==============
    A concession stand at every seeded landmark theater. The door zone that
