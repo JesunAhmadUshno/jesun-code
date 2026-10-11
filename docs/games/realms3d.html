@@ -21981,6 +21981,7 @@ function boatUpdate(sdt, now) {
 
   // ---- buoyancy: damped springs on the wave samples (no cork bounce) ----
   boatFloat(BOAT.pos.x, BOAT.pos.z, BOAT.heading, BOAT, sdt, now, BOAT.steer * 0.1);
+  BOAT.pos.y = BOAT.y;   // heave sync: the spring writes BOAT.y; the hull pose and the player seat read BOAT.pos.y
   player.position.copy(BOAT.pos);
   player.position.y += 0.9;   // seated in the hull
   player.rotation.y = BOAT.heading;
