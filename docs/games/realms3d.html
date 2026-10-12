@@ -4954,6 +4954,14 @@ function makeSkinTex() {
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  /* SKIN TEXTURE COLORSPACE v1: skin is a pure colour map, an authored
+     tone plus pore speckle with no data channels. Its pair fabric
+     already declares sRGB, but skin was the one shared character
+     colour map left in the default linear space, so authored tones
+     rendered washed out and brighter than authored. Declaring sRGB
+     here makes authored colours display as authored. One shared
+     texture, zero new draw calls. */
+  t.colorSpace = THREE.SRGBColorSpace;
   /* CHARACTER TEXTURE ANISOTROPY v1: tiled skin texture repeats across
      limbs and torso, so pore detail blurs at grazing angles without
      anisotropic filtering. Use the renderer max, capped at 4 for iPhone
