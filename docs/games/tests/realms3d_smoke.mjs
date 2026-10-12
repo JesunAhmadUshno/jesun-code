@@ -238,7 +238,7 @@ globalThis.__R3D = {
   lootTick, LOOT, lootIcons, lootGuns, busBodyIM, ftUpdate, missionTick, startIcons,
   /* Phase 5 helicopters v1 */
   HELI, heliEnter, heliExit, heliRebuild, helipadFor, heliParkPad, heliPose,
-  heliBodyIM, heliHintEl, heliChipEl, HELI_N, sfxThud, HELI_PAD_LZ,
+  heliBodyIM, heliHintEl, heliChipEl, heliSpdEl, heliAltEl, HELI_N, sfxThud, HELI_PAD_LZ,   /* HELI SPEED METER v1: helicopter speed meter (test-only exposure) */
   /* Phase 5 planes v1 */
   PLANE, planeEnter, planeExit, planeExitFlight, planeRebuild, airstripFor,
   planeStripWorld, planePose, planeBodyIM, planeHintEl, planeChipEl,
@@ -3552,7 +3552,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('heli: throttle flies the helicopter forward', hMoved > 2.0 && hMaxSpd > 2.0,
     'moved=' + hMoved.toFixed(1) + 'u maxSpd=' + hMaxSpd.toFixed(1));
   check('heli: chip reads speed and altitude while flying',
-    /^HELI - \d+ KM\/H \/ ALT \d+M$/.test(G.heliChipEl.textContent), G.heliChipEl.textContent);
+    /^HELI - \d+ KM\/H \/ ALT \d+M$/.test(G.heliSpdEl.textContent + G.heliAltEl.textContent),
+    G.heliSpdEl.textContent + G.heliAltEl.textContent);
   check('heli: forward flight pitches the nose down (tilt-to-fly)',
     G.HELI.pitch > 0.05, 'pitch=' + G.HELI.pitch.toFixed(3));
 
@@ -22681,6 +22682,156 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('boatspeed: the run leaves zero console errors/warnings',
     consoleProblems.length === probsBS, consoleProblems.slice(probsBS).join(' | '));
+}
+
+/* ================= HELI SPEED METER v1 =================
+   The helicopter speed readout is a real meter: the
+   #helispd span nested in #helichip carries role
+   meter plus aria-label Helicopter speed and
+   aria-valuemin 0 and aria-valuemax 94 in markup,
+   with aria-valuenow kept in sync in heliUpdate
+   beside the textContent writers. The sync uses
+   the ariaValueNow IDL property, not setAttribute,
+   because the headless stub elements have no
+   setAttribute method. The displayed value is
+   Math.round(Math.abs(HELI.speed) * 3.6): forward
+   speed is hard-capped at HELI.topSpeed 26, so the
+   largest possible displayed value is
+   Math.round(93.6) = 94 and the fixed valuemax 94
+   is exact; reverse is capped at 6, well inside.
+   Altitude has no clean absolute maximum (the 60u
+   ceiling minus varying terrain), so it is NOT
+   part of the meter value: #helialt stays plain
+   text. The runtime checks board a parked
+   helicopter through the real entry path (the heli
+   block idiom), lift it 12m over the terrain at
+   its boarding point, set speed 5 with the HUD
+   throttle forced open and run one frame with no
+   keys held (coast plus drag only lowers 5 to
+   about 4.97, which still rounds to 18), then set
+   speed 0, run one more frame, and exit, leaving
+   the harness parked and clean. The altitude
+   expectation is recomputed from the live position
+   and terrain after the frame, because the frame
+   integrates a fraction of a metre horizontally
+   before the HUD write samples the ground. */
+{
+  const probsHS = consoleProblems.length;
+  const linesHS = html.split('\n');
+  const lineHasHS = sub => linesHS.filter(l => l.includes(sub)).length;
+  check('helispd: HELI SPEED METER v1 header is present exactly once in the game source',
+    (html.split('HELI SPEED METER v1').length - 1) === 1,
+    'n=' + (html.split('HELI SPEED METER v1').length - 1));
+  const heliTagHS = (html.match(/<span id="helispd"[^>]*>/) || [''])[0];
+  check('helispd: #helispd element markup carries role="meter"',
+    heliTagHS.includes('role="meter"'), 'tag=' + heliTagHS);
+  check('helispd: #helispd element markup carries aria-label="Helicopter speed"',
+    heliTagHS.includes('aria-label="Helicopter speed"'), 'tag=' + heliTagHS);
+  check('helispd: #helispd element markup carries aria-valuemin="0"',
+    heliTagHS.includes('aria-valuemin="0"'), 'tag=' + heliTagHS);
+  check('helispd: #helispd element markup carries aria-valuemax="94"',
+    heliTagHS.includes('aria-valuemax="94"'), 'tag=' + heliTagHS);
+  check('helispd: #helispd element markup carries aria-valuenow="0"',
+    heliTagHS.includes('aria-valuenow="0"'), 'tag=' + heliTagHS);
+  check('helispd: #helichip markup nests #helispd meter and #helialt plain text (source pin)',
+    html.includes('<div id="helichip"><span id="helispd" role="meter" aria-label="Helicopter speed" aria-valuemin="0" aria-valuemax="94" aria-valuenow="0">HELI - 0 KM/H</span><span id="helialt"> / ALT 0M</span></div>'));
+  check('helispd: exactly one #helispd element in the game source',
+    (html.match(/id="helispd"/g) || []).length === 1,
+    'n=' + (html.match(/id="helispd"/g) || []).length);
+  check('helispd: exactly one #helialt element in the game source',
+    (html.match(/id="helialt"/g) || []).length === 1,
+    'n=' + (html.match(/id="helialt"/g) || []).length);
+  check('helispd: exactly one #helichip element in the game source',
+    (html.match(/id="helichip"/g) || []).length === 1,
+    'n=' + (html.match(/id="helichip"/g) || []).length);
+  check('helispd: heliChipEl binding line is unchanged (source pin)',
+    html.includes("const heliChipEl = document.getElementById('helichip');"));
+  check('helispd: heliSpdEl binding line binds helispd (source pin)',
+    html.includes("const heliSpdEl = document.getElementById('helispd');"));
+  check('helispd: heliAltEl binding line binds helialt (source pin)',
+    html.includes("const heliAltEl = document.getElementById('helialt');"));
+  check('helispd: heliUpdate computes heliKmh from HELI.speed (source pin)',
+    html.includes('const heliKmh = Math.round(Math.abs(HELI.speed) * 3.6);'));
+  check('helispd: heliUpdate computes heliAltM from HELI.pos.y minus ground (source pin)',
+    html.includes('const heliAltM = Math.max(0, Math.round(HELI.pos.y - ground));'));
+  check('helispd: heliUpdate writes heliSpdEl textContent from heliKmh (source pin)',
+    html.includes("heliSpdEl.textContent = 'HELI - ' + heliKmh + ' KM/H';"));
+  check('helispd: heliUpdate writes heliAltEl textContent from heliAltM (source pin)',
+    html.includes("heliAltEl.textContent = ' / ALT ' + heliAltM + 'M';"));
+  check('helispd: heliUpdate syncs heliSpdEl ariaValueNow from heliKmh exactly once (source pin)',
+    (html.split('heliSpdEl.ariaValueNow = String(heliKmh);').length - 1) === 1,
+    'n=' + (html.split('heliSpdEl.ariaValueNow = String(heliKmh);').length - 1));
+  check('helispd: the old heliChipEl textContent writer is gone (source pin)',
+    !html.includes('heliChipEl.textContent'));
+  /* board a parked helicopter through the real entry path (heli block idiom) */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  let padChunkHS = null;
+  for (let gx = -12; gx <= 12 && !padChunkHS; gx++)
+    for (let gz = -12; gz <= 12 && !padChunkHS; gz++) {
+      const d = G.helipadFor(gx, gz);
+      if (d) padChunkHS = { gx, gz, d };
+    }
+  const hcxHS = (padChunkHS.gx + 0.5) * 48, hczHS = (padChunkHS.gz + 0.5) * 48;
+  G.player.position.set(hcxHS, groundY(hcxHS, hczHS), hczHS);
+  frame(3);
+  const sHS = G.HELI.slots.find(s => s.placed);
+  G.player.position.set(sHS.x, sHS.y + 1, sHS.z);
+  frame(2);
+  G.heliEnter();
+  check('helispd: runtime boarded through heliEnter, chip is shown while flying',
+    G.HELI.flying === true && G.heliChipEl.style.display === 'block',
+    'flying=' + G.HELI.flying + ' display=' + G.heliChipEl.style.display);
+  G.keys.KeyW = false; G.keys.KeyA = false; G.keys.KeyS = false; G.keys.KeyD = false;
+  G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+  G.keys.Space = false; G.keys.KeyC = false;
+  G.HELI.pos.y = groundY(G.HELI.pos.x, G.HELI.pos.z) + 12;
+  G.HELI.vy = 0; G.HELI.strafe = 0; G.HELI.grounded = false; G.HELI.tdT = 0;
+  G.player.position.set(G.HELI.pos.x, G.HELI.pos.y, G.HELI.pos.z);
+  G.HELI.speed = 5; G.HELI.hudT = 1;
+  frame(1);
+  check('helispd: runtime heliSpdEl text is HELI - 18 KM/H at speed 5',
+    G.heliSpdEl.textContent === 'HELI - 18 KM/H',
+    'textContent=' + G.heliSpdEl.textContent + ' speed=' + G.HELI.speed);
+  check('helispd: runtime heliSpdEl ariaValueNow is 18 at speed 5',
+    String(G.heliSpdEl.ariaValueNow) === '18',
+    'ariaValueNow=' + G.heliSpdEl.ariaValueNow + ' speed=' + G.HELI.speed);
+  const altHS5 = Math.max(0, Math.round(G.HELI.pos.y - G.terrainHeight(G.HELI.pos.x, G.HELI.pos.z)));
+  check('helispd: runtime heliAltEl text is in sync with live altitude at speed 5',
+    G.heliAltEl.textContent === ' / ALT ' + altHS5 + 'M' && Math.abs(altHS5 - 12) <= 1,
+    'textContent=' + G.heliAltEl.textContent + ' expectedAlt=' + altHS5);
+  check('helispd: runtime combined chip text keeps the HELI - n KM/H / ALT nM format',
+    /^HELI - \d+ KM\/H \/ ALT \d+M$/.test(G.heliSpdEl.textContent + G.heliAltEl.textContent),
+    G.heliSpdEl.textContent + G.heliAltEl.textContent);
+  G.HELI.speed = 0; G.HELI.hudT = 1;
+  frame(1);
+  check('helispd: runtime heliSpdEl text is HELI - 0 KM/H at speed 0',
+    G.heliSpdEl.textContent === 'HELI - 0 KM/H',
+    'textContent=' + G.heliSpdEl.textContent + ' speed=' + G.HELI.speed);
+  check('helispd: runtime heliSpdEl ariaValueNow is 0 at speed 0',
+    String(G.heliSpdEl.ariaValueNow) === '0',
+    'ariaValueNow=' + G.heliSpdEl.ariaValueNow + ' speed=' + G.HELI.speed);
+  const altHS0 = Math.max(0, Math.round(G.HELI.pos.y - G.terrainHeight(G.HELI.pos.x, G.HELI.pos.z)));
+  check('helispd: runtime heliAltEl text is in sync with live altitude at speed 0',
+    G.heliAltEl.textContent === ' / ALT ' + altHS0 + 'M',
+    'textContent=' + G.heliAltEl.textContent + ' expectedAlt=' + altHS0);
+  G.heliExit();
+  check('helispd: chip is hidden after exit and not flying',
+    G.heliChipEl.style.display === 'none' && G.HELI.flying === false,
+    'display=' + G.heliChipEl.style.display + ' flying=' + G.HELI.flying);
+  check('helispd: pins - 50 InstancedMesh literals unchanged', lineHasHS('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasHS('new THREE.InstancedMesh'));
+  check('helispd: pins - 92 Math.random lines unchanged', lineHasHS('Math.random') === 92,
+    'n=' + lineHasHS('Math.random'));
+  check('helispd: pins - 72 setTimeout lines unchanged', lineHasHS('setTimeout') === 72,
+    'n=' + lineHasHS('setTimeout'));
+  check('helispd: pins - no em dashes', !html.includes('\u2014'));
+  check('helispd: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('helispd: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('helispd: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsHS, consoleProblems.slice(probsHS).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
