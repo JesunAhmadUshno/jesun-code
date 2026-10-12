@@ -1381,7 +1381,9 @@
   <div id="saved">SAVED --:--</div>
   <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond">HULL 100%</div></div>
   <div id="perfchip"></div>
-  <div id="toast"></div>
+  <!-- TOAST LIVE REGION v1: toast() feedback (212 call sites) is now announced
+       by assistive tech without moving focus. toast() itself is unchanged. -->
+  <div id="toast" role="status" aria-live="polite"></div>
   <div id="carhint"></div>
   <div id="ridehint"></div>
   <div id="bushint"></div>
