@@ -22579,6 +22579,110 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsHM, consoleProblems.slice(probsHM).join(' | '));
 }
 
+/* ================= BOAT SPEED METER v1 =================
+   The boat speed readout is a real meter: role
+   meter plus aria-label Boat speed and
+   aria-valuemin 0 and aria-valuemax 43 in the
+   #boatchip markup, with aria-valuenow kept in
+   sync in boatUpdate beside the textContent
+   writer. The sync uses the ariaValueNow IDL
+   property, not setAttribute, because the
+   headless stub elements have no setAttribute
+   method. The displayed value is
+   Math.round(Math.abs(speed) * 3.6): forward
+   speed is capped at BOAT.topSpeed 12 with a
+   wave penalty of at most 1, reverse is capped
+   at 4, so the largest possible displayed
+   value is Math.round(43.2) = 43 and the fixed
+   valuemax 43 is exact. The runtime checks
+   board a moored boat through the real entry
+   path, set speed 5 with the HUD throttle
+   forced open and run one frame with no keys
+   held (coast decay only lowers 5 to about
+   4.93, which still rounds to 18), then set
+   speed 0, run one more frame, and exit,
+   leaving the harness parked and clean. */
+{
+  const probsBS = consoleProblems.length;
+  const linesBS = html.split('\n');
+  const lineHasBS = sub => linesBS.filter(l => l.includes(sub)).length;
+  check('boatspeed: BOAT SPEED METER v1 header is present exactly once in the game source',
+    (html.split('BOAT SPEED METER v1').length - 1) === 1,
+    'n=' + (html.split('BOAT SPEED METER v1').length - 1));
+  const boatTagBS = (html.match(/<div id="boatchip"[^>]*>/) || [''])[0];
+  check('boatspeed: #boatchip element markup carries role="meter"',
+    boatTagBS.includes('role="meter"'), 'tag=' + boatTagBS);
+  check('boatspeed: #boatchip element markup carries aria-label="Boat speed"',
+    boatTagBS.includes('aria-label="Boat speed"'), 'tag=' + boatTagBS);
+  check('boatspeed: #boatchip element markup carries aria-valuemin="0"',
+    boatTagBS.includes('aria-valuemin="0"'), 'tag=' + boatTagBS);
+  check('boatspeed: #boatchip element markup carries aria-valuemax="43"',
+    boatTagBS.includes('aria-valuemax="43"'), 'tag=' + boatTagBS);
+  check('boatspeed: #boatchip element markup carries aria-valuenow="0"',
+    boatTagBS.includes('aria-valuenow="0"'), 'tag=' + boatTagBS);
+  check('boatspeed: exactly one #boatchip element in the game source',
+    (html.match(/id="boatchip"/g) || []).length === 1,
+    'n=' + (html.match(/id="boatchip"/g) || []).length);
+  check('boatspeed: boatChipEl binding line is unchanged (source pin)',
+    html.includes("const boatChipEl = document.getElementById('boatchip');"));
+  check('boatspeed: boatUpdate boatChipEl textContent writer line is unchanged (source pin)',
+    html.includes("boatChipEl.textContent = 'BOAT - ' + Math.round(Math.abs(BOAT.speed) * 3.6) + ' KM/H';"));
+  check('boatspeed: boatUpdate syncs boatChipEl ariaValueNow from the displayed speed exactly once (source pin)',
+    (html.split('boatChipEl.ariaValueNow = String(Math.round(Math.abs(BOAT.speed) * 3.6));').length - 1) === 1,
+    'n=' + (html.split('boatChipEl.ariaValueNow = String(Math.round(Math.abs(BOAT.speed) * 3.6));').length - 1));
+  /* board a moored boat through the real entry path (boat block idiom) */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  let dockChunkBS = null;
+  for (let gx = -10; gx <= 10 && !dockChunkBS; gx++)
+    for (let gz = -10; gz <= 10 && !dockChunkBS; gz++) {
+      const d = G.dockFor(gx, gz);
+      if (d) dockChunkBS = { gx, gz, d };
+    }
+  const dcxBS = (dockChunkBS.gx + 0.5) * 48, dczBS = (dockChunkBS.gz + 0.5) * 48;
+  G.player.position.set(dcxBS, groundY(dcxBS, dczBS), dczBS);
+  frame(3);
+  const sBS = G.BOAT.slots.find(s => s.placed);
+  G.player.position.set(sBS.x, 0.5, sBS.z);
+  frame(2);
+  G.boatEnter();
+  G.keys.KeyW = false; G.keys.KeyA = false; G.keys.KeyS = false; G.keys.KeyD = false;
+  G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+  G.BOAT.speed = 5; G.BOAT.hudT = 1;
+  frame(1);
+  check('boatspeed: runtime boatChipEl text is BOAT - 18 KM/H at speed 5',
+    G.boatChipEl.textContent === 'BOAT - 18 KM/H',
+    'textContent=' + G.boatChipEl.textContent + ' speed=' + G.BOAT.speed);
+  check('boatspeed: runtime boatChipEl ariaValueNow is 18 at speed 5',
+    String(G.boatChipEl.ariaValueNow) === '18',
+    'ariaValueNow=' + G.boatChipEl.ariaValueNow + ' speed=' + G.BOAT.speed);
+  G.BOAT.speed = 0; G.BOAT.hudT = 1;
+  frame(1);
+  check('boatspeed: runtime boatChipEl text is BOAT - 0 KM/H at speed 0',
+    G.boatChipEl.textContent === 'BOAT - 0 KM/H',
+    'textContent=' + G.boatChipEl.textContent + ' speed=' + G.BOAT.speed);
+  check('boatspeed: runtime boatChipEl ariaValueNow is 0 at speed 0',
+    String(G.boatChipEl.ariaValueNow) === '0',
+    'ariaValueNow=' + G.boatChipEl.ariaValueNow + ' speed=' + G.BOAT.speed);
+  G.boatExit();
+  check('boatspeed: chip is hidden after exit, boat parked at speed 0 and not driving',
+    G.boatChipEl.style.display === 'none' && G.BOAT.driving === false && G.BOAT.speed === 0,
+    'display=' + G.boatChipEl.style.display + ' driving=' + G.BOAT.driving + ' speed=' + G.BOAT.speed);
+  check('boatspeed: pins - 50 InstancedMesh literals unchanged', lineHasBS('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasBS('new THREE.InstancedMesh'));
+  check('boatspeed: pins - 92 Math.random lines unchanged', lineHasBS('Math.random') === 92,
+    'n=' + lineHasBS('Math.random'));
+  check('boatspeed: pins - 72 setTimeout lines unchanged', lineHasBS('setTimeout') === 72,
+    'n=' + lineHasBS('setTimeout'));
+  check('boatspeed: pins - no em dashes', !html.includes('\u2014'));
+  check('boatspeed: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('boatspeed: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('boatspeed: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsBS, consoleProblems.slice(probsBS).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
