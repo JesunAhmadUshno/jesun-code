@@ -23295,6 +23295,51 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsHA, consoleProblems.slice(probsHA).join(' | '));
 }
 
+/* ================= WHEEL CANVAS NAME v1 =================
+   The casino Wheel of Fortune graphic is a named image:
+   the #lmwheel-canvas element inside #lmwheelpanel
+   carries role img plus aria-label Wheel of Fortune
+   prize wheel in markup. wheelDraw paints the prize
+   sectors as canvas pixels, so the static name
+   describes the graphic as a unit; the spin result
+   stays in the existing #lmwheel-status and
+   #wheelchip text written by wheelRender. This item
+   is markup only: no JS changes, no other canvas or
+   element is in scope. */
+{
+  const probsWC = consoleProblems.length;
+  const linesWC = html.split('\n');
+  const lineHasWC = sub => linesWC.filter(l => l.includes(sub)).length;
+  check('wheelcanvas: WHEEL CANVAS NAME v1 header is present exactly once in the game source',
+    (html.split('WHEEL CANVAS NAME v1').length - 1) === 1,
+    'n=' + (html.split('WHEEL CANVAS NAME v1').length - 1));
+  const wheelTagWC = (html.match(/<canvas id="lmwheel-canvas"[^>]*>/) || [''])[0];
+  check('wheelcanvas: #lmwheel-canvas tag carries role="img"',
+    wheelTagWC.includes('role="img"'), 'tag=' + wheelTagWC);
+  check('wheelcanvas: #lmwheel-canvas tag carries aria-label="Wheel of Fortune prize wheel"',
+    wheelTagWC.includes('aria-label="Wheel of Fortune prize wheel"'), 'tag=' + wheelTagWC);
+  check('wheelcanvas: #lmwheel-canvas full tag matches exactly (source pin)',
+    html.includes('<canvas id="lmwheel-canvas" width="300" height="300" role="img" aria-label="Wheel of Fortune prize wheel"></canvas>'));
+  check('wheelcanvas: exactly one #lmwheel-canvas element in the game source',
+    (html.match(/id="lmwheel-canvas"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmwheel-canvas"/g) || []).length);
+  check('wheelcanvas: pins - 50 InstancedMesh literals unchanged', lineHasWC('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasWC('new THREE.InstancedMesh'));
+  check('wheelcanvas: pins - 92 Math.random lines unchanged', lineHasWC('Math.random') === 92,
+    'n=' + lineHasWC('Math.random'));
+  check('wheelcanvas: pins - 72 setTimeout lines unchanged', lineHasWC('setTimeout') === 72,
+    'n=' + lineHasWC('setTimeout'));
+  check('wheelcanvas: pins - 2 THREE.Points objects unchanged', lineHasWC('new THREE.Points(') === 2,
+    'n=' + lineHasWC('new THREE.Points('));
+  check('wheelcanvas: pins - no em dashes', !html.includes('\u2014'));
+  check('wheelcanvas: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('wheelcanvas: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('wheelcanvas: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsWC, consoleProblems.slice(probsWC).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
