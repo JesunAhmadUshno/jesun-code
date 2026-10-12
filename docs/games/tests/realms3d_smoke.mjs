@@ -77,7 +77,7 @@ globalThis.__R3D = {
   enemies, tracers, enemyMeshes, objRing, objIcon,
   cops, copFleet, COP_MAX, eBodyAll, ENEMY_BAND, ENEMY_MIX,   /* PERF-6 merge regression */
   SAVE_KEY,
-  DIFF, diffEval, animals,
+  DIFF, diffEl, updateDiffHUD, diffEval, animals,   /* DIFF METER v1: difficulty tier meter (test-only exposure) */
   birds, wings, PET, tamePet, releasePet, acquirePrey, petRejoin,
   petHintEl, petChipEl, birdFlockTick,
   FROZEN_STATICS, ocean,                       /* PERF-7 static freeze registry + water mesh */
@@ -21944,6 +21944,76 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('wxstatus: the run leaves zero console errors/warnings',
     consoleProblems.length === probsWS, consoleProblems.slice(probsWS).join(' | '));
+}
+
+/* ================= DIFF METER v1 =================
+   The AI difficulty tier is a real meter: role meter plus
+   aria-label AI difficulty tier and aria-valuemin 0 and
+   aria-valuemax 3 in the #diffchip markup, with
+   aria-valuenow kept in sync by updateDiffHUD. The sync
+   uses the ariaValueNow IDL property, not setAttribute,
+   because the headless stub elements have no
+   setAttribute method. The sync line sits at the top of
+   updateDiffHUD, so it runs on every call (the boot call
+   and every tier change). The runtime checks drive
+   DIFF.tier plus updateDiffHUD the same way the
+   heatmeter block drives W.heat plus updateHeatHUD, and
+   read the stub element for diffchip through
+   stubs.getEl, the same element the game binds as
+   diffEl. The tier is set back to 0 after the tier 2
+   drive and the original tier is restored after the
+   checks. */
+{
+  const probsDM = consoleProblems.length;
+  const linesDM = html.split('\n');
+  const lineHasDM = sub => linesDM.filter(l => l.includes(sub)).length;
+  check('diffmeter: DIFF METER v1 header is present exactly once in the game source',
+    (html.split('DIFF METER v1').length - 1) === 1,
+    'n=' + (html.split('DIFF METER v1').length - 1));
+  const diffTagDM = (html.match(/<div id="diffchip"[^>]*>/) || [''])[0];
+  check('diffmeter: #diffchip element markup carries role="meter"',
+    diffTagDM.includes('role="meter"'), 'tag=' + diffTagDM);
+  check('diffmeter: #diffchip element markup carries aria-label="AI difficulty tier"',
+    diffTagDM.includes('aria-label="AI difficulty tier"'), 'tag=' + diffTagDM);
+  check('diffmeter: #diffchip element markup carries aria-valuemin="0"',
+    diffTagDM.includes('aria-valuemin="0"'), 'tag=' + diffTagDM);
+  check('diffmeter: #diffchip element markup carries aria-valuemax="3"',
+    diffTagDM.includes('aria-valuemax="3"'), 'tag=' + diffTagDM);
+  check('diffmeter: #diffchip element markup carries aria-valuenow="0"',
+    diffTagDM.includes('aria-valuenow="0"'), 'tag=' + diffTagDM);
+  check('diffmeter: exactly one #diffchip element in the game source',
+    (html.match(/id="diffchip"/g) || []).length === 1,
+    'n=' + (html.match(/id="diffchip"/g) || []).length);
+  check('diffmeter: diffEl binding line binds diffchip (source pin)',
+    html.includes("const diffEl = document.getElementById('diffchip');"));
+  check('diffmeter: updateDiffHUD syncs ariaValueNow from DIFF.tier (source pin)',
+    html.includes('diffEl.ariaValueNow = String(DIFF.tier);'));
+  const diffOrigDM = G.DIFF.tier;
+  G.DIFF.tier = 2; G.updateDiffHUD();
+  check('diffmeter: runtime ariaValueNow is 2 when tier is 2',
+    stubs.getEl('diffchip').ariaValueNow === '2',
+    'ariaValueNow=' + stubs.getEl('diffchip').ariaValueNow);
+  check('diffmeter: runtime diffchip element text is AI TIER 2 when tier is 2',
+    stubs.getEl('diffchip').textContent === 'AI TIER 2',
+    'textContent=' + stubs.getEl('diffchip').textContent);
+  G.DIFF.tier = 0; G.updateDiffHUD();
+  check('diffmeter: runtime ariaValueNow is 0 when tier is back to 0',
+    stubs.getEl('diffchip').ariaValueNow === '0',
+    'ariaValueNow=' + stubs.getEl('diffchip').ariaValueNow);
+  check('diffmeter: pins - 50 InstancedMesh literals unchanged', lineHasDM('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasDM('new THREE.InstancedMesh'));
+  check('diffmeter: pins - 92 Math.random lines unchanged', lineHasDM('Math.random') === 92,
+    'n=' + lineHasDM('Math.random'));
+  check('diffmeter: pins - 72 setTimeout lines unchanged', lineHasDM('setTimeout') === 72,
+    'n=' + lineHasDM('setTimeout'));
+  check('diffmeter: pins - no em dashes', !html.includes('\u2014'));
+  check('diffmeter: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('diffmeter: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('diffmeter: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsDM, consoleProblems.slice(probsDM).join(' | '));
+  G.DIFF.tier = diffOrigDM; G.updateDiffHUD();
 }
 
 /* ---------- zero console errors ---------- */
