@@ -1468,8 +1468,17 @@
   <div id="apthint"></div>
   <div id="aptchip"></div>
   <div id="aptbearing"><span id="aptarr" aria-hidden="true">^</span> <span id="apttxt"></span></div>
+  <!-- PANEL HEADINGS v1: every overlay panel title is a real heading for
+       assistive tech: role heading plus aria-level 2 in markup on all 11
+       panel titles (civic, worship, shop slot, and the 8 casino panels), so
+       screen-reader heading navigation can find the panel that is open. The
+       overlay h1 is the only higher heading; the two dynamic titles (civic
+       and worship, rewritten via textContent) keep the role when their text
+       changes, and panels are display none when closed, so a heading enters
+       the accessibility tree only while its panel is open. Rendering and
+       text are unchanged. -->
   <div id="civicpanel">
-    <div id="civictitle">CIVIC</div>
+    <div id="civictitle" role="heading" aria-level="2">CIVIC</div>
     <div class="tbtn" id="civicact">ACT</div>
     <div class="tbtn" id="civicact2">DEPOSIT</div>
     <div class="tbtn" id="civicact3">WITHDRAW</div>
@@ -1478,12 +1487,12 @@
     <div id="civicfoot"></div>
   </div>
   <div id="worshippanel">
-    <div id="worshiptitle">WORSHIP</div>
+    <div id="worshiptitle" role="heading" aria-level="2">WORSHIP</div>
     <div class="tbtn" id="worshipact">ACT</div>
     <div id="worshipfoot"></div>
   </div>
   <div id="slotpanel">
-    <div id="slottitle">SLOT MACHINE</div>
+    <div id="slottitle" role="heading" aria-level="2">SLOT MACHINE</div>
     <div id="slotreels">
       <!-- REEL CANVAS NAMES v1: the reel graphics are real images for assistive tech: role img plus distinct aria-labels Slot machine reel 1, Slot machine reel 2, and Slot machine reel 3 in markup. drawReel paints the symbols as canvas pixels, so the static names describe each reel as a unit; the spin result stays in the existing #slotwin text. -->
       <canvas id="reel0" width="96" height="120" role="img" aria-label="Slot machine reel 1"></canvas>
@@ -1547,7 +1556,7 @@
   <div id="hirollchip"></div>
   <div id="loyalchip"></div>
   <div id="lmcasinopanel">
-    <div id="lmcs-title">ROYAL REELS</div>
+    <div id="lmcs-title" role="heading" aria-level="2">ROYAL REELS</div>
     <!-- ROYAL REELS REEL NAMES v1: each Royal Reels reel is a real image for assistive tech: role img plus a distinct aria-label in markup. lmcsDrawReel paints the symbol cells, so the static name describes each reel as a unit; the spin result stays in the existing #lmcs-win text. -->
     <div id="lmcs-reels">
       <div class="lmcs-reel" id="lmcs-reel0" role="img" aria-label="Royal Reels reel 1"></div>
@@ -1560,7 +1569,7 @@
     <div id="lmcs-bigwin"></div>
   </div>
   <div id="lmcobjpanel">
-    <div id="lmbj-title">BLACKJACK</div>
+    <div id="lmbj-title" role="heading" aria-level="2">BLACKJACK</div>
     <div id="lmbj-status">BET $10</div>
     <div class="lmbj-row" id="lmbj-dealer"></div>
     <div class="lmbj-row" id="lmbj-player"></div>
@@ -1568,7 +1577,7 @@
     <div id="lmbj-pay">BLACKJACK PAYS 3:2 &nbsp; DEALER STANDS ON ALL 17s<br>DOUBLE: ONE CARD, BET DOUBLES &nbsp; PUSH REFUNDS BET</div>
   </div>
   <div id="lmcroupanel">
-    <div id="lmroul-title">ROULETTE</div>
+    <div id="lmroul-title" role="heading" aria-level="2">ROULETTE</div>
     <div id="lmroul-hist"></div>
     <div id="lmroul-status">BET $10</div>
     <div id="lmroul-grid"></div>
@@ -1578,7 +1587,7 @@
     <div id="lmroul-bigwin"></div>
   </div>
   <div id="lmdicepanel">
-    <div id="lmdice-title">STREET DICE</div>
+    <div id="lmdice-title" role="heading" aria-level="2">STREET DICE</div>
     <div id="lmdice-hist"></div>
     <div id="lmdice-status">BET $10</div>
     <div id="lmdice-zones"></div>
@@ -1587,7 +1596,7 @@
     <div id="lmdice-bigwin"></div>
   </div>
   <div id="lmpokerpanel">
-    <div id="lmpoker-title">VIDEO POKER</div>
+    <div id="lmpoker-title" role="heading" aria-level="2">VIDEO POKER</div>
     <div id="lmpoker-pay"></div>
     <div id="lmpoker-note">ROYAL FLUSH PAYS 800 AT THE $25 BET</div>
     <div id="lmpoker-cards"></div>
@@ -1596,7 +1605,7 @@
     <div id="lmpoker-bigwin"></div>
   </div>
   <div id="lmbaccpanel">
-    <div id="lmbacc-title">BACCARAT</div>
+    <div id="lmbacc-title" role="heading" aria-level="2">BACCARAT</div>
     <div id="lmbacc-pay"></div>
     <div id="lmbacc-note">TIE PUSHES PLAYER AND BANKER BETS - THIRD CARD AUTOMATIC</div>
     <div id="lmbacc-tabs"><button id="lmbacc-tab-player">PLAYER</button><button id="lmbacc-tab-banker">BANKER</button><button id="lmbacc-tab-tie">TIE</button></div>
@@ -1610,7 +1619,7 @@
     <div id="lmbacc-bigwin"></div>
   </div>
   <div id="lmkenopanel">
-    <div id="lmkeno-title">KENO</div>
+    <div id="lmkeno-title" role="heading" aria-level="2">KENO</div>
     <div id="lmkeno-pay"></div>
     <div id="lmkeno-note">PICK 2-10 SPOTS - 20 BALLS DRAWN - CATCH PAYS CLASSIC-STYLE</div>
     <div id="lmkeno-grid"></div>
@@ -1625,7 +1634,7 @@
     <div id="lmkeno-bigwin"></div>
   </div>
   <div id="lmwheelpanel">
-    <div id="lmwheel-title">WHEEL OF FORTUNE</div>
+    <div id="lmwheel-title" role="heading" aria-level="2">WHEEL OF FORTUNE</div>
     <!-- WHEEL CANVAS NAME v1: the wheel graphic is a real image for assistive tech: role img plus aria-label Wheel of Fortune prize wheel in markup. wheelDraw paints the prize sectors as canvas pixels, so the static name describes the graphic as a unit; the spin result stays in the existing #lmwheel-status and #wheelchip text written by wheelRender. -->
     <canvas id="lmwheel-canvas" width="300" height="300" role="img" aria-label="Wheel of Fortune prize wheel"></canvas>
     <div id="lmwheel-pay"></div>
