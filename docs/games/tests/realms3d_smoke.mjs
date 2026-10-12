@@ -347,6 +347,7 @@ globalThis.__R3D = {
   squashImpulse, squashTick, SQ_MAX, SQ_DECAY, punchConnectFX,
   /* TERRAIN LOD v1: chunk pool + band rule + constants (test-only exposure) */
   chunkPool, chunkLodBand, LOD_FAR_SEG, LOD_FAR_RING,
+  chunkMat, /* TERRAIN ANISOTROPY v1: terrain material (test-only exposure) */
   /* SPRINT FOV KICK v1: sprint FOV helper + constant (test-only exposure) */
   footFov, FOV_SPRINT,
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
@@ -11664,6 +11665,56 @@ globalThis.__R3D2 = {
   check('lod-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('lod: the run leaves zero console errors/warnings',
     consoleProblems.length === probsL, consoleProblems.slice(probsL).join(' | '));
+}
+
+/* ================= TERRAIN ANISOTROPY v1 =================
+   The terrain detail texture sets anisotropy from the renderer max,
+   capped at 4 for iPhone thermal and perf headroom, so ground detail
+   stays sharp at grazing angles. The headless stub renderer has no
+   isWebGLRenderer flag and no capabilities, so the guarded expression
+   falls back to 1 there and never throws. One shared texture on the
+   existing chunk material, zero new draw calls. */
+{
+  const probsA = consoleProblems.length;
+  const texSrcA = html.slice(
+    html.indexOf('function makeTerrainDetailTex()'),
+    html.indexOf('const chunkMat'));
+  check('aniso: source pins getMaxAnisotropy and the Math.min(4, cap',
+    html.includes('getMaxAnisotropy') && html.includes('Math.min(4,'),
+    'hasMax=' + html.includes('getMaxAnisotropy'));
+  check('aniso: anisotropy assignment lives inside makeTerrainDetailTex',
+    texSrcA.length > 100 && texSrcA.includes('t.anisotropy')
+    && texSrcA.includes('getMaxAnisotropy') && texSrcA.includes('Math.min(4,'),
+    'slice=' + texSrcA.length);
+  check('aniso: guard with isWebGLRenderer and capabilities present in makeTerrainDetailTex',
+    texSrcA.includes('renderer.isWebGLRenderer') && texSrcA.includes('renderer.capabilities'));
+  check('aniso: header comment present in makeTerrainDetailTex',
+    texSrcA.includes('TERRAIN ANISOTROPY v1'));
+  check('aniso: chunkMat exists', !!G.chunkMat);
+  check('aniso: chunkMat.map is the terrain texture',
+    !!G.chunkMat && !!G.chunkMat.map && G.chunkMat.map.isCanvasTexture === true,
+    G.chunkMat && G.chunkMat.map ? 'isCanvasTexture=' + G.chunkMat.map.isCanvasTexture : 'no map');
+  check('aniso: in stub env anisotropy falls back to 1 with no crash',
+    !!G.chunkMat && !!G.chunkMat.map && G.chunkMat.map.anisotropy === 1,
+    G.chunkMat && G.chunkMat.map ? 'aniso=' + G.chunkMat.map.anisotropy : 'no map');
+  check('aniso: repeat still 24/24',
+    !!G.chunkMat && !!G.chunkMat.map && G.chunkMat.map.repeat.x === 24 && G.chunkMat.map.repeat.y === 24,
+    G.chunkMat && G.chunkMat.map ? 'repeat=' + G.chunkMat.map.repeat.x + '/' + G.chunkMat.map.repeat.y : 'no map');
+  check('aniso: wrap still RepeatWrapping on both axes',
+    !!G.chunkMat && !!G.chunkMat.map
+    && G.chunkMat.map.wrapS === THREE.RepeatWrapping && G.chunkMat.map.wrapT === THREE.RepeatWrapping);
+  const linesA = html.split('\n');
+  const lineHasA = sub => linesA.filter(l => l.includes(sub)).length;
+  check('aniso-pins: 50 InstancedMesh literals unchanged', lineHasA('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasA('new THREE.InstancedMesh'));
+  check('aniso-pins: 92 Math.random lines unchanged', lineHasA('Math.random') === 92,
+    'n=' + lineHasA('Math.random'));
+  check('aniso-pins: 72 setTimeout lines unchanged', lineHasA('setTimeout') === 72,
+    'n=' + lineHasA('setTimeout'));
+  check('aniso-pins: no em dashes', !html.includes('—'));
+  check('aniso-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('aniso: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsA, consoleProblems.slice(probsA).join(' | '));
 }
 
 /* ================= SPRINT FOV KICK v1 =================
