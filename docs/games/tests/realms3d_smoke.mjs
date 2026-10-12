@@ -11964,6 +11964,46 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsW, consoleProblems.slice(probsW).join(' | '));
 }
 
+/* ================= SUN SPRITE COLORSPACE v1 =================
+   The sun sprite gradient is a pure colour map authored in sRGB,
+   so it declares sRGB like the sky texture above it, instead of
+   staying in the default linear space where its authored warm
+   disc and halo rendered brighter and washed than authored.
+   Verification is source-pin based: the sun block is a top level
+   closure slice from the Visible sun header to the Stars header.
+   One shared texture, zero new draw calls. */
+{
+  const probsSun = consoleProblems.length;
+  const texSrcSun = html.slice(
+    html.indexOf('/* Visible sun'),
+    html.indexOf('/* Stars:'));
+  check('suncol: colorSpace assignment lives inside the sun block',
+    texSrcSun.length > 100 && texSrcSun.includes('sunTex.colorSpace = THREE.SRGBColorSpace'),
+    'slice=' + texSrcSun.length);
+  check('suncol: header comment present inside the sun block',
+    texSrcSun.includes('SUN SPRITE COLORSPACE v1'));
+  check('suncol: sun texture created from the gradient canvas',
+    texSrcSun.includes('new THREE.CanvasTexture(c)'));
+  check('suncol: warm gradient stop unchanged',
+    texSrcSun.includes('255,240,210'));
+  check('suncol: DNF.sunSpr assignment still present',
+    texSrcSun.includes('DNF.sunSpr'));
+  check('suncol: SpriteMaterial uses the named sun texture',
+    texSrcSun.includes('map: sunTex'));
+  const linesSun = html.split('\n');
+  const lineHasSun = sub => linesSun.filter(l => l.includes(sub)).length;
+  check('suncol-pins: 50 InstancedMesh literals unchanged', lineHasSun('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasSun('new THREE.InstancedMesh'));
+  check('suncol-pins: 92 Math.random lines unchanged', lineHasSun('Math.random') === 92,
+    'n=' + lineHasSun('Math.random'));
+  check('suncol-pins: 72 setTimeout lines unchanged', lineHasSun('setTimeout') === 72,
+    'n=' + lineHasSun('setTimeout'));
+  check('suncol-pins: no em dashes', !html.includes('—'));
+  check('suncol-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('suncol: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSun, consoleProblems.slice(probsSun).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
