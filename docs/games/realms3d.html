@@ -10231,6 +10231,15 @@ function makeTheaterScreenTex() {
   theaterDrawScreen(theaterBoardCtx, THEATER_SHOWS[1].name);   // the v1 default board
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  /* THEATER SCREEN ANISOTROPY v1: the 256x144 screen carries
+     the NOW SHOWING text, read down the hall from side seats at
+     oblique angles, so its letters smear at grazing angles when
+     no anisotropic filtering is applied. Use the renderer maximum,
+     capped at 4 to keep iPhone headroom; the headless stub renderer
+     has no WebGL flag or capabilities, so it falls back to 1 and
+     never throws. One shared texture, zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 function theaterBoardShow(idx) {   // redraw the board for the picked show: same mesh, same texture, zero new draw calls
@@ -11856,6 +11865,15 @@ function roulWheelTex() {
   g.strokeStyle = '#c9a227'; g.lineWidth = 3; g.stroke();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  /* ROULETTE WHEEL ANISOTROPY v1: the 512px wheel top holds 37
+     numbered pockets, a horizontal surface read across the casino
+     table at oblique angles, so its numbers smear at grazing angles
+     without anisotropic filtering. Use the renderer maximum, capped
+     at 4 to keep iPhone headroom; the headless stub renderer has no
+     WebGL flag or capabilities, so it falls back to 1 and never
+     throws. One shared texture, so this adds zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 /* the spinning rotor + ball: parented to the cached hall mesh, so they ride
@@ -12203,6 +12221,15 @@ function dicePipTex() {
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  /* DICE FACE ANISOTROPY v1: the 384x256 pip atlas sits on
+     tumbling dice faces seen at every angle, so its high-contrast
+     pips blur at grazing angles when no anisotropic filtering is
+     applied. Use the renderer maximum, capped at 4 to keep iPhone
+     headroom; the headless stub renderer has no WebGL flag or
+     capabilities, so it falls back to 1 and never throws. One
+     shared texture for both dice, so this adds zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 /* one box, UVs remapped so each face shows its atlas cell (texture flipY: row
