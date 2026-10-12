@@ -4981,13 +4981,20 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
 /* Realistic humanoid: capsules/spheres, skin texture, face. ~1.85 units tall.
    iOS-safe: MeshStandardMaterial only, shared geos/mats, one 64px canvas tex. */
 const player = new THREE.Group();
+/* REDUCED MOTION v1: an OS reduced-motion request sets the initial state
+   of the existing trauma-shake accessibility gate (P.traumaOn below).
+   The typeof guard plus try/catch makes headless and older browsers
+   fall back to shake on. The KeyO toggle is unchanged and can re-enable
+   shake. Session-only: no save change. */
+function prefersReducedMotion(){ try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches === true; } catch(e){ return false; } }
+const REDUCED_MOTION = prefersReducedMotion();
 const P = { vel: new THREE.Vector3(), vy: 0, grounded: true, walkPhase: 0,
             coyoteT: 0, jumpBufT: 0, prevJump: false,   // jump feel: coyote window, buffered press, press-edge track
             hp: 100, dead: false, deadT: 0, godT: 0, graceT: 0, punchT: 0, punchCd: 0, punchHit: false,
             punchDur: 0.32, combo: 0, comboWin: 0,       // melee polish: 3-punch chain
             hitstop: 0,                                 // melee polish: world-freeze timer
             shakeT: 0, shakeDur: 0.001, shakeMag: 0,   // melee polish: camera punch
-            trauma: 0, traumaT: 0, traumaOn: true,   // trauma shake: accumulator, noise clock, accessibility gate
+            trauma: 0, traumaT: 0, traumaOn: !REDUCED_MOTION,   // trauma shake: accumulator, noise clock, accessibility gate (REDUCED MOTION v1 default)
             squash: 0,                              // squash-and-stretch: signed deformation impulse
             stepDist: 0, stepAlt: 0, stepCount: 0 };   // footsteps: distance accumulator, alt foot, total steps
 
