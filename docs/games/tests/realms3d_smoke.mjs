@@ -246,7 +246,7 @@ globalThis.__R3D = {
   /* Phase 5 trains v1 */
   TRAIN, trainEnter, trainExit, trainUpdate, trainSimOne, trainNextK,
   trainStationZ, trainStationOff, trainStationName, paintTrainBed,
-  trainBodyIM, trainHintEl, trainChipEl, trainSignMesh,
+  trainBodyIM, trainHintEl, trainChipEl, trainSpdEl, trainNextEl, trainSignMesh,   /* TRAIN SPEED METER v1: train speed meter (test-only exposure) */
   TRAIN_N, TRAIN_CARS, TRAIN_CAR_GAP, TRAIN_TRACK_X, TRAIN_GAP, TRAIN_NAMES,
   /* Phase 5 pianos v1 */
   PIANO, pianoFor, pianoHash, pianoParkPad, pianoEnter, pianoExit, pianoNote,
@@ -3875,7 +3875,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     G.TRAIN.riding === true && G.trainChipEl.style.display === 'block');
   frame(3);   // let the ride chip paint
   check('train: chip reads speed and next station while riding',
-    /^TRAIN - \d+ KM\/H \/ NEXT: [A-Z ]+$/.test(G.trainChipEl.textContent), G.trainChipEl.textContent);
+    /^TRAIN - \d+ KM\/H \/ NEXT: [A-Z ]+$/.test(G.trainSpdEl.textContent + G.trainNextEl.textContent), G.trainSpdEl.textContent + G.trainNextEl.textContent);
 
   /* ride: the schedule departs and carries the player along the line */
   t0.dwellT = 0.3;
@@ -22832,6 +22832,136 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('helispd: the run leaves zero console errors/warnings',
     consoleProblems.length === probsHS, consoleProblems.slice(probsHS).join(' | '));
+}
+
+/* ================= TRAIN SPEED METER v1 =================
+   The train speed readout is a real meter: the
+   #trainspd span nested in #trainchip carries role
+   meter plus aria-label Train speed and
+   aria-valuemin 0 and aria-valuemax 86 in markup,
+   with aria-valuenow kept in sync in trainUpdate
+   beside the textContent writers. The sync uses
+   the ariaValueNow IDL property, not setAttribute,
+   because the headless stub elements have no
+   setAttribute method. The displayed value is
+   Math.round(Math.abs(t.v) * 3.6) for the ridden
+   train: t.v is hard-capped at TRAIN.cruise 24 by
+   Math.min in trainSimOne (braking and dwell only
+   lower it), so the largest possible displayed
+   value is Math.round(86.4) = 86 and the fixed
+   valuemax 86 is exact. The next-station name is
+   not a number and has no bound, so it is NOT
+   part of the meter value: #trainnext stays plain
+   text. The runtime checks board train 0 through
+   the real entry path (the train block idiom),
+   pin its dwell so it cannot depart and read the
+   stopped chip, then place it 400 units short of
+   its next station at v 5 and run exactly one
+   frame with the HUD throttle forced due: the
+   sim raises v by accel 5 times one frame dt
+   (about 0.08), which still rounds to 18, and the
+   single frame guarantees a single HUD write
+   before the 0.15s throttle can write again at a
+   higher speed. Exit leaves the harness clean. */
+{
+  const probsTS = consoleProblems.length;
+  const linesTS = html.split('\n');
+  const lineHasTS = sub => linesTS.filter(l => l.includes(sub)).length;
+  check('trainspd: TRAIN SPEED METER v1 header is present exactly once in the game source',
+    (html.split('TRAIN SPEED METER v1').length - 1) === 1,
+    'n=' + (html.split('TRAIN SPEED METER v1').length - 1));
+  const trainTagTS = (html.match(/<span id="trainspd"[^>]*>/) || [''])[0];
+  check('trainspd: #trainspd element markup carries role="meter"',
+    trainTagTS.includes('role="meter"'), 'tag=' + trainTagTS);
+  check('trainspd: #trainspd element markup carries aria-label="Train speed"',
+    trainTagTS.includes('aria-label="Train speed"'), 'tag=' + trainTagTS);
+  check('trainspd: #trainspd element markup carries aria-valuemin="0"',
+    trainTagTS.includes('aria-valuemin="0"'), 'tag=' + trainTagTS);
+  check('trainspd: #trainspd element markup carries aria-valuemax="86"',
+    trainTagTS.includes('aria-valuemax="86"'), 'tag=' + trainTagTS);
+  check('trainspd: #trainspd element markup carries aria-valuenow="0"',
+    trainTagTS.includes('aria-valuenow="0"'), 'tag=' + trainTagTS);
+  check('trainspd: #trainchip markup nests #trainspd meter and #trainnext plain text (source pin)',
+    html.includes('<div id="trainchip"><span id="trainspd" role="meter" aria-label="Train speed" aria-valuemin="0" aria-valuemax="86" aria-valuenow="0">TRAIN - 0 KM/H</span><span id="trainnext"> / NEXT: RIVERSIDE</span></div>'));
+  check('trainspd: exactly one #trainspd element in the game source',
+    (html.match(/id="trainspd"/g) || []).length === 1,
+    'n=' + (html.match(/id="trainspd"/g) || []).length);
+  check('trainspd: exactly one #trainnext element in the game source',
+    (html.match(/id="trainnext"/g) || []).length === 1,
+    'n=' + (html.match(/id="trainnext"/g) || []).length);
+  check('trainspd: exactly one #trainchip element in the game source',
+    (html.match(/id="trainchip"/g) || []).length === 1,
+    'n=' + (html.match(/id="trainchip"/g) || []).length);
+  check('trainspd: trainChipEl binding line is unchanged (source pin)',
+    html.includes("const trainChipEl = document.getElementById('trainchip');"));
+  check('trainspd: trainSpdEl binding line binds trainspd (source pin)',
+    html.includes("const trainSpdEl = document.getElementById('trainspd');"));
+  check('trainspd: trainNextEl binding line binds trainnext (source pin)',
+    html.includes("const trainNextEl = document.getElementById('trainnext');"));
+  check('trainspd: trainUpdate computes trainKmh from the ridden train velocity (source pin)',
+    html.includes('const trainKmh = Math.round(Math.abs(t.v) * 3.6);'));
+  check('trainspd: trainUpdate writes trainSpdEl textContent from trainKmh (source pin)',
+    html.includes("trainSpdEl.textContent = 'TRAIN - ' + trainKmh + ' KM/H';"));
+  check('trainspd: trainUpdate writes trainNextEl textContent from trainStationName(nk) (source pin)',
+    html.includes("trainNextEl.textContent = ' / NEXT: ' + trainStationName(nk);"));
+  check('trainspd: trainUpdate syncs trainSpdEl ariaValueNow from trainKmh exactly once (source pin)',
+    (html.split('trainSpdEl.ariaValueNow = String(trainKmh);').length - 1) === 1,
+    'n=' + (html.split('trainSpdEl.ariaValueNow = String(trainKmh);').length - 1));
+  check('trainspd: the old trainChipEl textContent writer is gone (source pin)',
+    !html.includes('trainChipEl.textContent'));
+  /* board train 0 through the real entry path (train block idiom) */
+  const ttTS = G.TRAIN.trains[0];
+  ttTS.dir = 1; ttTS.s = G.trainStationZ(0); ttTS.v = 0; ttTS.dwellT = 10; ttTS.nextK = 0; ttTS.braking = false;
+  const bxTS = G.TRAIN_TRACK_X + 2, bzTS = ttTS.s;
+  G.player.position.set(bxTS, groundY(bxTS, bzTS), bzTS);
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0;
+  frame(2);
+  G.trainEnter();
+  check('trainspd: runtime boarded through trainEnter, chip is shown while riding',
+    G.TRAIN.riding === true && G.trainChipEl.style.display === 'block',
+    'riding=' + G.TRAIN.riding + ' display=' + G.trainChipEl.style.display);
+  ttTS.dwellT = 15;   // pinned at the platform: the train cannot depart during the stopped read
+  frame(3);   // let the ride chip paint
+  check('trainspd: runtime trainSpdEl text is TRAIN - 0 KM/H while dwelling',
+    G.trainSpdEl.textContent === 'TRAIN - 0 KM/H',
+    'textContent=' + G.trainSpdEl.textContent + ' v=' + ttTS.v);
+  check('trainspd: runtime trainSpdEl ariaValueNow is 0 while dwelling',
+    String(G.trainSpdEl.ariaValueNow) === '0',
+    'ariaValueNow=' + G.trainSpdEl.ariaValueNow + ' v=' + ttTS.v);
+  check('trainspd: runtime trainNextEl text names the next station while dwelling',
+    G.trainNextEl.textContent === ' / NEXT: ' + G.trainStationName(G.trainNextK(ttTS.s, ttTS.dir)),
+    'textContent=' + G.trainNextEl.textContent);
+  check('trainspd: runtime combined chip text keeps the TRAIN - n KM/H / NEXT: name format',
+    /^TRAIN - \d+ KM\/H \/ NEXT: [A-Z ]+$/.test(G.trainSpdEl.textContent + G.trainNextEl.textContent),
+    G.trainSpdEl.textContent + G.trainNextEl.textContent);
+  /* moving read: 400 units short of the next station, v 5, one forced HUD write */
+  ttTS.dwellT = 0; ttTS.nextK = G.trainNextK(ttTS.s, ttTS.dir);
+  ttTS.s = G.trainStationZ(ttTS.nextK) - 400; ttTS.v = 5; ttTS.braking = false;
+  G.TRAIN.hudT = 0;
+  frame(1);
+  check('trainspd: runtime trainSpdEl text is TRAIN - 18 KM/H at speed 5',
+    G.trainSpdEl.textContent === 'TRAIN - 18 KM/H',
+    'textContent=' + G.trainSpdEl.textContent + ' v=' + ttTS.v);
+  check('trainspd: runtime trainSpdEl ariaValueNow is 18 at speed 5',
+    String(G.trainSpdEl.ariaValueNow) === '18',
+    'ariaValueNow=' + G.trainSpdEl.ariaValueNow + ' v=' + ttTS.v);
+  G.trainExit();
+  check('trainspd: chip is hidden after exit and not riding',
+    G.trainChipEl.style.display === 'none' && G.TRAIN.riding === false,
+    'display=' + G.trainChipEl.style.display + ' riding=' + G.TRAIN.riding);
+  check('trainspd: pins - 50 InstancedMesh literals unchanged', lineHasTS('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasTS('new THREE.InstancedMesh'));
+  check('trainspd: pins - 92 Math.random lines unchanged', lineHasTS('Math.random') === 92,
+    'n=' + lineHasTS('Math.random'));
+  check('trainspd: pins - 72 setTimeout lines unchanged', lineHasTS('setTimeout') === 72,
+    'n=' + lineHasTS('setTimeout'));
+  check('trainspd: pins - no em dashes', !html.includes('\u2014'));
+  check('trainspd: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('trainspd: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('trainspd: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsTS, consoleProblems.slice(probsTS).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
