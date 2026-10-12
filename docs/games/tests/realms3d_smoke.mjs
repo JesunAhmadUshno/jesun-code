@@ -24388,12 +24388,12 @@ globalThis.__R3D2 = {
     html.includes('    spdNumEl.ariaValueNow = String(Math.round(HORSE.speed * 3.6));'));
   check('spdmeter: bus writer textContent line is unchanged (source pin)',
     html.includes('    if (aboard) spdNumEl.textContent = Math.round(Math.abs(BUS.speed) * 3.6);'));
-  check('spdmeter: bus writer syncs ariaValueNow with the identical expression (source pin)',
-    html.includes('    spdNumEl.ariaValueNow = String(Math.round(Math.abs(BUS.speed) * 3.6));'));
+  check('spdmeter: bus writer syncs ariaValueNow gated by aboard, identical expression (source pin)',
+    html.includes('    if (aboard) spdNumEl.ariaValueNow = String(Math.round(Math.abs(BUS.speed) * 3.6));'));
   check('spdmeter: taxi writer textContent line is unchanged (source pin)',
     html.includes('    if (TX.riding) spdNumEl.textContent = Math.round(Math.abs(TX.speed) * 3.6);'));
-  check('spdmeter: taxi writer syncs ariaValueNow with the identical expression (source pin)',
-    html.includes('    spdNumEl.ariaValueNow = String(Math.round(Math.abs(TX.speed) * 3.6));'));
+  check('spdmeter: taxi writer syncs ariaValueNow gated by riding, identical expression (source pin)',
+    html.includes('    if (TX.riding) spdNumEl.ariaValueNow = String(Math.round(Math.abs(TX.speed) * 3.6));'));
   check('spdmeter: fire truck writer textContent line is unchanged (source pin)',
     html.includes('  spdNumEl.textContent = Math.round(Math.abs(FT.speed) * 3.6);'));
   check('spdmeter: fire truck writer syncs ariaValueNow with the identical expression (source pin)',
