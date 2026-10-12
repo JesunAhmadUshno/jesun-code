@@ -24125,6 +24125,71 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsHL, consoleProblems.slice(probsHL).join(' | '));
 }
 
+/* ================= ROYAL REELS REEL NAMES v1 =================
+   The Royal Reels reels are named images:
+   the #lmcs-reel0, #lmcs-reel1, and #lmcs-reel2
+   elements inside #lmcs-reels carry role img plus
+   distinct aria-labels Royal Reels reel 1, Royal
+   Reels reel 2, and Royal Reels reel 3 in markup.
+   lmcsDrawReel paints the symbol cells, so the
+   static names describe each reel as a unit; the
+   spin result stays in the existing #lmcs-win text.
+   This item is markup only: no JS changes, no other
+   element is in scope. */
+{
+  const probsLR = consoleProblems.length;
+  const linesLR = html.split('\n');
+  const lineHasLR = sub => linesLR.filter(l => l.includes(sub)).length;
+  check('lmcsreel: ROYAL REELS REEL NAMES v1 header is present exactly once in the game source',
+    (html.split('ROYAL REELS REEL NAMES v1').length - 1) === 1,
+    'n=' + (html.split('ROYAL REELS REEL NAMES v1').length - 1));
+  const reelTag0LR = (html.match(/<div class="lmcs-reel" id="lmcs-reel0"[^>]*>/) || [''])[0];
+  const reelTag1LR = (html.match(/<div class="lmcs-reel" id="lmcs-reel1"[^>]*>/) || [''])[0];
+  const reelTag2LR = (html.match(/<div class="lmcs-reel" id="lmcs-reel2"[^>]*>/) || [''])[0];
+  check('lmcsreel: #lmcs-reel0 tag carries role="img"',
+    reelTag0LR.includes('role="img"'), 'tag=' + reelTag0LR);
+  check('lmcsreel: #lmcs-reel1 tag carries role="img"',
+    reelTag1LR.includes('role="img"'), 'tag=' + reelTag1LR);
+  check('lmcsreel: #lmcs-reel2 tag carries role="img"',
+    reelTag2LR.includes('role="img"'), 'tag=' + reelTag2LR);
+  check('lmcsreel: #lmcs-reel0 tag carries aria-label="Royal Reels reel 1"',
+    reelTag0LR.includes('aria-label="Royal Reels reel 1"'), 'tag=' + reelTag0LR);
+  check('lmcsreel: #lmcs-reel1 tag carries aria-label="Royal Reels reel 2"',
+    reelTag1LR.includes('aria-label="Royal Reels reel 2"'), 'tag=' + reelTag1LR);
+  check('lmcsreel: #lmcs-reel2 tag carries aria-label="Royal Reels reel 3"',
+    reelTag2LR.includes('aria-label="Royal Reels reel 3"'), 'tag=' + reelTag2LR);
+  check('lmcsreel: #lmcs-reel0 full tag matches exactly (source pin)',
+    html.includes('<div class="lmcs-reel" id="lmcs-reel0" role="img" aria-label="Royal Reels reel 1"></div>'));
+  check('lmcsreel: #lmcs-reel1 full tag matches exactly (source pin)',
+    html.includes('<div class="lmcs-reel" id="lmcs-reel1" role="img" aria-label="Royal Reels reel 2"></div>'));
+  check('lmcsreel: #lmcs-reel2 full tag matches exactly (source pin)',
+    html.includes('<div class="lmcs-reel" id="lmcs-reel2" role="img" aria-label="Royal Reels reel 3"></div>'));
+  check('lmcsreel: exactly one #lmcs-reel0 element in the game source',
+    (html.match(/id="lmcs-reel0"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmcs-reel0"/g) || []).length);
+  check('lmcsreel: exactly one #lmcs-reel1 element in the game source',
+    (html.match(/id="lmcs-reel1"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmcs-reel1"/g) || []).length);
+  check('lmcsreel: exactly one #lmcs-reel2 element in the game source',
+    (html.match(/id="lmcs-reel2"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmcs-reel2"/g) || []).length);
+  check('lmcsreel: pins - 50 InstancedMesh literals unchanged', lineHasLR('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasLR('new THREE.InstancedMesh'));
+  check('lmcsreel: pins - 92 Math.random lines unchanged', lineHasLR('Math.random') === 92,
+    'n=' + lineHasLR('Math.random'));
+  check('lmcsreel: pins - 72 setTimeout lines unchanged', lineHasLR('setTimeout') === 72,
+    'n=' + lineHasLR('setTimeout'));
+  check('lmcsreel: pins - 2 THREE.Points objects unchanged', lineHasLR('new THREE.Points(') === 2,
+    'n=' + lineHasLR('new THREE.Points('));
+  check('lmcsreel: pins - no em dashes', !html.includes('\u2014'));
+  check('lmcsreel: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('lmcsreel: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('lmcsreel: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsLR, consoleProblems.slice(probsLR).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
