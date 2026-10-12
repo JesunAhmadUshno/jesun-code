@@ -21811,6 +21811,64 @@ globalThis.__R3D2 = {
   G.W.heat = heatOrigHM; G.updateHeatHUD();
 }
 
+/* ================= TOD TIMER v1 =================
+   The game clock is a real timer: role timer plus
+   aria-label Game time in the #tod markup, with the
+   decorative #todicon span hidden from assistive tech
+   via aria-hidden true. The clock text itself is still
+   written by dayNightTick through the todTime
+   textContent update line, which is pinned below and
+   stays byte-identical. The headless stub does not
+   parse this markup into live elements, so source pins
+   are the honest verification for the markup, the same
+   as in the playbtn block, plus one runtime check that
+   the todtime stub holds an HH:MM string after boot.
+   No runtime state is changed, so nothing needs
+   restoring. */
+{
+  const probsTT = consoleProblems.length;
+  const linesTT = html.split('\n');
+  const lineHasTT = sub => linesTT.filter(l => l.includes(sub)).length;
+  check('todtimer: TOD TIMER v1 header is present exactly once in the game source',
+    (html.split('TOD TIMER v1').length - 1) === 1,
+    'n=' + (html.split('TOD TIMER v1').length - 1));
+  const todTagTT = (html.match(/<div id="tod"[^>]*>/) || [''])[0];
+  check('todtimer: #tod element markup carries role="timer"',
+    todTagTT.includes('role="timer"'), 'tag=' + todTagTT);
+  check('todtimer: #tod element markup carries aria-label="Game time"',
+    todTagTT.includes('aria-label="Game time"'), 'tag=' + todTagTT);
+  const todIconTagTT = (html.match(/<span id="todicon"[^>]*>/) || [''])[0];
+  check('todtimer: #todicon element markup carries aria-hidden="true"',
+    todIconTagTT.includes('aria-hidden="true"'), 'tag=' + todIconTagTT);
+  check('todtimer: exactly one #tod element in the game source',
+    (html.match(/id="tod"/g) || []).length === 1,
+    'n=' + (html.match(/id="tod"/g) || []).length);
+  check('todtimer: exactly one #todicon element in the game source',
+    (html.match(/id="todicon"/g) || []).length === 1,
+    'n=' + (html.match(/id="todicon"/g) || []).length);
+  check('todtimer: dayNightTick todTime textContent update line is unchanged (source pin)',
+    html.includes("todTime.textContent = String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');"));
+  check('todtimer: todIcon and todTime binding lines bind todicon and todtime (source pin)',
+    html.includes("const todIcon = document.getElementById('todicon');") &&
+    html.includes("const todTime = document.getElementById('todtime');"));
+  check('todtimer: runtime todtime stub text matches HH:MM after boot',
+    /^\d{2}:\d{2}$/.test(stubs.getEl('todtime').textContent),
+    'textContent=' + stubs.getEl('todtime').textContent);
+  check('todtimer: pins - 50 InstancedMesh literals unchanged', lineHasTT('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasTT('new THREE.InstancedMesh'));
+  check('todtimer: pins - 92 Math.random lines unchanged', lineHasTT('Math.random') === 92,
+    'n=' + lineHasTT('Math.random'));
+  check('todtimer: pins - 72 setTimeout lines unchanged', lineHasTT('setTimeout') === 72,
+    'n=' + lineHasTT('setTimeout'));
+  check('todtimer: pins - no em dashes', !html.includes('\u2014'));
+  check('todtimer: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('todtimer: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('todtimer: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsTT, consoleProblems.slice(probsTT).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
