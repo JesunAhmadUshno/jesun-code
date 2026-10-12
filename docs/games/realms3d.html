@@ -1389,7 +1389,13 @@
   <!-- HEAT METER v1: the wanted level is a real meter: role plus min/max in markup, valuenow kept in sync by updateHeatHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
   <div id="heat" role="meter" aria-label="Wanted level" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"></div>
   <div id="weap"><span id="wname">RIFLE</span> <b id="wammo">&infin;</b></div>
-  <div id="mtracker"><div id="mtitle"></div><div id="mobj"></div></div>
+  <!-- MISSION TITLE HEADING v1: the mission name is a real heading for
+       assistive tech: role heading plus aria-level 2 in markup on #mtitle,
+       so screen-reader heading navigation can find the current mission.
+       #mtracker is display none unless a mission is ACTIVE, so the heading
+       only enters the accessibility tree while a mission runs, and the
+       dynamic writer is unchanged. -->
+  <div id="mtracker"><div id="mtitle" role="heading" aria-level="2"></div><div id="mobj"></div></div>
   <!-- BEARING ARROWS HIDDEN v1: the bearing and mission arrows are decorative
        direction glyphs hidden from assistive tech. Their writers only rotate
        them via style.transform, and the readable name and distance stay in
