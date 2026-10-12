@@ -1774,6 +1774,14 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
    this one covers output. */
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMappingExposure = 1.0;
+/* CANVAS ACCESSIBLE NAME v1: the WebGL canvas exposes nothing to
+   assistive tech on its own, so role img plus an aria label present
+   the whole view as one labelled image. This is deliberately not
+   role application, because there is no keyboard-navigable subtree
+   inside the canvas to expose. Property assignment is used because
+   the headless stub canvas has no setAttribute method. */
+renderer.domElement.role = 'img';
+renderer.domElement.ariaLabel = 'REALMS 3D game view';
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
