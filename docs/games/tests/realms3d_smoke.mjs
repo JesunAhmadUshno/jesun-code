@@ -12161,6 +12161,52 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsP, consoleProblems.slice(probsP).join(' | '));
 }
 
+/* ================= SIGN TEXTURE ANISOTROPY v1 =================
+   The amenity and landmark sign textures set anisotropy from the
+   renderer max, capped at 4 for iPhone headroom, so their
+   high-contrast letters stay sharp when read at oblique angles
+   down streets. The headless stub renderer has no isWebGLRenderer
+   flag and no capabilities, so the guarded expression falls back
+   to 1 there and never throws. Sign textures are created per sign
+   type inside makeSignTex and are not exposed on the test shim,
+   so verification is source-pin based: one assignment inside
+   makeSignTex covers every sign type. Zero new draw calls. */
+{
+  const probsSg = consoleProblems.length;
+  const texSrcSg = html.slice(
+    html.indexOf('function makeSignTex(text, band)'),
+    html.indexOf('function makePlainTex()'));
+  check('signaniso: anisotropy assignment lives inside makeSignTex',
+    texSrcSg.length > 100 && texSrcSg.includes('t.anisotropy'),
+    'slice=' + texSrcSg.length);
+  check('signaniso: source pins getMaxAnisotropy and the Math.min(4, cap inside makeSignTex',
+    texSrcSg.includes('getMaxAnisotropy') && texSrcSg.includes('Math.min(4,'),
+    'hasMax=' + texSrcSg.includes('getMaxAnisotropy'));
+  check('signaniso: guard with isWebGLRenderer and capabilities present in makeSignTex',
+    texSrcSg.includes('renderer.isWebGLRenderer') && texSrcSg.includes('renderer.capabilities'));
+  check('signaniso: guard checks typeof getMaxAnisotropy is a function in makeSignTex',
+    texSrcSg.includes("typeof renderer.capabilities.getMaxAnisotropy === 'function'"));
+  check('signaniso: header comment present in makeSignTex',
+    texSrcSg.includes('SIGN TEXTURE ANISOTROPY v1'));
+  check('signaniso: colorSpace still declared in makeSignTex before the anisotropy assignment',
+    texSrcSg.includes('t.colorSpace = THREE.SRGBColorSpace')
+    && texSrcSg.indexOf('t.colorSpace = THREE.SRGBColorSpace') < texSrcSg.indexOf('t.anisotropy'),
+    'colorSpaceIdx=' + texSrcSg.indexOf('t.colorSpace = THREE.SRGBColorSpace')
+    + ' anisoIdx=' + texSrcSg.indexOf('t.anisotropy'));
+  const linesSg = html.split('\n');
+  const lineHasSg = sub => linesSg.filter(l => l.includes(sub)).length;
+  check('signaniso-pins: 50 InstancedMesh literals unchanged', lineHasSg('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasSg('new THREE.InstancedMesh'));
+  check('signaniso-pins: 92 Math.random lines unchanged', lineHasSg('Math.random') === 92,
+    'n=' + lineHasSg('Math.random'));
+  check('signaniso-pins: 72 setTimeout lines unchanged', lineHasSg('setTimeout') === 72,
+    'n=' + lineHasSg('setTimeout'));
+  check('signaniso-pins: no em dashes', !html.includes('—'));
+  check('signaniso-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('signaniso: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSg, consoleProblems.slice(probsSg).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
