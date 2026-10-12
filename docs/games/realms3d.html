@@ -6205,9 +6205,9 @@ function clearDust(){
        stores the per-slot max peak and skidTick fades per
        vertex from skidPeakV. Zero new draw calls, zero new
        Mesh. New honest limit: classification is per-end
-       only, so a surface change inside one segment blends
-       linearly across the quad instead of snapping at the
-       exact boundary point.
+       only, so a surface change inside a half segment
+       (~0.45 m) still blends linearly across that half
+       instead of snapping at the exact boundary point.
        New honest limit: flat-quad slope clipping limit still applies.
        SKID SLOPE CONFORM v1: skidWriteQuad now takes a
        prevY argument: previous-end corners now written at
@@ -6250,7 +6250,10 @@ function clearDust(){
        Mesh. Remaining honest limit: a ridge sharper than
        one split (inside a half segment, ~0.45m) can
        still clip slightly, and surface classification
-       is per-end only.
+       is per-end only, so a surface change inside a
+       half segment (~0.45 m) still blends linearly
+       across that half instead of snapping at the
+       exact boundary point.
        SKID PER-END SURFACE COLOR v1: skidWriteQuad now
        classifies surfaceAt twice per quad, at the
        previous end centre (px, pz) and at the current
@@ -6272,7 +6275,30 @@ function clearDust(){
        classification is per-end only, so a surface
        change inside one segment blends linearly across
        the quad instead of snapping at the exact boundary
-       point. --- */
+       point.
+       SKID SURFACE SPLIT v1: skidWriteQuad now hoists
+       its two surfaceAt classification lines above the
+       depth 0 split block, so surfPrev and surfCurr are
+       known before any split decision and the later
+       colour loop reuses those same variables with no
+       duplicate classification. The depth 0 split
+       condition is unified: the writer splits at the
+       segment midpoint when the ridge condition holds
+       OR surfPrev !== surfCurr, using the existing
+       midY formula for the split in both cases, so a
+       segment meeting both conditions still writes
+       exactly two half quads, never four. Depth 1
+       writes never split again, and depth 1 halves
+       classify their own ends via their own hoisted
+       calls, so a boundary-crossing segment now blends
+       only inside a half segment (~0.45 m) instead of
+       across the whole quad. Same-surface segments and
+       ridge-only segments write exactly as before.
+       Zero new draw calls, zero new Mesh. Remaining
+       honest limit: a surface change inside a half
+       segment (~0.45 m) still blends linearly across
+       that half instead of snapping at the exact
+       boundary point. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
 const SKID_RIDGE_T = 0.12;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
@@ -6323,11 +6349,13 @@ let skid6Px = 0, skid6Pz = 0, skid6Cx = 0, skid6Cz = 0;
 function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth = 0){
   const pcH = terrainHeight(px, pz);
   const ccH = terrainHeight(cx, cz);
+  const surfPrev = surfaceAt(px, pz);
+  const surfCurr = surfaceAt(cx, cz);
   if (depth === 0) {
     const mx = (px + cx) / 2, mz = (pz + cz) / 2;
     const midH = terrainHeight(mx, mz);
     const expected = (pcH + ccH) / 2;
-    if (Math.abs(midH - expected) > SKID_RIDGE_T) {
+    if (Math.abs(midH - expected) > SKID_RIDGE_T || surfPrev !== surfCurr) {
       const midY = (prevY + y) / 2 + (midH - expected);
       skidWriteQuad(px, pz, mx, mz, lx, lz, midY, halfW, prevY, 1);
       skidWriteQuad(mx, mz, cx, cz, lx, lz, y, halfW, midY, 1);
@@ -6346,8 +6374,6 @@ function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth
   skidPos[p + 3] = px + lx * halfW; skidPos[p + 4] = py + dPR; skidPos[p + 5] = pz + lz * halfW;
   skidPos[p + 6] = cx + lx * halfW; skidPos[p + 7] = yy + dCR; skidPos[p + 8] = cz + lz * halfW;
   skidPos[p + 9] = cx - lx * halfW; skidPos[p + 10] = yy + dCL; skidPos[p + 11] = cz - lz * halfW;
-  const surfPrev = surfaceAt(px, pz);
-  const surfCurr = surfaceAt(cx, cz);
   const c = slot * 4 * 4;
   for (let e = 0; e < 2; e++) {
     const surf = e === 0 ? surfPrev : surfCurr;
