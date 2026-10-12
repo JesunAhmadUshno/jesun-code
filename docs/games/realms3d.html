@@ -6298,7 +6298,24 @@ function clearDust(){
        honest limit: a surface change inside a half
        segment (~0.45 m) still blends linearly across
        that half instead of snapping at the exact
-       boundary point. --- */
+       boundary point.
+       SKID DEPTH-2 SPLIT v1: skidWriteQuad now uses a
+       depth < 2 split guard, so the split block runs at
+       depth 0 and at depth 1, and the recursive calls
+       pass depth + 1 instead of a literal depth. A half
+       segment whose ends still differ in surface or
+       still exceed the ridge threshold splits once more
+       at its own midpoint, using the same midY formula
+       and the same unified condition. Depth 2 writes
+       never split and fall through to the normal
+       single-quad write. The surface blend zone and
+       the ridge clip zone shrink from ~0.45 m to
+       ~0.225 m. Same-surface and same-height segments
+       write exactly as before. Zero new draw calls,
+       zero new Mesh. Remaining honest limit: a surface
+       change or ridge inside a quarter segment
+       (~0.225 m) still blends or clips across that
+       quarter. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
 const SKID_RIDGE_T = 0.12;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
@@ -6351,14 +6368,14 @@ function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth
   const ccH = terrainHeight(cx, cz);
   const surfPrev = surfaceAt(px, pz);
   const surfCurr = surfaceAt(cx, cz);
-  if (depth === 0) {
+  if (depth < 2) {
     const mx = (px + cx) / 2, mz = (pz + cz) / 2;
     const midH = terrainHeight(mx, mz);
     const expected = (pcH + ccH) / 2;
     if (Math.abs(midH - expected) > SKID_RIDGE_T || surfPrev !== surfCurr) {
       const midY = (prevY + y) / 2 + (midH - expected);
-      skidWriteQuad(px, pz, mx, mz, lx, lz, midY, halfW, prevY, 1);
-      skidWriteQuad(mx, mz, cx, cz, lx, lz, y, halfW, midY, 1);
+      skidWriteQuad(px, pz, mx, mz, lx, lz, midY, halfW, prevY, depth + 1);
+      skidWriteQuad(mx, mz, cx, cz, lx, lz, y, halfW, midY, depth + 1);
       return;
     }
   }
