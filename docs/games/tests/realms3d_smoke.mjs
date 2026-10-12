@@ -78,6 +78,7 @@ globalThis.__R3D = {
   cops, copFleet, COP_MAX, eBodyAll, ENEMY_BAND, ENEMY_MIX,   /* PERF-6 merge regression */
   SAVE_KEY,
   DIFF, diffEl, updateDiffHUD, diffEval, animals,   /* DIFF METER v1: difficulty tier meter (test-only exposure) */
+  updateArmorHUD, armorChipEl,   /* ARMOR METER v1: armor meter (test-only exposure) */
   birds, wings, PET, tamePet, releasePet, acquirePrey, petRejoin,
   petHintEl, petChipEl, birdFlockTick,
   FROZEN_STATICS, ocean,                       /* PERF-7 static freeze registry + water mesh */
@@ -22014,6 +22015,82 @@ globalThis.__R3D2 = {
   check('diffmeter: the run leaves zero console errors/warnings',
     consoleProblems.length === probsDM, consoleProblems.slice(probsDM).join(' | '));
   G.DIFF.tier = diffOrigDM; G.updateDiffHUD();
+}
+
+/* ================= ARMOR METER v1 =================
+   The armor level is a real meter: role meter plus
+   aria-label Armor and aria-valuemin 0 and
+   aria-valuemax 100 in the #armorchip markup, with
+   aria-valuenow kept in sync by updateArmorHUD. The sync
+   uses the ariaValueNow IDL property, not setAttribute,
+   because the headless stub elements have no
+   setAttribute method. The sync line sits at the top of
+   updateArmorHUD, so it runs on every call (every
+   armor change: buy, soak, and new game reset). The runtime checks
+   drive G.shopArmor plus updateArmorHUD the same way
+   the heatmeter block drives W.heat plus updateHeatHUD,
+   and read the stub element for armorchip through
+   stubs.getEl, the same element the game binds as
+   armorChipEl. The armor value is set back to 0 after
+   the 60 drive and the original value is restored
+   after the checks. */
+{
+  const probsAM = consoleProblems.length;
+  const linesAM = html.split('\n');
+  const lineHasAM = sub => linesAM.filter(l => l.includes(sub)).length;
+  check('armormeter: ARMOR METER v1 header is present exactly once in the game source',
+    (html.split('ARMOR METER v1').length - 1) === 1,
+    'n=' + (html.split('ARMOR METER v1').length - 1));
+  const armorTagAM = (html.match(/<span id="armorchip"[^>]*>/) || [''])[0];
+  check('armormeter: #armorchip element markup carries role="meter"',
+    armorTagAM.includes('role="meter"'), 'tag=' + armorTagAM);
+  check('armormeter: #armorchip element markup carries aria-label="Armor"',
+    armorTagAM.includes('aria-label="Armor"'), 'tag=' + armorTagAM);
+  check('armormeter: #armorchip element markup carries aria-valuemin="0"',
+    armorTagAM.includes('aria-valuemin="0"'), 'tag=' + armorTagAM);
+  check('armormeter: #armorchip element markup carries aria-valuemax="100"',
+    armorTagAM.includes('aria-valuemax="100"'), 'tag=' + armorTagAM);
+  check('armormeter: #armorchip element markup carries aria-valuenow="0"',
+    armorTagAM.includes('aria-valuenow="0"'), 'tag=' + armorTagAM);
+  check('armormeter: exactly one #armorchip element in the game source',
+    (html.match(/id="armorchip"/g) || []).length === 1,
+    'n=' + (html.match(/id="armorchip"/g) || []).length);
+  check('armormeter: armorChipEl binding line binds armorchip (source pin)',
+    html.includes("const armorChipEl = document.getElementById('armorchip');"));
+  check('armormeter: updateArmorHUD syncs ariaValueNow from shopArmor (source pin)',
+    html.includes('armorChipEl.ariaValueNow = String(Math.round(shopArmor));'));
+  const armorOrigAM = G.shopArmor;
+  G.shopArmor = 60; G.updateArmorHUD();
+  check('armormeter: runtime ariaValueNow is 60 when armor is 60',
+    stubs.getEl('armorchip').ariaValueNow === '60',
+    'ariaValueNow=' + stubs.getEl('armorchip').ariaValueNow);
+  check('armormeter: runtime armor element text is 60 when armor is 60',
+    String(stubs.getEl('armor').textContent) === '60',
+    'textContent=' + stubs.getEl('armor').textContent);
+  check('armormeter: runtime armorchip display is inline when armor is 60',
+    stubs.getEl('armorchip').style.display === 'inline',
+    'display=' + stubs.getEl('armorchip').style.display);
+  G.shopArmor = 0; G.updateArmorHUD();
+  check('armormeter: runtime ariaValueNow is 0 when armor is back to 0',
+    stubs.getEl('armorchip').ariaValueNow === '0',
+    'ariaValueNow=' + stubs.getEl('armorchip').ariaValueNow);
+  check('armormeter: runtime armorchip display is none when armor is back to 0',
+    stubs.getEl('armorchip').style.display === 'none',
+    'display=' + stubs.getEl('armorchip').style.display);
+  check('armormeter: pins - 50 InstancedMesh literals unchanged', lineHasAM('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasAM('new THREE.InstancedMesh'));
+  check('armormeter: pins - 92 Math.random lines unchanged', lineHasAM('Math.random') === 92,
+    'n=' + lineHasAM('Math.random'));
+  check('armormeter: pins - 72 setTimeout lines unchanged', lineHasAM('setTimeout') === 72,
+    'n=' + lineHasAM('setTimeout'));
+  check('armormeter: pins - no em dashes', !html.includes('\u2014'));
+  check('armormeter: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('armormeter: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('armormeter: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsAM, consoleProblems.slice(probsAM).join(' | '));
+  G.shopArmor = armorOrigAM; G.updateArmorHUD();
 }
 
 /* ---------- zero console errors ---------- */
