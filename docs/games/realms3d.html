@@ -1412,7 +1412,8 @@
   <!-- BOAT SPEED METER v1: the boat speed is a real meter: role meter plus aria-label Boat speed and aria-valuemin 0 and aria-valuemax 43 in markup, valuenow kept in sync by boatUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by BOAT.topSpeed 12. -->
   <div id="boatchip" role="meter" aria-label="Boat speed" aria-valuemin="0" aria-valuemax="43" aria-valuenow="0"></div>
   <div id="helihint"></div>
-  <div id="helichip"></div>
+  <!-- HELI SPEED METER v1: the helicopter speed is a real meter: role meter plus aria-label Helicopter speed and aria-valuemin 0 and aria-valuemax 94 in markup, valuenow kept in sync by heliUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by HELI.topSpeed 26. Altitude stays plain text because it has no clean absolute bound. -->
+  <div id="helichip"><span id="helispd" role="meter" aria-label="Helicopter speed" aria-valuemin="0" aria-valuemax="94" aria-valuenow="0">HELI - 0 KM/H</span><span id="helialt"> / ALT 0M</span></div>
   <div id="planehint"></div>
   <div id="planechip"></div>
   <div id="trainhint"></div>
@@ -22949,6 +22950,8 @@ worldTickers.push(boatUpdate);
 /* ---- HUD refs: BOARD prompt mirrors the boat hint pattern ---- */
 const heliHintEl = document.getElementById('helihint');
 const heliChipEl = document.getElementById('helichip');
+const heliSpdEl = document.getElementById('helispd');
+const heliAltEl = document.getElementById('helialt');
 const heliDnBtnEl = document.getElementById('helidnbtn');
 const jumpBtnEl = document.getElementById('jumpbtn');
 const HELP_HELI = '<b>W/S</b> fly fwd/back &nbsp; <b>A/D</b> strafe &nbsp; <b>SPACE</b> climb &nbsp; <b>C</b> descend<br>'
@@ -23399,8 +23402,11 @@ function heliUpdate(sdt, now) {
   HELI.hudT += sdt;
   if (HELI.hudT > 0.12) {
     HELI.hudT = 0;
-    heliChipEl.textContent = 'HELI - ' + Math.round(Math.abs(HELI.speed) * 3.6) + ' KM/H / ALT '
-      + Math.max(0, Math.round(HELI.pos.y - ground)) + 'M';
+    const heliKmh = Math.round(Math.abs(HELI.speed) * 3.6);
+    const heliAltM = Math.max(0, Math.round(HELI.pos.y - ground));
+    heliSpdEl.textContent = 'HELI - ' + heliKmh + ' KM/H';
+    heliSpdEl.ariaValueNow = String(heliKmh);
+    heliAltEl.textContent = ' / ALT ' + heliAltM + 'M';
   }
 }
 worldTickers.push(heliUpdate);
