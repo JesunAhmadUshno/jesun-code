@@ -1527,10 +1527,11 @@
   <div id="loyalchip"></div>
   <div id="lmcasinopanel">
     <div id="lmcs-title">ROYAL REELS</div>
+    <!-- ROYAL REELS REEL NAMES v1: each Royal Reels reel is a real image for assistive tech: role img plus a distinct aria-label in markup. lmcsDrawReel paints the symbol cells, so the static name describes each reel as a unit; the spin result stays in the existing #lmcs-win text. -->
     <div id="lmcs-reels">
-      <div class="lmcs-reel" id="lmcs-reel0"></div>
-      <div class="lmcs-reel" id="lmcs-reel1"></div>
-      <div class="lmcs-reel" id="lmcs-reel2"></div>
+      <div class="lmcs-reel" id="lmcs-reel0" role="img" aria-label="Royal Reels reel 1"></div>
+      <div class="lmcs-reel" id="lmcs-reel1" role="img" aria-label="Royal Reels reel 2"></div>
+      <div class="lmcs-reel" id="lmcs-reel2" role="img" aria-label="Royal Reels reel 3"></div>
     </div>
     <div id="lmcs-win">BET $10</div>
     <div id="lmcs-controls"><button id="lmcs-bet">BET $10</button><button id="lmcs-spin">SPIN</button></div>
