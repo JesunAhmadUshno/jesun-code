@@ -4734,6 +4734,14 @@ poseBirds(0);   /* pose once before the first tick so no instance sits at the or
     g.globalAlpha = 1;
     const t = new THREE.CanvasTexture(c);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    /* WINDOW TEXTURE COLORSPACE v1: window texture is a pure color
+       emissiveMap, warm lit windows authored in sRGB, with no data
+       channels. It was the one emissiveMap texture left in the default
+       linear space, so authored warm window colors rendered brighter
+       and washed than authored. Declaring sRGB here makes them display
+       as authored. Its peers WIN_GLOW_TEX and makeBeaconTex already
+       declare it. One shared texture, zero new draw calls. */
+    t.colorSpace = THREE.SRGBColorSpace;
     /* FACADE ANISOTROPY v1: facade windows are high-contrast and repeat
        over tall buildings viewed obliquely down streets, so they blur at
        grazing angles without anisotropic filtering. Use the renderer max,
