@@ -1417,7 +1417,8 @@
   <div id="planehint"></div>
   <div id="planechip"></div>
   <div id="trainhint"></div>
-  <div id="trainchip"></div>
+  <!-- TRAIN SPEED METER v1: the train speed is a real meter: role meter plus aria-label Train speed and aria-valuemin 0 and aria-valuemax 86 in markup, valuenow kept in sync by trainUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by TRAIN.cruise 24. -->
+  <div id="trainchip"><span id="trainspd" role="meter" aria-label="Train speed" aria-valuemin="0" aria-valuemax="86" aria-valuenow="0">TRAIN - 0 KM/H</span><span id="trainnext"> / NEXT: RIVERSIDE</span></div>
   <div id="pianohint"></div>
   <div id="musicchip"></div>
   <div id="pianokeys"></div>
@@ -24077,6 +24078,8 @@ drawStationSign(trainStationName(0));
 /* ---- HUD refs: board prompt, ride chip, help footer ---- */
 const trainHintEl = document.getElementById('trainhint');
 const trainChipEl = document.getElementById('trainchip');
+const trainSpdEl = document.getElementById('trainspd');
+const trainNextEl = document.getElementById('trainnext');
 const HELP_TRAIN = '<b>E</b> get off &nbsp; <b>TOUCH</b> EXIT button to get off';
 trainHintEl.textContent = IS_TOUCH ? 'TAP TO BOARD' : 'BOARD [E]';
 trainHintEl.addEventListener('click', () => { if (TRAIN.hintOn) trainEnter(); });
@@ -24181,7 +24184,10 @@ function trainUpdate(sdt, now) {
     if (TRAIN.hudT <= 0) {
       TRAIN.hudT = 0.15;
       const nk = t.dwellT > 0 ? trainNextK(t.s, t.dir) : t.nextK;
-      trainChipEl.textContent = 'TRAIN - ' + Math.round(Math.abs(t.v) * 3.6) + ' KM/H / NEXT: ' + trainStationName(nk);
+      const trainKmh = Math.round(Math.abs(t.v) * 3.6);
+      trainSpdEl.textContent = 'TRAIN - ' + trainKmh + ' KM/H';
+      trainSpdEl.ariaValueNow = String(trainKmh);
+      trainNextEl.textContent = ' / NEXT: ' + trainStationName(nk);
     }
     return;
   }
