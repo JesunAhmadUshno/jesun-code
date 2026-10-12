@@ -24570,6 +24570,109 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsRB, consoleProblems.slice(probsRB).join(' | '));
 }
 
+/* REDUCED MOTION v8: the two JavaScript-driven HUD flashes (the loyalty
+   chip glow in loyalTick and the slot win color flash in slotUpdate)
+   follow the P.traumaOn gate as v1-v5 and v7. When the gate is off, each
+   holds its static form for the same window, then clears exactly as
+   before, and no-preference users see the identical toggles. */
+{
+  const probsHF = consoleProblems.length;
+  const linesHF = html.split('\n');
+  const lineHasHF = sub => linesHF.filter(l => l.includes(sub)).length;
+  check('rmhudflash: REDUCED MOTION v8 header is present exactly once in the game source',
+    (html.split('/* REDUCED MOTION v8: the JavaScript-driven HUD flashes').length - 1) === 1,
+    'n=' + (html.split('/* REDUCED MOTION v8: the JavaScript-driven HUD flashes').length - 1));
+  check('rmhudflash: REDUCED MOTION v8 is mentioned exactly 5 times (header x2, both gate lines, slot cross-reference)',
+    (html.split('REDUCED MOTION v8').length - 1) === 5,
+    'n=' + (html.split('REDUCED MOTION v8').length - 1));
+  check('rmhudflash: loyal gate line is present exactly once in the game source',
+    (html.split("loyalChipEl.style.boxShadow = !P.traumaOn ? '0 0 12px #ffd24a' :").length - 1) === 1,
+    'n=' + (html.split("loyalChipEl.style.boxShadow = !P.traumaOn ? '0 0 12px #ffd24a' :").length - 1));
+  check('rmhudflash: slot gate line is present exactly once in the game source',
+    (html.split("slotWinEl.style.color = !P.traumaOn ? '#ffd24a' :").length - 1) === 1,
+    'n=' + (html.split("slotWinEl.style.color = !P.traumaOn ? '#ffd24a' :").length - 1));
+  check('rmhudflash: loyal expiry clear line is unchanged',
+    html.includes("if (LOYAL.flashT <= 0) loyalChipEl.style.boxShadow = 'none';"));
+  check('rmhudflash: slot expiry reset line is unchanged',
+    html.includes("if (SLOT.winFlashT <= 0) slotWinEl.style.color = '#cfe8d8';"));
+  check('rmhudflash: runtime exposures exist (LOYAL, loyalTick, loyalChipEl, SLOT, slotUpdate, slotWinEl)',
+    !!G.LOYAL && typeof G.loyalTick === 'function' && !!G.loyalChipEl
+    && !!G.SLOT && typeof G.slotUpdate === 'function' && !!G.slotWinEl);
+  check('rmhudflash-pins: 50 InstancedMesh literals unchanged', lineHasHF('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasHF('new THREE.InstancedMesh'));
+  check('rmhudflash-pins: 92 Math.random lines unchanged', lineHasHF('Math.random') === 92,
+    'n=' + lineHasHF('Math.random'));
+  check('rmhudflash-pins: 72 setTimeout lines unchanged', lineHasHF('setTimeout') === 72,
+    'n=' + lineHasHF('setTimeout'));
+  check('rmhudflash-pins: 2 THREE.Points objects unchanged', lineHasHF('new THREE.Points(') === 2,
+    'n=' + lineHasHF('new THREE.Points('));
+  check('rmhudflash-pins: no em dashes', !html.includes('\u2014'));
+  check('rmhudflash-pins: no TODO markers', !/\bTODO\b/.test(html));
+  /* save harness state the drives touch */
+  const saveTraumaHF = G.P.traumaOn, saveDeadHF = G.P.dead;
+  const savePlayingHF = G.SLOT.playing, saveSpinningHF = G.SLOT.spinning;
+  const savePosHF = { x: G.player.position.x, y: G.player.position.y, z: G.player.position.z, ry: G.player.rotation.y };
+  const GLOW = '0 0 12px #ffd24a', GOLD = '#ffd24a', WHITE = '#ffffff', RESET = '#cfe8d8';
+  function driveSlotHF() {
+    const colors = [];
+    G.SLOT.playing = true; G.SLOT.spinning = false; G.P.dead = false;
+    G.SLOT.winFlashT = 1.6;
+    let guard = 0;
+    while (G.SLOT.winFlashT > 0 && guard < 200) { G.slotUpdate(0.05, 0); colors.push(G.slotWinEl.style.color); guard++; }
+    return colors;
+  }
+  function driveLoyalHF() {
+    const shadows = [];
+    G.LOYAL.flashT = 1.2; G.LOYAL.stingQ.length = 0;
+    let guard = 0;
+    while (G.LOYAL.flashT > 0 && guard < 200) { G.loyalTick(0.05); shadows.push(G.loyalChipEl.style.boxShadow); guard++; }
+    return shadows;
+  }
+  /* runtime, gate ON: both flashes toggle, then clear on expiry */
+  G.P.traumaOn = true;
+  const slotOnHF = driveSlotHF();
+  check('rmhudflash: gate ON slot win flash toggles gold and white across the window',
+    slotOnHF.includes(GOLD) && slotOnHF.includes(WHITE),
+    'colors=' + [...new Set(slotOnHF)].join(','));
+  check('rmhudflash: gate ON slot win flash ends on the reset color with the timer drained',
+    slotOnHF[slotOnHF.length - 1] === RESET && G.SLOT.winFlashT <= 0,
+    'last=' + slotOnHF[slotOnHF.length - 1] + ' winFlashT=' + G.SLOT.winFlashT);
+  const loyalOnHF = driveLoyalHF();
+  check('rmhudflash: gate ON loyalty flash toggles glow and none across the window',
+    loyalOnHF.includes(GLOW) && loyalOnHF.includes('none'),
+    'shadows=' + [...new Set(loyalOnHF)].join(' | '));
+  check('rmhudflash: gate ON loyalty flash timer drains to expiry',
+    G.LOYAL.flashT <= 0, 'flashT=' + G.LOYAL.flashT);
+  /* runtime, gate OFF: static forms hold every step, expiry clear unchanged */
+  G.P.traumaOn = false;
+  const slotOffHF = driveSlotHF();
+  check('rmhudflash: gate OFF slot win color is static gold on every step and resets at expiry',
+    slotOffHF.length > 2 && slotOffHF.slice(0, -1).every(c => c === GOLD) && slotOffHF[slotOffHF.length - 1] === RESET,
+    'colors=' + [...new Set(slotOffHF)].join(','));
+  check('rmhudflash: gate OFF slot win flash timer drains to expiry',
+    G.SLOT.winFlashT <= 0, 'winFlashT=' + G.SLOT.winFlashT);
+  const loyalOffHF = driveLoyalHF();
+  check('rmhudflash: gate OFF loyalty glow is static on every step and clears at expiry',
+    loyalOffHF.length > 2 && loyalOffHF.slice(0, -1).every(s => s === GLOW) && loyalOffHF[loyalOffHF.length - 1] === 'none',
+    'shadows=' + [...new Set(loyalOffHF)].join(' | '));
+  check('rmhudflash: gate OFF loyalty flash timer drains to expiry',
+    G.LOYAL.flashT <= 0, 'flashT=' + G.LOYAL.flashT);
+  /* cleanup */
+  G.P.traumaOn = saveTraumaHF; G.P.dead = saveDeadHF;
+  G.SLOT.playing = savePlayingHF; G.SLOT.spinning = saveSpinningHF; G.SLOT.winFlashT = 0;
+  G.LOYAL.flashT = 0; G.LOYAL.stingQ.length = 0;
+  G.slotWinEl.style.color = RESET; G.loyalChipEl.style.boxShadow = 'none';
+  G.player.position.set(savePosHF.x, savePosHF.y, savePosHF.z); G.player.rotation.y = savePosHF.ry;
+  check('rmhudflash: cleanup restores traumaOn, dead, slot state, timers, styles, and player position',
+    G.P.traumaOn === saveTraumaHF && G.P.dead === saveDeadHF && G.SLOT.playing === savePlayingHF
+    && G.SLOT.winFlashT === 0 && G.LOYAL.flashT === 0
+    && G.slotWinEl.style.color === RESET && G.loyalChipEl.style.boxShadow === 'none'
+    && G.player.position.x === savePosHF.x && G.player.position.z === savePosHF.z,
+    'on=' + G.P.traumaOn + ' playing=' + G.SLOT.playing);
+  check('rmhudflash: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsHF, consoleProblems.slice(probsHF).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
