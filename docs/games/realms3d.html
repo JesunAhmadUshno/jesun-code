@@ -1489,7 +1489,9 @@
   <div id="hospchip"><span id="hosparr">^</span> <span id="hosptxt"></span></div>
   <div id="firechip"><span id="firearr">^</span> <span id="firetxt"></span></div>
   <div id="thallchip"><span id="thallarr">^</span> <span id="thalltxt"></span></div>
-  <div id="conchchip"></div>
+  <!-- CONCH TIMER v1: the REFRESHED buff countdown is a real timer: role timer plus
+       aria-label Refreshed buff remaining in markup, text still written by conchTick. The timer role is not announced every second (implicit live off), so assistive tech can read it on demand without spam. -->
+  <div id="conchchip" role="timer" aria-label="Refreshed buff remaining"></div>
   <!-- CROWD PROGRESSBAR v1: the audience applause meter is a real progressbar: role plus min/max in markup, valuenow kept in sync by theaudTick via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
   <div id="crowdchip"><span id="crowdtxt"></span><span id="crowdbar" role="progressbar" aria-label="Audience applause" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="crowdfill"></span></span></div>
   <!-- GRACE TIMER v1: the spawn-grace countdown is a real timer: role timer plus
