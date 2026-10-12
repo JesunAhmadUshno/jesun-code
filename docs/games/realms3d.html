@@ -7212,6 +7212,11 @@ const dmgNums = [];
 for (let _di = 0; _di < DMGNUM_N; _di++) {
   const _del = document.createElement('div');
   _del.className = 'dmgnum';
+  // DAMAGE NUMBERS HIDDEN v1: pooled numbers are purely visual floating
+  // combat feedback, hidden from assistive tech. Bare numbers carry no
+  // target or label; outcomes read on the kills, cash and HP readouts.
+  // These plain divs are never focusable.
+  _del.ariaHidden = 'true';
   hudEl.appendChild(_del);
   dmgNums.push({ el: _del, alive: false, age: 0, total: 0, target: null,
                  kind: 'dealt', x: 0, y: 0, pop: 0 });
