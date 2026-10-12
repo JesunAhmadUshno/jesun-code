@@ -14817,6 +14817,16 @@ function makeGlyphAtlasTex() {
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  /* GLYPH ATLAS ANISOTROPY v1: the glyph boards (OPEN, GAS,
+     REPAIR, STORE) are read down streets at oblique angles, so
+     their letters smear at grazing angles when no anisotropic
+     filtering is applied. Use the renderer maximum, capped at 4
+     to keep iPhone headroom; the headless stub renderer has no
+     WebGL flag or capabilities, so it falls back to 1 and never
+     throws. One shared atlas texture serves every board, so
+     this adds zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 const GLYPH = { OPEN: 0, GAS: 1, REPAIR: 2, STORE: 3 };
@@ -23888,6 +23898,15 @@ trainSignCanvas.width = 512; trainSignCanvas.height = 160;
 const trainSignCtx = trainSignCanvas.getContext('2d');
 const trainSignTex = new THREE.CanvasTexture(trainSignCanvas);
 trainSignTex.colorSpace = THREE.SRGBColorSpace;
+/* TRAIN SIGN ANISOTROPY v1: the station name board is read at
+   oblique angles along the platform and the street, so its
+   letters smear at grazing angles when no anisotropic filtering
+   is applied. Use the renderer maximum, capped at 4 to keep
+   iPhone headroom; the headless stub renderer has no WebGL flag
+   or capabilities, so it falls back to 1 and never throws. One
+   shared texture for the sign, so this adds zero new draw calls. */
+trainSignTex.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+  ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
 function drawStationSign(name) {
   const g = trainSignCtx;
   g.fillStyle = '#f4f2ec'; g.fillRect(0, 0, 512, 160);
