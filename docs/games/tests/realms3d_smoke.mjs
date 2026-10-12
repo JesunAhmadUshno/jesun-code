@@ -25131,6 +25131,56 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsMH, consoleProblems.slice(probsMH).join(' | '));
 }
 
+/* ================= SHOP TITLE HEADING LEVEL v1 =================
+   The shop title is a native h2 in markup, after it
+   was the only panel title at native h3 level. The
+   shop CSS selector moved from h3 to h2 with identical
+   declarations, so rendering is unchanged. The dynamic
+   writers rename the title via shopNameEl.textContent,
+   fetched by id, and are unchanged. This item is markup
+   plus one CSS selector only: no JS changes, no other
+   element is in scope. */
+{
+  const probsSH = consoleProblems.length;
+  const linesSH = html.split('\n');
+  const lineHasSH = sub => linesSH.filter(l => l.includes(sub)).length;
+  check('shophead: SHOP TITLE HEADING LEVEL v1 header is present exactly once in the game source',
+    (html.split('SHOP TITLE HEADING LEVEL v1').length - 1) === 1,
+    'n=' + (html.split('SHOP TITLE HEADING LEVEL v1').length - 1));
+  check('shophead: #shopname full tag matches exactly (source pin)',
+    html.includes('<h2 id="shopname">SHOP</h2>'));
+  check('shophead: exactly one #shopname full tag in the game source',
+    (html.match(/<h2 id="shopname">SHOP<\/h2>/g) || []).length === 1,
+    'n=' + (html.match(/<h2 id="shopname">SHOP<\/h2>/g) || []).length);
+  check('shophead: exactly one #shopname element in the game source',
+    (html.match(/id="shopname"/g) || []).length === 1,
+    'n=' + (html.match(/id="shopname"/g) || []).length);
+  check('shophead: old h3 #shopname tag is absent in the game source',
+    !html.includes('<h3 id="shopname">'));
+  check('shophead: shop h2 CSS rule matches exactly once (source pin)',
+    (html.split('#shop h2 { color: #35e0c8; font-size: 14px; letter-spacing: 3px; margin: 0 0 4px; }').length - 1) === 1,
+    'n=' + (html.split('#shop h2 { color: #35e0c8; font-size: 14px; letter-spacing: 3px; margin: 0 0 4px; }').length - 1));
+  check('shophead: shop h3 CSS selector is absent in the game source',
+    !html.includes('#shop h3'));
+  check('shophead: shop title writer still writes via shopNameEl.textContent (dynamic writer unchanged)',
+    html.includes('shopNameEl.textContent = SHOPS[i].name'));
+  check('shophead: pins - 50 InstancedMesh literals unchanged', lineHasSH('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasSH('new THREE.InstancedMesh'));
+  check('shophead: pins - 92 Math.random lines unchanged', lineHasSH('Math.random') === 92,
+    'n=' + lineHasSH('Math.random'));
+  check('shophead: pins - 72 setTimeout lines unchanged', lineHasSH('setTimeout') === 72,
+    'n=' + lineHasSH('setTimeout'));
+  check('shophead: pins - 2 THREE.Points objects unchanged', lineHasSH('new THREE.Points(') === 2,
+    'n=' + lineHasSH('new THREE.Points('));
+  check('shophead: pins - no em dashes', !html.includes('\u2014'));
+  check('shophead: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('shophead: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('shophead: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSH, consoleProblems.slice(probsSH).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
