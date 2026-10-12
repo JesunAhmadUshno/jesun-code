@@ -22093,6 +22093,72 @@ globalThis.__R3D2 = {
   G.shopArmor = armorOrigAM; G.updateArmorHUD();
 }
 
+/* ================= GRACE TIMER v1 =================
+   The spawn-grace countdown is a real timer: role timer
+   plus aria-label Spawn protection remaining in the
+   #gracechip markup, with the text still written by
+   graceHud (the graceChipEl textContent line pinned
+   below). The timer role carries no aria-valuenow,
+   aria-valuemin, aria-valuemax, or aria-live: a timer
+   is not a meter, and its implicit live region is off,
+   so assistive tech can read the remaining time on
+   demand without an announcement every second. The
+   runtime checks drive G.graceStart, G.graceTick, and
+   G.graceBreak through the already-exposed shim and
+   read G.graceChipEl, the same element the game binds
+   as graceChipEl. The block ends on the graceBreak
+   clean state: chip hidden and graceT back to 0. */
+{
+  const probsGT = consoleProblems.length;
+  const linesGT = html.split('\n');
+  const lineHasGT = sub => linesGT.filter(l => l.includes(sub)).length;
+  check('gracetimer: GRACE TIMER v1 header is present exactly once in the game source',
+    (html.split('GRACE TIMER v1').length - 1) === 1,
+    'n=' + (html.split('GRACE TIMER v1').length - 1));
+  const graceTagGT = (html.match(/<div id="gracechip"[^>]*>/) || [''])[0];
+  check('gracetimer: #gracechip element markup carries role="timer"',
+    graceTagGT.includes('role="timer"'), 'tag=' + graceTagGT);
+  check('gracetimer: #gracechip element markup carries aria-label="Spawn protection remaining"',
+    graceTagGT.includes('aria-label="Spawn protection remaining"'), 'tag=' + graceTagGT);
+  check('gracetimer: exactly one #gracechip element in the game source',
+    (html.match(/id="gracechip"/g) || []).length === 1,
+    'n=' + (html.match(/id="gracechip"/g) || []).length);
+  check('gracetimer: graceChipEl binding line binds gracechip (source pin)',
+    html.includes("const graceChipEl = document.getElementById('gracechip');"));
+  check('gracetimer: graceHud graceChipEl textContent writer line is unchanged (source pin)',
+    html.includes("graceChipEl.textContent = 'GRACE 0:0' + s;"));
+  G.graceStart();
+  check('gracetimer: runtime graceChipEl text is GRACE 0:05 after graceStart',
+    G.graceChipEl.textContent === 'GRACE 0:05',
+    'textContent=' + G.graceChipEl.textContent);
+  check('gracetimer: runtime gracechip display is block after graceStart',
+    G.graceChipEl.style.display === 'block',
+    'display=' + G.graceChipEl.style.display);
+  G.graceTick(1.5);
+  check('gracetimer: runtime graceChipEl text is GRACE 0:04 after graceTick 1.5',
+    G.graceChipEl.textContent === 'GRACE 0:04',
+    'textContent=' + G.graceChipEl.textContent);
+  G.graceBreak();
+  check('gracetimer: runtime gracechip display is none after graceBreak',
+    G.graceChipEl.style.display === 'none',
+    'display=' + G.graceChipEl.style.display);
+  check('gracetimer: runtime graceT is 0 after graceBreak',
+    G.P.graceT === 0, 'graceT=' + G.P.graceT);
+  check('gracetimer: pins - 50 InstancedMesh literals unchanged', lineHasGT('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasGT('new THREE.InstancedMesh'));
+  check('gracetimer: pins - 92 Math.random lines unchanged', lineHasGT('Math.random') === 92,
+    'n=' + lineHasGT('Math.random'));
+  check('gracetimer: pins - 72 setTimeout lines unchanged', lineHasGT('setTimeout') === 72,
+    'n=' + lineHasGT('setTimeout'));
+  check('gracetimer: pins - no em dashes', !html.includes('\u2014'));
+  check('gracetimer: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('gracetimer: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('gracetimer: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsGT, consoleProblems.slice(probsGT).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
