@@ -214,6 +214,7 @@
   #drivingtag { color: #ff6b5e; font-size: 10px; letter-spacing: 4px; margin-bottom: 4px; }
   #gaittag { color: #d8c84a; font-size: 11px; letter-spacing: 3px; margin-top: 4px; display: none; }
   #carcond { color: #7dff9a; font-size: 10px; letter-spacing: 2px; margin-top: 4px; }
+  #bcstam { color: #d8c84a; font-size: 10px; letter-spacing: 2px; margin-top: 4px; display: none; }
   #carhint {
     position: absolute; bottom: 108px; left: 50%; transform: translateX(-50%);
     color: #0c0e0a; background: #d8c84a; font-size: 13px; letter-spacing: 3px;
@@ -1388,7 +1389,10 @@
   <!-- DIFF METER v1: the AI difficulty tier is a real meter: role plus min/max in markup, valuenow kept in sync by updateDiffHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
   <div id="diffchip" role="meter" aria-label="AI difficulty tier" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">AI TIER 0</div>
   <div id="saved">SAVED --:--</div>
-  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond">HULL 100%</div></div>
+  <!-- BC STAMINA METER v1: the bicycle stamina is a real meter: role meter plus
+       aria-label Bicycle stamina and aria-valuemin 0 and aria-valuemax 100 in the
+       #bcstam markup, valuenow kept in sync via the ariaValueNow property. -->
+  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond">HULL 100%</div><div id="bcstam" role="meter" aria-label="Bicycle stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">STAM 100%</div></div>
   <div id="perfchip"></div>
   <!-- TOAST LIVE REGION v1: toast() feedback (212 call sites) is now announced
        by assistive tech without moving focus. toast() itself is unchanged. -->
@@ -21742,10 +21746,11 @@ function bikeUpdate(sdt) {
    Guard twins mirror the BIKE pattern at every vehicle touchpoint.
    v1 simplifications: wheels baked (no spin, em pattern); slots re-seed on
    load like the bike pads (not persisted in the save); the stamina gauge
-   has no HUD bar yet (the forced coast is the feedback); no skid system. */
+   is shown by the bcstam chip (the forced coast is the feedback); no skid system. */
 
 /* ---- HUD refs: RIDE prompt mirrors the bike hint pattern ---- */
 const bcHintEl = document.getElementById('bchint');
+const bcStamEl = document.getElementById('bcstam');
 const HELP_BC = '<b>W</b> pedal / <b>S</b> brake &nbsp; <b>A/D</b> steer &nbsp; <b>SHIFT tap</b> pedal-mash sprint<br>'
   + '<b>E</b> dismount &nbsp; <b>TOUCH</b> stick rides, <b>RUN</b> mashes';
 bcHintEl.textContent = IS_TOUCH ? 'TAP FOR BICYCLE' : 'E RIDE BICYCLE';
@@ -21920,6 +21925,10 @@ function bcEnter() {
   drivingTagEl.textContent = 'BC';
   gaitTagEl.style.display = 'none';
   carcondEl.style.display = 'none';
+  bcStamEl.style.display = 'block';
+  const pct = Math.round(BC.stam * 100);
+  bcStamEl.textContent = 'STAM ' + pct + '%';
+  bcStamEl.ariaValueNow = String(pct);
   bcHintEl.style.opacity = 0; BC.hintOn = false; BC.nearIdx = -1;
   carHintEl.style.opacity = 0; CAR.hintOn = false;
   busHintEl.style.opacity = 0; BUS.hintOn = false;
@@ -21951,6 +21960,7 @@ function bcExit() {
   player.visible = true;
   P.vel.set(0, 0, 0); P.vy = 0;
   speedoEl.style.display = 'none';
+  bcStamEl.style.display = 'none';
   drivingTagEl.textContent = 'DRIVING';
   carcondEl.style.display = '';
   helpEl.innerHTML = HELP_FOOT;
@@ -22130,6 +22140,9 @@ function bcUpdate(sdt) {
   if (BC.hudT > 0.12) {
     BC.hudT = 0;
     spdNumEl.textContent = Math.round(Math.abs(BC.speed) * 3.6);
+    const pct = Math.round(BC.stam * 100);
+    bcStamEl.textContent = 'STAM ' + pct + '%';
+    bcStamEl.ariaValueNow = String(pct);
   }
   if (bcPoseD) bcBodyIM.instanceMatrix.needsUpdate = true;
 }
