@@ -23340,6 +23340,70 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsWC, consoleProblems.slice(probsWC).join(' | '));
 }
 
+/* ================= REEL CANVAS NAMES v1 =================
+   The slot machine reel graphics are named images:
+   the #reel0, #reel1, and #reel2 elements inside
+   #slotreels carry role img plus distinct aria-labels
+   Slot machine reel 1, Slot machine reel 2, and Slot
+   machine reel 3 in markup. drawReel paints the symbols
+   as canvas pixels, so the static names describe each
+   reel as a unit; the spin result stays in the existing
+   #slotwin text. This item is markup only: no JS
+   changes, no other canvas or element is in scope. */
+{
+  const probsRC = consoleProblems.length;
+  const linesRC = html.split('\n');
+  const lineHasRC = sub => linesRC.filter(l => l.includes(sub)).length;
+  check('reelcanvas: REEL CANVAS NAMES v1 header is present exactly once in the game source',
+    (html.split('REEL CANVAS NAMES v1').length - 1) === 1,
+    'n=' + (html.split('REEL CANVAS NAMES v1').length - 1));
+  const reelTag0RC = (html.match(/<canvas id="reel0"[^>]*>/) || [''])[0];
+  const reelTag1RC = (html.match(/<canvas id="reel1"[^>]*>/) || [''])[0];
+  const reelTag2RC = (html.match(/<canvas id="reel2"[^>]*>/) || [''])[0];
+  check('reelcanvas: #reel0 tag carries role="img"',
+    reelTag0RC.includes('role="img"'), 'tag=' + reelTag0RC);
+  check('reelcanvas: #reel1 tag carries role="img"',
+    reelTag1RC.includes('role="img"'), 'tag=' + reelTag1RC);
+  check('reelcanvas: #reel2 tag carries role="img"',
+    reelTag2RC.includes('role="img"'), 'tag=' + reelTag2RC);
+  check('reelcanvas: #reel0 tag carries aria-label="Slot machine reel 1"',
+    reelTag0RC.includes('aria-label="Slot machine reel 1"'), 'tag=' + reelTag0RC);
+  check('reelcanvas: #reel1 tag carries aria-label="Slot machine reel 2"',
+    reelTag1RC.includes('aria-label="Slot machine reel 2"'), 'tag=' + reelTag1RC);
+  check('reelcanvas: #reel2 tag carries aria-label="Slot machine reel 3"',
+    reelTag2RC.includes('aria-label="Slot machine reel 3"'), 'tag=' + reelTag2RC);
+  check('reelcanvas: #reel0 full tag matches exactly (source pin)',
+    html.includes('<canvas id="reel0" width="96" height="120" role="img" aria-label="Slot machine reel 1"></canvas>'));
+  check('reelcanvas: #reel1 full tag matches exactly (source pin)',
+    html.includes('<canvas id="reel1" width="96" height="120" role="img" aria-label="Slot machine reel 2"></canvas>'));
+  check('reelcanvas: #reel2 full tag matches exactly (source pin)',
+    html.includes('<canvas id="reel2" width="96" height="120" role="img" aria-label="Slot machine reel 3"></canvas>'));
+  check('reelcanvas: exactly one #reel0 element in the game source',
+    (html.match(/id="reel0"/g) || []).length === 1,
+    'n=' + (html.match(/id="reel0"/g) || []).length);
+  check('reelcanvas: exactly one #reel1 element in the game source',
+    (html.match(/id="reel1"/g) || []).length === 1,
+    'n=' + (html.match(/id="reel1"/g) || []).length);
+  check('reelcanvas: exactly one #reel2 element in the game source',
+    (html.match(/id="reel2"/g) || []).length === 1,
+    'n=' + (html.match(/id="reel2"/g) || []).length);
+  check('reelcanvas: pins - 50 InstancedMesh literals unchanged', lineHasRC('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRC('new THREE.InstancedMesh'));
+  check('reelcanvas: pins - 92 Math.random lines unchanged', lineHasRC('Math.random') === 92,
+    'n=' + lineHasRC('Math.random'));
+  check('reelcanvas: pins - 72 setTimeout lines unchanged', lineHasRC('setTimeout') === 72,
+    'n=' + lineHasRC('setTimeout'));
+  check('reelcanvas: pins - 2 THREE.Points objects unchanged', lineHasRC('new THREE.Points(') === 2,
+    'n=' + lineHasRC('new THREE.Points('));
+  check('reelcanvas: pins - no em dashes', !html.includes('\u2014'));
+  check('reelcanvas: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('reelcanvas: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('reelcanvas: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRC, consoleProblems.slice(probsRC).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
