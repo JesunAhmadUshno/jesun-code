@@ -1477,7 +1477,8 @@
   <div id="petchip">PET</div>
   <div id="foodchip"></div>
   <div id="farmhint"></div>
-  <div id="farmchip"></div>
+  <!-- FARM GROW METER v1: the farm mature-crop count is a real meter: the #farmgrow span inside #farmchip carries role meter plus aria-label Farm crops mature and aria-valuemin 0 and aria-valuemax 24 in markup, valuenow kept in sync by updateFarmChip via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded 0..24: FARM_PER_PLOT is FARM_ROWS 4 times FARM_COLS 6, redistributeFarm plants exactly 24 seeds per plot, and farmPlotMatureCount counts only seeds matching the plot gx/gz at stage 2, so the count can never exceed 24 or go below 0. The status prefix stays plain text in #farmtxt, and the concatenated visible text is unchanged. -->
+  <div id="farmchip"><span id="farmtxt"></span><span id="farmgrow" role="meter" aria-label="Farm crops mature" aria-valuemin="0" aria-valuemax="24" aria-valuenow="0"></span></div>
   <div id="cashfloat"></div>
   <div id="socchip"></div>
   <div id="kickhint"></div>
@@ -16489,6 +16490,8 @@ function sfxSizzle() {
 /* ---- #farmchip status chip: READY! / GROWING n / HARVESTED n. Click cycles
         the selected seed (touch works). ---- */
 const farmChipEl = document.getElementById('farmchip');
+const farmTxtEl = document.getElementById('farmtxt');
+const farmGrowEl = document.getElementById('farmgrow');
 function cycleFarmSeed() {
   const i = FARM_SEED_ORDER.indexOf(FPLOT.seedSel);
   FPLOT.seedSel = FARM_SEED_ORDER[(i + 1) % FARM_SEED_ORDER.length];
@@ -16501,14 +16504,20 @@ function updateFarmChip() {
   const p = FPLOT.active[FPLOT.nearIdx];
   farmChipEl.style.display = 'block';
   if (FPLOT.nearMature) {
-    farmChipEl.textContent = 'FARM - READY!';
+    farmTxtEl.textContent = 'FARM - READY!';
+    farmGrowEl.textContent = '';
+    farmGrowEl.ariaValueNow = '0';
     farmChipEl.style.color = '#ffd24a';
   } else if (p && farmFallow(p, FPLOT.t)) {
-    farmChipEl.textContent = 'FARM - HARVESTED ' + FPLOT.harvested;
+    farmTxtEl.textContent = 'FARM - HARVESTED ' + FPLOT.harvested;
+    farmGrowEl.textContent = '';
+    farmGrowEl.ariaValueNow = '0';
     farmChipEl.style.color = '#8b937a';
   } else if (p) {
-    farmChipEl.textContent = 'FARM - GROWING ' +
-      farmPlotMatureCount(p, FPLOT.t) + '/' + FARM_PER_PLOT;
+    const m = farmPlotMatureCount(p, FPLOT.t);
+    farmTxtEl.textContent = 'FARM - GROWING ';
+    farmGrowEl.textContent = m + '/' + FARM_PER_PLOT;
+    farmGrowEl.ariaValueNow = String(m);
     farmChipEl.style.color = '#7dff9a';
   } else {
     farmChipEl.style.display = 'none';
