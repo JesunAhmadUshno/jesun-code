@@ -337,6 +337,8 @@ globalThis.__R3D = {
   COYOTE_T, JUMP_BUF_T, JUMP_V, GRAV, touch,
   /* TRAUMA SHAKE v1: trauma helpers + constants (test-only exposure) */
   addTrauma, toggleTrauma, traumaNoise, TRAUMA_DECAY, TRAUMA_MAX_OFF,
+  /* REDUCED MOTION v1: reduced-motion helper + boot flag (test-only exposure) */
+  prefersReducedMotion, REDUCED_MOTION,
   /* BULLET MAGNETISM + AIM FRICTION v1: constants + helpers (test-only exposure) */
   MAG_CONE, MAG_RANGE, FRICTION_CONE, FRICTION_FACTOR, aimFriction, aimTargetDir,
   /* POSITIONAL STEREO-PAN POOL v1: constants + helpers (test-only exposure) */
@@ -10758,8 +10760,8 @@ globalThis.__R3D2 = {
   /* boot state is a source fact here: by this point in the suite, earlier
      combat sections have fed trauma through real gameplay, so the runtime
      value is no longer the boot value; the P literal pins the start */
-  check('trauma: P starts at 0 with shake ON (P literal) and carries a numeric noise clock',
-    html.includes('trauma: 0, traumaT: 0, traumaOn: true')
+  check('trauma: P starts at 0 with shake gated by !REDUCED_MOTION (P literal, ON in the stub fallback) and carries a numeric noise clock',
+    html.includes('trauma: 0, traumaT: 0, traumaOn: !REDUCED_MOTION')
     && G.P.traumaOn === true && typeof G.P.trauma === 'number' && typeof G.P.traumaT === 'number',
     'on=' + G.P.traumaOn + ' trauma=' + G.P.trauma + ' t=' + G.P.traumaT);
   check('trauma: source carries the KeyO keybind and the help text',
@@ -10890,6 +10892,70 @@ globalThis.__R3D2 = {
   check('trauma-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('trauma: the run leaves zero console errors/warnings',
     consoleProblems.length === probsT, consoleProblems.slice(probsT).join(' | '));
+}
+
+/* ================= REDUCED MOTION v1 =================
+   An OS reduced-motion request now sets the initial state of the
+   trauma-shake gate: prefersReducedMotion() reads the
+   prefers-reduced-motion media query once at boot and P.traumaOn
+   starts at !REDUCED_MOTION. The typeof guard plus try/catch makes
+   headless and older browsers fall back to shake on, and the KeyO
+   toggle (toggleTrauma) is unchanged and can re-enable shake.
+   Session-only: no save change. Note: the true (reduced-motion)
+   path cannot run in the stub because the stub has no matchMedia,
+   so it is pinned by source here and the fallback path is verified
+   at runtime, exactly as prior anisotropy cycles did. */
+{
+  const probsRM = consoleProblems.length;
+  /* source pins: helper, guard, query, boot flag, P literal, header */
+  check('redmotion: REDUCED MOTION v1 header is present in the game source',
+    html.includes('REDUCED MOTION v1'));
+  check('redmotion: source pins the helper function definition',
+    html.includes('function prefersReducedMotion(){'));
+  check('redmotion: source pins the exact media query string',
+    html.includes("matchMedia('(prefers-reduced-motion: reduce)')"));
+  check('redmotion: source pins the typeof guard on matchMedia',
+    html.includes("typeof matchMedia === 'function'"));
+  check('redmotion: source pins the strict .matches === true test',
+    html.includes('.matches === true'));
+  check('redmotion: source pins the boot flag const REDUCED_MOTION = prefersReducedMotion();',
+    html.includes('const REDUCED_MOTION = prefersReducedMotion();'));
+  check('redmotion: source pins the P literal traumaOn: !REDUCED_MOTION',
+    html.includes('trauma: 0, traumaT: 0, traumaOn: !REDUCED_MOTION'));
+  /* runtime: the stub defines no matchMedia, so the fallback path runs */
+  check('redmotion: prefersReducedMotion is a function at runtime',
+    typeof G.prefersReducedMotion === 'function', 'type=' + typeof G.prefersReducedMotion);
+  check('redmotion: fallback path returns false with no matchMedia in the stub',
+    G.prefersReducedMotion() === false, 'v=' + G.prefersReducedMotion());
+  check('redmotion: REDUCED_MOTION is false on the fallback path',
+    G.REDUCED_MOTION === false, 'v=' + G.REDUCED_MOTION);
+  check('redmotion: P.traumaOn matches !REDUCED_MOTION on the fallback path',
+    G.P.traumaOn === !G.REDUCED_MOTION,
+    'on=' + G.P.traumaOn + ' rm=' + G.REDUCED_MOTION);
+  /* the KeyO toggle still overrides the boot default, off then on */
+  if (!G.P.traumaOn) G.toggleTrauma();
+  G.P.trauma = 0;
+  G.toggleTrauma();
+  const offRM = G.P.traumaOn === false && G.P.trauma === 0;
+  G.toggleTrauma();
+  const onRM = G.P.traumaOn === true && G.P.trauma === 0;
+  check('redmotion: KeyO toggle still overrides the default (off clears, on re-enables, ends ON with no trauma)',
+    offRM && onRM, 'off=' + offRM + ' on=' + onRM + ' trauma=' + G.P.trauma);
+  /* unchanged pins: the feature adds zero of each */
+  const linesRM = html.split('\n');
+  const lineHasRM = sub => linesRM.filter(l => l.includes(sub)).length;
+  check('redmotion-pins: 50 InstancedMesh literals unchanged', lineHasRM('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRM('new THREE.InstancedMesh'));
+  check('redmotion-pins: 92 Math.random and 72 setTimeout lines unchanged',
+    lineHasRM('Math.random') === 92 && lineHasRM('setTimeout') === 72,
+    'rand=' + lineHasRM('Math.random') + ' timeout=' + lineHasRM('setTimeout'));
+  check('redmotion-pins: no em dashes', !html.includes('—'));
+  check('redmotion-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('redmotion-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('redmotion: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRM, consoleProblems.slice(probsRM).join(' | '));
 }
 
 /* ================= BULLET MAGNETISM + AIM FRICTION v1 =================
