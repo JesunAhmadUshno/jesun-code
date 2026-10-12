@@ -24190,6 +24190,119 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsLR, consoleProblems.slice(probsLR).join(' | '));
 }
 
+/* ================= BEARING ARROWS HIDDEN v1 =================
+   The bearing and mission arrows are decorative
+   direction glyphs: the #marr div inside #marrow
+   and the 15 bearing arrow spans each carry
+   aria-hidden true in markup. Their writers only
+   rotate them via style.transform, so the readable
+   name and distance stay in the sibling text spans.
+   This item is markup only: no JS changes, no other
+   element is in scope. */
+{
+  const probsBA = consoleProblems.length;
+  const linesBA = html.split('\n');
+  const lineHasBA = sub => linesBA.filter(l => l.includes(sub)).length;
+  check('beararr: BEARING ARROWS HIDDEN v1 header is present exactly once in the game source',
+    (html.split('BEARING ARROWS HIDDEN v1').length - 1) === 1,
+    'n=' + (html.split('BEARING ARROWS HIDDEN v1').length - 1));
+  check('beararr: #casarr full tag matches exactly (source pin)',
+    html.includes('<span id="casarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #casarr element in the game source',
+    (html.match(/id="casarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="casarr"/g) || []).length);
+  check('beararr: #civarr full tag matches exactly (source pin)',
+    html.includes('<span id="civarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #civarr element in the game source',
+    (html.match(/id="civarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="civarr"/g) || []).length);
+  check('beararr: #stadarr full tag matches exactly (source pin)',
+    html.includes('<span id="stadarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #stadarr element in the game source',
+    (html.match(/id="stadarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="stadarr"/g) || []).length);
+  check('beararr: #amusebarr full tag matches exactly (source pin)',
+    html.includes('<span id="amusebarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #amusebarr element in the game source',
+    (html.match(/id="amusebarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="amusebarr"/g) || []).length);
+  check('beararr: #worsarr full tag matches exactly (source pin)',
+    html.includes('<span id="worsarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #worsarr element in the game source',
+    (html.match(/id="worsarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="worsarr"/g) || []).length);
+  check('beararr: #aptarr full tag matches exactly (source pin)',
+    html.includes('<span id="aptarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #aptarr element in the game source',
+    (html.match(/id="aptarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="aptarr"/g) || []).length);
+  check('beararr: #landarr full tag matches exactly (source pin)',
+    html.includes('<span id="landarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #landarr element in the game source',
+    (html.match(/id="landarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="landarr"/g) || []).length);
+  check('beararr: #storearr full tag matches exactly (source pin)',
+    html.includes('<span id="storearr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #storearr element in the game source',
+    (html.match(/id="storearr"/g) || []).length === 1,
+    'n=' + (html.match(/id="storearr"/g) || []).length);
+  check('beararr: #lmstadarr full tag matches exactly (source pin)',
+    html.includes('<span id="lmstadarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #lmstadarr element in the game source',
+    (html.match(/id="lmstadarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmstadarr"/g) || []).length);
+  check('beararr: #lmausearr full tag matches exactly (source pin)',
+    html.includes('<span id="lmausearr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #lmausearr element in the game source',
+    (html.match(/id="lmausearr"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmausearr"/g) || []).length);
+  check('beararr: #hosparr full tag matches exactly (source pin)',
+    html.includes('<span id="hosparr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #hosparr element in the game source',
+    (html.match(/id="hosparr"/g) || []).length === 1,
+    'n=' + (html.match(/id="hosparr"/g) || []).length);
+  check('beararr: #firearr full tag matches exactly (source pin)',
+    html.includes('<span id="firearr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #firearr element in the game source',
+    (html.match(/id="firearr"/g) || []).length === 1,
+    'n=' + (html.match(/id="firearr"/g) || []).length);
+  check('beararr: #thallarr full tag matches exactly (source pin)',
+    html.includes('<span id="thallarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #thallarr element in the game source',
+    (html.match(/id="thallarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="thallarr"/g) || []).length);
+  check('beararr: #casinarr full tag matches exactly (source pin)',
+    html.includes('<span id="casinarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #casinarr element in the game source',
+    (html.match(/id="casinarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="casinarr"/g) || []).length);
+  check('beararr: #firestarr full tag matches exactly (source pin)',
+    html.includes('<span id="firestarr" aria-hidden="true">^</span>'));
+  check('beararr: exactly one #firestarr element in the game source',
+    (html.match(/id="firestarr"/g) || []).length === 1,
+    'n=' + (html.match(/id="firestarr"/g) || []).length);
+  check('beararr: #marr full tag matches exactly (source pin)',
+    html.includes('<div id="marr" aria-hidden="true">▲</div>'));
+  check('beararr: exactly one #marr element in the game source',
+    (html.match(/id="marr"/g) || []).length === 1,
+    'n=' + (html.match(/id="marr"/g) || []).length);
+  check('beararr: pins - 50 InstancedMesh literals unchanged', lineHasBA('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasBA('new THREE.InstancedMesh'));
+  check('beararr: pins - 92 Math.random lines unchanged', lineHasBA('Math.random') === 92,
+    'n=' + lineHasBA('Math.random'));
+  check('beararr: pins - 72 setTimeout lines unchanged', lineHasBA('setTimeout') === 72,
+    'n=' + lineHasBA('setTimeout'));
+  check('beararr: pins - 2 THREE.Points objects unchanged', lineHasBA('new THREE.Points(') === 2,
+    'n=' + lineHasBA('new THREE.Points('));
+  check('beararr: pins - no em dashes', !html.includes('\u2014'));
+  check('beararr: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('beararr: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('beararr: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsBA, consoleProblems.slice(probsBA).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
