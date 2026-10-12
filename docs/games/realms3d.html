@@ -1378,7 +1378,9 @@
   <div id="weap"><span id="wname">RIFLE</span> <b id="wammo">&infin;</b></div>
   <div id="mtracker"><div id="mtitle"></div><div id="mobj"></div></div>
   <div id="marrow"><div id="marr">▲</div><div id="mdist"></div></div>
-  <div id="tod"><span id="todicon">☾</span><span id="todtime">18:00</span></div>
+  <!-- TOD TIMER v1: the game clock is a real timer: role timer plus
+       aria-label Game time on #tod, decorative icon hidden from assistive tech. -->
+  <div id="tod" role="timer" aria-label="Game time"><span id="todicon" aria-hidden="true">☾</span><span id="todtime">18:00</span></div>
   <div id="wx"><span>☀</span> CLEAR</div>
   <div id="diffchip">AI TIER 0</div>
   <div id="saved">SAVED --:--</div>
