@@ -1393,7 +1393,9 @@
   <div id="wx" role="status"><span aria-hidden="true">☀</span> CLEAR</div>
   <!-- DIFF METER v1: the AI difficulty tier is a real meter: role plus min/max in markup, valuenow kept in sync by updateDiffHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
   <div id="diffchip" role="meter" aria-label="AI difficulty tier" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">AI TIER 0</div>
-  <div id="saved">SAVED --:--</div>
+  <!-- SAVED TIMER v1: the saved readout is a real timer: role timer plus
+       aria-label Time since last save in markup, text still written by updateSavedChip. The timer role is not announced every second (implicit live off), so assistive tech can read it on demand without spam. -->
+  <div id="saved" role="timer" aria-label="Time since last save">SAVED --:--</div>
   <!-- BC STAMINA METER v1: the bicycle stamina is a real meter: role meter plus
        aria-label Bicycle stamina and aria-valuemin 0 and aria-valuemax 100 in the
        #bcstam markup, valuenow kept in sync via the ariaValueNow property. -->
