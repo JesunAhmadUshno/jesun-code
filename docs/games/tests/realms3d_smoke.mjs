@@ -12207,6 +12207,71 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsSg, consoleProblems.slice(probsSg).join(' | '));
 }
 
+/* ================= REMAINING TEXT TEXTURE ANISOTROPY v1 =================
+   The last two text-bearing canvas textures get the same capped
+   anisotropy as the sign textures: the shared glyph atlas behind
+   the OPEN, GAS, REPAIR and STORE boards, and the train station
+   name board texture. Both are read at oblique angles (down
+   streets, along the platform), so their letters smear at
+   grazing angles without anisotropic filtering. The guard falls
+   back to 1 on the headless stub renderer and never throws.
+   Neither texture is exposed on the test shim, so verification
+   is source-pin based, exactly like signaniso. Zero new draw
+   calls: one shared atlas texture and one shared sign texture. */
+{
+  const probsTa = consoleProblems.length;
+  const glyphSrcTa = html.slice(
+    html.indexOf('function makeGlyphAtlasTex()'),
+    html.indexOf('const GLYPH = { OPEN: 0'));
+  const trainSrcTa = html.slice(
+    html.indexOf('const trainSignTex = new THREE.CanvasTexture(trainSignCanvas);'),
+    html.indexOf('function drawStationSign(name)'));
+  check('textaniso: anisotropy assignment lives inside makeGlyphAtlasTex',
+    glyphSrcTa.length > 100 && glyphSrcTa.includes('t.anisotropy'),
+    'slice=' + glyphSrcTa.length);
+  check('textaniso: source pins getMaxAnisotropy and the Math.min(4, cap inside makeGlyphAtlasTex',
+    glyphSrcTa.includes('getMaxAnisotropy') && glyphSrcTa.includes('Math.min(4,'),
+    'hasMax=' + glyphSrcTa.includes('getMaxAnisotropy'));
+  check('textaniso: guard with isWebGLRenderer and capabilities present in makeGlyphAtlasTex',
+    glyphSrcTa.includes('renderer.isWebGLRenderer') && glyphSrcTa.includes('renderer.capabilities'));
+  check('textaniso: guard checks typeof getMaxAnisotropy is a function in makeGlyphAtlasTex',
+    glyphSrcTa.includes("typeof renderer.capabilities.getMaxAnisotropy === 'function'"));
+  check('textaniso: header comment present in makeGlyphAtlasTex',
+    glyphSrcTa.includes('GLYPH ATLAS ANISOTROPY v1'));
+  check('textaniso: colorSpace still declared in makeGlyphAtlasTex before the anisotropy assignment',
+    glyphSrcTa.includes('t.colorSpace = THREE.SRGBColorSpace')
+    && glyphSrcTa.indexOf('t.colorSpace = THREE.SRGBColorSpace') < glyphSrcTa.indexOf('t.anisotropy'),
+    'colorSpaceIdx=' + glyphSrcTa.indexOf('t.colorSpace = THREE.SRGBColorSpace')
+    + ' anisoIdx=' + glyphSrcTa.indexOf('t.anisotropy'));
+  check('textaniso: anisotropy assignment on trainSignTex lives in the train sign block',
+    trainSrcTa.length > 100 && trainSrcTa.includes('trainSignTex.anisotropy'),
+    'slice=' + trainSrcTa.length);
+  check('textaniso: guard and cap present in the train sign block',
+    trainSrcTa.includes('renderer.isWebGLRenderer') && trainSrcTa.includes('renderer.capabilities')
+    && trainSrcTa.includes("typeof renderer.capabilities.getMaxAnisotropy === 'function'")
+    && trainSrcTa.includes('getMaxAnisotropy') && trainSrcTa.includes('Math.min(4,'),
+    'hasMax=' + trainSrcTa.includes('getMaxAnisotropy'));
+  check('textaniso: header comment present in the train sign block',
+    trainSrcTa.includes('TRAIN SIGN ANISOTROPY v1'));
+  check('textaniso: colorSpace still declared in the train sign block before the anisotropy assignment',
+    trainSrcTa.includes('trainSignTex.colorSpace = THREE.SRGBColorSpace')
+    && trainSrcTa.indexOf('trainSignTex.colorSpace = THREE.SRGBColorSpace') < trainSrcTa.indexOf('trainSignTex.anisotropy'),
+    'colorSpaceIdx=' + trainSrcTa.indexOf('trainSignTex.colorSpace = THREE.SRGBColorSpace')
+    + ' anisoIdx=' + trainSrcTa.indexOf('trainSignTex.anisotropy'));
+  const linesTa = html.split('\n');
+  const lineHasTa = sub => linesTa.filter(l => l.includes(sub)).length;
+  check('textaniso-pins: 50 InstancedMesh literals unchanged', lineHasTa('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasTa('new THREE.InstancedMesh'));
+  check('textaniso-pins: 92 Math.random lines unchanged', lineHasTa('Math.random') === 92,
+    'n=' + lineHasTa('Math.random'));
+  check('textaniso-pins: 72 setTimeout lines unchanged', lineHasTa('setTimeout') === 72,
+    'n=' + lineHasTa('setTimeout'));
+  check('textaniso-pins: no em dashes', !html.includes('—'));
+  check('textaniso-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('textaniso: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsTa, consoleProblems.slice(probsTa).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
