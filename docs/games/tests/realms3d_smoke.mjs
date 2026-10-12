@@ -353,6 +353,8 @@ globalThis.__R3D = {
   footFov, FOV_SPRINT,
   /* RENDERER OUTPUT COLORSPACE v1: live renderer (test-only exposure) */
   get renderer() { return renderer; },
+  /* SUN SHADOW NORMALBIAS v1: live sun light (test-only exposure) */
+  get sun() { return sun; },
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
   spawnDust, dustTick, clearDust, DUST_N, DUST_LIFE,
   dustPos, dustVel, dustLife, dustCol, dustGrav, dustDrag, dustLifeMax, dustPts,
@@ -12056,6 +12058,60 @@ globalThis.__R3D2 = {
   check('outcol-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('outcol: the run leaves zero console errors/warnings',
     consoleProblems.length === probsO, consoleProblems.slice(probsO).join(' | '));
+}
+
+/* ================= SUN SHADOW NORMALBIAS v1 =================
+   The classic sun is the shadow fallback when the CSM cascades
+   are unavailable or not yet loaded. The CSM cascade lights set
+   normalBias 0.04, and the sun now mirrors that value beside its
+   existing depth bias, instead of leaving normalBias at the
+   default 0. normalBias offsets shadow sampling along the
+   surface normal, so sloped and curved surfaces self-shadow
+   less without raising depth bias. The live sun is exposed on
+   the test shim, and the real three r160 default normalBias is
+   0, so the runtime check fails before the game fix and passes
+   after it. Zero new draw calls. */
+{
+  const probsNb = consoleProblems.length;
+  const sunSrcNb = html.slice(
+    html.indexOf('const sun = new THREE.DirectionalLight'),
+    html.indexOf('scene.add(sun, sun.target)'));
+  check('sunnb: normalBias assignment lives inside the sun shadow setup block',
+    sunSrcNb.length > 100 && sunSrcNb.includes('sun.shadow.normalBias = 0.04'),
+    'slice=' + sunSrcNb.length);
+  check('sunnb: header comment present inside the sun shadow setup block',
+    sunSrcNb.includes('SUN SHADOW NORMALBIAS v1'));
+  check('sunnb: normalBias assignment appears after the depth bias assignment',
+    html.indexOf('sun.shadow.normalBias = 0.04') > -1
+    && html.indexOf('sun.shadow.normalBias = 0.04') > html.indexOf('sun.shadow.bias = -0.0004'));
+  check('sunnb: depth bias assignment unchanged',
+    sunSrcNb.includes('sun.shadow.bias = -0.0004'));
+  check('sunnb: shadow mapSize and camera bounds unchanged',
+    sunSrcNb.includes('sun.shadow.mapSize.set(2048, 2048)')
+    && sunSrcNb.includes('sun.shadow.camera.left = -28')
+    && sunSrcNb.includes('sun.shadow.camera.far = 220'));
+  check('sunnb: CSM cascade normalBias parity line still present',
+    html.includes('l.shadow.normalBias = 0.04'));
+  check('sunnb: sun exists on the test shim',
+    !!G.sun, G.sun ? 'ctor=' + (G.sun.constructor && G.sun.constructor.name) : 'no sun');
+  check('sunnb: sun shadow normalBias is 0.04 at runtime',
+    !!G.sun && !!G.sun.shadow && G.sun.shadow.normalBias === 0.04,
+    G.sun && G.sun.shadow ? 'normalBias=' + G.sun.shadow.normalBias : 'no sun shadow');
+  check('sunnb: sun shadow bias is -0.0004 at runtime',
+    !!G.sun && !!G.sun.shadow && G.sun.shadow.bias === -0.0004,
+    G.sun && G.sun.shadow ? 'bias=' + G.sun.shadow.bias : 'no sun shadow');
+  const linesNb = html.split('\n');
+  const lineHasNb = sub => linesNb.filter(l => l.includes(sub)).length;
+  check('sunnb-pins: 50 InstancedMesh literals unchanged', lineHasNb('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasNb('new THREE.InstancedMesh'));
+  check('sunnb-pins: 92 Math.random lines unchanged', lineHasNb('Math.random') === 92,
+    'n=' + lineHasNb('Math.random'));
+  check('sunnb-pins: 72 setTimeout lines unchanged', lineHasNb('setTimeout') === 72,
+    'n=' + lineHasNb('setTimeout'));
+  check('sunnb-pins: no em dashes', !html.includes('—'));
+  check('sunnb-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('sunnb: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsNb, consoleProblems.slice(probsNb).join(' | '));
 }
 
 /* ================= SPRINT FOV KICK v1 =================
