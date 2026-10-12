@@ -11096,6 +11096,88 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsRM3, consoleProblems.slice(probsRM3).join(' | '));
 }
 
+/* ================= REDUCED MOTION v4 =================
+   The three dynamic vehicle FOV kicks now follow the same
+   P.traumaOn gate as camera shake (REDUCED MOTION v1/v2) and
+   the on-foot sprint kick (REDUCED MOTION v3): the horse gallop
+   kick, the bike boost kick, and the scooter speed kick. When
+   traumaOn is false, each fovT holds its base drive FOV with no
+   kick. Static vehicle fovDrive values are not kicks and are
+   not gated. The three kicks live inside horseUpdate, bikeUpdate,
+   and scUpdate, which the harness does not expose as callable
+   units, so this block source-pins the gated lines (the prior
+   cycle idiom for non-helper sites) and runtime-pins the base
+   values those lines preserve. */
+{
+  const probsRM4 = consoleProblems.length;
+  /* source pins: one v4 header per gated site */
+  check('redmotion4: REDUCED MOTION v4 headers are present at all three sites in the game source',
+    (html.split('REDUCED MOTION v4').length - 1) === 3,
+    'n=' + (html.split('REDUCED MOTION v4').length - 1));
+  const horseIdxRM4 = html.indexOf('HORSE.fovT = (P.traumaOn && gi === 3 && HORSE.speed > 12) ? 72 : 66;');
+  const horseSliceRM4 = horseIdxRM4 >= 0 ? html.slice(Math.max(0, horseIdxRM4 - 400), horseIdxRM4 + 120) : '';
+  check('redmotion4: horse slice carries the v4 header above the gated gallop line',
+    horseSliceRM4.includes('REDUCED MOTION v4: the horse gallop FOV kick follows the P.traumaOn')
+    && horseSliceRM4.includes('HORSE.fovT stays at the base 66'),
+    'slice=' + horseSliceRM4.slice(0, 120));
+  check('redmotion4: horse gallop line gates on P.traumaOn as the first condition',
+    horseIdxRM4 >= 0);
+  const bikeIdxRM4 = html.indexOf('BIKE.fovT = BIKE.fovDrive + (P.traumaOn && boosting ? (BIKE.fovBoost - BIKE.fovDrive) * (BIKE.boostT / BIKE.boostDur) : 0);');
+  const bikeSliceRM4 = bikeIdxRM4 >= 0 ? html.slice(Math.max(0, bikeIdxRM4 - 400), bikeIdxRM4 + 140) : '';
+  check('redmotion4: bike slice carries the v4 header above the gated boost line',
+    bikeSliceRM4.includes('REDUCED MOTION v4: the bike boost FOV kick follows the P.traumaOn')
+    && bikeSliceRM4.includes('BIKE.fovT stays at BIKE.fovDrive (70)'),
+    'slice=' + bikeSliceRM4.slice(0, 120));
+  check('redmotion4: bike boost line gates the boost addition on P.traumaOn',
+    bikeIdxRM4 >= 0);
+  const scIdxRM4 = html.indexOf('SC.fovT = SC.fovDrive + (P.traumaOn ? spdN * 8 : 0);');
+  const scSliceRM4 = scIdxRM4 >= 0 ? html.slice(Math.max(0, scIdxRM4 - 400), scIdxRM4 + 120) : '';
+  check('redmotion4: scooter slice carries the v4 header above the gated speed line',
+    scSliceRM4.includes('REDUCED MOTION v4: the scooter speed FOV kick follows the P.traumaOn')
+    && scSliceRM4.includes('SC.fovT stays at SC.fovDrive (66)'),
+    'slice=' + scSliceRM4.slice(0, 120));
+  check('redmotion4: scooter speed line gates the spdN kick on P.traumaOn',
+    scIdxRM4 >= 0);
+  /* source pins: the ungated originals are gone */
+  check('redmotion4: ungated horse gallop line is absent',
+    !html.includes('HORSE.fovT = (gi === 3 && HORSE.speed > 12) ? 72 : 66;'));
+  check('redmotion4: ungated bike boost line is absent',
+    !html.includes('BIKE.fovT = BIKE.fovDrive + (boosting ?'));
+  check('redmotion4: ungated scooter speed line is absent',
+    !html.includes('SC.fovT = SC.fovDrive + spdN * 8;'));
+  /* source pins: static fovDrive values are not kicks and stay ungated */
+  check('redmotion4: static BIKE fovDrive 70 and fovBoost 78 source values unchanged',
+    html.includes('fovDrive: 70, fovBoost: 78,'));
+  check('redmotion4: static SC fovDrive 66 source value unchanged',
+    html.includes('fovDrive: 66, fovT: 66,'));
+  /* runtime pins: the base values the gated lines preserve */
+  check('redmotion4: runtime BIKE.fovDrive is 70 and BIKE.fovBoost is 78',
+    G.BIKE.fovDrive === 70 && G.BIKE.fovBoost === 78,
+    'fovDrive=' + G.BIKE.fovDrive + ' fovBoost=' + G.BIKE.fovBoost);
+  check('redmotion4: runtime SC.fovDrive is 66',
+    G.SC.fovDrive === 66, 'fovDrive=' + G.SC.fovDrive);
+  check('redmotion4: runtime HORSE.fovT base is 66 while not galloping',
+    G.HORSE.fovT === 66, 'fovT=' + G.HORSE.fovT);
+  check('redmotion4: P.traumaOn is true at block entry (restored by v3) and stays true',
+    G.P.traumaOn === true, 'traumaOn=' + G.P.traumaOn);
+  /* unchanged pins: the feature adds zero of each */
+  const linesRM4 = html.split('\n');
+  const lineHasRM4 = sub => linesRM4.filter(l => l.includes(sub)).length;
+  check('redmotion4-pins: 50 InstancedMesh literals unchanged', lineHasRM4('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRM4('new THREE.InstancedMesh'));
+  check('redmotion4-pins: 92 Math.random lines unchanged', lineHasRM4('Math.random') === 92,
+    'n=' + lineHasRM4('Math.random'));
+  check('redmotion4-pins: 72 setTimeout lines unchanged', lineHasRM4('setTimeout') === 72,
+    'n=' + lineHasRM4('setTimeout'));
+  check('redmotion4-pins: no em dashes', !html.includes('\u2014'));
+  check('redmotion4-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('redmotion4-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('redmotion4: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRM4, consoleProblems.slice(probsRM4).join(' | '));
+}
+
 /* ================= BULLET MAGNETISM + AIM FRICTION v1 =================
    Magnetism bends a single-pellet shot to the torso of the closest valid
    target when the aim point is already inside MAG_CONE of the shot ray;
