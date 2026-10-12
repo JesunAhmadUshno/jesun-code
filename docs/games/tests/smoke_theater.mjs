@@ -132,7 +132,7 @@ globalThis.__R3D = {
   /* Phase 5 trains v1 */
   TRAIN, trainEnter, trainExit, trainUpdate, trainSimOne, trainNextK,
   trainStationZ, trainStationOff, trainStationName, paintTrainBed,
-  trainBodyIM, trainHintEl, trainChipEl, trainSignMesh,
+  trainBodyIM, trainHintEl, trainChipEl, trainSpdEl, trainNextEl, trainSignMesh,   /* TRAIN SPEED METER v1: train speed meter (test-only exposure) */
   TRAIN_N, TRAIN_CARS, TRAIN_CAR_GAP, TRAIN_TRACK_X, TRAIN_GAP, TRAIN_NAMES,
   /* Phase 5 pianos v1 */
   PIANO, pianoFor, pianoHash, pianoParkPad, pianoEnter, pianoExit, pianoNote,
@@ -3576,7 +3576,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     G.TRAIN.riding === true && G.trainChipEl.style.display === 'block');
   frame(3);   // let the ride chip paint
   check('train: chip reads speed and next station while riding',
-    /^TRAIN - \d+ KM\/H \/ NEXT: [A-Z ]+$/.test(G.trainChipEl.textContent), G.trainChipEl.textContent);
+    /^TRAIN - \d+ KM\/H \/ NEXT: [A-Z ]+$/.test(G.trainSpdEl.textContent + G.trainNextEl.textContent), G.trainSpdEl.textContent + G.trainNextEl.textContent);
 
   /* ride: the schedule departs and carries the player along the line */
   t0.dwellT = 0.3;
