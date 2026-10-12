@@ -21413,6 +21413,58 @@ globalThis.__R3D2 = {
   G.clearSkid();
 }
 
+/* ================= REDUCED MOTION v6 =================
+   CSS HUD animations now follow the OS reduced-motion
+   request. The JS gate (REDUCED MOTION v1 to v5) cannot
+   affect CSS, so under (prefers-reduced-motion: reduce)
+   every CSS animation and transition is disabled; HUD
+   state still reads via color, text, and end-state
+   opacity. No-preference users are unchanged: all six
+   existing keyframes stay in the source and the media
+   block only applies when the OS asks for reduced
+   motion. This block source-pins the media block and
+   runtime-pins the stub fallback gate values. */
+{
+  const probsRM6 = consoleProblems.length;
+  const linesRM6 = html.split('\n');
+  const lineHasRM6 = sub => linesRM6.filter(l => l.includes(sub)).length;
+  check('redmotion6: REDUCED MOTION v6 header is present exactly once in the game source',
+    (html.split('REDUCED MOTION v6').length - 1) === 1,
+    'n=' + (html.split('REDUCED MOTION v6').length - 1));
+  const mediaIdxRM6 = html.indexOf('@media (prefers-reduced-motion: reduce)');
+  const mediaSliceRM6 = mediaIdxRM6 >= 0 ? html.slice(mediaIdxRM6, mediaIdxRM6 + 300) : '';
+  check('redmotion6: media query @media (prefers-reduced-motion: reduce) is present',
+    mediaIdxRM6 >= 0, 'idx=' + mediaIdxRM6);
+  check('redmotion6: media slice disables animation and transition on the universal selector',
+    mediaSliceRM6.includes('animation: none !important')
+    && mediaSliceRM6.includes('transition: none !important')
+    && mediaSliceRM6.includes('*'),
+    'slice=' + mediaSliceRM6.slice(0, 120));
+  check('redmotion6: all 6 existing keyframes are still present',
+    ['heatblink', 'lmcs-pulse', 'lmcs-bigwin', 'lmkeno-hitflash', 'lmbacc-flip', 'cashfloatup']
+      .every(k => html.includes('@keyframes ' + k)));
+  check('redmotion6: media block sits after the last @keyframes (cashfloatup)',
+    mediaIdxRM6 > html.indexOf('@keyframes cashfloatup'),
+    'media=' + mediaIdxRM6 + ' cashfloatup=' + html.indexOf('@keyframes cashfloatup'));
+  check('redmotion6: REDUCED_MOTION is false at block entry (stub fallback unchanged)',
+    G.REDUCED_MOTION === false, 'v=' + G.REDUCED_MOTION);
+  check('redmotion6: P.traumaOn is true at block entry (stub fallback unchanged)',
+    G.P.traumaOn === true, 'traumaOn=' + G.P.traumaOn);
+  check('redmotion6-pins: 50 InstancedMesh literals unchanged', lineHasRM6('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRM6('new THREE.InstancedMesh'));
+  check('redmotion6-pins: 92 Math.random lines unchanged', lineHasRM6('Math.random') === 92,
+    'n=' + lineHasRM6('Math.random'));
+  check('redmotion6-pins: 72 setTimeout lines unchanged', lineHasRM6('setTimeout') === 72,
+    'n=' + lineHasRM6('setTimeout'));
+  check('redmotion6-pins: no em dashes', !html.includes('\u2014'));
+  check('redmotion6-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('redmotion6-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('redmotion6: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRM6, consoleProblems.slice(probsRM6).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
