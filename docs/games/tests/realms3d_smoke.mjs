@@ -12356,6 +12356,69 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsTbl, consoleProblems.slice(probsTbl).join(' | '));
 }
 
+/* ================= SKY AND SUN MIPMAP v1 =================
+   Two gradient textures drop their mip chains: the 2x256 sky
+   dome gradient on a sphere that follows the player, and the
+   128x128 sun radial gradient on a camera-facing sprite held
+   at a fixed offset. Neither is detail-minified in play, so the
+   default mip chain costs about a third extra texture memory
+   for no benefit, and the sky chain is regenerated on every
+   paintSky repaint. Mipmaps off is paired with LinearFilter in
+   both places: a mipmapped min filter without a chain makes a
+   texture incomplete. Neither texture is exposed on the test
+   shim, so verification is source-pin based, exactly like
+   suncol. Zero new draw calls: two shared textures. */
+{
+  const probsSky = consoleProblems.length;
+  const skySrcSky = html.slice(
+    html.indexOf('/* Sky dome:'),
+    html.indexOf('/* Visible sun'));
+  const sunSrcSky = html.slice(
+    html.indexOf('/* Visible sun'),
+    html.indexOf('/* Stars:'));
+  check('skymip: generateMipmaps off lives inside the sky dome block',
+    skySrcSky.length > 100 && skySrcSky.includes('tex.generateMipmaps = false;'),
+    'slice=' + skySrcSky.length);
+  check('skymip: LinearFilter min filter lives inside the sky dome block',
+    skySrcSky.includes('tex.minFilter = THREE.LinearFilter;'));
+  check('skymip: header comment present inside the sky dome block',
+    skySrcSky.includes('SKY MIPMAP v1'));
+  check('skymip: colorSpace still declared in the sky dome block before the mipmap assignments',
+    skySrcSky.includes('tex.colorSpace = THREE.SRGBColorSpace')
+    && skySrcSky.indexOf('tex.colorSpace = THREE.SRGBColorSpace') < skySrcSky.indexOf('tex.generateMipmaps = false;'),
+    'colorSpaceIdx=' + skySrcSky.indexOf('tex.colorSpace = THREE.SRGBColorSpace')
+    + ' mipIdx=' + skySrcSky.indexOf('tex.generateMipmaps = false;'));
+  check('skymip: generateMipmaps off lives inside the sun block',
+    sunSrcSky.length > 100 && sunSrcSky.includes('sunTex.generateMipmaps = false;'),
+    'slice=' + sunSrcSky.length);
+  check('skymip: LinearFilter min filter lives inside the sun block',
+    sunSrcSky.includes('sunTex.minFilter = THREE.LinearFilter;'));
+  check('skymip: header comment present inside the sun block',
+    sunSrcSky.includes('SUN MIPMAP v1'));
+  check('skymip: colorSpace still declared in the sun block before the mipmap assignments',
+    sunSrcSky.includes('sunTex.colorSpace = THREE.SRGBColorSpace')
+    && sunSrcSky.indexOf('sunTex.colorSpace = THREE.SRGBColorSpace') < sunSrcSky.indexOf('sunTex.generateMipmaps = false;'),
+    'colorSpaceIdx=' + sunSrcSky.indexOf('sunTex.colorSpace = THREE.SRGBColorSpace')
+    + ' mipIdx=' + sunSrcSky.indexOf('sunTex.generateMipmaps = false;'));
+  const linesSky = html.split('\n');
+  const lineHasSky = sub => linesSky.filter(l => l.includes(sub)).length;
+  check('skymip-pins: 50 InstancedMesh literals unchanged', lineHasSky('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasSky('new THREE.InstancedMesh'));
+  check('skymip-pins: 92 Math.random lines unchanged', lineHasSky('Math.random') === 92,
+    'n=' + lineHasSky('Math.random'));
+  check('skymip-pins: 72 setTimeout lines unchanged', lineHasSky('setTimeout') === 72,
+    'n=' + lineHasSky('setTimeout'));
+  check('skymip-pins: exactly 2 Points objects unchanged',
+    lineHasSky('new THREE.Points(') === 2, 'n=' + lineHasSky('new THREE.Points('));
+  check('skymip-pins: no em dashes', !html.includes('—'));
+  check('skymip-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('skymip-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('skymip: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSky, consoleProblems.slice(probsSky).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
