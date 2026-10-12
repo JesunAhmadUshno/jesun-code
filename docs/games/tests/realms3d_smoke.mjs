@@ -12272,6 +12272,90 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsTa, consoleProblems.slice(probsTa).join(' | '));
 }
 
+/* ================= TABLETOP AND SCREEN TEXTURE ANISOTROPY v1 =================
+   Three more canvas textures get the same capped anisotropy as
+   the sign textures: the roulette wheel top with its 37 numbered
+   pockets, the dice pip atlas on the tumbling dice faces, and
+   the theater screen with its NOW SHOWING text. All three are
+   read at oblique angles, so their numbers, pips and letters
+   smear or blur at grazing angles without anisotropic filtering.
+   The guard falls back to 1 on the headless stub renderer and
+   never throws. None of these textures is exposed on the test
+   shim, so verification is source-pin based, exactly like
+   signaniso. Zero new draw calls: three shared textures. */
+{
+  const probsTbl = consoleProblems.length;
+  const roulSrc = html.slice(
+    html.indexOf('function roulWheelTex()'),
+    html.indexOf('const roulWoodMat'));
+  const diceSrc = html.slice(
+    html.indexOf('function dicePipTex()'),
+    html.indexOf('function diceGeo()'));
+  const thSrc = html.slice(
+    html.indexOf('function makeTheaterScreenTex()'),
+    html.indexOf('function theaterBoardShow'));
+  check('tblaniso: anisotropy assignment lives inside roulWheelTex',
+    roulSrc.length > 100 && roulSrc.includes('t.anisotropy'),
+    'slice=' + roulSrc.length);
+  check('tblaniso: guard and cap present in roulWheelTex',
+    roulSrc.includes('renderer.isWebGLRenderer') && roulSrc.includes('renderer.capabilities')
+    && roulSrc.includes('getMaxAnisotropy') && roulSrc.includes('Math.min(4,'),
+    'hasMax=' + roulSrc.includes('getMaxAnisotropy'));
+  check('tblaniso: guard checks typeof getMaxAnisotropy is a function in roulWheelTex',
+    roulSrc.includes("typeof renderer.capabilities.getMaxAnisotropy === 'function'"));
+  check('tblaniso: header comment present in roulWheelTex',
+    roulSrc.includes('ROULETTE WHEEL ANISOTROPY v1'));
+  check('tblaniso: colorSpace still declared in roulWheelTex before the anisotropy assignment',
+    roulSrc.includes('t.colorSpace = THREE.SRGBColorSpace')
+    && roulSrc.indexOf('t.colorSpace = THREE.SRGBColorSpace') < roulSrc.indexOf('t.anisotropy'),
+    'colorSpaceIdx=' + roulSrc.indexOf('t.colorSpace = THREE.SRGBColorSpace')
+    + ' anisoIdx=' + roulSrc.indexOf('t.anisotropy'));
+  check('tblaniso: anisotropy assignment lives inside dicePipTex',
+    diceSrc.length > 100 && diceSrc.includes('t.anisotropy'),
+    'slice=' + diceSrc.length);
+  check('tblaniso: guard and cap present in dicePipTex',
+    diceSrc.includes('renderer.isWebGLRenderer') && diceSrc.includes('renderer.capabilities')
+    && diceSrc.includes('getMaxAnisotropy') && diceSrc.includes('Math.min(4,'),
+    'hasMax=' + diceSrc.includes('getMaxAnisotropy'));
+  check('tblaniso: guard checks typeof getMaxAnisotropy is a function in dicePipTex',
+    diceSrc.includes("typeof renderer.capabilities.getMaxAnisotropy === 'function'"));
+  check('tblaniso: header comment present in dicePipTex',
+    diceSrc.includes('DICE FACE ANISOTROPY v1'));
+  check('tblaniso: colorSpace still declared in dicePipTex before the anisotropy assignment',
+    diceSrc.includes('t.colorSpace = THREE.SRGBColorSpace')
+    && diceSrc.indexOf('t.colorSpace = THREE.SRGBColorSpace') < diceSrc.indexOf('t.anisotropy'),
+    'colorSpaceIdx=' + diceSrc.indexOf('t.colorSpace = THREE.SRGBColorSpace')
+    + ' anisoIdx=' + diceSrc.indexOf('t.anisotropy'));
+  check('tblaniso: anisotropy assignment lives inside makeTheaterScreenTex',
+    thSrc.length > 100 && thSrc.includes('t.anisotropy'),
+    'slice=' + thSrc.length);
+  check('tblaniso: guard and cap present in makeTheaterScreenTex',
+    thSrc.includes('renderer.isWebGLRenderer') && thSrc.includes('renderer.capabilities')
+    && thSrc.includes('getMaxAnisotropy') && thSrc.includes('Math.min(4,'),
+    'hasMax=' + thSrc.includes('getMaxAnisotropy'));
+  check('tblaniso: guard checks typeof getMaxAnisotropy is a function in makeTheaterScreenTex',
+    thSrc.includes("typeof renderer.capabilities.getMaxAnisotropy === 'function'"));
+  check('tblaniso: header comment present in makeTheaterScreenTex',
+    thSrc.includes('THEATER SCREEN ANISOTROPY v1'));
+  check('tblaniso: colorSpace still declared in makeTheaterScreenTex before the anisotropy assignment',
+    thSrc.includes('t.colorSpace = THREE.SRGBColorSpace')
+    && thSrc.indexOf('t.colorSpace = THREE.SRGBColorSpace') < thSrc.indexOf('t.anisotropy'),
+    'colorSpaceIdx=' + thSrc.indexOf('t.colorSpace = THREE.SRGBColorSpace')
+    + ' anisoIdx=' + thSrc.indexOf('t.anisotropy'));
+  const linesTbl = html.split('\n');
+  const lineHasTbl = sub => linesTbl.filter(l => l.includes(sub)).length;
+  check('tblaniso-pins: 50 InstancedMesh literals unchanged', lineHasTbl('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasTbl('new THREE.InstancedMesh'));
+  check('tblaniso-pins: 92 Math.random lines unchanged', lineHasTbl('Math.random') === 92,
+    'n=' + lineHasTbl('Math.random'));
+  check('tblaniso-pins: 72 setTimeout lines unchanged', lineHasTbl('setTimeout') === 72,
+    'n=' + lineHasTbl('setTimeout'));
+  check('tblaniso-pins: no em dashes', !html.includes('—'));
+  check('tblaniso-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('tblaniso: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsTbl, consoleProblems.slice(probsTbl).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
