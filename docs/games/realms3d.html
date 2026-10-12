@@ -27125,7 +27125,10 @@ function tick() {
       armR.rotation.z = 0;
     }
   }
-  player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob
+  /* REDUCED MOTION v5: the on-foot walk bob follows the P.traumaOn
+     gate. When traumaOn is false, player.position.y holds with no bob.
+     Leg swing, footsteps, and dust still run in both paths. */
+  if (P.traumaOn) player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob
   }   // end: walk cycle + punch anim skipped while driving
 
   /* --- chase cam while driving or riding, over-shoulder on foot --- */
