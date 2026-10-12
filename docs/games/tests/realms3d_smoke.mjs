@@ -11922,6 +11922,48 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsK, consoleProblems.slice(probsK).join(' | '));
 }
 
+/* ================= WINDOW TEXTURE COLORSPACE v1 =================
+   The shared window texture is a pure color emissiveMap, so it
+   declares sRGB like its peers WIN_GLOW_TEX and makeBeaconTex,
+   instead of staying in the default linear space where its
+   authored warm window colors rendered brighter and washed than
+   authored. winTex lives in the city block closure and is not
+   exposed on the test shim, so verification is source-pin based:
+   one assignment inside windowTexture covers the merged band
+   emissiveMap and the band 2 clone. Zero new draw calls. */
+{
+  const probsW = consoleProblems.length;
+  const texSrcW = html.slice(
+    html.indexOf('function windowTexture()'),
+    html.indexOf('const winTex'));
+  check('wincol: colorSpace assignment lives inside windowTexture',
+    texSrcW.length > 100 && texSrcW.includes('t.colorSpace = THREE.SRGBColorSpace'),
+    'slice=' + texSrcW.length);
+  check('wincol: header comment present inside windowTexture',
+    texSrcW.includes('WINDOW TEXTURE COLORSPACE v1'));
+  check('wincol: colorSpace declared before the anisotropy pin in windowTexture',
+    texSrcW.indexOf('t.colorSpace = THREE.SRGBColorSpace') > -1
+    && texSrcW.indexOf('t.colorSpace = THREE.SRGBColorSpace') < texSrcW.indexOf('t.anisotropy'));
+  check('wincol: wrap still RepeatWrapping on both axes in windowTexture',
+    texSrcW.includes('t.wrapS = t.wrapT = THREE.RepeatWrapping'));
+  check('wincol: anisotropy pin still present in windowTexture',
+    texSrcW.includes('t.anisotropy') && texSrcW.includes('FACADE ANISOTROPY v1'));
+  check('wincol: anisotropy cap pins still present in windowTexture',
+    texSrcW.includes('getMaxAnisotropy') && texSrcW.includes('Math.min(4,'));
+  const linesW = html.split('\n');
+  const lineHasW = sub => linesW.filter(l => l.includes(sub)).length;
+  check('wincol-pins: 50 InstancedMesh literals unchanged', lineHasW('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasW('new THREE.InstancedMesh'));
+  check('wincol-pins: 92 Math.random lines unchanged', lineHasW('Math.random') === 92,
+    'n=' + lineHasW('Math.random'));
+  check('wincol-pins: 72 setTimeout lines unchanged', lineHasW('setTimeout') === 72,
+    'n=' + lineHasW('setTimeout'));
+  check('wincol-pins: no em dashes', !html.includes('—'));
+  check('wincol-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('wincol: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsW, consoleProblems.slice(probsW).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
