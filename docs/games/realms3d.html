@@ -11189,10 +11189,19 @@ function loyalRedeem() {
   sfxBlip(990, 0.1, 'triangle', 0.2);
   loyalChipUpdate();
 }
+/* REDUCED MOTION v8: the JavaScript-driven HUD flashes now follow the
+   same P.traumaOn gate as v1-v5 and v7. CSS media queries cannot reach
+   JS style toggles, so both DOM flash sites gate here in code: the
+   loyalty chip glow in loyalTick below, and the slot win flash in
+   slotUpdate (marked with a REDUCED MOTION v8 cross-reference). When
+   the gate is off, each effect holds its static form (loyalty glow on,
+   slot win text gold) for the same window, then clears exactly as
+   before. The timers, the win text, and the tier-up sting are
+   unchanged. No-preference users see the identical flashes. */
 function loyalTick(dt) {   // the flash + sting drain on the hall tick (the tick-loop idiom)
   if (LOYAL.flashT > 0) {
     LOYAL.flashT -= dt;
-    loyalChipEl.style.boxShadow = (Math.floor(Math.max(LOYAL.flashT, 0) * 10) % 2 === 0) ? '0 0 12px #ffd24a' : 'none';
+    loyalChipEl.style.boxShadow = !P.traumaOn ? '0 0 12px #ffd24a' : ((Math.floor(Math.max(LOYAL.flashT, 0) * 10) % 2 === 0) ? '0 0 12px #ffd24a' : 'none'); // REDUCED MOTION v8
     if (LOYAL.flashT <= 0) loyalChipEl.style.boxShadow = 'none';
   }
   if (LOYAL.stingQ.length > 0) {
@@ -24946,9 +24955,11 @@ function slotUpdate(sdt, now) {
     if (n === 3) slotFinish();
   }
   /* win flash decay on the panel */
+  /* REDUCED MOTION v8: gate in loyalTick's v8 header above. Gate off
+     holds static gold; expiry reset below is unchanged. */
   if (SLOT.winFlashT > 0) {
     SLOT.winFlashT -= sdt;
-    slotWinEl.style.color = (Math.floor(SLOT.winFlashT * 8) % 2 === 0) ? '#ffd24a' : '#ffffff';
+    slotWinEl.style.color = !P.traumaOn ? '#ffd24a' : ((Math.floor(SLOT.winFlashT * 8) % 2 === 0) ? '#ffd24a' : '#ffffff'); // REDUCED MOTION v8
     if (SLOT.winFlashT <= 0) slotWinEl.style.color = '#cfe8d8';
   }
 }
