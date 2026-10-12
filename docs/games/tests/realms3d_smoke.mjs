@@ -11042,6 +11042,60 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsRM2, consoleProblems.slice(probsRM2).join(' | '));
 }
 
+/* ================= REDUCED MOTION v3 =================
+   The on-foot sprint FOV kick now follows the same P.traumaOn
+   gate as camera shake (REDUCED MOTION v1/v2). When traumaOn is
+   false, footFov returns CAR.fovWalk (62) at every speed, so
+   sprinting holds the walk FOV with no kick. Vehicle FOV kicks
+   are not gated in v3. */
+{
+  const probsRM3 = consoleProblems.length;
+  const approxRM3 = (a, b, tol) => Math.abs(a - b) <= tol;
+  /* source pins: header, gate line inside the footFov slice */
+  check('redmotion3: REDUCED MOTION v3 header is present in the game source',
+    html.includes('REDUCED MOTION v3'));
+  const footStartRM3 = html.indexOf('function footFov');
+  const footEndRM3 = footStartRM3 >= 0 ? html.indexOf('const STEP_LEN', footStartRM3) : -1;
+  const footSliceRM3 = footStartRM3 >= 0 && footEndRM3 > footStartRM3 ? html.slice(footStartRM3, footEndRM3) : '';
+  check('redmotion3: footFov slice gates on P.traumaOn as the first line',
+    footSliceRM3.includes('if (!P.traumaOn) return CAR.fovWalk;')
+    && footSliceRM3.indexOf('if (!P.traumaOn) return CAR.fovWalk;') < footSliceRM3.indexOf('if (!sprinting || spd <= WALK) return CAR.fovWalk;'),
+    'slice=' + footSliceRM3.slice(0, 120));
+  check('redmotion3: footFov slice keeps the original sprint line and lerp',
+    footSliceRM3.includes('if (!sprinting || spd <= WALK) return CAR.fovWalk;')
+    && footSliceRM3.includes('return CAR.fovWalk + (FOV_SPRINT - CAR.fovWalk) * t;'),
+    'slice=' + footSliceRM3.slice(0, 120));
+  /* runtime gated: walk FOV at every speed */
+  G.P.traumaOn = false;
+  check('redmotion3: gated sprint at speed 9.5 returns 62', G.footFov(true, 9.5) === 62, 'v=' + G.footFov(true, 9.5));
+  check('redmotion3: gated sprint at speed 20 returns 62', G.footFov(true, 20) === 62, 'v=' + G.footFov(true, 20));
+  check('redmotion3: gated sprint at speed 7.5 returns 62', G.footFov(true, 7.5) === 62, 'v=' + G.footFov(true, 7.5));
+  check('redmotion3: gated not sprinting at speed 9.5 returns 62', G.footFov(false, 9.5) === 62, 'v=' + G.footFov(false, 9.5));
+  /* runtime ungated: the original kick is unchanged */
+  G.P.traumaOn = true;
+  check('redmotion3: ungated sprint at speed 9.5 returns 68', G.footFov(true, 9.5) === 68, 'v=' + G.footFov(true, 9.5));
+  check('redmotion3: ungated sprint at speed 7.5 returns 65', approxRM3(G.footFov(true, 7.5), 65, 1e-9), 'v=' + G.footFov(true, 7.5));
+  check('redmotion3: ungated sprint at speed 5.5 returns 62', G.footFov(true, 5.5) === 62, 'v=' + G.footFov(true, 5.5));
+  /* restore: later blocks (sprfov) expect the ungated values */
+  G.P.traumaOn = true;
+  /* unchanged pins: the feature adds zero of each */
+  const linesRM3 = html.split('\n');
+  const lineHasRM3 = sub => linesRM3.filter(l => l.includes(sub)).length;
+  check('redmotion3-pins: 50 InstancedMesh literals unchanged', lineHasRM3('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRM3('new THREE.InstancedMesh'));
+  check('redmotion3-pins: 92 Math.random lines unchanged', lineHasRM3('Math.random') === 92,
+    'n=' + lineHasRM3('Math.random'));
+  check('redmotion3-pins: 72 setTimeout lines unchanged', lineHasRM3('setTimeout') === 72,
+    'n=' + lineHasRM3('setTimeout'));
+  check('redmotion3-pins: no em dashes', !html.includes('\u2014'));
+  check('redmotion3-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('redmotion3-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('redmotion3: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRM3, consoleProblems.slice(probsRM3).join(' | '));
+}
+
 /* ================= BULLET MAGNETISM + AIM FRICTION v1 =================
    Magnetism bends a single-pellet shot to the torso of the closest valid
    target when the aim point is already inside MAG_CONE of the shot ray;
