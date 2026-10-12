@@ -1409,7 +1409,8 @@
   <div id="bchint"></div>
   <div id="schint"></div>
   <div id="boathint"></div>
-  <div id="boatchip"></div>
+  <!-- BOAT SPEED METER v1: the boat speed is a real meter: role meter plus aria-label Boat speed and aria-valuemin 0 and aria-valuemax 43 in markup, valuenow kept in sync by boatUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by BOAT.topSpeed 12. -->
+  <div id="boatchip" role="meter" aria-label="Boat speed" aria-valuemin="0" aria-valuemax="43" aria-valuenow="0"></div>
   <div id="helihint"></div>
   <div id="helichip"></div>
   <div id="planehint"></div>
@@ -22920,6 +22921,7 @@ function boatUpdate(sdt, now) {
   if (BOAT.hudT > 0.12) {
     BOAT.hudT = 0;
     boatChipEl.textContent = 'BOAT - ' + Math.round(Math.abs(BOAT.speed) * 3.6) + ' KM/H';
+    boatChipEl.ariaValueNow = String(Math.round(Math.abs(BOAT.speed) * 3.6));
   }
 }
 worldTickers.push(boatUpdate);
