@@ -1478,7 +1478,8 @@
   <div id="firechip"><span id="firearr">^</span> <span id="firetxt"></span></div>
   <div id="thallchip"><span id="thallarr">^</span> <span id="thalltxt"></span></div>
   <div id="conchchip"></div>
-  <div id="crowdchip"><span id="crowdtxt"></span><span id="crowdbar"><span id="crowdfill"></span></span></div>
+  <!-- CROWD PROGRESSBAR v1: the audience applause meter is a real progressbar: role plus min/max in markup, valuenow kept in sync by theaudTick via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
+  <div id="crowdchip"><span id="crowdtxt"></span><span id="crowdbar" role="progressbar" aria-label="Audience applause" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="crowdfill"></span></span></div>
   <div id="gracechip"></div>
   <div id="hospheal"></div>
   <div id="thallhint"></div>
@@ -10651,6 +10652,7 @@ theaudTintAll(0); theaudSettle();   // build-time: visit-0 tints, settled matric
 const crowdChipEl = document.getElementById('crowdchip');
 const crowdtxtEl = document.getElementById('crowdtxt');
 const crowdfillEl = document.getElementById('crowdfill');
+const crowdbarEl = document.getElementById('crowdbar');
 function theaudCheer() {   // layered one-shot crowd roar: the stadium goal-cheer idiom, tick-driven, no new nodes
   sfxBlip(660, 0.14, 'sine', 0.14);
   sfxBlip(880, 0.14, 'sine', 0.14);
@@ -10742,6 +10744,7 @@ function theaudTick(dt) {   // the crowd runs on the hall tick, gated to inHall
   if (crowdtxtEl.textContent !== 'AUDIENCE ' + mood) crowdtxtEl.textContent = 'AUDIENCE ' + mood;
   const _aw = H.appl + '%';
   if (crowdfillEl.style.width !== _aw) crowdfillEl.style.width = _aw;
+  crowdbarEl.ariaValueNow = String(H.appl);
 }
 
 /* ================= THEATER CONCESSIONS v1 (Gameplay: snack stand) ==============
