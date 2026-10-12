@@ -9041,6 +9041,15 @@ function makeSignTex(text, band) {
   g.fillText(text, 128, 32);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  /* SIGN TEXTURE ANISOTROPY v1: sign boards are read from down the
+     street at oblique angles, so their high-contrast letters smear at
+     grazing angles when no anisotropic filtering is applied. Use the
+     renderer maximum, capped at 4 to keep iPhone headroom; the
+     headless stub renderer has no WebGL flag or capabilities, so it
+     falls back to 1 and never throws. One shared texture per sign
+     type, so this adds zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 function makePlainTex() {
