@@ -1360,7 +1360,8 @@
   <div id="title">REALMS 3D</div>
   <div id="hpwrap">
     <div class="label">HEALTH</div>
-    <div id="hpbar"><div id="hpfill"></div></div>
+    <!-- HP PROGRESSBAR v1: the health bar is a real progressbar: role plus min/max in markup, valuenow kept in sync by updateHpHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
+    <div id="hpbar" role="progressbar" aria-label="Health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div id="hpfill"></div></div>
     <div id="hptext">100 / 100</div>
   </div>
   <div id="cross"><div class="ring"></div><div class="dot"></div></div>
@@ -5179,12 +5180,13 @@ elbowL.rotation.x = -0.25; elbowR.rotation.x = -0.25;
 let fireCd = 0, kills = 0, dmgV = 0, toastT = 0;
 const dmgflashEl = document.getElementById('dmgflash');
 const toastEl = document.getElementById('toast');
-const hpfillEl = document.getElementById('hpfill'), hptextEl = document.getElementById('hptext');
+const hpfillEl = document.getElementById('hpfill'), hptextEl = document.getElementById('hptext'), hpbarEl = document.getElementById('hpbar');
 const aliveEl = document.getElementById('alive'), killsEl = document.getElementById('kills');
 function toast(msg) { toastEl.textContent = msg; toastEl.style.opacity = 1; toastT = 1.4; }
 function updateHpHUD() {
   hpfillEl.style.width = Math.max(0, P.hp) + '%';
   hptextEl.textContent = Math.max(0, Math.round(P.hp)) + ' / 100';
+  hpbarEl.ariaValueNow = String(Math.max(0, Math.min(100, Math.round(P.hp))));
 }
 function updateCombatHUD() {
   aliveEl.textContent = enemies.filter(e => e.state !== 'dead').length;
