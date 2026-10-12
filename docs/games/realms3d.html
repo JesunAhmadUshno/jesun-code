@@ -1488,7 +1488,9 @@
   <div id="conchchip"></div>
   <!-- CROWD PROGRESSBAR v1: the audience applause meter is a real progressbar: role plus min/max in markup, valuenow kept in sync by theaudTick via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
   <div id="crowdchip"><span id="crowdtxt"></span><span id="crowdbar" role="progressbar" aria-label="Audience applause" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="crowdfill"></span></span></div>
-  <div id="gracechip"></div>
+  <!-- GRACE TIMER v1: the spawn-grace countdown is a real timer: role timer plus
+       aria-label Spawn protection remaining in markup, text still written by graceHud. The timer role is not announced every second (implicit live off), so assistive tech can read it on demand without spam. -->
+  <div id="gracechip" role="timer" aria-label="Spawn protection remaining"></div>
   <div id="hospheal"></div>
   <div id="thallhint"></div>
   <div id="tshowhint"></div>
