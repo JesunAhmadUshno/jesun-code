@@ -68,6 +68,7 @@ globalThis.__R3D = {
   busDwellService, BUSNPC, BUS,
   taxiEnter, taxiExit, txRebuild, txDoorWorld, crRebuild, ambRebuild,
   CR, TX, AMB, HORSE, emBodyIM, toastEl, W, updateHeatHUD, heatEl,
+  setWeather, wxEl, WX,   /* WX STATUS v1: weather readout (test-only exposure) */
   bikeEnter, bikeExit, bikeRebuild, BIKE, bikeBodyIM, bikeHintEl,
   bcEnter, bcExit, bcRebuild, BC, bcBodyIM, bcHintEl,
   scEnter, scExit, scRebuild, SC, scBodyIM, scHintEl,
@@ -21867,6 +21868,82 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('todtimer: the run leaves zero console errors/warnings',
     consoleProblems.length === probsTT, consoleProblems.slice(probsTT).join(' | '));
+}
+
+/* ================= WX STATUS v1 =================
+   The weather readout is a live status: role status in
+   the #wx markup, with the decorative icon span hidden
+   from assistive tech via aria-hidden true. Both write
+   sites for the readout (the setWeather innerHTML line
+   and the boot innerHTML line) carry the same hidden
+   icon span, and both lines are pinned below. The
+   weather words themselves are self-describing, so #wx
+   deliberately carries no aria-label. The runtime
+   checks read the wx stub element through stubs.getEl,
+   the same element the game binds as wxEl. The label
+   left in the stub at this point in the suite depends
+   on simulated weather drift (clear on one run,
+   overcast on another), so the boot-adjacent runtime
+   check asserts only the aria-hidden span, which every
+   write site emits, and the clear-state runtime checks
+   drive setWeather to clear first for determinism. The
+   boot line itself is pinned exactly above. The block
+   then drives setWeather to rain and restores clear
+   afterwards. */
+{
+  const probsWS = consoleProblems.length;
+  const linesWS = html.split('\n');
+  const lineHasWS = sub => linesWS.filter(l => l.includes(sub)).length;
+  check('wxstatus: WX STATUS v1 header is present exactly once in the game source',
+    (html.split('WX STATUS v1').length - 1) === 1,
+    'n=' + (html.split('WX STATUS v1').length - 1));
+  const wxTagWS = (html.match(/<div id="wx"[^>]*>/) || [''])[0];
+  check('wxstatus: #wx element markup carries role="status"',
+    wxTagWS.includes('role="status"'), 'tag=' + wxTagWS);
+  check('wxstatus: exactly one #wx element in the game source',
+    (html.match(/id="wx"/g) || []).length === 1,
+    'n=' + (html.match(/id="wx"/g) || []).length);
+  const wxDivWS = (html.match(/<div id="wx"[^>]*>[\s\S]*?<\/div>/) || [''])[0];
+  check('wxstatus: #wx markup icon span carries aria-hidden="true"',
+    wxDivWS.includes('<span aria-hidden="true">'), 'div=' + wxDivWS);
+  check('wxstatus: setWeather wx innerHTML line carries the hidden icon span (source pin)',
+    html.includes("wxEl.innerHTML = '<span aria-hidden=\"true\">' + WX_ICON[next] + '</span> ' + WX_LABEL[next];"));
+  check('wxstatus: boot wx innerHTML line carries the hidden icon span (source pin)',
+    html.includes("wxEl.innerHTML = '<span aria-hidden=\"true\">\\u2600</span> CLEAR';"));
+  check('wxstatus: runtime wx stub innerHTML contains aria-hidden after boot',
+    stubs.getEl('wx').innerHTML.includes('aria-hidden'),
+    'innerHTML=' + stubs.getEl('wx').innerHTML);
+  G.setWeather('clear');
+  check('wxstatus: runtime wx stub innerHTML contains CLEAR for the clear state',
+    stubs.getEl('wx').innerHTML.includes('CLEAR'),
+    'innerHTML=' + stubs.getEl('wx').innerHTML);
+  check('wxstatus: runtime WX.state is clear for the clear state',
+    G.WX.state === 'clear', 'state=' + G.WX.state);
+  G.setWeather('rain');
+  check('wxstatus: runtime wx stub innerHTML contains aria-hidden and RAIN after setWeather rain',
+    stubs.getEl('wx').innerHTML.includes('aria-hidden') && stubs.getEl('wx').innerHTML.includes('RAIN'),
+    'innerHTML=' + stubs.getEl('wx').innerHTML);
+  check('wxstatus: runtime WX.state is rain after setWeather rain',
+    G.WX.state === 'rain', 'state=' + G.WX.state);
+  G.setWeather('clear');
+  check('wxstatus: runtime WX.state is clear after setWeather clear restores it',
+    G.WX.state === 'clear', 'state=' + G.WX.state);
+  check('wxstatus: runtime wx stub innerHTML contains CLEAR after restore',
+    stubs.getEl('wx').innerHTML.includes('CLEAR'),
+    'innerHTML=' + stubs.getEl('wx').innerHTML);
+  check('wxstatus: pins - 50 InstancedMesh literals unchanged', lineHasWS('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasWS('new THREE.InstancedMesh'));
+  check('wxstatus: pins - 92 Math.random lines unchanged', lineHasWS('Math.random') === 92,
+    'n=' + lineHasWS('Math.random'));
+  check('wxstatus: pins - 72 setTimeout lines unchanged', lineHasWS('setTimeout') === 72,
+    'n=' + lineHasWS('setTimeout'));
+  check('wxstatus: pins - no em dashes', !html.includes('\u2014'));
+  check('wxstatus: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('wxstatus: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('wxstatus: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsWS, consoleProblems.slice(probsWS).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
