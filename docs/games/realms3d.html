@@ -1373,8 +1373,9 @@
     <b>1/2/3</b> weapons &nbsp; <b>N</b> NEW GAME &nbsp; <b>M</b> DMG NUMS &nbsp; <b>O</b> SHAKE
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
+  <!-- HOSTILES METER v1: the hostiles alive count is a real meter: role meter plus aria-label Hostiles alive and aria-valuemin 0 and aria-valuemax 5 in markup, valuenow kept in sync by updateCombatHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). The count is bounded by the fixed 5-entry ENEMY_MIX. -->
   <!-- ARMOR METER v1: the armor level is a real meter: role plus min/max in markup, valuenow kept in sync by updateArmorHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
-  <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b><br><span id="armorchip" role="meter" aria-label="Armor" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">ARMOR <b id="armor">100</b></span></div>
+  <div id="combat">HOSTILES <b id="alive" role="meter" aria-label="Hostiles alive" aria-valuemin="0" aria-valuemax="5" aria-valuenow="5">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b><br><span id="armorchip" role="meter" aria-label="Armor" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">ARMOR <b id="armor">100</b></span></div>
   <!-- HEAT METER v1: the wanted level is a real meter: role plus min/max in markup, valuenow kept in sync by updateHeatHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
   <div id="heat" role="meter" aria-label="Wanted level" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"></div>
   <div id="weap"><span id="wname">RIFLE</span> <b id="wammo">&infin;</b></div>
@@ -5213,6 +5214,7 @@ function updateHpHUD() {
 }
 function updateCombatHUD() {
   aliveEl.textContent = enemies.filter(e => e.state !== 'dead').length;
+  aliveEl.ariaValueNow = String(enemies.filter(e => e.state !== 'dead').length);
   killsEl.textContent = kills;
 }
 const playing = () => overlay.classList.contains('hidden');
