@@ -24984,6 +24984,104 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsDH, consoleProblems.slice(probsDH).join(' | '));
 }
 
+/* ================= PANEL HEADINGS v1 =================
+   Every overlay panel title is a real heading for
+   assistive tech: role heading plus aria-level 2 in
+   markup on all 11 panel titles, so screen-reader
+   heading navigation can find the panel that is open.
+   The two dynamic titles (civic and worship) keep the
+   role when their text is rewritten via textContent.
+   This item is markup only: no JS changes, no other
+   element is in scope. */
+{
+  const probsPH = consoleProblems.length;
+  const linesPH = html.split('\n');
+  const lineHasPH = sub => linesPH.filter(l => l.includes(sub)).length;
+  check('panelhead: PANEL HEADINGS v1 header is present exactly once in the game source',
+    (html.split('PANEL HEADINGS v1').length - 1) === 1,
+    'n=' + (html.split('PANEL HEADINGS v1').length - 1));
+
+  check('panelhead: #civictitle full tag matches exactly (source pin)',
+    html.includes('<div id="civictitle" role="heading" aria-level="2">CIVIC</div>'));
+  check('panelhead: exactly one #civictitle element in the game source',
+    (html.match(/id="civictitle"/g) || []).length === 1,
+    'n=' + (html.match(/id="civictitle"/g) || []).length);
+  check('panelhead: #worshiptitle full tag matches exactly (source pin)',
+    html.includes('<div id="worshiptitle" role="heading" aria-level="2">WORSHIP</div>'));
+  check('panelhead: exactly one #worshiptitle element in the game source',
+    (html.match(/id="worshiptitle"/g) || []).length === 1,
+    'n=' + (html.match(/id="worshiptitle"/g) || []).length);
+  check('panelhead: #slottitle full tag matches exactly (source pin)',
+    html.includes('<div id="slottitle" role="heading" aria-level="2">SLOT MACHINE</div>'));
+  check('panelhead: exactly one #slottitle element in the game source',
+    (html.match(/id="slottitle"/g) || []).length === 1,
+    'n=' + (html.match(/id="slottitle"/g) || []).length);
+  check('panelhead: #lmcs-title full tag matches exactly (source pin)',
+    html.includes('<div id="lmcs-title" role="heading" aria-level="2">ROYAL REELS</div>'));
+  check('panelhead: exactly one #lmcs-title element in the game source',
+    (html.match(/id="lmcs-title"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmcs-title"/g) || []).length);
+  check('panelhead: #lmbj-title full tag matches exactly (source pin)',
+    html.includes('<div id="lmbj-title" role="heading" aria-level="2">BLACKJACK</div>'));
+  check('panelhead: exactly one #lmbj-title element in the game source',
+    (html.match(/id="lmbj-title"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmbj-title"/g) || []).length);
+  check('panelhead: #lmroul-title full tag matches exactly (source pin)',
+    html.includes('<div id="lmroul-title" role="heading" aria-level="2">ROULETTE</div>'));
+  check('panelhead: exactly one #lmroul-title element in the game source',
+    (html.match(/id="lmroul-title"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmroul-title"/g) || []).length);
+  check('panelhead: #lmdice-title full tag matches exactly (source pin)',
+    html.includes('<div id="lmdice-title" role="heading" aria-level="2">STREET DICE</div>'));
+  check('panelhead: exactly one #lmdice-title element in the game source',
+    (html.match(/id="lmdice-title"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmdice-title"/g) || []).length);
+  check('panelhead: #lmpoker-title full tag matches exactly (source pin)',
+    html.includes('<div id="lmpoker-title" role="heading" aria-level="2">VIDEO POKER</div>'));
+  check('panelhead: exactly one #lmpoker-title element in the game source',
+    (html.match(/id="lmpoker-title"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmpoker-title"/g) || []).length);
+  check('panelhead: #lmbacc-title full tag matches exactly (source pin)',
+    html.includes('<div id="lmbacc-title" role="heading" aria-level="2">BACCARAT</div>'));
+  check('panelhead: exactly one #lmbacc-title element in the game source',
+    (html.match(/id="lmbacc-title"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmbacc-title"/g) || []).length);
+  check('panelhead: #lmkeno-title full tag matches exactly (source pin)',
+    html.includes('<div id="lmkeno-title" role="heading" aria-level="2">KENO</div>'));
+  check('panelhead: exactly one #lmkeno-title element in the game source',
+    (html.match(/id="lmkeno-title"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmkeno-title"/g) || []).length);
+  check('panelhead: #lmwheel-title full tag matches exactly (source pin)',
+    html.includes('<div id="lmwheel-title" role="heading" aria-level="2">WHEEL OF FORTUNE</div>'));
+  check('panelhead: exactly one #lmwheel-title element in the game source',
+    (html.match(/id="lmwheel-title"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmwheel-title"/g) || []).length);
+  check('panelhead: exactly 11 role heading elements in the game source',
+    (html.match(/role="heading"/g) || []).length === 11,
+    'n=' + (html.match(/role="heading"/g) || []).length);
+  check('panelhead: civic title writer still rewrites its text (dynamic title keeps the role)',
+    lineHasPH('civicTitleEl.textContent') === 1,
+    'n=' + lineHasPH('civicTitleEl.textContent'));
+  check('panelhead: worship title writer still rewrites its text (dynamic title keeps the role)',
+    lineHasPH('worshipTitleEl.textContent') === 1,
+    'n=' + lineHasPH('worshipTitleEl.textContent'));
+  check('panelhead: pins - 50 InstancedMesh literals unchanged', lineHasPH('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasPH('new THREE.InstancedMesh'));
+  check('panelhead: pins - 92 Math.random lines unchanged', lineHasPH('Math.random') === 92,
+    'n=' + lineHasPH('Math.random'));
+  check('panelhead: pins - 72 setTimeout lines unchanged', lineHasPH('setTimeout') === 72,
+    'n=' + lineHasPH('setTimeout'));
+  check('panelhead: pins - 2 THREE.Points objects unchanged', lineHasPH('new THREE.Points(') === 2,
+    'n=' + lineHasPH('new THREE.Points('));
+  check('panelhead: pins - no em dashes', !html.includes('\u2014'));
+  check('panelhead: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('panelhead: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('panelhead: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsPH, consoleProblems.slice(probsPH).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
