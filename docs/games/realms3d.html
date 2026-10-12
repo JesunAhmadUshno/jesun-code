@@ -1581,7 +1581,11 @@
     <div id="lmkeno-pay"></div>
     <div id="lmkeno-note">PICK 2-10 SPOTS - 20 BALLS DRAWN - CATCH PAYS CLASSIC-STYLE</div>
     <div id="lmkeno-grid"></div>
-    <div id="lmkeno-meters"><span id="lmkeno-balls">BALLS 0/20</span><span id="lmkeno-hits">HITS 0</span></div>
+    <!-- KENO BALLS METER v1: the keno balls drawn count is a real meter: role meter plus
+         aria-label Keno balls drawn and aria-valuemin 0 and aria-valuemax 20 in the
+         #lmkeno-balls markup, valuenow kept in sync via the ariaValueNow property.
+         Hits stays plain text: its max varies with the pick count, so no fixed meter. -->
+    <div id="lmkeno-meters"><span id="lmkeno-balls" role="meter" aria-label="Keno balls drawn" aria-valuemin="0" aria-valuemax="20" aria-valuenow="0">BALLS 0/20</span><span id="lmkeno-hits">HITS 0</span></div>
     <div id="lmkeno-status">BET $10</div>
     <div id="lmkeno-controls"><button id="lmkeno-bet">BET $10</button><button id="lmkeno-quick">QUICK PICK</button><button id="lmkeno-clear">CLEAR</button><button id="lmkeno-draw">DRAW</button></div>
     <div id="lmkeno-bigwin"></div>
@@ -13658,6 +13662,7 @@ function kenoRender() {
   }
   /* the meters: balls drawn and hits, tension called out. */
   kenoBallsEl.textContent = 'BALLS ' + K.ballIdx + '/20';
+  kenoBallsEl.ariaValueNow = String(K.ballIdx);
   kenoHitsEl.textContent = 'HITS ' + K.hits;
   kenoHitsEl.className = K.tension ? 'tense' : '';
   const bet = KENO_BETS[K.betIdx];
