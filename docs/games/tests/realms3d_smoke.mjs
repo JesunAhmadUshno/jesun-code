@@ -21509,6 +21509,60 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsTL, consoleProblems.slice(probsTL).join(' | '));
 }
 
+/* ================= CANVAS ACCESSIBLE NAME v1 =================
+   The WebGL canvas now carries one accessible name as a
+   single labelled image: role img plus an aria label that
+   presents the whole view as one image. It is deliberately
+   not role application, because there is no keyboard
+   navigable subtree inside the canvas. The game uses
+   property assignment, not setAttribute, because the
+   headless stub canvas has no setAttribute method. The
+   runtime checks read the real boot stub canvas exposed
+   as globalThis.__glcanvas by the StubRenderer, and the
+   same first canvas kept in globalThis.__glcanvases[0]. */
+{
+  const probsCA = consoleProblems.length;
+  const linesCA = html.split('\n');
+  const lineHasCA = sub => linesCA.filter(l => l.includes(sub)).length;
+  check('canvasa11y: CANVAS ACCESSIBLE NAME v1 header is present exactly once in the game source',
+    (html.split('CANVAS ACCESSIBLE NAME v1').length - 1) === 1,
+    'n=' + (html.split('CANVAS ACCESSIBLE NAME v1').length - 1));
+  const rendererSliceCA = html.slice(
+    html.indexOf('new THREE.WebGLRenderer'),
+    html.indexOf('app.appendChild(renderer.domElement)'));
+  check('canvasa11y: role assignment lives in the slice around renderer creation and appendChild',
+    rendererSliceCA.length > 100 && rendererSliceCA.includes("renderer.domElement.role = 'img';"),
+    'slice=' + rendererSliceCA.length);
+  check('canvasa11y: ariaLabel assignment lives in the slice around renderer creation and appendChild',
+    rendererSliceCA.length > 100 && rendererSliceCA.includes("renderer.domElement.ariaLabel = 'REALMS 3D game view';"),
+    'slice=' + rendererSliceCA.length);
+  check('canvasa11y: runtime boot stub canvas (__glcanvas) has role img',
+    !!globalThis.__glcanvas && globalThis.__glcanvas.role === 'img',
+    'role=' + (globalThis.__glcanvas && globalThis.__glcanvas.role));
+  check('canvasa11y: runtime boot stub canvas (__glcanvas) has ariaLabel REALMS 3D game view',
+    !!globalThis.__glcanvas && globalThis.__glcanvas.ariaLabel === 'REALMS 3D game view',
+    'ariaLabel=' + (globalThis.__glcanvas && globalThis.__glcanvas.ariaLabel));
+  check('canvasa11y: runtime first stub canvas (__glcanvases[0]) has role img',
+    Array.isArray(globalThis.__glcanvases) && !!globalThis.__glcanvases[0] && globalThis.__glcanvases[0].role === 'img',
+    'role=' + (globalThis.__glcanvases && globalThis.__glcanvases[0] && globalThis.__glcanvases[0].role));
+  check('canvasa11y: runtime first stub canvas (__glcanvases[0]) has ariaLabel REALMS 3D game view',
+    Array.isArray(globalThis.__glcanvases) && !!globalThis.__glcanvases[0] && globalThis.__glcanvases[0].ariaLabel === 'REALMS 3D game view',
+    'ariaLabel=' + (globalThis.__glcanvases && globalThis.__glcanvases[0] && globalThis.__glcanvases[0].ariaLabel));
+  check('canvasa11y-pins: 50 InstancedMesh literals unchanged', lineHasCA('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasCA('new THREE.InstancedMesh'));
+  check('canvasa11y-pins: 92 Math.random lines unchanged', lineHasCA('Math.random') === 92,
+    'n=' + lineHasCA('Math.random'));
+  check('canvasa11y-pins: 72 setTimeout lines unchanged', lineHasCA('setTimeout') === 72,
+    'n=' + lineHasCA('setTimeout'));
+  check('canvasa11y-pins: no em dashes', !html.includes('\u2014'));
+  check('canvasa11y-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('canvasa11y-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('canvasa11y: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsCA, consoleProblems.slice(probsCA).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
