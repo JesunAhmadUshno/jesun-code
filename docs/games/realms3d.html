@@ -20594,7 +20594,7 @@ function busUpdate(sdt, now) {
       busPaxEl.ariaValueNow = String(BUS.passengers);
     } else busHudEl.style.display = 'none';
     if (aboard) spdNumEl.textContent = Math.round(Math.abs(BUS.speed) * 3.6);
-    spdNumEl.ariaValueNow = String(Math.round(Math.abs(BUS.speed) * 3.6));
+    if (aboard) spdNumEl.ariaValueNow = String(Math.round(Math.abs(BUS.speed) * 3.6));
   }
 
   // ---- bus engine note rides the shared engine nodes ----
@@ -21074,7 +21074,7 @@ function txUpdate(sdt) {
       txHudEl.textContent = 'TAXI > ' + TX.route[TX.stopIdx].label;
     } else txHudEl.style.display = 'none';
     if (TX.riding) spdNumEl.textContent = Math.round(Math.abs(TX.speed) * 3.6);
-    spdNumEl.ariaValueNow = String(Math.round(Math.abs(TX.speed) * 3.6));
+    if (TX.riding) spdNumEl.ariaValueNow = String(Math.round(Math.abs(TX.speed) * 3.6));
   }
 }
 /* one ticker for all three units, after the bus ticker (queueMicrotask FIFO) */
