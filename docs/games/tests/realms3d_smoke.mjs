@@ -11717,6 +11717,47 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsA, consoleProblems.slice(probsA).join(' | '));
 }
 
+/* ================= FACADE ANISOTROPY v1 =================
+   The building window facade texture sets anisotropy from the renderer
+   max, capped at 4 for iPhone headroom, so the high-contrast window grid
+   stays sharp at grazing angles down streets. The headless stub renderer
+   has no isWebGLRenderer flag and no capabilities, so the guarded
+   expression falls back to 1 there and never throws. winTex lives in the
+   city block closure and is not exposed on the test shim, so runtime
+   verification is source-pin based: one assignment inside windowTexture
+   covers the merged band emissiveMap and the band 2 clone (Texture.clone
+   copies anisotropy in three r160). Zero new draw calls. */
+{
+  const probsF = consoleProblems.length;
+  const texSrcF = html.slice(
+    html.indexOf('function windowTexture()'),
+    html.indexOf('const winTex'));
+  check('fcaniso: anisotropy assignment lives inside windowTexture',
+    texSrcF.length > 100 && texSrcF.includes('t.anisotropy'),
+    'slice=' + texSrcF.length);
+  check('fcaniso: source pins getMaxAnisotropy and the Math.min(4, cap inside windowTexture',
+    texSrcF.includes('getMaxAnisotropy') && texSrcF.includes('Math.min(4,'),
+    'hasMax=' + texSrcF.includes('getMaxAnisotropy'));
+  check('fcaniso: guard with isWebGLRenderer and capabilities present in windowTexture',
+    texSrcF.includes('renderer.isWebGLRenderer') && texSrcF.includes('renderer.capabilities'));
+  check('fcaniso: header comment present in windowTexture',
+    texSrcF.includes('FACADE ANISOTROPY v1'));
+  check('fcaniso: wrap still RepeatWrapping on both axes in windowTexture',
+    texSrcF.includes('t.wrapS = t.wrapT = THREE.RepeatWrapping'));
+  const linesF = html.split('\n');
+  const lineHasF = sub => linesF.filter(l => l.includes(sub)).length;
+  check('fcaniso-pins: 50 InstancedMesh literals unchanged', lineHasF('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasF('new THREE.InstancedMesh'));
+  check('fcaniso-pins: 92 Math.random lines unchanged', lineHasF('Math.random') === 92,
+    'n=' + lineHasF('Math.random'));
+  check('fcaniso-pins: 72 setTimeout lines unchanged', lineHasF('setTimeout') === 72,
+    'n=' + lineHasF('setTimeout'));
+  check('fcaniso-pins: no em dashes', !html.includes('—'));
+  check('fcaniso-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('fcaniso: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsF, consoleProblems.slice(probsF).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
