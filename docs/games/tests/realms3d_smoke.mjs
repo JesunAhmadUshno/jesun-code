@@ -10958,6 +10958,90 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsRM, consoleProblems.slice(probsRM).join(' | '));
 }
 
+/* ================= REDUCED MOTION v2 =================
+   The melee punch shake now follows the same traumaOn gate as
+   trauma shake. punchConnectFX arms shakeT, shakeDur, and shakeMag
+   only when P.traumaOn is true. Hit-stop, sound, recoil, and squash
+   still run in both paths. Toggle-off stops an in-flight punch
+   shake: toggleTrauma clears shakeT in the same off branch that
+   clears trauma. */
+{
+  const probsRM2 = consoleProblems.length;
+  const savedRM2 = {
+    x: G.player.position.x, z: G.player.position.z, rotY: G.player.rotation.y,
+  };
+  const clearRM2 = () => {
+    G.P.shakeT = 0; G.P.shakeDur = 0; G.P.shakeMag = 0;
+    G.P.hitstop = 0; G.P.squash = 0; G.P.trauma = 0;
+  };
+  /* source pins: header, punch gate slice, toggle clear slice */
+  check('redmotion2: REDUCED MOTION v2 header is present in the game source',
+    html.includes('REDUCED MOTION v2'));
+  const punchStartRM2 = html.indexOf('function punchConnectFX(step)');
+  const punchSliceRM2 = punchStartRM2 >= 0 ? html.slice(punchStartRM2, punchStartRM2 + 700) : '';
+  check('redmotion2: punchConnectFX slice gates the shake arming on P.traumaOn',
+    punchSliceRM2.includes('if (P.traumaOn)')
+    && punchSliceRM2.indexOf('if (P.traumaOn)') < punchSliceRM2.indexOf('P.shakeDur = P.shakeT')
+    && punchSliceRM2.includes('P.shakeMag'),
+    'slice=' + punchSliceRM2.slice(0, 120));
+  const toggleStartRM2 = html.indexOf('function toggleTrauma()');
+  const toggleSliceRM2 = toggleStartRM2 >= 0 ? html.slice(toggleStartRM2, toggleStartRM2 + 300) : '';
+  check('redmotion2: toggleTrauma slice clears P.shakeT when turning off',
+    toggleSliceRM2.includes('if(!P.traumaOn)')
+    && toggleSliceRM2.includes('P.trauma = 0')
+    && toggleSliceRM2.includes('P.shakeT = 0')
+    && toggleSliceRM2.indexOf('if(!P.traumaOn)') < toggleSliceRM2.indexOf('P.shakeT = 0'),
+    'slice=' + toggleSliceRM2.slice(0, 120));
+  /* runtime gated: no shake armed, hit-stop and squash still run */
+  G.P.traumaOn = false; clearRM2(); G.punchConnectFX(1);
+  check('redmotion2: gated light punch leaves shakeT 0 while hitstop is 0.06 and squash is 0.12',
+    G.P.shakeT === 0 && G.P.hitstop === 0.06 && G.P.squash === 0.12,
+    'shakeT=' + G.P.shakeT + ' hitstop=' + G.P.hitstop + ' squash=' + G.P.squash);
+  G.P.traumaOn = false; clearRM2(); G.punchConnectFX(3);
+  check('redmotion2: gated heavy punch leaves shakeT 0 while hitstop is 0.08 and squash is 0.18',
+    G.P.shakeT === 0 && G.P.hitstop === 0.08 && G.P.squash === 0.18,
+    'shakeT=' + G.P.shakeT + ' hitstop=' + G.P.hitstop + ' squash=' + G.P.squash);
+  /* runtime ungated: shake arms with the light and heavy values */
+  G.P.traumaOn = true; clearRM2(); G.punchConnectFX(1);
+  check('redmotion2: ungated light punch arms shakeT 0.08 and shakeMag 0.12',
+    G.P.shakeT === 0.08 && G.P.shakeMag === 0.12,
+    'shakeT=' + G.P.shakeT + ' shakeMag=' + G.P.shakeMag);
+  G.P.traumaOn = true; clearRM2(); G.punchConnectFX(3);
+  check('redmotion2: ungated heavy punch arms shakeT 0.12 and shakeMag 0.22',
+    G.P.shakeT === 0.12 && G.P.shakeMag === 0.22,
+    'shakeT=' + G.P.shakeT + ' shakeMag=' + G.P.shakeMag);
+  /* runtime toggle: turning off stops a live punch shake and trauma */
+  G.P.traumaOn = true; clearRM2(); G.punchConnectFX(1); G.P.trauma = 0.5;
+  const armedRM2 = G.P.shakeT > 0 && G.P.trauma > 0;
+  G.toggleTrauma();
+  check('redmotion2: toggle off clears traumaOn, trauma, and the in-flight shakeT',
+    armedRM2 && G.P.traumaOn === false && G.P.trauma === 0 && G.P.shakeT === 0,
+    'armed=' + armedRM2 + ' on=' + G.P.traumaOn + ' trauma=' + G.P.trauma + ' shakeT=' + G.P.shakeT);
+  G.toggleTrauma();
+  check('redmotion2: toggle back on restores traumaOn true',
+    G.P.traumaOn === true, 'on=' + G.P.traumaOn);
+  /* cleanup: restore position and rotation, end in the clean state */
+  G.player.position.x = savedRM2.x; G.player.position.z = savedRM2.z;
+  G.player.rotation.y = savedRM2.rotY;
+  G.P.traumaOn = true; clearRM2();
+  /* unchanged pins: the feature adds zero of each */
+  const linesRM2 = html.split('\n');
+  const lineHasRM2 = sub => linesRM2.filter(l => l.includes(sub)).length;
+  check('redmotion2-pins: 50 InstancedMesh literals unchanged', lineHasRM2('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRM2('new THREE.InstancedMesh'));
+  check('redmotion2-pins: 92 Math.random lines unchanged', lineHasRM2('Math.random') === 92,
+    'n=' + lineHasRM2('Math.random'));
+  check('redmotion2-pins: 72 setTimeout lines unchanged', lineHasRM2('setTimeout') === 72,
+    'n=' + lineHasRM2('setTimeout'));
+  check('redmotion2-pins: no em dashes', !html.includes('\u2014'));
+  check('redmotion2-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('redmotion2-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('redmotion2: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRM2, consoleProblems.slice(probsRM2).join(' | '));
+}
+
 /* ================= BULLET MAGNETISM + AIM FRICTION v1 =================
    Magnetism bends a single-pellet shot to the torso of the closest valid
    target when the aim point is already inside MAG_CONE of the shot ray;
