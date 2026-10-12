@@ -1727,7 +1727,11 @@ try {
   const savedCeil = parseFloat(localStorage.getItem(GOV_KEY));
   if (savedCeil >= 1) for (const s of GOV_LADDER) if (s <= savedCeil) GOV_START = s;
 } catch (e) { /* storage unavailable: boot at the top rung */ }
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+/* RENDERER POWER PREFERENCE v1: the powerPreference hint asks the
+   browser for the high-performance GPU on dual-GPU systems, so the
+   game does not run on a weak integrated GPU by default. Single-GPU
+   devices ignore the hint. Zero new draw calls. */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 /* WEBGL CONTEXT-LOSS RESILIENCE v1: on iPhones under memory or thermal
    pressure the GPU context can drop mid-session. Without preventDefault()
    on webglcontextlost the canvas freezes silently until a full page reload;
