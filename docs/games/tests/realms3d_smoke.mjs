@@ -25056,8 +25056,8 @@ globalThis.__R3D2 = {
   check('panelhead: exactly one #lmwheel-title element in the game source',
     (html.match(/id="lmwheel-title"/g) || []).length === 1,
     'n=' + (html.match(/id="lmwheel-title"/g) || []).length);
-  check('panelhead: exactly 11 role heading elements in the game source',
-    (html.match(/role="heading"/g) || []).length === 11,
+  check('panelhead: exactly 12 role heading elements in the game source (11 panels + mission title, migrated by MISSION TITLE HEADING v1)',
+    (html.match(/role="heading"/g) || []).length === 12,
     'n=' + (html.match(/role="heading"/g) || []).length);
   check('panelhead: civic title writer still rewrites its text (dynamic title keeps the role)',
     lineHasPH('civicTitleEl.textContent') === 1,
