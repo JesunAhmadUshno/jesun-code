@@ -344,6 +344,8 @@ globalThis.__R3D = {
   addTrauma, toggleTrauma, traumaNoise, TRAUMA_DECAY, TRAUMA_MAX_OFF,
   /* REDUCED MOTION v1: reduced-motion helper + boot flag (test-only exposure) */
   prefersReducedMotion, REDUCED_MOTION,
+  /* REDUCED MOTION v7: lightning flash gate (test-only exposure) */
+  bolt, triggerBolt, updateBolt, boltFlashEl,
   /* BULLET MAGNETISM + AIM FRICTION v1: constants + helpers (test-only exposure) */
   MAG_CONE, MAG_RANGE, FRICTION_CONE, FRICTION_FACTOR, aimFriction, aimTargetDir,
   /* POSITIONAL STEREO-PAN POOL v1: constants + helpers (test-only exposure) */
@@ -24481,6 +24483,91 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('spdmeter: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSM, consoleProblems.slice(probsSM).join(' | '));
+}
+
+/* ================= REDUCED MOTION v7 =================
+   The storm lightning flash now follows the same
+   P.traumaOn gate as v1-v5. When the gate is off, the
+   computed intensity is zeroed inside updateBolt before
+   the writer lines, so the bolt light stays dark and
+   the #boltflash DOM layer stays at opacity 0. The pulse
+   timeline, storm state, rain, delayed thunder, and the
+   wildfire strike in triggerBolt are unchanged, and
+   no-preference users see the identical flash. */
+{
+  const probsRB = consoleProblems.length;
+  const linesRB = html.split('\n');
+  const lineHasRB = sub => linesRB.filter(l => l.includes(sub)).length;
+  check('rmbolt: REDUCED MOTION v7 header is present exactly once in the game source',
+    (html.split('/* REDUCED MOTION v7').length - 1) === 1,
+    'n=' + (html.split('/* REDUCED MOTION v7').length - 1));
+  check('rmbolt: exact gate line if (!P.traumaOn) I = 0; is present exactly once in the game source',
+    (html.split('if (!P.traumaOn) I = 0;').length - 1) === 1,
+    'n=' + (html.split('if (!P.traumaOn) I = 0;').length - 1));
+  const boltIdxRB = html.indexOf('function updateBolt(dt) {');
+  const boltSliceRB = boltIdxRB >= 0 ? html.slice(boltIdxRB, boltIdxRB + 700) : '';
+  check('rmbolt: updateBolt still contains the writer line bolt.intensity = I;',
+    boltSliceRB.includes('bolt.intensity = I;'),
+    'slice=' + boltSliceRB.slice(0, 120));
+  check('rmbolt: updateBolt still contains the boltFlashEl opacity writer line',
+    boltSliceRB.includes('boltFlashEl.style.opacity = Math.min(0.15, I * 0.035);'),
+    'slice=' + boltSliceRB.slice(0, 120));
+  check('rmbolt: runtime exposures exist (bolt, triggerBolt, updateBolt, boltFlashEl)',
+    !!G.bolt && typeof G.triggerBolt === 'function' && typeof G.updateBolt === 'function' && !!G.boltFlashEl);
+  check('rmbolt-pins: 50 InstancedMesh literals unchanged', lineHasRB('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRB('new THREE.InstancedMesh'));
+  check('rmbolt-pins: 92 Math.random lines unchanged', lineHasRB('Math.random') === 92,
+    'n=' + lineHasRB('Math.random'));
+  check('rmbolt-pins: 72 setTimeout lines unchanged', lineHasRB('setTimeout') === 72,
+    'n=' + lineHasRB('setTimeout'));
+  check('rmbolt-pins: 2 THREE.Points objects unchanged', lineHasRB('new THREE.Points(') === 2,
+    'n=' + lineHasRB('new THREE.Points('));
+  check('rmbolt-pins: no em dashes', !html.includes('\u2014'));
+  check('rmbolt-pins: no TODO markers', !/\bTODO\b/.test(html));
+  /* runtime, gate ON: rain state keeps triggerBolt off the wildfire path */
+  const saveStateRB = G.WX.state;
+  G.WX.state = 'rain';
+  if (!G.P.traumaOn) G.toggleTrauma();
+  G.triggerBolt();
+  let sawFlashRB = false;
+  for (let i = 0; i < 60 && G.WX.boltT !== -1; i++) {
+    G.updateBolt(0.016);
+    if (G.bolt.intensity > 0 || Number(G.boltFlashEl.style.opacity) > 0) sawFlashRB = true;
+  }
+  check('rmbolt: gate ON flash exceeds 0 at some step (bolt intensity or flash opacity)',
+    sawFlashRB, 'intensity=' + G.bolt.intensity + ' opacity=' + G.boltFlashEl.style.opacity);
+  let drainRB = 0;
+  while (G.WX.boltT !== -1 && drainRB < 200) { G.updateBolt(0.016); drainRB++; }
+  check('rmbolt: gate ON outputs are both 0 after the pulse window expires',
+    G.WX.boltT === -1 && G.bolt.intensity === 0 && Number(G.boltFlashEl.style.opacity) === 0,
+    'boltT=' + G.WX.boltT + ' intensity=' + G.bolt.intensity + ' opacity=' + G.boltFlashEl.style.opacity);
+  /* runtime, gate OFF: every step in the whole pulse window stays dark */
+  G.P.traumaOn = false;
+  G.triggerBolt();
+  let allZeroRB = true;
+  let stepsRB = 0;
+  while (G.WX.boltT !== -1 && stepsRB < 200) {
+    G.updateBolt(0.016);
+    stepsRB++;
+    if (G.bolt.intensity !== 0 || Number(G.boltFlashEl.style.opacity) !== 0) allZeroRB = false;
+  }
+  check('rmbolt: gate OFF bolt intensity and flash opacity are 0 at every step',
+    allZeroRB, 'steps=' + stepsRB + ' intensity=' + G.bolt.intensity + ' opacity=' + G.boltFlashEl.style.opacity);
+  check('rmbolt: gate OFF pulse window ran to completion (boltT back to -1)',
+    stepsRB > 0 && G.WX.boltT === -1,
+    'steps=' + stepsRB + ' boltT=' + G.WX.boltT);
+  /* cleanup */
+  if (!G.P.traumaOn) G.toggleTrauma();
+  G.WX.state = saveStateRB;
+  G.WX.boltT = -1;
+  G.bolt.intensity = 0;
+  G.boltFlashEl.style.opacity = 0;
+  check('rmbolt: cleanup restores traumaOn true, WX.state, boltT -1, and zeroed outputs',
+    G.P.traumaOn === true && G.WX.state === saveStateRB && G.WX.boltT === -1
+    && G.bolt.intensity === 0 && Number(G.boltFlashEl.style.opacity) === 0,
+    'on=' + G.P.traumaOn + ' state=' + G.WX.state + ' boltT=' + G.WX.boltT);
+  check('rmbolt: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRB, consoleProblems.slice(probsRB).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
