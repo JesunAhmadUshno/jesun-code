@@ -1415,7 +1415,8 @@
   <!-- HELI SPEED METER v1: the helicopter speed is a real meter: role meter plus aria-label Helicopter speed and aria-valuemin 0 and aria-valuemax 94 in markup, valuenow kept in sync by heliUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by HELI.topSpeed 26. Altitude stays plain text because it has no clean absolute bound. -->
   <div id="helichip"><span id="helispd" role="meter" aria-label="Helicopter speed" aria-valuemin="0" aria-valuemax="94" aria-valuenow="0">HELI - 0 KM/H</span><span id="helialt"> / ALT 0M</span></div>
   <div id="planehint"></div>
-  <div id="planechip"></div>
+  <!-- PLANE ALTITUDE METER v1: the plane altitude is a real meter: role meter plus aria-label Plane altitude and aria-valuemin 0 and aria-valuemax 63 in markup, valuenow kept in sync by planeUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by PLANE.ceil 60 minus the terrainHeight floor -2.7 (amplitudes 1.6+0.55+0.55), rounded up to 63. Speed stays plain text because dive gains can push PLANE.speed past PLANE.topSpeed. -->
+  <div id="planechip"><span id="planespd">PLANE - 0 KM/H</span><span id="planealt" role="meter" aria-label="Plane altitude" aria-valuemin="0" aria-valuemax="63" aria-valuenow="0"> / ALT 0M</span></div>
   <div id="trainhint"></div>
   <!-- TRAIN SPEED METER v1: the train speed is a real meter: role meter plus aria-label Train speed and aria-valuemin 0 and aria-valuemax 86 in markup, valuenow kept in sync by trainUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by TRAIN.cruise 24. -->
   <div id="trainchip"><span id="trainspd" role="meter" aria-label="Train speed" aria-valuemin="0" aria-valuemax="86" aria-valuenow="0">TRAIN - 0 KM/H</span><span id="trainnext"> / NEXT: RIVERSIDE</span></div>
@@ -23443,6 +23444,8 @@ worldTickers.push(heliUpdate);
 /* ---- HUD refs: BOARD prompt mirrors the heli hint pattern ---- */
 const planeHintEl = document.getElementById('planehint');
 const planeChipEl = document.getElementById('planechip');
+const planeSpdEl = document.getElementById('planespd');
+const planeAltEl = document.getElementById('planealt');
 const planeDnBtnEl = document.getElementById('planednbtn');
 const planePitchUpBtnEl = document.getElementById('planepitchupbtn');
 const planePitchDnBtnEl = document.getElementById('planepitchdnbtn');
@@ -23913,8 +23916,11 @@ function planeUpdate(sdt, now) {
   PLANE.hudT += sdt;
   if (PLANE.hudT > 0.12) {
     PLANE.hudT = 0;
-    planeChipEl.textContent = 'PLANE - ' + Math.round(Math.abs(PLANE.speed) * 3.6) + ' KM/H / ALT '
-      + Math.max(0, Math.round(PLANE.pos.y - ground)) + 'M';
+    const planeKmh = Math.round(Math.abs(PLANE.speed) * 3.6);
+    const planeAltM = Math.max(0, Math.round(PLANE.pos.y - ground));
+    planeSpdEl.textContent = 'PLANE - ' + planeKmh + ' KM/H';
+    planeAltEl.textContent = ' / ALT ' + planeAltM + 'M';
+    planeAltEl.ariaValueNow = String(planeAltM);
   }
 }
 /* E while flying: glide the plane down and exit on touchdown (the heli
