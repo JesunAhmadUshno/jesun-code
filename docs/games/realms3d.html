@@ -19976,7 +19976,10 @@ function horseUpdate(sdt, now) {
 
   // ---- camera feel: pullback with speed, FOV kick at gallop ----
   HORSE.camDist = HORSE.camDist0 + spdN * 1.6;
-  HORSE.fovT = (gi === 3 && HORSE.speed > 12) ? 72 : 66;
+  /* REDUCED MOTION v4: the horse gallop FOV kick follows the P.traumaOn
+     gate. When traumaOn is false, HORSE.fovT stays at the base 66.
+     Static vehicle fovDrive values are not kicks and are not gated. */
+  HORSE.fovT = (P.traumaOn && gi === 3 && HORSE.speed > 12) ? 72 : 66;
 
   // ---- hoofbeats: gain rides speed, playbackRate rides gait cadence ----
   if (hoofGain) {
@@ -21588,7 +21591,11 @@ function bikeUpdate(sdt) {
   const boosting = BIKE.boostT > 0;
   if (boosting) BIKE.boostT = Math.max(0, BIKE.boostT - sdt);
   const topNow = BIKE.topSpeed + (boosting ? BIKE.boostAdd : 0);
-  BIKE.fovT = BIKE.fovDrive + (boosting ? (BIKE.fovBoost - BIKE.fovDrive) * (BIKE.boostT / BIKE.boostDur) : 0);
+  /* REDUCED MOTION v4: the bike boost FOV kick follows the P.traumaOn
+     gate. When traumaOn is false, BIKE.fovT stays at BIKE.fovDrive (70)
+     with no boost addition. Static vehicle fovDrive values are not
+     kicks and are not gated. */
+  BIKE.fovT = BIKE.fovDrive + (P.traumaOn && boosting ? (BIKE.fovBoost - BIKE.fovDrive) * (BIKE.boostT / BIKE.boostDur) : 0);
 
   // ---- longitudinal: throttle, brake, coast ----
   const sp = BIKE.speed;
@@ -22410,7 +22417,10 @@ function scUpdate(sdt) {
   SC.heading += SC.steer * steerMax * sdt;
   const leanTgt = -SC.steer * spdN * SC.leanMax;
   SC.lean += (leanTgt - SC.lean) * Math.min(1, 7 * sdt);
-  SC.fovT = SC.fovDrive + spdN * 8;   // subtle speed FOV kick
+  /* REDUCED MOTION v4: the scooter speed FOV kick follows the P.traumaOn
+     gate. When traumaOn is false, SC.fovT stays at SC.fovDrive (66).
+     Static vehicle fovDrive values are not kicks and are not gated. */
+  SC.fovT = SC.fovDrive + (P.traumaOn ? spdN * 8 : 0);   // subtle speed FOV kick
 
   // ---- low-speed wobble: handlebar yaw noise, visual only, never the heading ----
   SC.wobT += sdt;
