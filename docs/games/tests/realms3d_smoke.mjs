@@ -141,6 +141,7 @@ globalThis.__R3D = {
   LMTHEATER_COL, LMTH_R, LMTH_SEGS, LMTH_GATE_K, LMTH_CHIP_R2, LMTH_DOOR, LMTH_DOOR_R2,
   THEATER_ROOM_Y, THEATER_SHOWS, theaterShowFor, theaterBoardShow, theaterDrawScreen,
   theaterComedySting, theaterConcertSting,
+  theaudTick, crowdChipEl, crowdtxtEl, crowdfillEl, crowdbarEl,
   /* THEATER CONCESSIONS v1 */
   CONCH, CONCH_ITEMS, CONCH_BUFF_S, CONCH_BUFF_R, openConcession, conchTick,
   snackhintEl, conchChipEl,
@@ -21624,6 +21625,74 @@ globalThis.__R3D2 = {
   check('hpbar: the run leaves zero console errors/warnings',
     consoleProblems.length === probsHP, consoleProblems.slice(probsHP).join(' | '));
   G.P.hp = 100; G.updateHpHUD();
+}
+
+/* ================= CROWD PROGRESSBAR v1 =================
+   The audience applause meter is a real progressbar: role
+   progressbar plus aria-label Audience applause and
+   aria-valuemin 0 and aria-valuemax 100 in the #crowdbar
+   markup, with aria-valuenow kept in sync by theaudTick.
+   The sync uses the ariaValueNow IDL property, not
+   setAttribute, because the headless stub elements have
+   no setAttribute method. The runtime checks drive
+   theaudTick with a half-finished show (showT 50 of
+   showDur 100, so momentum 0.5 and enthusiasm 0.675,
+   applause 68) and read the stub element for crowdbar
+   through stubs.getEl, the same element the game binds
+   as crowdbarEl. showT stays below showDur at all times
+   so the encore-tip branch never fires. */
+{
+  const probsCB = consoleProblems.length;
+  const linesCB = html.split('\n');
+  const lineHasCB = sub => linesCB.filter(l => l.includes(sub)).length;
+  check('crowdbar: CROWD PROGRESSBAR v1 header is present exactly once in the game source',
+    (html.split('CROWD PROGRESSBAR v1').length - 1) === 1,
+    'n=' + (html.split('CROWD PROGRESSBAR v1').length - 1));
+  const crowdbarTagCB = (html.match(/<span id="crowdbar"[^>]*>/) || [''])[0];
+  check('crowdbar: #crowdbar element markup carries role="progressbar"',
+    crowdbarTagCB.includes('role="progressbar"'), 'tag=' + crowdbarTagCB);
+  check('crowdbar: #crowdbar element markup carries aria-label="Audience applause"',
+    crowdbarTagCB.includes('aria-label="Audience applause"'), 'tag=' + crowdbarTagCB);
+  check('crowdbar: #crowdbar element markup carries aria-valuemin="0"',
+    crowdbarTagCB.includes('aria-valuemin="0"'), 'tag=' + crowdbarTagCB);
+  check('crowdbar: #crowdbar element markup carries aria-valuemax="100"',
+    crowdbarTagCB.includes('aria-valuemax="100"'), 'tag=' + crowdbarTagCB);
+  check('crowdbar: #crowdbar element markup carries aria-valuenow="0"',
+    crowdbarTagCB.includes('aria-valuenow="0"'), 'tag=' + crowdbarTagCB);
+  check('crowdbar: exactly one #crowdbar element in the game source',
+    (html.match(/id="crowdbar"/g) || []).length === 1,
+    'n=' + (html.match(/id="crowdbar"/g) || []).length);
+  check('crowdbar: crowdbarEl binding line binds crowdbar (source pin)',
+    html.includes("const crowdbarEl = document.getElementById('crowdbar');"));
+  check('crowdbar: theaudTick syncs ariaValueNow from H.appl (source pin)',
+    html.includes('crowdbarEl.ariaValueNow = String(H.appl);'));
+  G.THEATERHALL.inHall = true; G.THEATERHALL.showing = true;
+  G.THEATERHALL.showDur = 100; G.THEATERHALL.showT = 50;
+  G.theaudTick(0.016);
+  check('crowdbar: runtime ariaValueNow is 68 at half show (momentum 0.5, enthusiasm 0.675)',
+    stubs.getEl('crowdbar').ariaValueNow === '68',
+    'ariaValueNow=' + stubs.getEl('crowdbar').ariaValueNow);
+  check('crowdbar: runtime THEATERHALL.appl is 68 at half show',
+    G.THEATERHALL.appl === 68,
+    'appl=' + G.THEATERHALL.appl);
+  G.THEATERHALL.showing = false; G.theaudTick(0.016);
+  check('crowdbar: runtime ariaValueNow is 0 when not showing',
+    stubs.getEl('crowdbar').ariaValueNow === '0',
+    'ariaValueNow=' + stubs.getEl('crowdbar').ariaValueNow);
+  check('crowdbar: pins - 50 InstancedMesh literals unchanged', lineHasCB('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasCB('new THREE.InstancedMesh'));
+  check('crowdbar: pins - 92 Math.random lines unchanged', lineHasCB('Math.random') === 92,
+    'n=' + lineHasCB('Math.random'));
+  check('crowdbar: pins - 72 setTimeout lines unchanged', lineHasCB('setTimeout') === 72,
+    'n=' + lineHasCB('setTimeout'));
+  check('crowdbar: pins - no em dashes', !html.includes('\u2014'));
+  check('crowdbar: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('crowdbar: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('crowdbar: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsCB, consoleProblems.slice(probsCB).join(' | '));
+  G.THEATERHALL.inHall = false; G.THEATERHALL.showing = false; G.THEATERHALL.showT = 0;
 }
 
 /* ---------- zero console errors ---------- */
