@@ -11178,6 +11178,57 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsRM4, consoleProblems.slice(probsRM4).join(' | '));
 }
 
+/* ================= REDUCED MOTION v5 =================
+   The on-foot walk bob now follows the same P.traumaOn gate
+   as camera shake (REDUCED MOTION v1/v2), the on-foot sprint
+   kick (REDUCED MOTION v3), and the vehicle FOV kicks
+   (REDUCED MOTION v4). When traumaOn is false,
+   player.position.y holds with no bob. Leg swing, footsteps,
+   and dust still run in both paths. The bob lives inside the
+   main loop walk cycle, which the harness does not expose as
+   a callable unit, so this block source-pins the gated line
+   (the prior cycle idiom for non-helper sites) and
+   runtime-pins the gate value it reads. */
+{
+  const probsRM5 = consoleProblems.length;
+  const linesRM5 = html.split('\n');
+  const lineHasRM5 = sub => linesRM5.filter(l => l.includes(sub)).length;
+  check('redmotion5: REDUCED MOTION v5 header is present in the game source',
+    (html.split('REDUCED MOTION v5').length - 1) === 1,
+    'n=' + (html.split('REDUCED MOTION v5').length - 1));
+  const bobIdxRM5 = html.indexOf('if (P.traumaOn) player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob');
+  const bobSliceRM5 = bobIdxRM5 >= 0 ? html.slice(Math.max(0, bobIdxRM5 - 400), bobIdxRM5 + 140) : '';
+  check('redmotion5: bob slice carries the v5 header above the gated bob line',
+    bobSliceRM5.includes('REDUCED MOTION v5: the on-foot walk bob follows the P.traumaOn')
+    && bobSliceRM5.includes('player.position.y holds with no bob'),
+    'slice=' + bobSliceRM5.slice(0, 120));
+  check('redmotion5: gated bob line is present',
+    bobIdxRM5 >= 0);
+  check('redmotion5: ungated original bob line is absent',
+    !linesRM5.includes('  player.position.y += Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK); // bob'));
+  check('redmotion5: gated bob line keeps the 0.03 amplitude, walkPhase, and speed scaling',
+    bobIdxRM5 >= 0
+    && html.slice(bobIdxRM5, bobIdxRM5 + 140).includes('Math.abs(Math.sin(P.walkPhase)) * 0.03 * Math.min(1, speed / WALK)'));
+  check('redmotion5: P.traumaOn is true at block entry (restored by v4) and stays true',
+    G.P.traumaOn === true, 'traumaOn=' + G.P.traumaOn);
+  check('redmotion5: runtime P.walkPhase and player.position.y are numbers',
+    typeof G.P.walkPhase === 'number' && typeof G.player.position.y === 'number',
+    'walkPhase=' + G.P.walkPhase + ' y=' + G.player.position.y);
+  check('redmotion5-pins: 50 InstancedMesh literals unchanged', lineHasRM5('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRM5('new THREE.InstancedMesh'));
+  check('redmotion5-pins: 92 Math.random lines unchanged', lineHasRM5('Math.random') === 92,
+    'n=' + lineHasRM5('Math.random'));
+  check('redmotion5-pins: 72 setTimeout lines unchanged', lineHasRM5('setTimeout') === 72,
+    'n=' + lineHasRM5('setTimeout'));
+  check('redmotion5-pins: no em dashes', !html.includes('\u2014'));
+  check('redmotion5-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('redmotion5-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('redmotion5: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRM5, consoleProblems.slice(probsRM5).join(' | '));
+}
+
 /* ================= BULLET MAGNETISM + AIM FRICTION v1 =================
    Magnetism bends a single-pellet shot to the torso of the closest valid
    target when the aim point is already inside MAG_CONE of the shot ray;
