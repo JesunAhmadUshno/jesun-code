@@ -26825,7 +26825,13 @@ const clock = new THREE.Clock();
 const WALK = 5.5, SPRINT = 9.5, ACCEL = 34, JUMP_V = 8.2, GRAV = -24;
 const COYOTE_T = 0.12, JUMP_BUF_T = 0.20;   // jump feel: ledge grace (s), pre-landing press buffer (s, mobile-friendly)
 const FOV_SPRINT = 68;   // sprint FOV kick: on-foot top end (walk is CAR.fovWalk 62)
+/* REDUCED MOTION v3: the on-foot sprint FOV kick now follows the same
+   P.traumaOn gate as camera shake (REDUCED MOTION v1/v2).
+   When traumaOn is false, footFov returns CAR.fovWalk (62) at every
+   speed, so sprinting holds the walk FOV with no kick.
+   Vehicle FOV kicks are not gated in v3. */
 function footFov(sprinting, spd) {
+  if (!P.traumaOn) return CAR.fovWalk;
   if (!sprinting || spd <= WALK) return CAR.fovWalk;
   const t = Math.min(1, Math.max(0, (spd - WALK) / (SPRINT - WALK)));
   return CAR.fovWalk + (FOV_SPRINT - CAR.fovWalk) * t;
