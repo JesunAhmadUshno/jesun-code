@@ -11879,6 +11879,49 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
 }
 
+/* ================= SKIN TEXTURE COLORSPACE v1 =================
+   The shared skin texture is a pure colour map, so it declares
+   sRGB like its fabric pair, instead of staying in the default
+   linear space where its authored tone rendered washed out and
+   brighter than authored. skinTex and fabricTex are top-level
+   consts exposed on the test shim, so runtime parity checks read
+   the real textures directly alongside the source pins. Zero new
+   draw calls. */
+{
+  const probsK = consoleProblems.length;
+  const texSrcSkinK = html.slice(
+    html.indexOf('function makeSkinTex()'),
+    html.indexOf('const skinTex'));
+  check('skincol: colorSpace assignment and header live inside makeSkinTex',
+    texSrcSkinK.length > 100 && texSrcSkinK.includes('t.colorSpace = THREE.SRGBColorSpace')
+    && texSrcSkinK.includes('SKIN TEXTURE COLORSPACE v1'),
+    'slice=' + texSrcSkinK.length);
+  check('skincol: wrap still RepeatWrapping in makeSkinTex',
+    texSrcSkinK.includes('t.wrapS = t.wrapT = THREE.RepeatWrapping'));
+  check('skincol: anisotropy pin still present in makeSkinTex',
+    texSrcSkinK.includes('t.anisotropy') && texSrcSkinK.includes('CHARACTER TEXTURE ANISOTROPY v1'));
+  check('skincol: skinTex exists',
+    !!G.skinTex, G.skinTex ? 'isCanvasTexture=' + G.skinTex.isCanvasTexture : 'no skinTex');
+  check('skincol: skinTex colorSpace is SRGBColorSpace',
+    !!G.skinTex && G.skinTex.colorSpace === THREE.SRGBColorSpace,
+    G.skinTex ? 'colorSpace=' + G.skinTex.colorSpace : 'no skinTex');
+  check('skincol: fabricTex colorSpace is SRGBColorSpace as parity control',
+    !!G.fabricTex && G.fabricTex.colorSpace === THREE.SRGBColorSpace,
+    G.fabricTex ? 'colorSpace=' + G.fabricTex.colorSpace : 'no fabricTex');
+  const linesK = html.split('\n');
+  const lineHasK = sub => linesK.filter(l => l.includes(sub)).length;
+  check('skincol-pins: 50 InstancedMesh literals unchanged', lineHasK('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasK('new THREE.InstancedMesh'));
+  check('skincol-pins: 92 Math.random lines unchanged', lineHasK('Math.random') === 92,
+    'n=' + lineHasK('Math.random'));
+  check('skincol-pins: 72 setTimeout lines unchanged', lineHasK('setTimeout') === 72,
+    'n=' + lineHasK('setTimeout'));
+  check('skincol-pins: no em dashes', !html.includes('—'));
+  check('skincol-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('skincol: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsK, consoleProblems.slice(probsK).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
