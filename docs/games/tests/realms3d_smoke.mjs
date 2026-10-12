@@ -11758,6 +11758,61 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsF, consoleProblems.slice(probsF).join(' | '));
 }
 
+/* ================= RURAL FACADE ANISOTROPY v1 =================
+   The civic, worship and apartment facade textures set anisotropy from
+   the renderer max, capped at 4 for iPhone headroom, so their repeated
+   stone and brick courses stay sharp at grazing angles down streets.
+   The headless stub renderer has no isWebGLRenderer flag and no
+   capabilities, so the guarded expression falls back to 1 there and
+   never throws. These textures are closure-scoped and not exposed on
+   the test shim, so verification is source-pin based: one assignment
+   inside each maker function. Zero new draw calls. */
+{
+  const probsR = consoleProblems.length;
+  const texSrcCivicR = html.slice(
+    html.indexOf('function makeCivicTex()'),
+    html.indexOf('function buildCivicGeo()'));
+  const texSrcWorshipR = html.slice(
+    html.indexOf('function makeWorshipTex()'),
+    html.indexOf('function bldgPrism('));
+  const texSrcApartR = html.slice(
+    html.indexOf('function makeApartmentTex()'),
+    html.indexOf('function apartBalcony('));
+  check('rurfaniso: anisotropy assignment and pins live inside makeCivicTex',
+    texSrcCivicR.length > 100 && texSrcCivicR.includes('t.anisotropy')
+    && texSrcCivicR.includes('getMaxAnisotropy') && texSrcCivicR.includes('Math.min(4,'),
+    'slice=' + texSrcCivicR.length);
+  check('rurfaniso: guard and header present in makeCivicTex',
+    texSrcCivicR.includes('renderer.isWebGLRenderer') && texSrcCivicR.includes('renderer.capabilities')
+    && texSrcCivicR.includes('RURAL FACADE ANISOTROPY v1'));
+  check('rurfaniso: anisotropy assignment and pins live inside makeWorshipTex',
+    texSrcWorshipR.length > 100 && texSrcWorshipR.includes('t.anisotropy')
+    && texSrcWorshipR.includes('getMaxAnisotropy') && texSrcWorshipR.includes('Math.min(4,'),
+    'slice=' + texSrcWorshipR.length);
+  check('rurfaniso: guard and header present in makeWorshipTex',
+    texSrcWorshipR.includes('renderer.isWebGLRenderer') && texSrcWorshipR.includes('renderer.capabilities')
+    && texSrcWorshipR.includes('RURAL FACADE ANISOTROPY v1'));
+  check('rurfaniso: anisotropy assignment and pins live inside makeApartmentTex',
+    texSrcApartR.length > 100 && texSrcApartR.includes('t.anisotropy')
+    && texSrcApartR.includes('getMaxAnisotropy') && texSrcApartR.includes('Math.min(4,'),
+    'slice=' + texSrcApartR.length);
+  check('rurfaniso: guard and header present in makeApartmentTex',
+    texSrcApartR.includes('renderer.isWebGLRenderer') && texSrcApartR.includes('renderer.capabilities')
+    && texSrcApartR.includes('RURAL FACADE ANISOTROPY v1'));
+  const linesR = html.split('\n');
+  const lineHasR = sub => linesR.filter(l => l.includes(sub)).length;
+  check('rurfaniso-pins: 50 InstancedMesh literals unchanged', lineHasR('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasR('new THREE.InstancedMesh'));
+  check('rurfaniso-pins: 92 Math.random lines unchanged', lineHasR('Math.random') === 92,
+    'n=' + lineHasR('Math.random'));
+  check('rurfaniso-pins: 72 setTimeout lines unchanged', lineHasR('setTimeout') === 72,
+    'n=' + lineHasR('setTimeout'));
+  check('rurfaniso-pins: no em dashes', !html.includes('—'));
+  check('rurfaniso-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('rurfaniso: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsR, consoleProblems.slice(probsR).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
