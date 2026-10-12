@@ -1384,7 +1384,8 @@
   <!-- WX STATUS v1: the weather readout is a live status: role status on
        #wx, decorative icon hidden from assistive tech. -->
   <div id="wx" role="status"><span aria-hidden="true">☀</span> CLEAR</div>
-  <div id="diffchip">AI TIER 0</div>
+  <!-- DIFF METER v1: the AI difficulty tier is a real meter: role plus min/max in markup, valuenow kept in sync by updateDiffHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
+  <div id="diffchip" role="meter" aria-label="AI difficulty tier" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">AI TIER 0</div>
   <div id="saved">SAVED --:--</div>
   <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond">HULL 100%</div></div>
   <div id="perfchip"></div>
@@ -7560,6 +7561,7 @@ const DIFF = {
 const diffEl = document.getElementById('diffchip');
 const DIFF_COL = ['#8a927c', '#d8c84a', '#ff9a5e', '#ff6b5e'];
 function updateDiffHUD() {
+  diffEl.ariaValueNow = String(DIFF.tier);
   diffEl.textContent = 'AI TIER ' + DIFF.tier;
   diffEl.style.color = DIFF_COL[DIFF.tier];
 }
