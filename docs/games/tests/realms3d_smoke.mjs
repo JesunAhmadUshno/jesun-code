@@ -21695,6 +21695,54 @@ globalThis.__R3D2 = {
   G.THEATERHALL.inHall = false; G.THEATERHALL.showing = false; G.THEATERHALL.showT = 0;
 }
 
+/* ================= OVERLAY PLAY BUTTON v1 =================
+   The title overlay play control is a native button, so
+   it is focusable and Enter or Space activate it through
+   the click that bubbles up to the overlay click handler.
+   No extra JS was needed: the start handler still lives
+   on the parent #overlay element, and the touch path
+   still re-labels the control through the #overlay .btn
+   selector. The headless stub does not parse this markup
+   into a live button, so source pins are the honest
+   verification here, the same as the markup checks in
+   the hpbar and crowdbar blocks. */
+{
+  const probsPB = consoleProblems.length;
+  const linesPB = html.split('\n');
+  const lineHasPB = sub => linesPB.filter(l => l.includes(sub)).length;
+  check('playbtn: OVERLAY PLAY BUTTON v1 header is present exactly once in the game source',
+    (html.split('OVERLAY PLAY BUTTON v1').length - 1) === 1,
+    'n=' + (html.split('OVERLAY PLAY BUTTON v1').length - 1));
+  const playBtnTagPB = (html.match(/<button class="btn"[^>]*>/) || [''])[0];
+  check('playbtn: play control button markup carries type="button"',
+    playBtnTagPB.includes('type="button"'), 'tag=' + playBtnTagPB);
+  check('playbtn: exactly one <button class="btn" in the game source',
+    (html.match(/<button class="btn"/g) || []).length === 1,
+    'n=' + (html.match(/<button class="btn"/g) || []).length);
+  check('playbtn: zero remaining <div class="btn"> in the game source',
+    (html.match(/<div class="btn">/g) || []).length === 0,
+    'n=' + (html.match(/<div class="btn">/g) || []).length);
+  check('playbtn: overlay click listener line is unchanged (source pin)',
+    html.includes("overlay.addEventListener('click'"));
+  check('playbtn: touch re-label selector is unchanged (source pin)',
+    html.includes("document.querySelector('#overlay .btn')"));
+  check('playbtn: play control markup line is the exact native button (source pin)',
+    html.includes('<button class="btn" type="button">CLICK TO PLAY</button>'));
+  check('playbtn: pins - 50 InstancedMesh literals unchanged', lineHasPB('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasPB('new THREE.InstancedMesh'));
+  check('playbtn: pins - 92 Math.random lines unchanged', lineHasPB('Math.random') === 92,
+    'n=' + lineHasPB('Math.random'));
+  check('playbtn: pins - 72 setTimeout lines unchanged', lineHasPB('setTimeout') === 72,
+    'n=' + lineHasPB('setTimeout'));
+  check('playbtn: pins - no em dashes', !html.includes('\u2014'));
+  check('playbtn: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('playbtn: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('playbtn: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsPB, consoleProblems.slice(probsPB).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
