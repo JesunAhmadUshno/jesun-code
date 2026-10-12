@@ -15543,56 +15543,77 @@ globalThis.__R3D2 = {
   check('skid: first skidStep writes nothing and sets prev',
     G.skidHead === head0Sk && liveSk() === 0 && G.skidPrev !== null,
     'head ' + head0Sk + ' to ' + G.skidHead + ' live=' + liveSk() + ' prev=' + G.skidPrev);
-  /* a step of 1.0m writes exactly two quads matching the wheel maths */
+  /* SKID SURFACE SPLIT v1 retarget: a step of 1.0m still writes one quad
+     per rear wheel on same-surface ground, but both tracks here cross a
+     surface boundary (left dirt to grass, right grass to dirt), so each
+     track surface-splits at its midpoint and the step writes exactly
+     FOUR half quads (two per track) matching the wheel maths. */
   G.skidStep(10, 21, 0, 5);
-  check('skid: a step of at least 0.9m writes exactly 2 quads (head advances 2, 2 live)',
-    G.skidHead === (head0Sk + 2) % G.SKID_N && liveSk() === 2,
+  check('skid: a step of at least 0.9m writes exactly 4 half quads (both tracks surface-split, head advances 4, 4 live)',
+    G.skidHead === (head0Sk + 4) % G.SKID_N && liveSk() === 4,
     'head=' + G.skidHead + ' live=' + liveSk());
   {
-    const s0 = head0Sk, s1 = (head0Sk + 1) % G.SKID_N;
-    const p0 = s0 * 12, p1 = s1 * 12;
-    /* SKID LATERAL CONFORM v1: this point sits on a lateral slope, so each
-       corner Y is 5.03 plus its own centre-relative terrainHeight delta
-       (computed from terrainHeight at the corner minus its end centre);
-       X/Z are the legacy wheel maths unchanged. */
-    const exp0 = [10.66, 5.034485, 18.1, 10.94, 5.025490, 18.1, 10.94, 5.025134, 19.1, 10.66, 5.034842, 19.1];
-    const exp1 = [9.06, 5.033979, 18.1, 9.34, 5.025961, 18.1, 9.34, 5.025592, 19.1, 9.06, 5.034349, 19.1];
+    const slotsSk = [0, 1, 2, 3].map(k => (head0Sk + k) % G.SKID_N);
+    const s0 = slotsSk[0];
+    /* SKID LATERAL CONFORM v1 plus SKID SURFACE SPLIT v1: expected corners
+       are recomputed from G.terrainHeight inside the test. Each corner Y is
+       its end base plus its own centre-relative terrainHeight delta, the
+       halves meet at the track midpoint (z 18.6) and the shared midpoint
+       base is midY, the (prevY + y) / 2 + (midH - expected) formula. */
+    const THSk = (x, z) => G.terrainHeight(x, z);
+    const expQuadSk = (px, pz, cx, cz, y, prevY) => {
+      const pcH = THSk(px, pz), ccH = THSk(cx, cz);
+      return [px - 0.14, prevY + 0.03 + (THSk(px - 0.14, pz) - pcH), pz,
+        px + 0.14, prevY + 0.03 + (THSk(px + 0.14, pz) - pcH), pz,
+        cx + 0.14, y + 0.03 + (THSk(cx + 0.14, cz) - ccH), cz,
+        cx - 0.14, y + 0.03 + (THSk(cx - 0.14, cz) - ccH), cz];
+    };
+    const midYLSk = (5 + 5) / 2 + (THSk(10.8, 18.6) - (THSk(10.8, 18.1) + THSk(10.8, 19.1)) / 2);
+    const midYRSk = (5 + 5) / 2 + (THSk(9.2, 18.6) - (THSk(9.2, 18.1) + THSk(9.2, 19.1)) / 2);
+    const expQuadsSk = [
+      expQuadSk(10.8, 18.1, 10.8, 18.6, midYLSk, 5),
+      expQuadSk(10.8, 18.6, 10.8, 19.1, 5, midYLSk),
+      expQuadSk(9.2, 18.1, 9.2, 18.6, midYRSk, 5),
+      expQuadSk(9.2, 18.6, 9.2, 19.1, 5, midYRSk),
+    ];
     let posOk = true;
-    for (let i = 0; i < 12; i++) { if (!approxSk(G.skidPos[p0 + i], exp0[i]) || !approxSk(G.skidPos[p1 + i], exp1[i])) posOk = false; }
-    check('skid: written quad positions match the wheel maths within tolerance, y = end base plus per-corner lateral delta',
-      posOk, 'q0=' + [...G.skidPos.slice(p0, p0 + 12)].join(',') + ' q1=' + [...G.skidPos.slice(p1, p1 + 12)].join(','));
+    for (let qi = 0; qi < 4; qi++) { const p = slotsSk[qi] * 12;
+      for (let i = 0; i < 12; i++) { if (!approxSk(G.skidPos[p + i], expQuadsSk[qi][i])) posOk = false; } }
+    check('skid: written half quad positions match the wheel maths within tolerance, y = end base plus per-corner lateral delta, halves meeting at the track midpoints',
+      posOk, 'q0=' + [...G.skidPos.slice(slotsSk[0] * 12, slotsSk[0] * 12 + 12)].join(',') + ' q2=' + [...G.skidPos.slice(slotsSk[2] * 12, slotsSk[2] * 12 + 12)].join(','));
     let colOk = true;
-    /* SKID PER-END SURFACE COLOR v1: each quad classifies its two end
-       centres, so the left quad is dirt at its prev end (10.8,18.1) and
-       grass at its curr end (10.8,19.1), and the right quad is grass at
-       its prev end (9.2,18.1) and dirt at its curr end (9.2,19.1). */
+    /* SKID SURFACE SPLIT v1: each half classifies its own ends, so the left
+       halves are dirt to grass then grass to grass (midpoint (10.8,18.6) is
+       grass) and the right halves are grass to dirt then dirt to dirt
+       (midpoint (9.2,18.6) is dirt). */
     const expGrassSk = [0.10, 0.13, 0.05, 0.38], expDirtSk = [0.16, 0.11, 0.06, 0.48];
-    const expColsSk = [[expDirtSk, expDirtSk, expGrassSk, expGrassSk], [expGrassSk, expGrassSk, expDirtSk, expDirtSk]];
-    for (let si = 0; si < 2; si++) { const s = [s0, s1][si]; for (let v = 0; v < 4; v++) {
+    const expColsSk = [[expDirtSk, expDirtSk, expGrassSk, expGrassSk], [expGrassSk, expGrassSk, expGrassSk, expGrassSk],
+      [expGrassSk, expGrassSk, expDirtSk, expDirtSk], [expDirtSk, expDirtSk, expDirtSk, expDirtSk]];
+    for (let si = 0; si < 4; si++) { const s = slotsSk[si]; for (let v = 0; v < 4; v++) {
       const expSk = expColsSk[si][v];
       const c = s * 16 + v * 4;
       if (!approxSk(G.skidCol[c], expSk[0]) || !approxSk(G.skidCol[c + 1], expSk[1]) || !approxSk(G.skidCol[c + 2], expSk[2]) || !approxSk(G.skidCol[c + 3], expSk[3])) colOk = false;
     } }
     check('skid: written quads carry per-end surface colours (left prev end dirt 0.16/0.11/0.06 peak 0.48, curr end grass 0.10/0.13/0.05 peak 0.38; right prev end grass, curr end dirt), life SKID_LIFE',
-      colOk && G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE
-      && G.surfaceAt(10.8, 18.1) === 'dirt' && G.surfaceAt(10.8, 19.1) === 'grass'
-      && G.surfaceAt(9.2, 18.1) === 'grass' && G.surfaceAt(9.2, 19.1) === 'dirt');
+      colOk && slotsSk.every(s => G.skidLife[s] === G.SKID_LIFE)
+      && G.surfaceAt(10.8, 18.1) === 'dirt' && G.surfaceAt(10.8, 18.6) === 'grass' && G.surfaceAt(10.8, 19.1) === 'grass'
+      && G.surfaceAt(9.2, 18.1) === 'grass' && G.surfaceAt(9.2, 18.6) === 'dirt' && G.surfaceAt(9.2, 19.1) === 'dirt');
   }
   /* a step under 0.9m writes nothing */
   const head1Sk = G.skidHead;
   G.skidStep(10, 21.4, 0, 5);
   check('skid: a step under 0.9m writes nothing',
-    G.skidHead === head1Sk && liveSk() === 2, 'head=' + G.skidHead + ' live=' + liveSk());
+    G.skidHead === head1Sk && liveSk() === 4, 'head=' + G.skidHead + ' live=' + liveSk());
   /* skidReset then step writes nothing again, then a big step resumes */
   G.skidReset();
   check('skid: skidReset clears prev', G.skidPrev === null);
   G.skidStep(10, 22.5, 0, 5);
   check('skid: after skidReset the next step writes nothing again and sets prev',
-    G.skidHead === head1Sk && liveSk() === 2 && G.skidPrev !== null,
+    G.skidHead === head1Sk && liveSk() === 4 && G.skidPrev !== null,
     'head=' + G.skidHead + ' live=' + liveSk());
   G.skidStep(10, 23.5, 0, 5);
-  check('skid: a big step after the reset store writes 2 more quads',
-    G.skidHead === (head1Sk + 2) % G.SKID_N && liveSk() === 4,
+  check('skid: a big step after the reset store writes 2 more quads (same-surface grass segment, no split, 6 live in total)',
+    G.skidHead === (head1Sk + 2) % G.SKID_N && liveSk() === 6,
     'head=' + G.skidHead + ' live=' + liveSk());
   /* skidTick fades alpha strictly down, then expiry parks */
   {
@@ -16671,8 +16692,14 @@ globalThis.__R3D2 = {
   check('skidbus: a bus step under 0.9m writes nothing',
     G.skidHead === head1Bd && liveBd() === 2, 'head=' + G.skidHead + ' live=' + liveBd());
   G.skidStep4(10, 22, 0, 5);
-  check('skidbus: a big bus step after the sub-segment step writes exactly two more quads',
-    G.skidHead === (head1Bd + 2) % G.SKID_N && liveBd() === 4,
+  /* SKID SURFACE SPLIT v1 retarget: this segment runs from rear z 16.8 to
+     17.8; the left track crosses grass to dirt and surface-splits into two
+     halves, the right track stays on grass and writes one quad, so the
+     step writes exactly three more quads (5 live in total). */
+  check('skidbus: a big bus step after the sub-segment step writes exactly three more quads (left track surface-splits, right track single)',
+    G.skidHead === (head1Bd + 3) % G.SKID_N && liveBd() === 5
+    && G.surfaceAt(10.9, 16.8) === 'grass' && G.surfaceAt(10.9, 17.8) === 'dirt'
+    && G.surfaceAt(9.1, 16.8) === 'grass' && G.surfaceAt(9.1, 17.8) === 'grass',
     'head=' + G.skidHead + ' live=' + liveBd());
   /* direct behaviour, fire truck: first call store-only, then two quads */
   G.clearSkid();
@@ -16683,52 +16710,77 @@ globalThis.__R3D2 = {
   check('skidbus: first skidStep5 sets skid5Prev non-null',
     G.skid5Prev !== null, 'skid5Prev=' + G.skid5Prev);
   G.skidStep5(10, 21, 0, 5);
-  check('skidbus: a step of at least 0.9m writes exactly TWO fire truck quads (head advances 2, 2 live)',
-    G.skidHead === (head2Bd + 2) % G.SKID_N && liveBd() === 2,
+  /* SKID SURFACE SPLIT v1 retarget: the left track crosses grass to dirt
+     and surface-splits into two halves (midpoint (10.85,17.0) is grass);
+     the right track stays on grass and writes one quad, so the step
+     writes exactly THREE quads. */
+  check('skidbus: a step of at least 0.9m writes exactly THREE fire truck quads (left track surface-splits, head advances 3, 3 live)',
+    G.skidHead === (head2Bd + 3) % G.SKID_N && liveBd() === 3,
     'head=' + G.skidHead + ' live=' + liveBd());
   {
-    const s0 = head2Bd, s1 = (head2Bd + 1) % G.SKID_N, p0 = s0 * 12, p1 = s1 * 12;
-    /* SKID LATERAL CONFORM v1: lateral slope here, so corner Y is 5.03 plus
-       its own centre-relative terrainHeight delta; X/Z unchanged. */
-    const expL = [10.70, 5.034142, 16.5, 11.00, 5.025801, 16.5, 11.00, 5.025381, 17.5, 10.70, 5.034591, 17.5];
-    const expR = [9.00, 5.033176, 16.5, 9.30, 5.026719, 16.5, 9.30, 5.025971, 17.5, 9.00, 5.033941, 17.5];
+    const s0 = head2Bd, s1 = (head2Bd + 1) % G.SKID_N, s2 = (head2Bd + 2) % G.SKID_N;
+    const p0 = s0 * 12, p1 = s1 * 12, p2 = s2 * 12;
+    /* SKID LATERAL CONFORM v1 plus SKID SURFACE SPLIT v1: expected corners
+       are recomputed from G.terrainHeight inside the test. Each corner Y is
+       its end base plus its own centre-relative terrainHeight delta, the
+       left halves meet at the track midpoint (10.85,17.0) and the shared
+       midpoint base is midY, the (prevY + y) / 2 + (midH - expected)
+       formula; X/Z are the legacy dual-track maths unchanged. */
+    const THBd = (x, z) => G.terrainHeight(x, z);
+    const expQuadBd = (px, pz, cx, cz, y, prevY) => {
+      const pcH = THBd(px, pz), ccH = THBd(cx, cz);
+      return [px - 0.15, prevY + 0.03 + (THBd(px - 0.15, pz) - pcH), pz,
+        px + 0.15, prevY + 0.03 + (THBd(px + 0.15, pz) - pcH), pz,
+        cx + 0.15, y + 0.03 + (THBd(cx + 0.15, cz) - ccH), cz,
+        cx - 0.15, y + 0.03 + (THBd(cx - 0.15, cz) - ccH), cz];
+    };
+    const midYLftBd = (5 + 5) / 2 + (THBd(10.85, 17.0) - (THBd(10.85, 16.5) + THBd(10.85, 17.5)) / 2);
+    const expL1Bd = expQuadBd(10.85, 16.5, 10.85, 17.0, midYLftBd, 5);
+    const expL2Bd = expQuadBd(10.85, 17.0, 10.85, 17.5, 5, midYLftBd);
+    const expRBd = expQuadBd(9.15, 16.5, 9.15, 17.5, 5, 5);
     let posL = true, posR = true;
-    for (let i = 0; i < 12; i++) { if (!approxBd(G.skidPos[p0 + i], expL[i])) posL = false; if (!approxBd(G.skidPos[p1 + i], expR[i])) posR = false; }
-    check('skidbus: fire truck left quad positions match the dual-track maths with half-width 0.15, y = end base plus per-corner lateral delta',
-      posL, 'qL=' + [...G.skidPos.slice(p0, p0 + 12)].join(','));
+    for (let i = 0; i < 12; i++) { if (!approxBd(G.skidPos[p0 + i], expL1Bd[i]) || !approxBd(G.skidPos[p1 + i], expL2Bd[i])) posL = false; if (!approxBd(G.skidPos[p2 + i], expRBd[i])) posR = false; }
+    check('skidbus: fire truck left half quad positions match the dual-track maths with half-width 0.15, y = end base plus per-corner lateral delta, halves meeting at the track midpoint',
+      posL, 'qL1=' + [...G.skidPos.slice(p0, p0 + 12)].join(',') + ' qL2=' + [...G.skidPos.slice(p1, p1 + 12)].join(','));
     check('skidbus: fire truck right quad positions match the dual-track maths with half-width 0.15, y = end base plus per-corner lateral delta',
-      posR, 'qR=' + [...G.skidPos.slice(p1, p1 + 12)].join(','));
+      posR, 'qR=' + [...G.skidPos.slice(p2, p2 + 12)].join(','));
     check('skidbus: fire truck quad widths are exactly 0.30 (0.15 half-width on each side)',
-      approxBd(G.skidPos[p0 + 3] - G.skidPos[p0], 0.30) && approxBd(G.skidPos[p1 + 3] - G.skidPos[p1], 0.30)
-      && approxBd(G.skidPos[p0 + 6] - G.skidPos[p0 + 9], 0.30) && approxBd(G.skidPos[p1 + 6] - G.skidPos[p1 + 9], 0.30));
+      approxBd(G.skidPos[p0 + 3] - G.skidPos[p0], 0.30) && approxBd(G.skidPos[p1 + 3] - G.skidPos[p1], 0.30) && approxBd(G.skidPos[p2 + 3] - G.skidPos[p2], 0.30)
+      && approxBd(G.skidPos[p0 + 6] - G.skidPos[p0 + 9], 0.30) && approxBd(G.skidPos[p1 + 6] - G.skidPos[p1 + 9], 0.30) && approxBd(G.skidPos[p2 + 6] - G.skidPos[p2 + 9], 0.30));
     check('skidbus: fire truck track centres sit at lateral +/-0.85 from the rear centre',
-      approxBd((G.skidPos[p0] + G.skidPos[p0 + 3]) / 2, 10.85) && approxBd((G.skidPos[p1] + G.skidPos[p1 + 3]) / 2, 9.15));
+      approxBd((G.skidPos[p0] + G.skidPos[p0 + 3]) / 2, 10.85) && approxBd((G.skidPos[p2] + G.skidPos[p2 + 3]) / 2, 9.15));
     let colOk = true;
-    /* SKID PER-END SURFACE COLOR v1: the left quad is grass at its prev
-       end (10.85,16.5) and dirt at its curr end (10.85,17.5); the right
-       quad is grass at both ends (9.15,16.5) and (9.15,17.5). */
+    /* SKID SURFACE SPLIT v1: the left halves are grass to grass (midpoint
+       grass) then grass to dirt; the right quad is grass at both ends
+       (9.15,16.5) and (9.15,17.5). */
     const rowGBd = [0.10, 0.13, 0.05, 0.38], rowDBd = [0.16, 0.11, 0.06, 0.48];
-    const expFtBd = [[rowGBd, rowGBd, rowDBd, rowDBd], [rowGBd, rowGBd, rowGBd, rowGBd]];
-    [s0, s1].forEach((s, si) => { for (let v = 0; v < 4; v++) {
+    const expFtBd = [[rowGBd, rowGBd, rowGBd, rowGBd], [rowGBd, rowGBd, rowDBd, rowDBd], [rowGBd, rowGBd, rowGBd, rowGBd]];
+    [s0, s1, s2].forEach((s, si) => { for (let v = 0; v < 4; v++) {
       const exp = expFtBd[si][v];
       const c = s * 16 + v * 4;
       if (!approxBd(G.skidCol[c], exp[0]) || !approxBd(G.skidCol[c + 1], exp[1]) || !approxBd(G.skidCol[c + 2], exp[2]) || !approxBd(G.skidCol[c + 3], exp[3])) colOk = false;
     } });
     check('skidbus: fire truck quads carry per-end surface colours (left prev end grass 0.10/0.13/0.05 peak 0.38, curr end dirt 0.16/0.11/0.06 peak 0.48; right quad grass on both ends)',
-      colOk && G.surfaceAt(10.85, 16.5) === 'grass' && G.surfaceAt(10.85, 17.5) === 'dirt'
+      colOk && G.surfaceAt(10.85, 16.5) === 'grass' && G.surfaceAt(10.85, 17.0) === 'grass' && G.surfaceAt(10.85, 17.5) === 'dirt'
       && G.surfaceAt(9.15, 16.5) === 'grass' && G.surfaceAt(9.15, 17.5) === 'grass');
     check('skidbus: fire truck quads life and lifeMax are SKID_LIFE',
-      G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE
-      && G.skidLifeMax[s0] === G.SKID_LIFE && G.skidLifeMax[s1] === G.SKID_LIFE,
-      'life=' + G.skidLife[s0] + ',' + G.skidLife[s1]);
+      G.skidLife[s0] === G.SKID_LIFE && G.skidLife[s1] === G.SKID_LIFE && G.skidLife[s2] === G.SKID_LIFE
+      && G.skidLifeMax[s0] === G.SKID_LIFE && G.skidLifeMax[s1] === G.SKID_LIFE && G.skidLifeMax[s2] === G.SKID_LIFE,
+      'life=' + G.skidLife[s0] + ',' + G.skidLife[s1] + ',' + G.skidLife[s2]);
   }
   const head3Bd = G.skidHead;
   G.skidStep5(10, 21.4, 0, 5);
   check('skidbus: a fire truck step under 0.9m writes nothing',
-    G.skidHead === head3Bd && liveBd() === 2, 'head=' + G.skidHead + ' live=' + liveBd());
+    G.skidHead === head3Bd && liveBd() === 3, 'head=' + G.skidHead + ' live=' + liveBd());
   G.skidStep5(10, 22, 0, 5);
-  check('skidbus: a big fire truck step after the sub-segment step writes exactly two more quads',
-    G.skidHead === (head3Bd + 2) % G.SKID_N && liveBd() === 4,
+  /* SKID SURFACE SPLIT v1 retarget: this segment runs from rear z 17.5 to
+     18.5; the left track crosses dirt to grass and the right track crosses
+     grass to dirt, so both tracks surface-split and the step writes
+     exactly four more quads (7 live in total). */
+  check('skidbus: a big fire truck step after the sub-segment step writes exactly four more quads (both tracks surface-split)',
+    G.skidHead === (head3Bd + 4) % G.SKID_N && liveBd() === 7
+    && G.surfaceAt(10.85, 17.5) === 'dirt' && G.surfaceAt(10.85, 18.5) === 'grass'
+    && G.surfaceAt(9.15, 17.5) === 'grass' && G.surfaceAt(9.15, 18.5) === 'dirt',
     'head=' + G.skidHead + ' live=' + liveBd());
   /* reset independence: each reset clears only its own prev, all ways */
   G.clearSkid();
@@ -18751,9 +18803,9 @@ globalThis.__R3D2 = {
     && segWriteRg.includes('const midH = terrainHeight(mx, mz);')
     && segWriteRg.includes('const expected = (pcH + ccH) / 2;')
     && segWriteRg.indexOf('const pcH = terrainHeight(px, pz);') < segWriteRg.indexOf('const slot = skidHead;'));
-  check('skidridge: writer source gates the split on depth 0 and the SKID_RIDGE_T threshold',
+  check('skidridge: writer source gates the split on depth 0 and the unified condition (SKID_RIDGE_T threshold OR surfPrev !== surfCurr, SKID SURFACE SPLIT v1 retarget)',
     segWriteRg.includes('if (depth === 0) {')
-    && segWriteRg.includes('if (Math.abs(midH - expected) > SKID_RIDGE_T) {'));
+    && segWriteRg.includes('if (Math.abs(midH - expected) > SKID_RIDGE_T || surfPrev !== surfCurr) {'));
   check('skidridge: writer source computes midY with the midpoint correction and recurses exactly twice at depth 1, then returns',
     segWriteRg.includes('const midY = (prevY + y) / 2 + (midH - expected);')
     && segWriteRg.includes('skidWriteQuad(px, pz, mx, mz, lx, lz, midY, halfW, prevY, 1);')
@@ -18912,9 +18964,11 @@ globalThis.__R3D2 = {
    test scans G.surfaceAt plus G.terrainHeight for a short
    segment whose two ends are different surfaces with different
    peaks and whose midpoint deviation stays under SKID_RIDGE_T
-   (so the writer cannot split it), then drives G.skidWriteQuad
-   directly and compares every vertex against the table rows
-   recomputed from G.surfaceAt inside the test. */
+   (so the ridge condition alone cannot split it; SKID SURFACE
+   SPLIT v1 now surface-splits it into two half quads), then
+   drives G.skidWriteQuad directly and compares every vertex
+   of both halves against the table rows recomputed from
+   G.surfaceAt inside the test. */
 {
   const probsES = consoleProblems.length;
   const linesES = html.split('\n');
@@ -19011,47 +19065,68 @@ globalThis.__R3D2 = {
     !!segES && segES.sp !== segES.sc && TABES[segES.sp][3] !== TABES[segES.sc][3],
     segES ? 'prev=' + segES.sp + '@' + segES.pc.x + ',' + segES.pc.z + ' curr=' + segES.sc + '@' + segES.cc.x + ',' + segES.cc.z : 'none found');
   if (segES) {
-    const rowP = TABES[segES.sp], rowC = TABES[segES.sc];
+    /* SKID SURFACE SPLIT v1 retarget: the scanned segment has no ridge
+       split, but its ends are different surfaces, so the writer now
+       surface-splits it at the midpoint into two half quads. The first
+       half runs prev end to midpoint, the second midpoint to curr end,
+       and the shared midpoint verts carry the midpoint surface row. */
+    const midES = { x: segES.pc.x, z: (segES.pc.z + segES.cc.z) / 2 };
+    const smES = G.surfaceAt(midES.x, midES.z);
+    const rowP = TABES[segES.sp], rowC = TABES[segES.sc], rowM = TABES[smES];
     G.clearSkid();
     const headES = G.skidHead;
     G.skidWriteQuad(segES.pc.x, segES.pc.z, segES.cc.x, segES.cc.z, 1, 0, 5, 0.14, 2);
-    const slotES = headES, cES = slotES * 16;
-    const vertOkES = (v, row) => approxES(G.skidCol[cES + v * 4], row[0]) && approxES(G.skidCol[cES + v * 4 + 1], row[1])
-      && approxES(G.skidCol[cES + v * 4 + 2], row[2]) && approxES(G.skidCol[cES + v * 4 + 3], row[3]);
-    check('skidendsurf: the boundary segment writes exactly one quad (head advances by 1, 1 live)',
-      liveES() === 1 && G.skidHead === (headES + 1) % G.SKID_N,
+    const slotES = headES, slot1ES = (headES + 1) % G.SKID_N, cES = slotES * 16, c1ES = slot1ES * 16;
+    const vertOkES = (c, v, row) => approxES(G.skidCol[c + v * 4], row[0]) && approxES(G.skidCol[c + v * 4 + 1], row[1])
+      && approxES(G.skidCol[c + v * 4 + 2], row[2]) && approxES(G.skidCol[c + v * 4 + 3], row[3]);
+    check('skidendsurf: the boundary segment writes exactly two half quads (surface split, head advances by 2, 2 live)',
+      liveES() === 2 && G.skidHead === (headES + 2) % G.SKID_N,
       'live=' + liveES() + ' head=' + G.skidHead + ' from=' + headES);
-    check('skidendsurf: prev verts 0 and 1 carry the prev-end surface row (RGB and peak)',
-      vertOkES(0, rowP) && vertOkES(1, rowP),
+    check('skidendsurf: prev verts 0 and 1 of the first half carry the prev-end surface row (RGB and peak)',
+      vertOkES(cES, 0, rowP) && vertOkES(cES, 1, rowP),
       'v0=' + [...G.skidCol.slice(cES, cES + 4)].join(',') + ' exp=' + rowP.join(','));
-    check('skidendsurf: curr verts 2 and 3 carry the curr-end surface row (RGB and peak)',
-      vertOkES(2, rowC) && vertOkES(3, rowC),
-      'v2=' + [...G.skidCol.slice(cES + 8, cES + 12)].join(',') + ' exp=' + rowC.join(','));
-    check('skidendsurf: the written quad really crosses a boundary (prev-end row differs from curr-end row)',
+    check('skidendsurf: curr verts 2 and 3 of the second half carry the curr-end surface row (RGB and peak)',
+      vertOkES(c1ES, 2, rowC) && vertOkES(c1ES, 3, rowC),
+      'v2=' + [...G.skidCol.slice(c1ES + 8, c1ES + 12)].join(',') + ' exp=' + rowC.join(','));
+    check('skidendsurf: the written halves really cross a boundary (prev-end row differs from curr-end row)',
       rowP.join(',') !== rowC.join(',')
-      && (Math.abs(G.skidCol[cES] - G.skidCol[cES + 8]) > 1e-4 || Math.abs(G.skidCol[cES + 3] - G.skidCol[cES + 11]) > 1e-4),
+      && (Math.abs(G.skidCol[cES] - G.skidCol[c1ES + 8]) > 1e-4 || Math.abs(G.skidCol[cES + 3] - G.skidCol[c1ES + 11]) > 1e-4),
       'prev=' + rowP.join(',') + ' curr=' + rowC.join(','));
-    check('skidendsurf: skidPeakV stores the per-vertex peaks in vertex order (prev, prev, curr, curr)',
+    check('skidendsurf: skidPeakV stores the per-vertex peaks across the halves (prev, prev, mid, mid then mid, mid, curr, curr)',
       approxES(G.skidPeakV[slotES * 4], rowP[3]) && approxES(G.skidPeakV[slotES * 4 + 1], rowP[3])
-      && approxES(G.skidPeakV[slotES * 4 + 2], rowC[3]) && approxES(G.skidPeakV[slotES * 4 + 3], rowC[3]),
-      'peakV=' + [...G.skidPeakV.slice(slotES * 4, slotES * 4 + 4)].join(','));
-    check('skidendsurf: skidAlpha[slot] equals the max of the two end peaks',
-      approxES(G.skidAlpha[slotES], Math.max(rowP[3], rowC[3])),
-      'skidAlpha=' + G.skidAlpha[slotES] + ' max=' + Math.max(rowP[3], rowC[3]));
-    check('skidendsurf: the boundary quad carries life and lifeMax SKID_LIFE',
-      G.skidLife[slotES] === G.SKID_LIFE && G.skidLifeMax[slotES] === G.SKID_LIFE,
-      'life=' + G.skidLife[slotES]);
+      && approxES(G.skidPeakV[slotES * 4 + 2], rowM[3]) && approxES(G.skidPeakV[slotES * 4 + 3], rowM[3])
+      && approxES(G.skidPeakV[slot1ES * 4], rowM[3]) && approxES(G.skidPeakV[slot1ES * 4 + 1], rowM[3])
+      && approxES(G.skidPeakV[slot1ES * 4 + 2], rowC[3]) && approxES(G.skidPeakV[slot1ES * 4 + 3], rowC[3]),
+      'peakV0=' + [...G.skidPeakV.slice(slotES * 4, slotES * 4 + 4)].join(',') + ' peakV1=' + [...G.skidPeakV.slice(slot1ES * 4, slot1ES * 4 + 4)].join(','));
+    check('skidendsurf: skidAlpha per slot equals the max of that half end peaks (prev/mid on the first half, mid/curr on the second)',
+      approxES(G.skidAlpha[slotES], Math.max(rowP[3], rowM[3]))
+      && approxES(G.skidAlpha[slot1ES], Math.max(rowM[3], rowC[3])),
+      'skidAlpha=' + G.skidAlpha[slotES] + ',' + G.skidAlpha[slot1ES] + ' max=' + Math.max(rowP[3], rowM[3]) + ',' + Math.max(rowM[3], rowC[3]));
+    check('skidendsurf: the boundary halves carry life and lifeMax SKID_LIFE',
+      G.skidLife[slotES] === G.SKID_LIFE && G.skidLifeMax[slotES] === G.SKID_LIFE
+      && G.skidLife[slot1ES] === G.SKID_LIFE && G.skidLifeMax[slot1ES] === G.SKID_LIFE,
+      'life=' + G.skidLife[slotES] + ',' + G.skidLife[slot1ES]);
+    check('skidendsurf: the shared midpoint verts carry the midpoint surface row on both halves (first half curr verts, second half prev verts)',
+      vertOkES(cES, 2, rowM) && vertOkES(cES, 3, rowM) && vertOkES(c1ES, 0, rowM) && vertOkES(c1ES, 1, rowM)
+      && !!rowM,
+      'mid=' + smES + ' row=' + (rowM && rowM.join(',')));
+    check('skidendsurf: the two halves meet at the segment midpoint in X/Z and Y (first half curr corners equal second half prev corners)',
+      approxES(G.skidPos[slotES * 12 + 6], midES.x + 0.14) && approxES(G.skidPos[slotES * 12 + 8], midES.z)
+      && approxES(G.skidPos[slotES * 12 + 9], midES.x - 0.14) && approxES(G.skidPos[slotES * 12 + 11], midES.z)
+      && approxES(G.skidPos[slotES * 12 + 6], G.skidPos[slot1ES * 12 + 3]) && approxES(G.skidPos[slotES * 12 + 9], G.skidPos[slot1ES * 12])
+      && approxES(G.skidPos[slotES * 12 + 7], G.skidPos[slot1ES * 12 + 4]) && approxES(G.skidPos[slotES * 12 + 10], G.skidPos[slot1ES * 12 + 1]),
+      'mid=' + midES.x + ',' + midES.z);
     G.skidTick(7);
     check('skidendsurf: skidTick(7) fades the prev verts from the prev peak (half of the prev peak at half life)',
       approxES(G.skidCol[cES + 3], rowP[3] * 0.5) && approxES(G.skidCol[cES + 7], rowP[3] * 0.5)
-      && approxES(G.skidLife[slotES], 7),
+      && approxES(G.skidLife[slotES], 7) && approxES(G.skidLife[slot1ES], 7),
       'prevA=' + G.skidCol[cES + 3] + ',' + G.skidCol[cES + 7] + ' exp=' + rowP[3] * 0.5);
     check('skidendsurf: skidTick(7) fades the curr verts from the curr peak (half of the curr peak at half life)',
-      approxES(G.skidCol[cES + 11], rowC[3] * 0.5) && approxES(G.skidCol[cES + 15], rowC[3] * 0.5),
-      'currA=' + G.skidCol[cES + 11] + ',' + G.skidCol[cES + 15] + ' exp=' + rowC[3] * 0.5);
+      approxES(G.skidCol[c1ES + 11], rowC[3] * 0.5) && approxES(G.skidCol[c1ES + 15], rowC[3] * 0.5),
+      'currA=' + G.skidCol[c1ES + 11] + ',' + G.skidCol[c1ES + 15] + ' exp=' + rowC[3] * 0.5);
     check('skidendsurf: the two ends fade independently (post-tick alpha gap equals half the peak gap)',
-      approxES(G.skidCol[cES + 3] - G.skidCol[cES + 11], (rowP[3] - rowC[3]) * 0.5),
-      'gap=' + (G.skidCol[cES + 3] - G.skidCol[cES + 11]) + ' exp=' + (rowP[3] - rowC[3]) * 0.5);
+      approxES(G.skidCol[cES + 3] - G.skidCol[c1ES + 11], (rowP[3] - rowC[3]) * 0.5),
+      'gap=' + (G.skidCol[cES + 3] - G.skidCol[c1ES + 11]) + ' exp=' + (rowP[3] - rowC[3]) * 0.5);
     const headXES = G.skidHead;
     G.skidWriteQuad(segES.pc.x, segES.pc.z, segES.cc.x, segES.cc.z, 1, 0, 5, 0.14, 2);
     G.skidTick(G.SKID_LIFE + 0.1);
@@ -19060,13 +19135,15 @@ globalThis.__R3D2 = {
       && G.skidPos[headXES * 12 + 1] === -999 && G.skidCol[headXES * 16 + 3] === 0,
       'live=' + liveES() + ' life=' + G.skidLife[headXES]);
   } else {
-    check('skidendsurf: the boundary segment writes exactly one quad (head advances by 1, 1 live)', false, 'no segment');
-    check('skidendsurf: prev verts 0 and 1 carry the prev-end surface row (RGB and peak)', false, 'no segment');
-    check('skidendsurf: curr verts 2 and 3 carry the curr-end surface row (RGB and peak)', false, 'no segment');
-    check('skidendsurf: the written quad really crosses a boundary (prev-end row differs from curr-end row)', false, 'no segment');
-    check('skidendsurf: skidPeakV stores the per-vertex peaks in vertex order (prev, prev, curr, curr)', false, 'no segment');
-    check('skidendsurf: skidAlpha[slot] equals the max of the two end peaks', false, 'no segment');
-    check('skidendsurf: the boundary quad carries life and lifeMax SKID_LIFE', false, 'no segment');
+    check('skidendsurf: the boundary segment writes exactly two half quads (surface split, head advances by 2, 2 live)', false, 'no segment');
+    check('skidendsurf: prev verts 0 and 1 of the first half carry the prev-end surface row (RGB and peak)', false, 'no segment');
+    check('skidendsurf: curr verts 2 and 3 of the second half carry the curr-end surface row (RGB and peak)', false, 'no segment');
+    check('skidendsurf: the written halves really cross a boundary (prev-end row differs from curr-end row)', false, 'no segment');
+    check('skidendsurf: skidPeakV stores the per-vertex peaks across the halves (prev, prev, mid, mid then mid, mid, curr, curr)', false, 'no segment');
+    check('skidendsurf: skidAlpha per slot equals the max of that half end peaks (prev/mid on the first half, mid/curr on the second)', false, 'no segment');
+    check('skidendsurf: the boundary halves carry life and lifeMax SKID_LIFE', false, 'no segment');
+    check('skidendsurf: the shared midpoint verts carry the midpoint surface row on both halves (first half curr verts, second half prev verts)', false, 'no segment');
+    check('skidendsurf: the two halves meet at the segment midpoint in X/Z and Y (first half curr corners equal second half prev corners)', false, 'no segment');
     check('skidendsurf: skidTick(7) fades the prev verts from the prev peak (half of the prev peak at half life)', false, 'no segment');
     check('skidendsurf: skidTick(7) fades the curr verts from the curr peak (half of the curr peak at half life)', false, 'no segment');
     check('skidendsurf: the two ends fade independently (post-tick alpha gap equals half the peak gap)', false, 'no segment');
@@ -19119,6 +19196,253 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('skidendsurf: the run leaves zero console errors/warnings',
     consoleProblems.length === probsES, consoleProblems.slice(probsES).join(' | '));
+  G.clearSkid();
+}
+
+/* ================= SKID SURFACE SPLIT v1 =================
+   skidWriteQuad now hoists its two surfaceAt classification
+   lines above the depth 0 split block, so surfPrev and
+   surfCurr are known before any split decision, and the split
+   condition is unified: at depth 0 the writer splits at the
+   segment midpoint when the ridge condition holds OR
+   surfPrev !== surfCurr, using the existing midY formula in
+   both cases. A segment meeting both conditions still writes
+   exactly two half quads, never four, depth 1 never re-splits,
+   and the depth 1 halves classify their own ends, so a
+   boundary-crossing segment now blends only inside a half
+   segment (~0.45 m). Same-surface and ridge-only segments are
+   behaviour-identical to before. Behaviour points are
+   self-validating like skidendsurf: the test scans
+   G.surfaceAt plus G.terrainHeight for a short segment whose
+   ends are different surfaces with different peaks and whose
+   midpoint deviation stays under SKID_RIDGE_T (a pure surface
+   split), and for a long segment meeting both the ridge and
+   the surface conditions at once. */
+{
+  const probsSp = consoleProblems.length;
+  const linesSp = html.split('\n');
+  const lineHasSp = sub => linesSp.filter(l => l.includes(sub)).length;
+  const htmlNSp = html.replace(/\s+/g, ' ');
+  const approxSp = (a, b) => Math.abs(a - b) < 1e-4;
+  const liveSp = () => { let n = 0; for (let i = 0; i < G.SKID_N; i++) if (G.skidLife[i] > 0) n++; return n; };
+  const segWriteSp = html.indexOf('function skidWriteQuad') >= 0 ? html.slice(html.indexOf('function skidWriteQuad'), html.indexOf('function skidStep4')) : '';
+  const segHeadSp = html.indexOf('SKID SURFACE SPLIT v1') >= 0 ? html.slice(html.indexOf('SKID SURFACE SPLIT v1'), html.indexOf('SKID SURFACE SPLIT v1') + 2200).replace(/\s+/g, ' ') : '';
+  const TABSp = {
+    rock: [0.07, 0.07, 0.07, 0.55],
+    gravel: [0.13, 0.12, 0.10, 0.50],
+    dirt: [0.16, 0.11, 0.06, 0.48],
+    grass: [0.10, 0.13, 0.05, 0.38],
+    water: [0.20, 0.22, 0.20, 0.12],
+  };
+  /* source: header paragraph */
+  check('skidsplit: source carries the SKID SURFACE SPLIT v1 header paragraph',
+    html.includes('SKID SURFACE SPLIT v1'));
+  check('skidsplit: header states skidWriteQuad hoists its two surfaceAt classification lines above the depth 0 split block, so surfPrev and surfCurr are known before any split decision',
+    segHeadSp.includes('skidWriteQuad now hoists its two surfaceAt classification lines above the depth 0 split block')
+    && segHeadSp.includes('surfPrev and surfCurr are known before any split decision'));
+  check('skidsplit: header states the later colour loop reuses those same variables with no duplicate classification',
+    segHeadSp.includes('the later colour loop reuses those same variables with no duplicate classification'));
+  check('skidsplit: header states the depth 0 split condition is unified (splits at the segment midpoint when the ridge condition holds OR surfPrev !== surfCurr)',
+    segHeadSp.includes('The depth 0 split condition is unified: the writer splits at the segment midpoint when the ridge condition holds OR surfPrev !== surfCurr'));
+  check('skidsplit: header states the existing midY formula is used for the split in both cases and a segment meeting both conditions still writes exactly two half quads, never four',
+    segHeadSp.includes('using the existing midY formula for the split in both cases')
+    && segHeadSp.includes('a segment meeting both conditions still writes exactly two half quads, never four'));
+  check('skidsplit: header states depth 1 writes never split again and depth 1 halves classify their own ends via their own hoisted calls',
+    segHeadSp.includes('Depth 1 writes never split again')
+    && segHeadSp.includes('depth 1 halves classify their own ends via their own hoisted calls'));
+  check('skidsplit: header states a boundary-crossing segment now blends only inside a half segment (~0.45 m) instead of across the whole quad, and same-surface and ridge-only segments write exactly as before',
+    segHeadSp.includes('a boundary-crossing segment now blends only inside a half segment (~0.45 m) instead of across the whole quad')
+    && segHeadSp.includes('Same-surface segments and ridge-only segments write exactly as before'));
+  check('skidsplit: header states zero new draw calls and zero new Mesh',
+    segHeadSp.includes('Zero new draw calls, zero new Mesh'));
+  check('skidsplit: header states the new remaining honest limit (a surface change inside a half segment (~0.45 m) still blends linearly across that half instead of snapping at the exact boundary point)',
+    segHeadSp.includes('a surface change inside a half segment (~0.45 m) still blends linearly across that half instead of snapping at the exact boundary point'));
+  /* source: writer wiring, counts unchanged */
+  check('skidsplit: writer source carries the surfaceAt classification lines exactly twice (prev end and curr end)',
+    segWriteSp.split('surfaceAt(').length - 1 === 2
+    && segWriteSp.includes('const surfPrev = surfaceAt(px, pz);')
+    && segWriteSp.includes('const surfCurr = surfaceAt(cx, cz);'),
+    'n=' + (segWriteSp.split('surfaceAt(').length - 1));
+  check('skidsplit: writer source calls terrainHeight exactly seven times (two centres, one midpoint, four corners)',
+    segWriteSp.split('terrainHeight(').length - 1 === 7,
+    'n=' + (segWriteSp.split('terrainHeight(').length - 1));
+  check('skidsplit: classification lines appear before the depth 0 split block (after pcH/ccH, before the split gate and before any slot write)',
+    segWriteSp.indexOf('const pcH = terrainHeight(px, pz);') < segWriteSp.indexOf('const surfPrev = surfaceAt(px, pz);')
+    && segWriteSp.indexOf('const surfPrev = surfaceAt(px, pz);') < segWriteSp.indexOf('const surfCurr = surfaceAt(cx, cz);')
+    && segWriteSp.indexOf('const surfCurr = surfaceAt(cx, cz);') < segWriteSp.indexOf('if (depth === 0) {')
+    && segWriteSp.indexOf('const surfCurr = surfaceAt(cx, cz);') < segWriteSp.indexOf('const slot = skidHead;'));
+  check('skidsplit: writer source split condition carries the unified ridge OR surface-change test',
+    segWriteSp.includes('if (Math.abs(midH - expected) > SKID_RIDGE_T || surfPrev !== surfCurr) {'));
+  check('skidsplit: each classification line appears exactly once in the writer (no duplicate later classification left behind)',
+    segWriteSp.split('const surfPrev = surfaceAt(px, pz);').length - 1 === 1
+    && segWriteSp.split('const surfCurr = surfaceAt(cx, cz);').length - 1 === 1);
+  check('skidsplit: writer source keeps the midY formula and recurses exactly twice at depth 1, then returns',
+    segWriteSp.includes('const midY = (prevY + y) / 2 + (midH - expected);')
+    && segWriteSp.includes('skidWriteQuad(px, pz, mx, mz, lx, lz, midY, halfW, prevY, 1);')
+    && segWriteSp.includes('skidWriteQuad(mx, mz, cx, cz, lx, lz, y, halfW, midY, 1);')
+    && segWriteSp.split('skidWriteQuad(').length - 1 === 3,
+    'writes=' + (segWriteSp.split('skidWriteQuad(').length - 1));
+  check('skidsplit: runtime exposes skidWriteQuad, surfaceAt and terrainHeight as functions and SKID_RIDGE_T is 0.12',
+    typeof G.skidWriteQuad === 'function' && typeof G.surfaceAt === 'function'
+    && typeof G.terrainHeight === 'function' && G.SKID_RIDGE_T === 0.12);
+  /* behaviour (a): same-surface flat segment writes exactly one quad */
+  check('skidsplit: same-surface flat precondition holds (terrainHeight 0 at both ends and the midpoint, grass at both ends and the midpoint, zero ridge deviation)',
+    G.terrainHeight(0, -0.5) === 0 && G.terrainHeight(0, 0.5) === 0 && G.terrainHeight(0, 0) === 0
+    && G.surfaceAt(0, -0.5) === 'grass' && G.surfaceAt(0, 0.5) === 'grass' && G.surfaceAt(0, 0) === 'grass');
+  G.clearSkid();
+  const headFSp = G.skidHead;
+  G.skidWriteQuad(0, -0.5, 0, 0.5, 1, 0, 4, 0.14, 2);
+  const cFSp = headFSp * 16, pFSp = headFSp * 12;
+  check('skidsplit: a same-surface flat segment writes exactly 1 quad (head advances by 1, 1 live)',
+    liveSp() === 1 && G.skidHead === (headFSp + 1) % G.SKID_N,
+    'live=' + liveSp() + ' head=' + G.skidHead + ' from=' + headFSp);
+  check('skidsplit: the same-surface quad is uniform grass on all four verts (RGB and peak) with every skidPeakV slot and skidAlpha at 0.38',
+    [0, 1, 2, 3].every(v => approxSp(G.skidCol[cFSp + v * 4], 0.10) && approxSp(G.skidCol[cFSp + v * 4 + 1], 0.13)
+      && approxSp(G.skidCol[cFSp + v * 4 + 2], 0.05) && approxSp(G.skidCol[cFSp + v * 4 + 3], 0.38))
+    && [...G.skidPeakV.slice(headFSp * 4, headFSp * 4 + 4)].every(v => approxSp(v, 0.38))
+    && approxSp(G.skidAlpha[headFSp], 0.38),
+    'col=' + [...G.skidCol.slice(cFSp, cFSp + 4)].join(','));
+  check('skidsplit: the same-surface quad keeps the legacy corner heights exactly (prev pair at prevY+0.03, curr pair at y+0.03)',
+    approxSp(G.skidPos[pFSp + 1], 2.03) && approxSp(G.skidPos[pFSp + 4], 2.03)
+    && approxSp(G.skidPos[pFSp + 7], 4.03) && approxSp(G.skidPos[pFSp + 10], 4.03),
+    'y=' + [G.skidPos[pFSp + 1], G.skidPos[pFSp + 4], G.skidPos[pFSp + 7], G.skidPos[pFSp + 10]].join(','));
+  /* behaviour (b) and (c): a pure surface-boundary segment splits in two */
+  let segSp = null;
+  for (let x = -80; x <= 80 && !segSp; x += 1) {
+    for (let z = -80; z <= 80; z += 1) {
+      const pc = { x, z: z - 0.5 }, cc = { x, z: z + 0.5 };
+      const sp = G.surfaceAt(pc.x, pc.z), sc = G.surfaceAt(cc.x, cc.z);
+      if (sp === sc || !TABSp[sp] || !TABSp[sc] || TABSp[sp][3] === TABSp[sc][3]) continue;
+      const dev = Math.abs(G.terrainHeight(x, z) - (G.terrainHeight(pc.x, pc.z) + G.terrainHeight(cc.x, cc.z)) / 2);
+      if (dev > G.SKID_RIDGE_T) continue;
+      segSp = { pc, cc, sp, sc };
+      break;
+    }
+  }
+  check('skidsplit: self-validating scan finds a boundary segment (ends are different surfaces with different peaks, midpoint deviation at or under SKID_RIDGE_T so only the surface condition can split it)',
+    !!segSp && segSp.sp !== segSp.sc && TABSp[segSp.sp][3] !== TABSp[segSp.sc][3],
+    segSp ? 'prev=' + segSp.sp + '@' + segSp.pc.x + ',' + segSp.pc.z + ' curr=' + segSp.sc + '@' + segSp.cc.x + ',' + segSp.cc.z : 'none found');
+  if (segSp) {
+    const midSp = { x: segSp.pc.x, z: (segSp.pc.z + segSp.cc.z) / 2 };
+    const smSp = G.surfaceAt(midSp.x, midSp.z);
+    const rowPSp = TABSp[segSp.sp], rowCSp = TABSp[segSp.sc], rowMSp = TABSp[smSp];
+    G.clearSkid();
+    const headBSp = G.skidHead;
+    G.skidWriteQuad(segSp.pc.x, segSp.pc.z, segSp.cc.x, segSp.cc.z, 1, 0, 5, 0.14, 2);
+    const s0Sp = headBSp, s1Sp = (headBSp + 1) % G.SKID_N;
+    const p0Sp = s0Sp * 12, p1Sp = s1Sp * 12, c0Sp = s0Sp * 16, c1Sp = s1Sp * 16;
+    const vertOkSp = (c, v, row) => !!row && approxSp(G.skidCol[c + v * 4], row[0]) && approxSp(G.skidCol[c + v * 4 + 1], row[1])
+      && approxSp(G.skidCol[c + v * 4 + 2], row[2]) && approxSp(G.skidCol[c + v * 4 + 3], row[3]);
+    check('skidsplit: the boundary segment writes exactly 2 quads (head advances by 2, 2 live)',
+      liveSp() === 2 && G.skidHead === (headBSp + 2) % G.SKID_N,
+      'live=' + liveSp() + ' head=' + G.skidHead + ' from=' + headBSp);
+    check('skidsplit: the inner verts meet at the segment midpoint in X/Z (first half curr corners and second half prev corners sit at the midpoint plus/minus halfW)',
+      approxSp(G.skidPos[p0Sp + 6], midSp.x + 0.14) && approxSp(G.skidPos[p0Sp + 8], midSp.z)
+      && approxSp(G.skidPos[p0Sp + 9], midSp.x - 0.14) && approxSp(G.skidPos[p0Sp + 11], midSp.z)
+      && approxSp(G.skidPos[p1Sp], midSp.x - 0.14) && approxSp(G.skidPos[p1Sp + 2], midSp.z)
+      && approxSp(G.skidPos[p1Sp + 3], midSp.x + 0.14) && approxSp(G.skidPos[p1Sp + 5], midSp.z),
+      'mid=' + midSp.x + ',' + midSp.z);
+    check('skidsplit: the inner verts meet at the segment midpoint in Y (first half curr corner heights equal the matching second half prev corner heights)',
+      approxSp(G.skidPos[p0Sp + 7], G.skidPos[p1Sp + 4]) && approxSp(G.skidPos[p0Sp + 10], G.skidPos[p1Sp + 1]),
+      'first=' + G.skidPos[p0Sp + 7] + ',' + G.skidPos[p0Sp + 10] + ' second=' + G.skidPos[p1Sp + 1] + ',' + G.skidPos[p1Sp + 4]);
+    check('skidsplit: the first half carries the prev-end surface row on its prev verts',
+      vertOkSp(c0Sp, 0, rowPSp) && vertOkSp(c0Sp, 1, rowPSp),
+      'v0=' + [...G.skidCol.slice(c0Sp, c0Sp + 4)].join(',') + ' exp=' + rowPSp.join(','));
+    check('skidsplit: the shared midpoint verts carry the midpoint surface row (first half curr verts and second half prev verts)',
+      vertOkSp(c0Sp, 2, rowMSp) && vertOkSp(c0Sp, 3, rowMSp) && vertOkSp(c1Sp, 0, rowMSp) && vertOkSp(c1Sp, 1, rowMSp),
+      'mid=' + smSp + ' row=' + (rowMSp && rowMSp.join(',')));
+    check('skidsplit: the second half carries the curr-end surface row on its curr verts',
+      vertOkSp(c1Sp, 2, rowCSp) && vertOkSp(c1Sp, 3, rowCSp),
+      'v2=' + [...G.skidCol.slice(c1Sp + 8, c1Sp + 12)].join(',') + ' exp=' + rowCSp.join(','));
+    check('skidsplit: skidPeakV and skidAlpha follow the halves (peaks prev, prev, mid, mid then mid, mid, curr, curr; skidAlpha is the per-slot max)',
+      approxSp(G.skidPeakV[s0Sp * 4], rowPSp[3]) && approxSp(G.skidPeakV[s0Sp * 4 + 1], rowPSp[3])
+      && approxSp(G.skidPeakV[s0Sp * 4 + 2], rowMSp[3]) && approxSp(G.skidPeakV[s0Sp * 4 + 3], rowMSp[3])
+      && approxSp(G.skidPeakV[s1Sp * 4], rowMSp[3]) && approxSp(G.skidPeakV[s1Sp * 4 + 1], rowMSp[3])
+      && approxSp(G.skidPeakV[s1Sp * 4 + 2], rowCSp[3]) && approxSp(G.skidPeakV[s1Sp * 4 + 3], rowCSp[3])
+      && approxSp(G.skidAlpha[s0Sp], Math.max(rowPSp[3], rowMSp[3])) && approxSp(G.skidAlpha[s1Sp], Math.max(rowMSp[3], rowCSp[3])),
+      'peakV0=' + [...G.skidPeakV.slice(s0Sp * 4, s0Sp * 4 + 4)].join(',') + ' peakV1=' + [...G.skidPeakV.slice(s1Sp * 4, s1Sp * 4 + 4)].join(','));
+    check('skidsplit: both boundary halves carry life and lifeMax SKID_LIFE',
+      G.skidLife[s0Sp] === G.SKID_LIFE && G.skidLifeMax[s0Sp] === G.SKID_LIFE
+      && G.skidLife[s1Sp] === G.SKID_LIFE && G.skidLifeMax[s1Sp] === G.SKID_LIFE,
+      'life=' + G.skidLife[s0Sp] + ',' + G.skidLife[s1Sp]);
+    /* behaviour (d): a direct depth 1 call with differing ends never re-splits */
+    G.clearSkid();
+    const headDSp = G.skidHead;
+    G.skidWriteQuad(segSp.pc.x, segSp.pc.z, segSp.cc.x, segSp.cc.z, 1, 0, 5, 0.14, 2, 1);
+    const cDSp = headDSp * 16;
+    check('skidsplit: a direct depth 1 call with differing ends writes exactly 1 quad (no re-split)',
+      liveSp() === 1 && G.skidHead === (headDSp + 1) % G.SKID_N,
+      'live=' + liveSp() + ' head=' + G.skidHead + ' from=' + headDSp);
+    check('skidsplit: the depth 1 quad carries the prev-end row on its prev verts and the curr-end row on its curr verts',
+      vertOkSp(cDSp, 0, rowPSp) && vertOkSp(cDSp, 1, rowPSp) && vertOkSp(cDSp, 2, rowCSp) && vertOkSp(cDSp, 3, rowCSp),
+      'v0=' + [...G.skidCol.slice(cDSp, cDSp + 4)].join(',') + ' v2=' + [...G.skidCol.slice(cDSp + 8, cDSp + 12)].join(','));
+  } else {
+    check('skidsplit: the boundary segment writes exactly 2 quads (head advances by 2, 2 live)', false, 'no segment');
+    check('skidsplit: the inner verts meet at the segment midpoint in X/Z (first half curr corners and second half prev corners sit at the midpoint plus/minus halfW)', false, 'no segment');
+    check('skidsplit: the inner verts meet at the segment midpoint in Y (first half curr corner heights equal the matching second half prev corner heights)', false, 'no segment');
+    check('skidsplit: the first half carries the prev-end surface row on its prev verts', false, 'no segment');
+    check('skidsplit: the shared midpoint verts carry the midpoint surface row (first half curr verts and second half prev verts)', false, 'no segment');
+    check('skidsplit: the second half carries the curr-end surface row on its curr verts', false, 'no segment');
+    check('skidsplit: skidPeakV and skidAlpha follow the halves (peaks prev, prev, mid, mid then mid, mid, curr, curr; skidAlpha is the per-slot max)', false, 'no segment');
+    check('skidsplit: both boundary halves carry life and lifeMax SKID_LIFE', false, 'no segment');
+    check('skidsplit: a direct depth 1 call with differing ends writes exactly 1 quad (no re-split)', false, 'no segment');
+    check('skidsplit: the depth 1 quad carries the prev-end row on its prev verts and the curr-end row on its curr verts', false, 'no segment');
+  }
+  /* behaviour (e): a segment meeting BOTH conditions writes 2 quads, not 4 */
+  let bothSp = null, bothDevSp = 0;
+  for (let x = -80; x <= 80 && !bothSp; x += 1) {
+    for (let z = -80; z <= 80; z += 1) {
+      const pc = { x, z: z - 5 }, cc = { x, z: z + 5 };
+      const sp = G.surfaceAt(pc.x, pc.z), sc = G.surfaceAt(cc.x, cc.z);
+      if (sp === sc) continue;
+      const dev = G.terrainHeight(x, z) - (G.terrainHeight(pc.x, pc.z) + G.terrainHeight(cc.x, cc.z)) / 2;
+      if (Math.abs(dev) > 0.20) { bothSp = { pc, cc, sp, sc }; bothDevSp = dev; break; }
+    }
+  }
+  check('skidsplit: self-validating scan finds a segment meeting both conditions (ends are different surfaces and the midpoint ridge deviation exceeds 0.20, a margin over SKID_RIDGE_T)',
+    !!bothSp && bothSp.sp !== bothSp.sc && Math.abs(bothDevSp) > G.SKID_RIDGE_T,
+    bothSp ? 'prev=' + bothSp.sp + '@' + bothSp.pc.x + ',' + bothSp.pc.z + ' curr=' + bothSp.sc + '@' + bothSp.cc.x + ',' + bothSp.cc.z + ' dev=' + bothDevSp : 'none found');
+  if (bothSp) {
+    G.clearSkid();
+    const headESp = G.skidHead;
+    G.skidWriteQuad(bothSp.pc.x, bothSp.pc.z, bothSp.cc.x, bothSp.cc.z, 1, 0, 5, 0.14, 2);
+    check('skidsplit: a segment meeting both the ridge and the surface conditions writes exactly 2 quads, not 4 (one unified split)',
+      liveSp() === 2 && G.skidHead === (headESp + 2) % G.SKID_N,
+      'live=' + liveSp() + ' head=' + G.skidHead + ' from=' + headESp);
+  } else {
+    check('skidsplit: a segment meeting both the ridge and the surface conditions writes exactly 2 quads, not 4 (one unified split)', false, 'no segment');
+  }
+  /* behaviour (f): clearSkid still clears split writes completely */
+  G.clearSkid();
+  if (segSp) G.skidWriteQuad(segSp.pc.x, segSp.pc.z, segSp.cc.x, segSp.cc.z, 1, 0, 5, 0.14, 2);
+  const liveBeforeClearSp = liveSp();
+  G.clearSkid();
+  check('skidsplit: clearSkid clears all live split quads and resets skidPeakV and skidAlpha to 0.55 everywhere, parked at -999',
+    !!segSp && liveBeforeClearSp === 2 && liveSp() === 0
+    && Array.from(G.skidPeakV).every(v => approxSp(v, 0.55))
+    && Array.from(G.skidAlpha).every(v => approxSp(v, 0.55))
+    && G.skidPos[1] === -999,
+    'before=' + liveBeforeClearSp + ' live=' + liveSp());
+  /* static pins re-checked: surface split adds zero of everything pinned */
+  check('skidsplit-pins: 50 InstancedMesh literals', lineHasSp('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasSp('new THREE.InstancedMesh'));
+  check('skidsplit-pins: 92 Math.random lines', lineHasSp('Math.random') === 92,
+    'n=' + lineHasSp('Math.random'));
+  check('skidsplit-pins: 72 setTimeout lines', lineHasSp('setTimeout') === 72,
+    'n=' + lineHasSp('setTimeout'));
+  check('skidsplit-pins: 6 lights, 18 osc and 32 gain (unchanged)',
+    linesSp.filter(l => /new THREE\.(Point|Directional|Spot|Ambient|Hemisphere)Light/.test(l)).length === 6
+    && (html.match(/\.createOscillator\(/g) || []).length === 18
+    && (html.match(/\.createGain\(/g) || []).length === 32);
+  check('skidsplit-pins: exactly 2 Points objects and exactly one skid Mesh construction',
+    lineHasSp('new THREE.Points(') === 2 && lineHasSp('new THREE.Mesh(skidGeo') === 1,
+    'points=' + lineHasSp('new THREE.Points(') + ' skidMesh=' + lineHasSp('new THREE.Mesh(skidGeo'));
+  check('skidsplit-pins: no em dashes, no TODO markers, allowed CDN URLs (Phase 1 set)',
+    !html.includes('\u2014') && !/\bTODO\b/.test(html)
+    && (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('skidsplit: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSp, consoleProblems.slice(probsSp).join(' | '));
   G.clearSkid();
 }
 
