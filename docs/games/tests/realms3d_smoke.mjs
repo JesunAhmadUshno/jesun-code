@@ -25082,6 +25082,55 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsPH, consoleProblems.slice(probsPH).join(' | '));
 }
 
+/* ================= MISSION TITLE HEADING v1 =================
+   The mission name is a real heading for assistive
+   tech: role heading plus aria-level 2 in markup on
+   #mtitle. #mtracker is display none unless a mission
+   is ACTIVE, so the heading only enters the
+   accessibility tree while a mission runs. The dynamic
+   writer is unchanged. This item is markup only: no
+   JS changes, no other element is in scope. */
+{
+  const probsMH = consoleProblems.length;
+  const linesMH = html.split('\n');
+  const lineHasMH = sub => linesMH.filter(l => l.includes(sub)).length;
+  check('mtitlehead: MISSION TITLE HEADING v1 header is present exactly once in the game source',
+    (html.split('MISSION TITLE HEADING v1').length - 1) === 1,
+    'n=' + (html.split('MISSION TITLE HEADING v1').length - 1));
+  check('mtitlehead: #mtitle full tag matches exactly (source pin)',
+    html.includes('<div id="mtitle" role="heading" aria-level="2"></div>'));
+  check('mtitlehead: exactly one #mtitle full tag in the game source',
+    (html.match(/<div id="mtitle" role="heading" aria-level="2"><\/div>/g) || []).length === 1,
+    'n=' + (html.match(/<div id="mtitle" role="heading" aria-level="2"><\/div>/g) || []).length);
+  check('mtitlehead: exactly one #mtitle element in the game source',
+    (html.match(/id="mtitle"/g) || []).length === 1,
+    'n=' + (html.match(/id="mtitle"/g) || []).length);
+  check('mtitlehead: exactly 12 role heading elements in the game source',
+    (html.match(/role="heading"/g) || []).length === 12,
+    'n=' + (html.match(/role="heading"/g) || []).length);
+  check('mtitlehead: mission title writer still writes the mission name (dynamic writer unchanged)',
+    html.includes('mtitleEl.textContent = MISSIONS[MS.idx].name'));
+  check('mtitlehead: mtracker is hidden when a mission is not ACTIVE (display pin)',
+    html.includes("if (MS.state !== 'ACTIVE') { mtrackerEl.style.display = 'none'; return; }"));
+  check('mtitlehead: mtracker is shown when a mission is ACTIVE (display pin)',
+    html.includes("mtrackerEl.style.display = 'block';"));
+  check('mtitlehead: pins - 50 InstancedMesh literals unchanged', lineHasMH('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasMH('new THREE.InstancedMesh'));
+  check('mtitlehead: pins - 92 Math.random lines unchanged', lineHasMH('Math.random') === 92,
+    'n=' + lineHasMH('Math.random'));
+  check('mtitlehead: pins - 72 setTimeout lines unchanged', lineHasMH('setTimeout') === 72,
+    'n=' + lineHasMH('setTimeout'));
+  check('mtitlehead: pins - 2 THREE.Points objects unchanged', lineHasMH('new THREE.Points(') === 2,
+    'n=' + lineHasMH('new THREE.Points('));
+  check('mtitlehead: pins - no em dashes', !html.includes('\u2014'));
+  check('mtitlehead: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('mtitlehead: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('mtitlehead: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsMH, consoleProblems.slice(probsMH).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
