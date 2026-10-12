@@ -1461,9 +1461,10 @@
   <div id="slotpanel">
     <div id="slottitle">SLOT MACHINE</div>
     <div id="slotreels">
-      <canvas id="reel0" width="96" height="120"></canvas>
-      <canvas id="reel1" width="96" height="120"></canvas>
-      <canvas id="reel2" width="96" height="120"></canvas>
+      <!-- REEL CANVAS NAMES v1: the reel graphics are real images for assistive tech: role img plus distinct aria-labels Slot machine reel 1, Slot machine reel 2, and Slot machine reel 3 in markup. drawReel paints the symbols as canvas pixels, so the static names describe each reel as a unit; the spin result stays in the existing #slotwin text. -->
+      <canvas id="reel0" width="96" height="120" role="img" aria-label="Slot machine reel 1"></canvas>
+      <canvas id="reel1" width="96" height="120" role="img" aria-label="Slot machine reel 2"></canvas>
+      <canvas id="reel2" width="96" height="120" role="img" aria-label="Slot machine reel 3"></canvas>
     </div>
     <div id="slotwin">BET $5</div>
     <div class="tbtn" id="slotspin">SPIN</div>
