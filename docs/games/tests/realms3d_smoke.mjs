@@ -22042,8 +22042,8 @@ globalThis.__R3D2 = {
   const linesAM = html.split('\n');
   const lineHasAM = sub => linesAM.filter(l => l.includes(sub)).length;
   check('armormeter: ARMOR METER v1 header is present exactly once in the game source',
-    (html.split('ARMOR METER v1').length - 1) === 1,
-    'n=' + (html.split('ARMOR METER v1').length - 1));
+    (html.split('<!-- ARMOR METER v1').length - 1) === 1,
+    'n=' + (html.split('<!-- ARMOR METER v1').length - 1));
   const armorTagAM = (html.match(/<span id="armorchip"[^>]*>/) || [''])[0];
   check('armormeter: #armorchip element markup carries role="meter"',
     armorTagAM.includes('role="meter"'), 'tag=' + armorTagAM);
@@ -23410,7 +23410,7 @@ globalThis.__R3D2 = {
    (role meter, aria-label Fire truck water) and a
    #carhull span (role meter, aria-label Vehicle hull),
    each with aria-valuemin 0 and aria-valuemax 100 in
-   markup, plus a plain #carextra span for the armor
+   markup, plus a #carextra span for the armor
    suffix. Both writers (updateCarCondHUD for the car,
    updateFTCondHUD for the fire truck) share the hull
    span and sync valuenow via the ariaValueNow property
@@ -23432,8 +23432,8 @@ globalThis.__R3D2 = {
   check('carcond: CARCOND SPLIT v1 header is present exactly once in the game source',
     (html.split('CARCOND SPLIT v1').length - 1) === 1,
     'n=' + (html.split('CARCOND SPLIT v1').length - 1));
-  check('carcond: #carcond markup nests #carwater meter, #carhull meter and #carextra plain span (source pin)',
-    html.includes('<div id="carcond"><span id="carwater" role="meter" aria-label="Fire truck water" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="display:none">WATER 100%</span><span id="carhull" role="meter" aria-label="Vehicle hull" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">HULL 100%</span><span id="carextra"></span></div>'));
+  check('carcond: #carcond markup nests #carwater meter, #carhull meter and #carextra armor meter (source pin)',
+    html.includes('<div id="carcond"><span id="carwater" role="meter" aria-label="Fire truck water" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="display:none">WATER 100%</span><span id="carhull" role="meter" aria-label="Vehicle hull" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">HULL 100%</span><span id="carextra" role="meter" aria-label="Vehicle armor" aria-valuemin="0" aria-valuemax="50" aria-valuenow="0"></span></div>'));
   const carWaterTagCC = (html.match(/<span id="carwater"[^>]*>/) || [''])[0];
   check('carcond: #carwater element markup carries role="meter"',
     carWaterTagCC.includes('role="meter"'), 'tag=' + carWaterTagCC);
@@ -23688,6 +23688,102 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('buspax: the run leaves zero console errors/warnings',
     consoleProblems.length === probsBP, consoleProblems.slice(probsBP).join(' | '));
+}
+
+/* ================= CARCOND ARMOR METER v1 =================
+   The vehicle armor suffix is a real meter: the
+   #carextra span inside #carcond carries role meter,
+   aria-label Vehicle armor, aria-valuemin 0 and
+   aria-valuemax 50 in markup. The car writer
+   (updateCarCondHUD) syncs valuenow via the
+   ariaValueNow property from CAR.armor (stub-safe
+   idiom, no setAttribute), and the fire truck writer
+   (updateFTCondHUD) clears it to 0, so no stale armor
+   value carries into truck mode. The value is bounded
+   0..50 in code: CAR.armor is only assigned 0 (init
+   and newGame), 50 (garage repair), or reduced by the
+   Math.min(CAR.armor, dmg) soak. The concatenated
+   visible text stays byte-identical in both modes.
+   The runtime checks drive the real writer functions
+   with values that differ from the dedupe caches
+   (_carCondLast and _ftCondLast), so every drive
+   really writes, then restore full values and leave
+   the car readout clean. */
+{
+  const probsCA = consoleProblems.length;
+  const linesCA = html.split('\n');
+  const lineHasCA = sub => linesCA.filter(l => l.includes(sub)).length;
+  check('cararmor: CARCOND ARMOR METER v1 header is present exactly once in the game source',
+    (html.split('CARCOND ARMOR METER v1').length - 1) === 1,
+    'n=' + (html.split('CARCOND ARMOR METER v1').length - 1));
+  const carExtraTagCA = (html.match(/<span id="carextra"[^>]*>/) || [''])[0];
+  check('cararmor: #carextra element markup carries role="meter"',
+    carExtraTagCA.includes('role="meter"'), 'tag=' + carExtraTagCA);
+  check('cararmor: #carextra element markup carries aria-label="Vehicle armor"',
+    carExtraTagCA.includes('aria-label="Vehicle armor"'), 'tag=' + carExtraTagCA);
+  check('cararmor: #carextra element markup carries aria-valuemin="0"',
+    carExtraTagCA.includes('aria-valuemin="0"'), 'tag=' + carExtraTagCA);
+  check('cararmor: #carextra element markup carries aria-valuemax="50"',
+    carExtraTagCA.includes('aria-valuemax="50"'), 'tag=' + carExtraTagCA);
+  check('cararmor: #carextra element markup carries aria-valuenow="0"',
+    carExtraTagCA.includes('aria-valuenow="0"'), 'tag=' + carExtraTagCA);
+  check('cararmor: exactly one #carextra element in the game source',
+    (html.match(/id="carextra"/g) || []).length === 1,
+    'n=' + (html.match(/id="carextra"/g) || []).length);
+  check('cararmor: updateCarCondHUD syncs carExtraEl ariaValueNow from CAR.armor (source pin)',
+    html.includes('carExtraEl.ariaValueNow = String(Math.round(CAR.armor));'));
+  check('cararmor: updateFTCondHUD clears carExtraEl ariaValueNow to 0 (source pin)',
+    html.includes("carExtraEl.ariaValueNow = '0';"));
+  /* runtime drives through the real writer functions (dedupe-safe values) */
+  G.CAR.hp = 61; G.CAR.armor = 37;
+  G.updateCarCondHUD();
+  check('cararmor: runtime carExtraEl text is ARMOR suffix in car mode with armor 37',
+    G.carExtraEl.textContent === ' ARMOR 37',
+    'textContent=' + G.carExtraEl.textContent);
+  check('cararmor: runtime carExtraEl ariaValueNow is 37 in car mode with armor 37',
+    G.carExtraEl.ariaValueNow === '37',
+    'ariaValueNow=' + G.carExtraEl.ariaValueNow);
+  G.CAR.armor = 0;
+  G.updateCarCondHUD();
+  check('cararmor: runtime carExtraEl text is empty in car mode with armor 0',
+    G.carExtraEl.textContent === '',
+    'textContent=' + G.carExtraEl.textContent);
+  check('cararmor: runtime carExtraEl ariaValueNow is 0 in car mode with armor 0',
+    G.carExtraEl.ariaValueNow === '0',
+    'ariaValueNow=' + G.carExtraEl.ariaValueNow);
+  G.CAR.armor = 37;
+  G.updateCarCondHUD();
+  check('cararmor: runtime carExtraEl text is ARMOR suffix again before truck mode',
+    G.carExtraEl.textContent === ' ARMOR 37',
+    'textContent=' + G.carExtraEl.textContent);
+  check('cararmor: runtime carExtraEl ariaValueNow is 37 again before truck mode',
+    G.carExtraEl.ariaValueNow === '37',
+    'ariaValueNow=' + G.carExtraEl.ariaValueNow);
+  G.FT.water = 42; G.FT.hp = 63;
+  G.updateFTCondHUD();
+  check('cararmor: runtime carExtraEl text is empty in truck mode after a car drive',
+    G.carExtraEl.textContent === '',
+    'textContent=' + G.carExtraEl.textContent);
+  check('cararmor: runtime carExtraEl ariaValueNow is 0 in truck mode after a car drive',
+    G.carExtraEl.ariaValueNow === '0',
+    'ariaValueNow=' + G.carExtraEl.ariaValueNow);
+  G.CAR.hp = 100; G.CAR.armor = 0; G.FT.water = 100; G.FT.hp = 100;
+  G.updateCarCondHUD();
+  check('cararmor: pins - 50 InstancedMesh literals unchanged', lineHasCA('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasCA('new THREE.InstancedMesh'));
+  check('cararmor: pins - 92 Math.random lines unchanged', lineHasCA('Math.random') === 92,
+    'n=' + lineHasCA('Math.random'));
+  check('cararmor: pins - 72 setTimeout lines unchanged', lineHasCA('setTimeout') === 72,
+    'n=' + lineHasCA('setTimeout'));
+  check('cararmor: pins - 2 THREE.Points objects unchanged', lineHasCA('new THREE.Points(') === 2,
+    'n=' + lineHasCA('new THREE.Points('));
+  check('cararmor: pins - no em dashes', !html.includes('\u2014'));
+  check('cararmor: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('cararmor: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('cararmor: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsCA, consoleProblems.slice(probsCA).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
