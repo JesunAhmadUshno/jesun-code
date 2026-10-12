@@ -1373,7 +1373,8 @@
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
   <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b><br><span id="armorchip">ARMOR <b id="armor">100</b></span></div>
-  <div id="heat"></div>
+  <!-- HEAT METER v1: the wanted level is a real meter: role plus min/max in markup, valuenow kept in sync by updateHeatHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
+  <div id="heat" role="meter" aria-label="Wanted level" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"></div>
   <div id="weap"><span id="wname">RIFLE</span> <b id="wammo">&infin;</b></div>
   <div id="mtracker"><div id="mtitle"></div><div id="mobj"></div></div>
   <div id="marrow"><div id="marr">▲</div><div id="mdist"></div></div>
@@ -8077,6 +8078,7 @@ limbIM.instanceMatrix.needsUpdate = true;
 
 /* --- heat state --- */
 function updateHeatHUD() {
+  heatEl.ariaValueNow = String(W.heat);
   if (W.heat <= 0) { heatEl.style.display = 'none'; heatEl.classList.remove('evading'); return; }
   heatEl.style.display = 'block';
   let s = '';
