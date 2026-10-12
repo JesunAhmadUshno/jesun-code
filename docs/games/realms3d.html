@@ -4954,6 +4954,13 @@ function makeSkinTex() {
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  /* CHARACTER TEXTURE ANISOTROPY v1: tiled skin texture repeats across
+     limbs and torso, so pore detail blurs at grazing angles without
+     anisotropic filtering. Use the renderer max, capped at 4 for iPhone
+     headroom; the headless stub has no isWebGLRenderer flag, so it falls
+     back to 1. One shared texture, zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 const skinTex = makeSkinTex();
@@ -4973,6 +4980,13 @@ function makeFabricTex() {
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.colorSpace = THREE.SRGBColorSpace;
+  /* CHARACTER TEXTURE ANISOTROPY v1: tiled fabric weave repeats across
+     shirts and pants, so the weave blurs at grazing angles without
+     anisotropic filtering. Use the renderer max, capped at 4 for iPhone
+     headroom; the headless stub has no isWebGLRenderer flag, so it falls
+     back to 1. One shared texture, zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 const fabricTex = makeFabricTex();
