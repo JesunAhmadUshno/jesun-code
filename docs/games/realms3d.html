@@ -5610,11 +5610,20 @@ function punchReact(e, fx, fz, step) {
   e.kbX = fx * pow; e.kbZ = fz * pow; e.kbT = 0.4;
 }
 /* --- punch connect juice: hit-stop, camera shake, attacker recoil, thud --- */
+/* REDUCED MOTION v2: the melee punch shake now follows the same
+   traumaOn gate as trauma shake.
+   When traumaOn is false, punchConnectFX does not arm shakeT,
+   shakeDur, or shakeMag.
+   Hit-stop, sound, recoil, and squash still run in both paths.
+   Toggle-off stops an in-flight punch shake: toggleTrauma clears
+   shakeT in the same off branch that clears trauma. */
 function punchConnectFX(step) {
   const heavy = step >= 3;
   P.hitstop = heavy ? 0.08 : 0.06;      // world sim freezes; the frame still renders
-  P.shakeDur = P.shakeT = heavy ? 0.12 : 0.08;
-  P.shakeMag = heavy ? 0.22 : 0.12;
+  if (P.traumaOn) {
+    P.shakeDur = P.shakeT = heavy ? 0.12 : 0.08;
+    P.shakeMag = heavy ? 0.22 : 0.12;
+  }
   sfxPunchConnect(heavy);
   const fx = Math.sin(player.rotation.y), fz = Math.cos(player.rotation.y);
   const rec = heavy ? 0.5 : 0.3;        // subtle nudge (infinite world: no clamp)
@@ -6713,7 +6722,7 @@ function clearSkid(){
 const TRAUMA_DECAY = 1.4;
 const TRAUMA_MAX_OFF = 0.30;
 function addTrauma(a){ if(!P.traumaOn) return; P.trauma = Math.min(1, P.trauma + a); }
-function toggleTrauma(){ P.traumaOn = !P.traumaOn; if(!P.traumaOn) P.trauma = 0; toast('SHAKE ' + (P.traumaOn ? 'ON' : 'OFF')); }
+function toggleTrauma(){ P.traumaOn = !P.traumaOn; if(!P.traumaOn){ P.trauma = 0; P.shakeT = 0; } toast('SHAKE ' + (P.traumaOn ? 'ON' : 'OFF')); }
 function traumaNoise(t){ return (Math.sin(t*1.9) + Math.sin(t*3.7+1.3)*0.6 + Math.sin(t*8.3+4.1)*0.3) / 1.9; }
 
 /* --- rifle: box-built, held at the right side, points where the player faces --- */
