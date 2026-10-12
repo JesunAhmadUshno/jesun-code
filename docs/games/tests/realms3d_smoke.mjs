@@ -12114,6 +12114,53 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsNb, consoleProblems.slice(probsNb).join(' | '));
 }
 
+/* ================= RENDERER POWER PREFERENCE v1 =================
+   The renderer constructor now passes powerPreference
+   'high-performance', a hint that asks the browser for the
+   high-performance GPU on dual-GPU systems. Single-GPU devices
+   ignore the hint. The live renderer is exposed on the test
+   shim, and the headless StubRenderer records its constructor
+   argument in options, so the runtime checks fail before the
+   game fix and pass after it. The antialias check is a parity
+   control. Zero new draw calls. */
+{
+  const probsP = consoleProblems.length;
+  const ctorSrcP = html.slice(
+    html.indexOf('RENDERER POWER PREFERENCE v1'),
+    html.indexOf('renderer.domElement.addEventListener'));
+  check('powpref: constructor call includes powerPreference high-performance',
+    ctorSrcP.length > 100 && ctorSrcP.includes("powerPreference: 'high-performance'"),
+    'slice=' + ctorSrcP.length);
+  check('powpref: constructor call includes antialias true',
+    ctorSrcP.length > 100 && ctorSrcP.includes('antialias: true'),
+    'slice=' + ctorSrcP.length);
+  check('powpref: header comment present near the constructor',
+    ctorSrcP.length > 100 && ctorSrcP.includes('RENDERER POWER PREFERENCE v1')
+    && html.indexOf('RENDERER POWER PREFERENCE v1') < html.indexOf('new THREE.WebGLRenderer')
+    && html.indexOf('new THREE.WebGLRenderer') - html.indexOf('RENDERER POWER PREFERENCE v1') < 500,
+    'slice=' + ctorSrcP.length);
+  check('powpref: renderer exists on the test shim',
+    !!G.renderer, G.renderer ? 'ctor=' + (G.renderer.constructor && G.renderer.constructor.name) : 'no renderer');
+  check('powpref: renderer options powerPreference is high-performance',
+    !!G.renderer && !!G.renderer.options && G.renderer.options.powerPreference === 'high-performance',
+    G.renderer && G.renderer.options ? 'powerPreference=' + G.renderer.options.powerPreference : 'no options');
+  check('powpref: renderer options antialias is true as parity control',
+    !!G.renderer && !!G.renderer.options && G.renderer.options.antialias === true,
+    G.renderer && G.renderer.options ? 'antialias=' + G.renderer.options.antialias : 'no options');
+  const linesP = html.split('\n');
+  const lineHasP = sub => linesP.filter(l => l.includes(sub)).length;
+  check('powpref-pins: 50 InstancedMesh literals unchanged', lineHasP('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasP('new THREE.InstancedMesh'));
+  check('powpref-pins: 92 Math.random lines unchanged', lineHasP('Math.random') === 92,
+    'n=' + lineHasP('Math.random'));
+  check('powpref-pins: 72 setTimeout lines unchanged', lineHasP('setTimeout') === 72,
+    'n=' + lineHasP('setTimeout'));
+  check('powpref-pins: no em dashes', !html.includes('—'));
+  check('powpref-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('powpref: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsP, consoleProblems.slice(probsP).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
