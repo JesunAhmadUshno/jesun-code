@@ -1401,7 +1401,12 @@
        #bcstam markup, valuenow kept in sync via the ariaValueNow property. -->
   <!-- CARCOND SPLIT v1: carcond is split into a Vehicle hull meter and a Fire truck water meter: each span carries role meter plus aria-valuemin 0 and aria-valuemax 100 in markup, valuenow kept in sync via the ariaValueNow property (stub-safe idiom, no setAttribute). The armor suffix lives in #carextra, covered by a separate meter below, both writers share the hull span, and the concatenated visible text is unchanged in both modes. -->
   <!-- CARCOND ARMOR METER v1: the vehicle armor suffix is a real meter: the #carextra span inside #carcond carries role meter plus aria-label Vehicle armor and aria-valuemin 0 and aria-valuemax 50 in markup, valuenow kept in sync by updateCarCondHUD and cleared by updateFTCondHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded 0..50 in code, and the concatenated visible text is unchanged in both modes. -->
-  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond"><span id="carwater" role="meter" aria-label="Fire truck water" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="display:none">WATER 100%</span><span id="carhull" role="meter" aria-label="Vehicle hull" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">HULL 100%</span><span id="carextra" role="meter" aria-label="Vehicle armor" aria-valuemin="0" aria-valuemax="50" aria-valuenow="0"></span></div><div id="bcstam" role="meter" aria-label="Bicycle stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">STAM 100%</div></div>
+  <!-- GROUND SPEED METER v1: the shared ground speed readout is a real meter: the
+       #spdnum span carries role meter plus aria-label Ground speed and aria-valuemin 0
+       and aria-valuemax 144 in markup, valuenow synced at all 8 writer sites via the
+       ariaValueNow property (stub-safe idiom, no setAttribute). The bound is the
+       motorcycle boost cap of 40 units per second, and the visible text is unchanged. -->
+  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum" role="meter" aria-label="Ground speed" aria-valuemin="0" aria-valuemax="144" aria-valuenow="0">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond"><span id="carwater" role="meter" aria-label="Fire truck water" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="display:none">WATER 100%</span><span id="carhull" role="meter" aria-label="Vehicle hull" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">HULL 100%</span><span id="carextra" role="meter" aria-label="Vehicle armor" aria-valuemin="0" aria-valuemax="50" aria-valuenow="0"></span></div><div id="bcstam" role="meter" aria-label="Bicycle stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">STAM 100%</div></div>
   <div id="perfchip"></div>
   <!-- TOAST LIVE REGION v1: toast() feedback (212 call sites) is now announced
        by assistive tech without moving focus. toast() itself is unchanged. -->
@@ -19729,6 +19734,7 @@ function carUpdate(sdt, now) {
   if (CAR.hudT > 0.12) {
     CAR.hudT = 0;
     spdNumEl.textContent = Math.round(Math.abs(CAR.speed) * 3.6);
+    spdNumEl.ariaValueNow = String(Math.round(Math.abs(CAR.speed) * 3.6));
     updateCarCondHUD();          // Phase 3: hull/armor readout
   }
 }
@@ -20088,6 +20094,7 @@ function horseUpdate(sdt, now) {
   if (HORSE.hudT > 0.12) {
     HORSE.hudT = 0;
     spdNumEl.textContent = Math.round(HORSE.speed * 3.6);
+    spdNumEl.ariaValueNow = String(Math.round(HORSE.speed * 3.6));
     gaitTagEl.textContent = GAIT_NAMES[gi];
   }
 }
@@ -20587,6 +20594,7 @@ function busUpdate(sdt, now) {
       busPaxEl.ariaValueNow = String(BUS.passengers);
     } else busHudEl.style.display = 'none';
     if (aboard) spdNumEl.textContent = Math.round(Math.abs(BUS.speed) * 3.6);
+    spdNumEl.ariaValueNow = String(Math.round(Math.abs(BUS.speed) * 3.6));
   }
 
   // ---- bus engine note rides the shared engine nodes ----
@@ -21066,6 +21074,7 @@ function txUpdate(sdt) {
       txHudEl.textContent = 'TAXI > ' + TX.route[TX.stopIdx].label;
     } else txHudEl.style.display = 'none';
     if (TX.riding) spdNumEl.textContent = Math.round(Math.abs(TX.speed) * 3.6);
+    spdNumEl.ariaValueNow = String(Math.round(Math.abs(TX.speed) * 3.6));
   }
 }
 /* one ticker for all three units, after the bus ticker (queueMicrotask FIFO) */
@@ -21377,6 +21386,7 @@ function ftUpdate(sdt, now) {
   if (ftPoseD) ftBodyIM.instanceMatrix.needsUpdate = true;
   player.position.copy(FT.pos); player.rotation.y = FT.heading;
   spdNumEl.textContent = Math.round(Math.abs(FT.speed) * 3.6);
+  spdNumEl.ariaValueNow = String(Math.round(Math.abs(FT.speed) * 3.6));
 
   // ---- tire dust: distance-driven puffs off the rear axle (VEHICLE DUST EXTENSION v1) ----
   const ftSpd = Math.abs(FT.speed);
@@ -21779,6 +21789,7 @@ function bikeUpdate(sdt) {
   if (BIKE.hudT > 0.12) {
     BIKE.hudT = 0;
     spdNumEl.textContent = Math.round(Math.abs(BIKE.speed) * 3.6);
+    spdNumEl.ariaValueNow = String(Math.round(Math.abs(BIKE.speed) * 3.6));
   }
   bikeBodyIM.instanceMatrix.needsUpdate = true;
 }
@@ -22195,6 +22206,7 @@ function bcUpdate(sdt) {
   if (BC.hudT > 0.12) {
     BC.hudT = 0;
     spdNumEl.textContent = Math.round(Math.abs(BC.speed) * 3.6);
+    spdNumEl.ariaValueNow = String(Math.round(Math.abs(BC.speed) * 3.6));
     const pct = Math.round(BC.stam * 100);
     bcStamEl.textContent = 'STAM ' + pct + '%';
     bcStamEl.ariaValueNow = String(pct);
@@ -22577,6 +22589,7 @@ function scUpdate(sdt) {
   if (SC.hudT > 0.12) {
     SC.hudT = 0;
     spdNumEl.textContent = Math.round(SC.speed * 3.6);
+    spdNumEl.ariaValueNow = String(Math.round(SC.speed * 3.6));
   }
   if (scPoseD) scBodyIM.instanceMatrix.needsUpdate = true;
 }
