@@ -1803,8 +1803,15 @@ const WX = {};
   gr.addColorStop(0.6, 'rgba(255,190,120,0.35)');
   gr.addColorStop(1, 'rgba(255,180,100,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const sunTex = new THREE.CanvasTexture(c);
+  /* SUN SPRITE COLORSPACE v1: sun gradient is a pure colour map
+     authored in sRGB with no data channels. Declaring sRGB makes
+     the warm disc and halo display as authored instead of brighter
+     and washed in default linear space, matching the sky texture
+     above. One shared texture, zero new draw calls. */
+  sunTex.colorSpace = THREE.SRGBColorSpace;
   const sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: new THREE.CanvasTexture(c), fog: false, depthWrite: false,
+    map: sunTex, fog: false, depthWrite: false,
     transparent: true
   }));
   sunSpr.scale.set(120, 120, 1);   // PHASE 1 LOOK: disc plus soft halo at 1300 u
