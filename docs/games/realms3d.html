@@ -1793,6 +1793,15 @@ const WX = {};
   g.fillStyle = gr; g.fillRect(0, 0, 2, 256);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;   // PHASE 1 LOOK: authored hex colors display as authored
+  /* SKY MIPMAP v1: the dome texture is a 2x256 vertical gradient on a
+     sphere that follows the player (DNF.skyMesh), so it is never
+     detail-minified in play; the default mip chain costs about a third
+     extra texture memory and is regenerated on every paintSky repaint
+     (needsUpdate) for no benefit. Mipmaps off, paired with LinearFilter:
+     a mipmapped min filter without a chain makes the texture incomplete.
+     Gradient sampling stays bilinear on the base level. */
+  tex.generateMipmaps = false;
+  tex.minFilter = THREE.LinearFilter;
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(1500, 32, 20),   // PHASE 1 LOOK: beyond the far-terrain ring, inside camera far
     new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, toneMapped: false })
@@ -1820,6 +1829,14 @@ const WX = {};
      and washed in default linear space, matching the sky texture
      above. One shared texture, zero new draw calls. */
   sunTex.colorSpace = THREE.SRGBColorSpace;
+  /* SUN MIPMAP v1: the sun texture is a 128x128 radial gradient on a
+     camera-facing sprite held at a fixed 1300 u offset (scale 120), so
+     it is minified under 2x at most and carries no detail for a mip
+     chain to preserve; the chain costs about a third extra texture
+     memory (about 21.8 KB on a 65,536 B base). Mipmaps off, paired with
+     LinearFilter so the texture stays complete. */
+  sunTex.generateMipmaps = false;
+  sunTex.minFilter = THREE.LinearFilter;
   const sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({
     map: sunTex, fog: false, depthWrite: false,
     transparent: true
