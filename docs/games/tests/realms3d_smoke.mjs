@@ -65,7 +65,7 @@ globalThis.__R3D = {
   tick, startMission, currentTarget, damageEnemy, shoot, fireTracer,
   carEnter, carExit, openShop, closeShop, buyItem,
   busEnter, busExit, busTakeWheel, busRebuildRoute, busDoorWorld, mountToggle, busUpdate,
-  busDwellService, BUSNPC, BUS,
+  busDwellService, BUSNPC, BUS, busHudEl, busRouteEl, busPaxEl,   /* BUS PAX METER v1: bus passenger meter (test-only exposure) */
   taxiEnter, taxiExit, txRebuild, txDoorWorld, crRebuild, ambRebuild,
   CR, TX, AMB, HORSE, emBodyIM, toastEl, W, updateHeatHUD, heatEl,
   setWeather, wxEl, WX,   /* WX STATUS v1: weather readout (test-only exposure) */
@@ -23561,6 +23561,133 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('carcond: the run leaves zero console errors/warnings',
     consoleProblems.length === probsCC, consoleProblems.slice(probsCC).join(' | '));
+}
+
+/* ================= BUS PAX METER v1 =================
+   The bus route chip is split: the #bushud div nests a
+   plain #busroute span for the route prefix and a #buspax
+   span (role meter, aria-label Bus passengers) with
+   aria-valuemin 0 and aria-valuemax 10 in markup. The
+   single writer inside busUpdate (HUD throttle block)
+   writes the route text to #busroute, the passenger text
+   to #buspax, and syncs valuenow via the ariaValueNow
+   property (stub-safe idiom, no setAttribute); the value
+   is bounded by BUS.seats 10 (busDwellService boards only
+   while seats remain and BUS.passengers is assigned only
+   from BUS.boarded.length). The concatenated visible text
+   stays byte-identical to the old single-string format.
+   The runtime checks drive the real busUpdate HUD path in
+   an aboard (driving) state with a synthetic one-stop
+   route, a forced HUD throttle and BUS.passengers 3, then
+   the 0 case, then restore every mutated BUS field. */
+{
+  const probsBP = consoleProblems.length;
+  const linesBP = html.split('\n');
+  const lineHasBP = sub => linesBP.filter(l => l.includes(sub)).length;
+  check('buspax: BUS PAX METER v1 header is present exactly once in the game source',
+    (html.split('BUS PAX METER v1').length - 1) === 1,
+    'n=' + (html.split('BUS PAX METER v1').length - 1));
+  check('buspax: #bushud markup nests #busroute plain span and #buspax meter (source pin)',
+    html.includes('<div id="bushud"><span id="busroute"></span><span id="buspax" role="meter" aria-label="Bus passengers" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0">   PAX 0</span></div>'));
+  const busPaxTagBP = (html.match(/<span id="buspax"[^>]*>/) || [''])[0];
+  check('buspax: #buspax element markup carries role="meter"',
+    busPaxTagBP.includes('role="meter"'), 'tag=' + busPaxTagBP);
+  check('buspax: #buspax element markup carries aria-label="Bus passengers"',
+    busPaxTagBP.includes('aria-label="Bus passengers"'), 'tag=' + busPaxTagBP);
+  check('buspax: #buspax element markup carries aria-valuemin="0"',
+    busPaxTagBP.includes('aria-valuemin="0"'), 'tag=' + busPaxTagBP);
+  check('buspax: #buspax element markup carries aria-valuemax="10"',
+    busPaxTagBP.includes('aria-valuemax="10"'), 'tag=' + busPaxTagBP);
+  check('buspax: #buspax element markup carries aria-valuenow="0"',
+    busPaxTagBP.includes('aria-valuenow="0"'), 'tag=' + busPaxTagBP);
+  check('buspax: exactly one #busroute element in the game source',
+    (html.match(/id="busroute"/g) || []).length === 1,
+    'n=' + (html.match(/id="busroute"/g) || []).length);
+  check('buspax: exactly one #buspax element in the game source',
+    (html.match(/id="buspax"/g) || []).length === 1,
+    'n=' + (html.match(/id="buspax"/g) || []).length);
+  check('buspax: busHudEl binding line is unchanged (source pin)',
+    html.includes("const busHudEl = document.getElementById('bushud');"));
+  check('buspax: busRouteEl binding line binds busroute (source pin)',
+    html.includes("const busRouteEl = document.getElementById('busroute');"));
+  check('buspax: busPaxEl binding line binds buspax (source pin)',
+    html.includes("const busPaxEl = document.getElementById('buspax');"));
+  check('buspax: busUpdate writes busRouteEl textContent from route (source pin)',
+    html.includes("busRouteEl.textContent = 'BUS ' + BUS.routeNo + ' > ' + tgt.label;"));
+  check('buspax: busUpdate writes busPaxEl textContent from BUS.passengers (source pin)',
+    html.includes("busPaxEl.textContent = '   PAX ' + BUS.passengers;"));
+  check('buspax: busUpdate syncs busPaxEl ariaValueNow from BUS.passengers (source pin)',
+    html.includes('busPaxEl.ariaValueNow = String(BUS.passengers);'));
+  check('buspax: no writer sets busHudEl textContent anymore (source pin)',
+    !html.includes('busHudEl.textContent'));
+  /* runtime drive through the real busUpdate HUD path (aboard, throttle forced) */
+  const saveBP = {
+    active: G.BUS.active, driving: G.BUS.driving, riding: G.BUS.riding, hintOn: G.BUS.hintOn,
+    passengers: G.BUS.passengers, route: G.BUS.route, routeNo: G.BUS.routeNo, stopIdx: G.BUS.stopIdx,
+    hudT: G.BUS.hudT, dwellT: G.BUS.dwellT, dwellServed: G.BUS.dwellServed, speed: G.BUS.speed,
+    steer: G.BUS.steer, anchorCx: G.BUS.anchorCx, anchorCz: G.BUS.anchorCz, dead: G.P.dead,
+    px: G.player.position.x, py: G.player.position.y, pz: G.player.position.z,
+    kw: G.keys.KeyW, ks: G.keys.KeyS, ka: G.keys.KeyA, kd: G.keys.KeyD, ksp: G.keys.Space,
+  };
+  G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false; G.keys.Space = false;
+  G.BUS.active = true; G.BUS.driving = true; G.BUS.riding = false; G.BUS.hintOn = false;
+  G.P.dead = false;
+  G.BUS.route = [{ x: G.BUS.pos.x, z: G.BUS.pos.z, label: '7 TEST STOP' }];
+  G.BUS.routeNo = 7; G.BUS.stopIdx = 0; G.BUS.speed = 0; G.BUS.steer = 0;
+  G.BUS.dwellT = 0; G.BUS.dwellServed = false;
+  G.BUS.passengers = 3; G.BUS.hudT = 1;
+  G.BUS.anchorCx = Math.floor(G.player.position.x / 48); G.BUS.anchorCz = Math.floor(G.player.position.z / 48);
+  G.busUpdate(0.016, 0);
+  check('buspax: runtime busRouteEl text is BUS 7 > 7 TEST STOP with 3 passengers',
+    G.busRouteEl.textContent === 'BUS 7 > 7 TEST STOP',
+    'textContent=' + G.busRouteEl.textContent);
+  check('buspax: runtime busPaxEl text is PAX 3 with leading spaces',
+    G.busPaxEl.textContent === '   PAX 3',
+    'textContent=' + JSON.stringify(G.busPaxEl.textContent));
+  check('buspax: runtime busPaxEl ariaValueNow is 3',
+    G.busPaxEl.ariaValueNow === '3',
+    'ariaValueNow=' + G.busPaxEl.ariaValueNow);
+  check('buspax: runtime visible text equals the old combined format with 3 passengers',
+    G.busRouteEl.textContent + G.busPaxEl.textContent === 'BUS 7 > 7 TEST STOP   PAX 3',
+    G.busRouteEl.textContent + G.busPaxEl.textContent);
+  check('buspax: runtime busHudEl display is block while aboard',
+    G.busHudEl.style.display === 'block',
+    'display=' + G.busHudEl.style.display);
+  G.BUS.passengers = 0; G.BUS.hudT = 1;
+  G.BUS.anchorCx = Math.floor(G.player.position.x / 48); G.BUS.anchorCz = Math.floor(G.player.position.z / 48);
+  G.busUpdate(0.016, 0);
+  check('buspax: runtime busPaxEl text is PAX 0 with leading spaces',
+    G.busPaxEl.textContent === '   PAX 0',
+    'textContent=' + JSON.stringify(G.busPaxEl.textContent));
+  check('buspax: runtime busPaxEl ariaValueNow is 0',
+    G.busPaxEl.ariaValueNow === '0',
+    'ariaValueNow=' + G.busPaxEl.ariaValueNow);
+  check('buspax: runtime visible text equals the old combined format with 0 passengers',
+    G.busRouteEl.textContent + G.busPaxEl.textContent === 'BUS 7 > 7 TEST STOP   PAX 0',
+    G.busRouteEl.textContent + G.busPaxEl.textContent);
+  G.BUS.active = saveBP.active; G.BUS.driving = saveBP.driving; G.BUS.riding = saveBP.riding;
+  G.BUS.hintOn = saveBP.hintOn; G.BUS.passengers = saveBP.passengers; G.BUS.route = saveBP.route;
+  G.BUS.routeNo = saveBP.routeNo; G.BUS.stopIdx = saveBP.stopIdx; G.BUS.hudT = saveBP.hudT;
+  G.BUS.dwellT = saveBP.dwellT; G.BUS.dwellServed = saveBP.dwellServed; G.BUS.speed = saveBP.speed;
+  G.BUS.steer = saveBP.steer; G.BUS.anchorCx = saveBP.anchorCx; G.BUS.anchorCz = saveBP.anchorCz;
+  G.P.dead = saveBP.dead;
+  G.player.position.set(saveBP.px, saveBP.py, saveBP.pz);
+  G.keys.KeyW = saveBP.kw; G.keys.KeyS = saveBP.ks; G.keys.KeyA = saveBP.ka; G.keys.KeyD = saveBP.kd; G.keys.Space = saveBP.ksp;
+  check('buspax: pins - 50 InstancedMesh literals unchanged', lineHasBP('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasBP('new THREE.InstancedMesh'));
+  check('buspax: pins - 92 Math.random lines unchanged', lineHasBP('Math.random') === 92,
+    'n=' + lineHasBP('Math.random'));
+  check('buspax: pins - 72 setTimeout lines unchanged', lineHasBP('setTimeout') === 72,
+    'n=' + lineHasBP('setTimeout'));
+  check('buspax: pins - 2 THREE.Points objects unchanged', lineHasBP('new THREE.Points(') === 2,
+    'n=' + lineHasBP('new THREE.Points('));
+  check('buspax: pins - no em dashes', !html.includes('\u2014'));
+  check('buspax: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('buspax: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('buspax: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsBP, consoleProblems.slice(probsBP).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
