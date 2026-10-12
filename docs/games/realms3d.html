@@ -1372,7 +1372,8 @@
     <b>1/2/3</b> weapons &nbsp; <b>N</b> NEW GAME &nbsp; <b>M</b> DMG NUMS &nbsp; <b>O</b> SHAKE
   </div>
   <div id="pos">X 0.0 &nbsp; Z 0.0</div>
-  <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b><br><span id="armorchip">ARMOR <b id="armor">100</b></span></div>
+  <!-- ARMOR METER v1: the armor level is a real meter: role plus min/max in markup, valuenow kept in sync by updateArmorHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
+  <div id="combat">HOSTILES <b id="alive">5</b><br>KILLS <b id="kills">0</b><br>CASH $<b id="cash">0</b><br><span id="armorchip" role="meter" aria-label="Armor" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">ARMOR <b id="armor">100</b></span></div>
   <!-- HEAT METER v1: the wanted level is a real meter: role plus min/max in markup, valuenow kept in sync by updateHeatHUD via the ariaValueNow property (stub-safe idiom, no setAttribute). -->
   <div id="heat" role="meter" aria-label="Wanted level" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"></div>
   <div id="weap"><span id="wname">RIFLE</span> <b id="wammo">&infin;</b></div>
@@ -8918,6 +8919,7 @@ let shopArmor = 0;
 const armorChipEl = document.getElementById('armorchip');
 const armorEl = document.getElementById('armor');
 function updateArmorHUD() {
+  armorChipEl.ariaValueNow = String(Math.round(shopArmor));
   armorEl.textContent = Math.round(shopArmor);
   armorChipEl.style.display = shopArmor > 0 ? 'inline' : 'none';
 }
