@@ -1353,6 +1353,15 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
+  /* REDUCED MOTION v10: the in-game gate reaches CSS animations via a
+     body class. The v6 media query follows only the OS setting; the
+     KeyO in-game toggle (P.traumaOn) had no CSS effect, so a player who
+     turned shake off in game still got every CSS animation (heat blink,
+     casino big-win pulses, cash float, reel pulse). The JS helper
+     syncReducedMotionClass mirrors the gate onto body.rm-reduced, and
+     this rule mirrors the v6 block under that class. HUD state still
+     reads via color, text, and end-state opacity. Session-only. */
+  body.rm-reduced *, body.rm-reduced *::before, body.rm-reduced *::after { animation: none !important; transition: none !important; }
 </style>
 </head>
 <body>
@@ -6791,7 +6800,14 @@ function clearSkid(){
 const TRAUMA_DECAY = 1.4;
 const TRAUMA_MAX_OFF = 0.30;
 function addTrauma(a){ if(!P.traumaOn) return; P.trauma = Math.min(1, P.trauma + a); }
-function toggleTrauma(){ P.traumaOn = !P.traumaOn; if(!P.traumaOn){ P.trauma = 0; P.shakeT = 0; } toast('SHAKE ' + (P.traumaOn ? 'ON' : 'OFF')); }
+/* REDUCED MOTION v10: syncReducedMotionClass mirrors the P.traumaOn
+   gate onto the body.rm-reduced class so the CSS rule in the style
+   block follows the in-game KeyO toggle as well as the boot state.
+   The try/catch makes headless and older browsers a no-op. Called
+   once here at boot and again from toggleTrauma on every flip. */
+function syncReducedMotionClass(){ try { if (document.body && document.body.classList) document.body.classList.toggle('rm-reduced', !P.traumaOn); } catch(e){} }
+syncReducedMotionClass();
+function toggleTrauma(){ P.traumaOn = !P.traumaOn; if(!P.traumaOn){ P.trauma = 0; P.shakeT = 0; } syncReducedMotionClass(); toast('SHAKE ' + (P.traumaOn ? 'ON' : 'OFF')); }
 function traumaNoise(t){ return (Math.sin(t*1.9) + Math.sin(t*3.7+1.3)*0.6 + Math.sin(t*8.3+4.1)*0.3) / 1.9; }
 
 /* --- rifle: box-built, held at the right side, points where the player faces --- */
