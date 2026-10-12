@@ -3253,7 +3253,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('heli: throttle flies the helicopter forward', hMoved > 2.0 && hMaxSpd > 2.0,
     'moved=' + hMoved.toFixed(1) + 'u maxSpd=' + hMaxSpd.toFixed(1));
   check('heli: chip reads speed and altitude while flying',
-    /^HELI - \d+ KM\/H \/ ALT \d+M$/.test(G.heliChipEl.textContent), G.heliChipEl.textContent);
+    /^HELI - \d+ KM\/H \/ ALT \d+M$/.test(stubs.getEl('helispd').textContent + stubs.getEl('helialt').textContent),
+    stubs.getEl('helispd').textContent + stubs.getEl('helialt').textContent);
   check('heli: forward flight pitches the nose down (tilt-to-fly)',
     G.HELI.pitch > 0.05, 'pitch=' + G.HELI.pitch.toFixed(3));
 
