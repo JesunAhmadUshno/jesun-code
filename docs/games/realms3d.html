@@ -148,7 +148,7 @@
     letter-spacing: 1px; display: none; pointer-events: auto; min-width: 330px;
     max-width: 92vw; z-index: 25;
   }
-  #shop h3 { color: #35e0c8; font-size: 14px; letter-spacing: 3px; margin: 0 0 4px; }
+  #shop h2 { color: #35e0c8; font-size: 14px; letter-spacing: 3px; margin: 0 0 4px; }
   #shop .sbal { color: #7dff9a; margin-bottom: 10px; letter-spacing: 2px; }
   #shop .srow {
     display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 5px 0;
@@ -1523,8 +1523,15 @@
   <div id="tennischip"></div>
   <div id="hithint"></div>
   <div id="emotehint"></div>
+  <!-- SHOP TITLE HEADING LEVEL v1: the shop title was the only panel
+       title at heading level 3, a native h3 that skipped level 2 under
+       the overlay h1, while the 11 panel titles and the mission title
+       are all level 2. It is now a native h2. The shop CSS selector
+       moved from h3 to h2 with identical declarations, so rendering is
+       unchanged. The dynamic writers rename the title via
+       shopNameEl.textContent, fetched by id, and are unchanged. -->
   <div id="shop">
-    <h3 id="shopname">SHOP</h3>
+    <h2 id="shopname">SHOP</h2>
     <div class="sbal">CASH $<b id="shopcash">0</b></div>
     <div id="shoprows"></div>
     <div class="shint">[1-5] BUY &nbsp; [E] / [ESC] CLOSE &nbsp; TAP ROW ON TOUCH</div>
