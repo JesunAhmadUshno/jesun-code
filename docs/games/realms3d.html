@@ -1599,7 +1599,8 @@
   </div>
   <div id="lmwheelpanel">
     <div id="lmwheel-title">WHEEL OF FORTUNE</div>
-    <canvas id="lmwheel-canvas" width="300" height="300"></canvas>
+    <!-- WHEEL CANVAS NAME v1: the wheel graphic is a real image for assistive tech: role img plus aria-label Wheel of Fortune prize wheel in markup. wheelDraw paints the prize sectors as canvas pixels, so the static name describes the graphic as a unit; the spin result stays in the existing #lmwheel-status and #wheelchip text written by wheelRender. -->
+    <canvas id="lmwheel-canvas" width="300" height="300" role="img" aria-label="Wheel of Fortune prize wheel"></canvas>
     <div id="lmwheel-pay"></div>
     <div id="lmwheel-status">BET $10</div>
     <div id="lmwheel-controls"><button id="lmwheel-bet">BET $10</button><button id="lmwheel-spin">SPIN</button></div>
