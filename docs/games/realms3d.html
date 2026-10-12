@@ -1381,7 +1381,9 @@
   <!-- TOD TIMER v1: the game clock is a real timer: role timer plus
        aria-label Game time on #tod, decorative icon hidden from assistive tech. -->
   <div id="tod" role="timer" aria-label="Game time"><span id="todicon" aria-hidden="true">☾</span><span id="todtime">18:00</span></div>
-  <div id="wx"><span>☀</span> CLEAR</div>
+  <!-- WX STATUS v1: the weather readout is a live status: role status on
+       #wx, decorative icon hidden from assistive tech. -->
+  <div id="wx" role="status"><span aria-hidden="true">☀</span> CLEAR</div>
   <div id="diffchip">AI TIER 0</div>
   <div id="saved">SAVED --:--</div>
   <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond">HULL 100%</div></div>
@@ -18741,7 +18743,7 @@ function setWeather(next) {
   WX.params = WX_STATES[next];
   const d = WX.params.dur;
   WX.stateT = d[0] + Math.random() * (d[1] - d[0]);
-  wxEl.innerHTML = '<span>' + WX_ICON[next] + '</span> ' + WX_LABEL[next];
+  wxEl.innerHTML = '<span aria-hidden="true">' + WX_ICON[next] + '</span> ' + WX_LABEL[next];
   if (next === 'storm') WX.boltCd = 2 + Math.random() * 4;   // storm opens with a bolt
 }
 function nextWeather() {
@@ -18751,7 +18753,7 @@ function nextWeather() {
   if (s === 'rain') return r < 0.3 ? 'storm' : 'overcast';
   return 'rain';   // storm always decays back to rain
 }
-wxEl.innerHTML = '<span>\u2600</span> CLEAR';
+wxEl.innerHTML = '<span aria-hidden="true">\u2600</span> CLEAR';
 
 function weatherTick(dt, now) {
   WX.stateT -= dt;
