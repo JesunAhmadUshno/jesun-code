@@ -1343,6 +1343,14 @@
   }
   #emotehint b { color: #d8c84a; }
   body.touch #emotehint { display: none; }
+  /* REDUCED MOTION v6: CSS HUD animations follow the OS reduced-motion
+     request. The JS gate (v1 to v5) cannot affect CSS, so under
+     (prefers-reduced-motion: reduce) every CSS animation and transition
+     is disabled; HUD state still reads via color, text, and end-state
+     opacity. No-preference users are unchanged. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
