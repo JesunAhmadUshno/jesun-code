@@ -1585,7 +1585,7 @@
     <!-- KENO BALLS METER v1: the keno balls drawn count is a real meter: role meter plus
          aria-label Keno balls drawn and aria-valuemin 0 and aria-valuemax 20 in the
          #lmkeno-balls markup, valuenow kept in sync via the ariaValueNow property.
-         Hits stays plain text: its max varies with the pick count, so no fixed meter. -->
+         Hits carries its own meter (see the header above) on the absolute 0 to 10 range set by the pick cap. -->
     <div id="lmkeno-meters"><span id="lmkeno-balls" role="meter" aria-label="Keno balls drawn" aria-valuemin="0" aria-valuemax="20" aria-valuenow="0">BALLS 0/20</span><span id="lmkeno-hits" role="meter" aria-label="Keno hits" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0">HITS 0</span></div>
     <div id="lmkeno-status">BET $10</div>
     <div id="lmkeno-controls"><button id="lmkeno-bet">BET $10</button><button id="lmkeno-quick">QUICK PICK</button><button id="lmkeno-clear">CLEAR</button><button id="lmkeno-draw">DRAW</button></div>
