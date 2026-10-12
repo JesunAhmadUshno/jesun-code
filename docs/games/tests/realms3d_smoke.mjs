@@ -24303,6 +24303,43 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsBA, consoleProblems.slice(probsBA).join(' | '));
 }
 
+/* ================= SAVED TIMER v1 =================
+   The saved readout is a real timer: the #saved div
+   carries role timer plus aria-label Time since last
+   save in markup, text still written by updateSavedChip.
+   The timer role is not announced every second (implicit
+   live off), so assistive tech can read it on demand
+   without spam. This item is markup only: no JS changes,
+   no other element is in scope. */
+{
+  const probsST = consoleProblems.length;
+  const linesST = html.split('\n');
+  const lineHasST = sub => linesST.filter(l => l.includes(sub)).length;
+  check('savedtimer: SAVED TIMER v1 header is present exactly once in the game source',
+    (html.split('SAVED TIMER v1').length - 1) === 1,
+    'n=' + (html.split('SAVED TIMER v1').length - 1));
+  check('savedtimer: #saved full tag matches exactly (source pin)',
+    html.includes('<div id="saved" role="timer" aria-label="Time since last save">SAVED --:--</div>'));
+  check('savedtimer: exactly one #saved element in the game source',
+    (html.match(/id="saved"/g) || []).length === 1,
+    'n=' + (html.match(/id="saved"/g) || []).length);
+  check('savedtimer: pins - 50 InstancedMesh literals unchanged', lineHasST('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasST('new THREE.InstancedMesh'));
+  check('savedtimer: pins - 92 Math.random lines unchanged', lineHasST('Math.random') === 92,
+    'n=' + lineHasST('Math.random'));
+  check('savedtimer: pins - 72 setTimeout lines unchanged', lineHasST('setTimeout') === 72,
+    'n=' + lineHasST('setTimeout'));
+  check('savedtimer: pins - 2 THREE.Points objects unchanged', lineHasST('new THREE.Points(') === 2,
+    'n=' + lineHasST('new THREE.Points('));
+  check('savedtimer: pins - no em dashes', !html.includes('\u2014'));
+  check('savedtimer: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('savedtimer: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('savedtimer: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsST, consoleProblems.slice(probsST).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
