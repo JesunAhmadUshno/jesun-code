@@ -1612,7 +1612,8 @@
     <div id="lmwheel-bigwin"></div>
   </div>
   <div id="firestchip"><span id="firestarr">^</span> <span id="firesttxt"></span></div>
-  <div id="heistchip"></div>
+  <!-- HEIST LOOT METER v1: the heist loot take is a real meter: the #heistloot span inside #heistchip carries role meter plus aria-label Heist loot and aria-valuemin 0 and aria-valuemax 5000 in markup, valuenow kept in sync by updateHeistChip via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded 0..5000 by HEIST_N 5 sacks at $200-$1000 each, seeded by seedHeistSacks, so HEIST.loot can never exceed 5000 or go below 0. The heat suffix stays plain text in #heistheat because heat already has its own #heat meter, and the concatenated visible text is unchanged. -->
+  <div id="heistchip"><span id="heistloot" role="meter" aria-label="Heist loot" aria-valuemin="0" aria-valuemax="5000" aria-valuenow="0">HEIST $0</span><span id="heistheat"> | HEAT 0</span></div>
   <div id="firesthallhint"></div>
   <div id="firestbayhint"></div>
   <div id="firestpolehint"></div>
@@ -24979,6 +24980,8 @@ const civicActEl3 = document.getElementById('civicact3');   // Phase 5 bank: WIT
 const civicActEl4 = document.getElementById('civicact4');   // Phase 5 bank: ROB BANK
 const civicActEl5 = document.getElementById('civicact5');   // BANK PAYROLL v2: the job tier cycle button
 const heistChipEl = document.getElementById('heistchip');   // Phase 5 bank heist: live take/heat chip
+const heistLootEl = document.getElementById('heistloot');
+const heistHeatEl = document.getElementById('heistheat');
 const civicFootEl = document.getElementById('civicfoot');
 civichintEl.textContent = IS_TOUCH ? 'TAP TO ENTER' : 'ENTER [E]';
 civichintEl.addEventListener('click', () => { if (CIVIC.hintOn) civicEnter(); });
@@ -25197,7 +25200,9 @@ const HEIST_N = 5, HEIST_R2 = 900, HEIST_GRAB_R2 = 4, HEIST_ESCALATE_S = 45;   /
 function updateHeistChip() {
   if (!HEIST.active) { heistChipEl.style.display = 'none'; return; }
   heistChipEl.style.display = 'block';
-  heistChipEl.textContent = 'HEIST $' + HEIST.loot + ' | HEAT ' + W.heat;
+  heistLootEl.textContent = 'HEIST $' + HEIST.loot;
+  heistLootEl.ariaValueNow = String(HEIST.loot);
+  heistHeatEl.textContent = ' | HEAT ' + W.heat;
 }
 function seedHeistSacks() {
   HEIST.sacks.length = 0;
