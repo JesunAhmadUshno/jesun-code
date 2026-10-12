@@ -2078,6 +2078,13 @@ function makeTerrainDetailTex() {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.colorSpace = THREE.SRGBColorSpace;
   t.repeat.set(24, 24);
+  /* TERRAIN ANISOTROPY v1: at grazing angles the repeated ground detail
+     blurs without anisotropic filtering. Use the renderer max, capped at 4
+     for iPhone thermal and perf headroom; the headless stub has no
+     isWebGLRenderer flag, so it falls back to 1. One shared texture,
+     zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 const chunkMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: makeTerrainDetailTex() });
