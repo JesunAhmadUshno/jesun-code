@@ -24306,6 +24306,62 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsBA, consoleProblems.slice(probsBA).join(' | '));
 }
 
+/* ================= DECORATIVE OVERLAYS HIDDEN v1 =================
+   The crosshair reticle and the damage and lightning
+   flash overlays are purely visual effects hidden
+   from assistive tech. #cross has no text and no JS
+   writer, and the flash writers only set
+   style.opacity. Damage reads on the HP progressbar
+   and lightning reads on the weather status.
+   This item is markup only: no JS changes, no other
+   element is in scope. */
+{
+  const probsDO = consoleProblems.length;
+  const linesDO = html.split('\n');
+  const lineHasDO = sub => linesDO.filter(l => l.includes(sub)).length;
+  check('decoov: DECORATIVE OVERLAYS HIDDEN v1 header is present exactly once in the game source',
+    (html.split('DECORATIVE OVERLAYS HIDDEN v1').length - 1) === 1,
+    'n=' + (html.split('DECORATIVE OVERLAYS HIDDEN v1').length - 1));
+  check('decoov: #cross full tag matches exactly (source pin)',
+    html.includes('<div id="cross" aria-hidden="true"><div class="ring"></div><div class="dot"></div></div>'));
+  check('decoov: exactly one #cross element in the game source',
+    (html.match(/id="cross"/g) || []).length === 1,
+    'n=' + (html.match(/id="cross"/g) || []).length);
+  check('decoov: #dmgflash full tag matches exactly (source pin)',
+    html.includes('<div id="dmgflash" aria-hidden="true"></div>'));
+  check('decoov: exactly one #dmgflash element in the game source',
+    (html.match(/id="dmgflash"/g) || []).length === 1,
+    'n=' + (html.match(/id="dmgflash"/g) || []).length);
+  check('decoov: #boltflash full tag matches exactly (source pin)',
+    html.includes('<div id="boltflash" aria-hidden="true"></div>'));
+  check('decoov: exactly one #boltflash element in the game source',
+    (html.match(/id="boltflash"/g) || []).length === 1,
+    'n=' + (html.match(/id="boltflash"/g) || []).length);
+  check('decoov: #cross has no JS writer (no getElementById for cross)',
+    !html.includes("getElementById('cross')") && !html.includes('getElementById("cross")'));
+  check('decoov: flash writers stay opacity-only (dmgflashEl.textContent count is 0)',
+    lineHasDO('dmgflashEl.textContent') === 0,
+    'n=' + lineHasDO('dmgflashEl.textContent'));
+  check('decoov: flash writers stay opacity-only (boltFlashEl.textContent count is 0)',
+    lineHasDO('boltFlashEl.textContent') === 0,
+    'n=' + lineHasDO('boltFlashEl.textContent'));
+  check('decoov: pins - 50 InstancedMesh literals unchanged', lineHasDO('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasDO('new THREE.InstancedMesh'));
+  check('decoov: pins - 92 Math.random lines unchanged', lineHasDO('Math.random') === 92,
+    'n=' + lineHasDO('Math.random'));
+  check('decoov: pins - 72 setTimeout lines unchanged', lineHasDO('setTimeout') === 72,
+    'n=' + lineHasDO('setTimeout'));
+  check('decoov: pins - 2 THREE.Points objects unchanged', lineHasDO('new THREE.Points(') === 2,
+    'n=' + lineHasDO('new THREE.Points('));
+  check('decoov: pins - no em dashes', !html.includes('\u2014'));
+  check('decoov: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('decoov: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('decoov: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsDO, consoleProblems.slice(probsDO).join(' | '));
+}
+
 /* ================= SAVED TIMER v1 =================
    The saved readout is a real timer: the #saved div
    carries role timer plus aria-label Time since last
