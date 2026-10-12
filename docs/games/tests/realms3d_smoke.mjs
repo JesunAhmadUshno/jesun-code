@@ -12419,6 +12419,72 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsSky, consoleProblems.slice(probsSky).join(' | '));
 }
 
+/* ================= RENDERER STENCIL v1 =================
+   The WebGLRenderer constructor now passes stencil: false, so
+   the default framebuffer drops its 8-bit stencil attachment
+   (about 1 byte per pixel of canvas). No material in the game
+   writes or tests stencil, the post passes render into their
+   own render targets whose stencilBuffer defaults to false in
+   three r160, and the N8AO pass keeps its stencil option at
+   its default of false, so the attachment was never read.
+   antialias and the powerPreference hint survive unchanged in
+   the same constructor. The renderer is not exposed on the
+   test shim, so verification is source-pin based, exactly
+   like skymip. Zero new draw calls. */
+{
+  const probsRnd = consoleProblems.length;
+  const rndSrc = html.slice(
+    html.indexOf('/* RENDERER POWER PREFERENCE v1'),
+    html.indexOf('/* WEBGL CONTEXT-LOSS RESILIENCE v1'));
+  const segHeadRnd = html.indexOf('RENDERER STENCIL v1') >= 0 ? html.slice(html.indexOf('RENDERER STENCIL v1'), html.indexOf('RENDERER STENCIL v1') + 1200).replace(/\s+/g, ' ') : '';
+  check('rndstencil: renderer constructor slice is present (power header through the constructor)',
+    rndSrc.length > 100 && rndSrc.includes('new THREE.WebGLRenderer('),
+    'slice=' + rndSrc.length);
+  check('rndstencil: constructor pins stencil: false in the constructor slice',
+    rndSrc.includes('stencil: false'));
+  check('rndstencil: RENDERER STENCIL v1 header lives in the slice above the constructor',
+    rndSrc.includes('RENDERER STENCIL v1')
+    && rndSrc.indexOf('RENDERER STENCIL v1') < rndSrc.indexOf('new THREE.WebGLRenderer('));
+  check('rndstencil: RENDERER POWER PREFERENCE v1 header survives above the stencil header',
+    rndSrc.includes('RENDERER POWER PREFERENCE v1')
+    && rndSrc.indexOf('RENDERER POWER PREFERENCE v1') < rndSrc.indexOf('RENDERER STENCIL v1'));
+  check('rndstencil: antialias: true survives in the same constructor',
+    rndSrc.includes('new THREE.WebGLRenderer({ antialias: true,'));
+  check('rndstencil: powerPreference high-performance survives in the same constructor',
+    rndSrc.includes("powerPreference: 'high-performance', stencil: false });"));
+  check('rndstencil: exact full constructor line is present',
+    html.includes("const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', stencil: false });"));
+  check('rndstencil: header states there is no stencilWrite anywhere (no material writes or tests stencil)',
+    segHeadRnd.includes('no stencilWrite anywhere'));
+  check('rndstencil: header states the post targets default stencilBuffer false in r160',
+    segHeadRnd.includes('post targets default stencilBuffer false (r160)'));
+  check('rndstencil: header states the N8AO stencil option defaults to false and is never enabled',
+    segHeadRnd.includes('N8AO defaults false, never enabled'));
+  check('rndstencil: header states the 8-bit stencil costs about 1 byte per pixel, is unused, and stencil: false drops it',
+    segHeadRnd.includes('8-bit stencil (about 1 byte/pixel) unused')
+    && segHeadRnd.includes('stencil: false drops it'));
+  check('rndstencil: header states zero new draw calls',
+    segHeadRnd.includes('Zero new draw calls.'));
+  check('rndstencil: the stencilWrite token occurs exactly once in the file (the header mention only, no material sets it)',
+    html.split('stencilWrite').length - 1 === 1,
+    'n=' + (html.split('stencilWrite').length - 1));
+  const linesRnd = html.split('\n');
+  const lineHasRnd = sub => linesRnd.filter(l => l.includes(sub)).length;
+  check('rndstencil-pins: 50 InstancedMesh literals unchanged', lineHasRnd('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRnd('new THREE.InstancedMesh'));
+  check('rndstencil-pins: 92 Math.random lines unchanged', lineHasRnd('Math.random') === 92,
+    'n=' + lineHasRnd('Math.random'));
+  check('rndstencil-pins: 72 setTimeout lines unchanged', lineHasRnd('setTimeout') === 72,
+    'n=' + lineHasRnd('setTimeout'));
+  check('rndstencil-pins: no em dashes', !html.includes('—'));
+  check('rndstencil-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('rndstencil-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('rndstencil: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRnd, consoleProblems.slice(probsRnd).join(' | '));
+}
+
 /* ================= SPRINT FOV KICK v1 =================
    On-foot sprint gets the FOV kick every fast mode already had: the
    camera FOV target on foot eases from CAR.fovWalk (62) at walk speed
