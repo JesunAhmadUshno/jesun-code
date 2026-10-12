@@ -15116,6 +15116,13 @@ function makeCivicTex() {
   for (let y = 16; y < 128; y += 16) g.fillRect(0, y, 128, 1);   // slab seams
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  /* RURAL FACADE ANISOTROPY v1: civic stone facades repeat and are viewed
+     obliquely along streets, so slab seams blur at grazing angles without
+     anisotropic filtering. Use the renderer max, capped at 4 for iPhone
+     headroom; the headless stub has no isWebGLRenderer flag, so it falls
+     back to 1. One shared texture, zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 function buildCivicGeo() {
@@ -15178,6 +15185,13 @@ function makeWorshipTex() {
   for (let y = 8; y < 64; y += 8) g.fillRect(0, y, 64, 1);   // stone courses
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  /* RURAL FACADE ANISOTROPY v1: worship stone facades repeat and are viewed
+     obliquely along streets, so stone courses blur at grazing angles without
+     anisotropic filtering. Use the renderer max, capped at 4 for iPhone
+     headroom; the headless stub has no isWebGLRenderer flag, so it falls
+     back to 1. One shared texture, zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 /* gabled roof prism: ridge along Z, triangular gable ends at z=+/-d/2.
@@ -15378,6 +15392,13 @@ function makeApartmentTex() {
   for (let y = 8; y < 64; y += 8) g.fillRect(0, y, 64, 1);   // brick courses
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  /* RURAL FACADE ANISOTROPY v1: apartment brick facades repeat and are viewed
+     obliquely along streets, so brick courses blur at grazing angles without
+     anisotropic filtering. Use the renderer max, capped at 4 for iPhone
+     headroom; the headless stub has no isWebGLRenderer flag, so it falls
+     back to 1. One shared texture, zero new draw calls. */
+  t.anisotropy = (renderer.isWebGLRenderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+    ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return t;
 }
 /* balcony slab + railing rails for residential floor deck height wy, on side
