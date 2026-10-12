@@ -6315,7 +6315,24 @@ function clearDust(){
        zero new Mesh. Remaining honest limit: a surface
        change or ridge inside a quarter segment
        (~0.225 m) still blends or clips across that
-       quarter. --- */
+       quarter.
+       SKID DEPTH-3 SPLIT v1: skidWriteQuad now uses a
+       depth < 3 split guard, so the split block runs at
+       depths 0, 1 and 2, and the recursive calls pass
+       depth + 1 instead of a literal depth. A quarter
+       segment whose ends still differ in surface or
+       still exceed the ridge threshold splits once more
+       at its own midpoint, using the same midY formula
+       and the same unified condition. Depth 3 writes
+       never split and fall through to the normal
+       single-quad write. The surface blend zone and
+       the ridge clip zone shrink from ~0.225 m to
+       ~0.1125 m. Same-surface and same-height segments
+       write exactly as before. Zero new draw calls,
+       zero new Mesh. Remaining honest limit: a surface
+       change or ridge inside an eighth segment
+       (~0.1125 m) still blends or clips across that
+       eighth. --- */
 const SKID_N = 256, SKID_LIFE = 14, SKID_MIN_SEG = 0.9;
 const SKID_RIDGE_T = 0.12;
 const skidPos = new Float32Array(SKID_N * 4 * 3);
@@ -6368,7 +6385,7 @@ function skidWriteQuad(px, pz, cx, cz, lx, lz, y, halfW = 0.14, prevY = y, depth
   const ccH = terrainHeight(cx, cz);
   const surfPrev = surfaceAt(px, pz);
   const surfCurr = surfaceAt(cx, cz);
-  if (depth < 2) {
+  if (depth < 3) {
     const mx = (px + cx) / 2, mz = (pz + cz) / 2;
     const midH = terrainHeight(mx, mz);
     const expected = (pcH + ccH) / 2;
