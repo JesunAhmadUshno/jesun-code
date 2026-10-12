@@ -241,7 +241,7 @@ globalThis.__R3D = {
   heliBodyIM, heliHintEl, heliChipEl, heliSpdEl, heliAltEl, HELI_N, sfxThud, HELI_PAD_LZ,   /* HELI SPEED METER v1: helicopter speed meter (test-only exposure) */
   /* Phase 5 planes v1 */
   PLANE, planeEnter, planeExit, planeExitFlight, planeRebuild, airstripFor,
-  planeStripWorld, planePose, planeBodyIM, planeHintEl, planeChipEl,
+  planeStripWorld, planePose, planeBodyIM, planeHintEl, planeChipEl, planeSpdEl, planeAltEl,   /* PLANE ALTITUDE METER v1: plane altitude meter (test-only exposure) */
   PLANE_N, PLANE_STRIP_LX, PLANE_SLOT_LZ, sfxBuffet,
   /* Phase 5 trains v1 */
   TRAIN, trainEnter, trainExit, trainUpdate, trainSimOne, trainNextK,
@@ -3712,7 +3712,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('plane: W pitches the nose down in the air', G.PLANE.pitch > 0.05,
     'pitch=' + G.PLANE.pitch.toFixed(3));
   check('plane: chip reads speed and altitude while flying',
-    /^PLANE - \d+ KM\/H \/ ALT \d+M$/.test(G.planeChipEl.textContent), G.planeChipEl.textContent);
+    /^PLANE - \d+ KM\/H \/ ALT \d+M$/.test(G.planeSpdEl.textContent + G.planeAltEl.textContent),
+    G.planeSpdEl.textContent + G.planeAltEl.textContent);
 
   /* bank-to-turn: D banks right and the heading follows the bank */
   G.PLANE.heading = 0; G.PLANE.bank = 0;
@@ -22980,6 +22981,169 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('trainspd: the run leaves zero console errors/warnings',
     consoleProblems.length === probsTS, consoleProblems.slice(probsTS).join(' | '));
+}
+
+/* ================= PLANE ALTITUDE METER v1 =================
+   The plane altitude readout is a real meter: the
+   #planealt span nested in #planechip carries role
+   meter plus aria-label Plane altitude and
+   aria-valuemin 0 and aria-valuemax 63 in markup,
+   with aria-valuenow kept in sync in planeUpdate
+   beside the textContent writers. The sync uses
+   the ariaValueNow IDL property, not setAttribute,
+   because the headless stub elements have no
+   setAttribute method. The displayed value is
+   Math.max(0, Math.round(PLANE.pos.y - ground))
+   where ground is terrainHeight at the plane: the
+   largest possible value is the PLANE.ceil 60 cap
+   minus the terrainHeight floor -2.7 (amplitudes
+   1.6+0.55+0.55), which is 62.7 and rounds up to
+   the fixed valuemax 63. Speed is NOT part of the
+   meter value: dive gains in planeUpdate can push
+   PLANE.speed past PLANE.topSpeed, so #planespd
+   stays plain text. The runtime checks board a
+   parked airplane through the real entry path
+   (the plane block idiom), force one HUD write on
+   the ground at speed 0, then place the plane 30m
+   over the terrain at its boarding point with
+   speed 20 and the HUD throttle forced open and
+   run one frame, and exit. Every altitude and
+   speed expectation is recomputed from the live
+   position, speed and terrain after the frame
+   (the heli block idiom), because the frame
+   integrates a fraction of a metre before the
+   HUD write samples the ground, and the gear
+   offset means the grounded altitude is the
+   computed floor value rather than a hard 0. */
+{
+  const probsPA = consoleProblems.length;
+  const linesPA = html.split('\n');
+  const lineHasPA = sub => linesPA.filter(l => l.includes(sub)).length;
+  check('planealt: PLANE ALTITUDE METER v1 header is present exactly once in the game source',
+    (html.split('PLANE ALTITUDE METER v1').length - 1) === 1,
+    'n=' + (html.split('PLANE ALTITUDE METER v1').length - 1));
+  const planeTagPA = (html.match(/<span id="planealt"[^>]*>/) || [''])[0];
+  check('planealt: #planealt element markup carries role="meter"',
+    planeTagPA.includes('role="meter"'), 'tag=' + planeTagPA);
+  check('planealt: #planealt element markup carries aria-label="Plane altitude"',
+    planeTagPA.includes('aria-label="Plane altitude"'), 'tag=' + planeTagPA);
+  check('planealt: #planealt element markup carries aria-valuemin="0"',
+    planeTagPA.includes('aria-valuemin="0"'), 'tag=' + planeTagPA);
+  check('planealt: #planealt element markup carries aria-valuemax="63"',
+    planeTagPA.includes('aria-valuemax="63"'), 'tag=' + planeTagPA);
+  check('planealt: #planealt element markup carries aria-valuenow="0"',
+    planeTagPA.includes('aria-valuenow="0"'), 'tag=' + planeTagPA);
+  check('planealt: #planechip markup nests #planespd plain text and #planealt meter (source pin)',
+    html.includes('<div id="planechip"><span id="planespd">PLANE - 0 KM/H</span><span id="planealt" role="meter" aria-label="Plane altitude" aria-valuemin="0" aria-valuemax="63" aria-valuenow="0"> / ALT 0M</span></div>'));
+  check('planealt: exactly one #planespd element in the game source',
+    (html.match(/id="planespd"/g) || []).length === 1,
+    'n=' + (html.match(/id="planespd"/g) || []).length);
+  check('planealt: exactly one #planealt element in the game source',
+    (html.match(/id="planealt"/g) || []).length === 1,
+    'n=' + (html.match(/id="planealt"/g) || []).length);
+  check('planealt: exactly one #planechip element in the game source',
+    (html.match(/id="planechip"/g) || []).length === 1,
+    'n=' + (html.match(/id="planechip"/g) || []).length);
+  check('planealt: planeChipEl binding line is unchanged (source pin)',
+    html.includes("const planeChipEl = document.getElementById('planechip');"));
+  check('planealt: planeSpdEl binding line binds planespd (source pin)',
+    html.includes("const planeSpdEl = document.getElementById('planespd');"));
+  check('planealt: planeAltEl binding line binds planealt (source pin)',
+    html.includes("const planeAltEl = document.getElementById('planealt');"));
+  check('planealt: planeUpdate computes planeKmh from PLANE.speed (source pin)',
+    html.includes('const planeKmh = Math.round(Math.abs(PLANE.speed) * 3.6);'));
+  check('planealt: planeUpdate computes planeAltM from PLANE.pos.y minus ground (source pin)',
+    html.includes('const planeAltM = Math.max(0, Math.round(PLANE.pos.y - ground));'));
+  check('planealt: planeUpdate writes planeSpdEl textContent from planeKmh (source pin)',
+    html.includes("planeSpdEl.textContent = 'PLANE - ' + planeKmh + ' KM/H';"));
+  check('planealt: planeUpdate writes planeAltEl textContent from planeAltM (source pin)',
+    html.includes("planeAltEl.textContent = ' / ALT ' + planeAltM + 'M';"));
+  check('planealt: planeUpdate syncs planeAltEl ariaValueNow from planeAltM exactly once (source pin)',
+    (html.split('planeAltEl.ariaValueNow = String(planeAltM);').length - 1) === 1,
+    'n=' + (html.split('planeAltEl.ariaValueNow = String(planeAltM);').length - 1));
+  check('planealt: the old planeChipEl textContent writer is gone (source pin)',
+    !html.includes('planeChipEl.textContent'));
+  /* board a parked airplane through the real entry path (plane block idiom) */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  let stripChunkPA = null;
+  for (let gx = -80; gx <= 80 && !stripChunkPA; gx++)
+    for (let gz = -80; gz <= 80 && !stripChunkPA; gz++) {
+      const d = G.airstripFor(gx, gz);
+      if (d) stripChunkPA = { gx, gz, d };
+    }
+  check('planealt: test airstrip exists in the searched world',
+    stripChunkPA !== null, 'stripChunk=' + stripChunkPA);
+  const pcxPA = (stripChunkPA.gx + 0.5) * 48, pczPA = (stripChunkPA.gz + 0.5) * 48;
+  G.player.position.set(pcxPA, groundY(pcxPA, pczPA), pczPA);
+  frame(3);
+  const sPA = G.PLANE.slots.find(s => s.placed);
+  G.player.position.set(sPA.x, sPA.y + 1, sPA.z);
+  frame(2);
+  G.planeEnter();
+  check('planealt: runtime boarded through planeEnter, chip is shown while flying',
+    G.PLANE.flying === true && G.planeChipEl.style.display === 'block',
+    'flying=' + G.PLANE.flying + ' display=' + G.planeChipEl.style.display);
+  G.keys.KeyW = false; G.keys.KeyA = false; G.keys.KeyS = false; G.keys.KeyD = false;
+  G.keys.ArrowUp = false; G.keys.ArrowDown = false; G.keys.ArrowLeft = false; G.keys.ArrowRight = false;
+  G.keys.Space = false; G.keys.KeyC = false;
+  /* grounded read: throttle and speed pinned at 0, one forced HUD write */
+  G.PLANE.throttle = 0; G.PLANE.speed = 0; G.PLANE.hudT = 1;
+  frame(1);
+  const altPAG = Math.max(0, Math.round(G.PLANE.pos.y - G.terrainHeight(G.PLANE.pos.x, G.PLANE.pos.z)));
+  check('planealt: runtime planeSpdEl text is PLANE - 0 KM/H on the ground',
+    G.planeSpdEl.textContent === 'PLANE - 0 KM/H',
+    'textContent=' + G.planeSpdEl.textContent + ' speed=' + G.PLANE.speed);
+  check('planealt: runtime planeAltEl text is in sync with live grounded altitude',
+    G.planeAltEl.textContent === ' / ALT ' + altPAG + 'M',
+    'textContent=' + G.planeAltEl.textContent + ' expectedAlt=' + altPAG);
+  check('planealt: runtime planeAltEl ariaValueNow matches the grounded altitude',
+    String(G.planeAltEl.ariaValueNow) === String(altPAG),
+    'ariaValueNow=' + G.planeAltEl.ariaValueNow + ' expectedAlt=' + altPAG);
+  check('planealt: runtime combined chip text keeps the PLANE - 0 KM/H / ALT nM format on the ground',
+    (G.planeSpdEl.textContent + G.planeAltEl.textContent) === 'PLANE - 0 KM/H / ALT ' + altPAG + 'M',
+    G.planeSpdEl.textContent + G.planeAltEl.textContent);
+  /* airborne read: 30m over the terrain, speed 20, one forced HUD write */
+  G.PLANE.pos.y = G.terrainHeight(G.PLANE.pos.x, G.PLANE.pos.z) + 30;
+  G.PLANE.vy = 0; G.PLANE.grounded = false; G.PLANE.crashT = 0; G.PLANE.landT = 0;
+  G.PLANE.pitch = 0; G.PLANE.pitchVel = 0; G.PLANE.bank = 0; G.PLANE.autoLand = false;
+  G.PLANE.speed = 20; G.PLANE.throttle = 0.75; G.PLANE.hudT = 1;
+  frame(1);
+  const altPAA = Math.max(0, Math.round(G.PLANE.pos.y - G.terrainHeight(G.PLANE.pos.x, G.PLANE.pos.z)));
+  const kmhPAA = Math.round(Math.abs(G.PLANE.speed) * 3.6);
+  check('planealt: runtime planeAltEl text is in sync with live altitude at 30m',
+    G.planeAltEl.textContent === ' / ALT ' + altPAA + 'M',
+    'textContent=' + G.planeAltEl.textContent + ' expectedAlt=' + altPAA);
+  check('planealt: runtime altitude at 30m reads 30 within 1',
+    Math.abs(altPAA - 30) <= 1, 'expectedAlt=' + altPAA);
+  check('planealt: runtime planeAltEl ariaValueNow matches the altitude at 30m',
+    String(G.planeAltEl.ariaValueNow) === String(altPAA),
+    'ariaValueNow=' + G.planeAltEl.ariaValueNow + ' expectedAlt=' + altPAA);
+  check('planealt: runtime planeSpdEl text is in sync with live speed at 30m',
+    G.planeSpdEl.textContent === 'PLANE - ' + kmhPAA + ' KM/H',
+    'textContent=' + G.planeSpdEl.textContent + ' expectedKmh=' + kmhPAA);
+  check('planealt: runtime combined chip text keeps the PLANE - n KM/H / ALT nM format at 30m',
+    /^PLANE - \d+ KM\/H \/ ALT \d+M$/.test(G.planeSpdEl.textContent + G.planeAltEl.textContent),
+    G.planeSpdEl.textContent + G.planeAltEl.textContent);
+  G.planeExit();
+  check('planealt: chip is hidden after exit and not flying',
+    G.planeChipEl.style.display === 'none' && G.PLANE.flying === false,
+    'display=' + G.planeChipEl.style.display + ' flying=' + G.PLANE.flying);
+  check('planealt: pins - 50 InstancedMesh literals unchanged', lineHasPA('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasPA('new THREE.InstancedMesh'));
+  check('planealt: pins - 92 Math.random lines unchanged', lineHasPA('Math.random') === 92,
+    'n=' + lineHasPA('Math.random'));
+  check('planealt: pins - 72 setTimeout lines unchanged', lineHasPA('setTimeout') === 72,
+    'n=' + lineHasPA('setTimeout'));
+  check('planealt: pins - 2 THREE.Points objects unchanged', lineHasPA('new THREE.Points(') === 2,
+    'n=' + lineHasPA('new THREE.Points('));
+  check('planealt: pins - no em dashes', !html.includes('\u2014'));
+  check('planealt: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('planealt: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('planealt: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsPA, consoleProblems.slice(probsPA).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
