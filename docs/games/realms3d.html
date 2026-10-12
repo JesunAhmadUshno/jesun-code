@@ -1752,6 +1752,12 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
    (PHASE 1 POST, below) is live, its OutputPass applies the same curve and
    exposure at the end of the chain. The day/night tick keys the exposure. */
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+/* RENDERER OUTPUT COLORSPACE v1: r160 already defaults the renderer
+   output to sRGB, but this declares it explicitly so the final frame
+   encode cannot silently flip to linear and wash out every authored
+   colour. The per-texture sRGB declarations (18 sites) cover input;
+   this one covers output. */
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMappingExposure = 1.0;
 app.appendChild(renderer.domElement);
 
