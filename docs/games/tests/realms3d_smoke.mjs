@@ -22425,6 +22425,81 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsKB, consoleProblems.slice(probsKB).join(' | '));
 }
 
+/* ================= KENO HITS METER v1 =================
+   The keno hits count is a real meter: role meter
+   plus aria-label Keno hits and aria-valuemin 0
+   and aria-valuemax 10 in the #lmkeno-hits markup,
+   with aria-valuenow kept in sync in kenoRender
+   beside the textContent writer. The sync uses the
+   ariaValueNow IDL property, not setAttribute,
+   because the headless stub elements have no
+   setAttribute method. Hits are bounded by the
+   10-spot pick cap, so hits never exceed picks and
+   the fixed valuemax 10 is exact. The runtime
+   checks drive G.kenoRender through the already-
+   exposed shim (G.kenoHitsEl and G.CASINOKENO and
+   G.kenoRender, no new shim entry) with hits set
+   to 3, then restore hits 0 and render again,
+   leaving the clean HITS 0 state. */
+{
+  const probsKH = consoleProblems.length;
+  const linesKH = html.split('\n');
+  const lineHasKH = sub => linesKH.filter(l => l.includes(sub)).length;
+  check('kenohits: KENO HITS METER v1 header is present exactly once in the game source',
+    (html.split('KENO HITS METER v1').length - 1) === 1,
+    'n=' + (html.split('KENO HITS METER v1').length - 1));
+  const kenoHitsTagKH = (html.match(/<span id="lmkeno-hits"[^>]*>/) || [''])[0];
+  check('kenohits: #lmkeno-hits element markup carries role="meter"',
+    kenoHitsTagKH.includes('role="meter"'), 'tag=' + kenoHitsTagKH);
+  check('kenohits: #lmkeno-hits element markup carries aria-label="Keno hits"',
+    kenoHitsTagKH.includes('aria-label="Keno hits"'), 'tag=' + kenoHitsTagKH);
+  check('kenohits: #lmkeno-hits element markup carries aria-valuemin="0"',
+    kenoHitsTagKH.includes('aria-valuemin="0"'), 'tag=' + kenoHitsTagKH);
+  check('kenohits: #lmkeno-hits element markup carries aria-valuemax="10"',
+    kenoHitsTagKH.includes('aria-valuemax="10"'), 'tag=' + kenoHitsTagKH);
+  check('kenohits: #lmkeno-hits element markup carries aria-valuenow="0"',
+    kenoHitsTagKH.includes('aria-valuenow="0"'), 'tag=' + kenoHitsTagKH);
+  check('kenohits: exactly one #lmkeno-hits element in the game source',
+    (html.match(/id="lmkeno-hits"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmkeno-hits"/g) || []).length);
+  check('kenohits: kenoHitsEl binding line binds lmkeno-hits (source pin)',
+    html.includes("const kenoHitsEl = document.getElementById('lmkeno-hits');"));
+  check('kenohits: kenoRender kenoHitsEl textContent writer line is unchanged (source pin)',
+    html.includes("kenoHitsEl.textContent = 'HITS ' + K.hits;"));
+  check('kenohits: kenoRender syncs kenoHitsEl ariaValueNow from K.hits exactly once (source pin)',
+    (html.split('kenoHitsEl.ariaValueNow = String(K.hits);').length - 1) === 1,
+    'n=' + (html.split('kenoHitsEl.ariaValueNow = String(K.hits);').length - 1));
+  G.CASINOKENO.hits = 3;
+  G.kenoRender();
+  check('kenohits: runtime kenoHitsEl text is HITS 3 when hits is 3',
+    G.kenoHitsEl.textContent === 'HITS 3',
+    'textContent=' + G.kenoHitsEl.textContent);
+  check('kenohits: runtime kenoHitsEl ariaValueNow is 3 when hits is 3',
+    String(G.kenoHitsEl.ariaValueNow) === '3',
+    'ariaValueNow=' + G.kenoHitsEl.ariaValueNow);
+  G.CASINOKENO.hits = 0;
+  G.kenoRender();
+  check('kenohits: runtime kenoHitsEl text is HITS 0 after restore to hits 0',
+    G.kenoHitsEl.textContent === 'HITS 0',
+    'textContent=' + G.kenoHitsEl.textContent);
+  check('kenohits: runtime kenoHitsEl ariaValueNow is 0 after restore to hits 0',
+    String(G.kenoHitsEl.ariaValueNow) === '0',
+    'ariaValueNow=' + G.kenoHitsEl.ariaValueNow);
+  check('kenohits: pins - 50 InstancedMesh literals unchanged', lineHasKH('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasKH('new THREE.InstancedMesh'));
+  check('kenohits: pins - 92 Math.random lines unchanged', lineHasKH('Math.random') === 92,
+    'n=' + lineHasKH('Math.random'));
+  check('kenohits: pins - 72 setTimeout lines unchanged', lineHasKH('setTimeout') === 72,
+    'n=' + lineHasKH('setTimeout'));
+  check('kenohits: pins - no em dashes', !html.includes('\u2014'));
+  check('kenohits: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('kenohits: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('kenohits: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsKH, consoleProblems.slice(probsKH).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
