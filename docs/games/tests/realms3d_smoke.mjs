@@ -314,7 +314,7 @@ globalThis.__R3D = {
   /* Phase 5 landmark fire station v1 */
   FIRESTHALL, FIREST, firestHallEnter, firestHallExit, firestHallKeyE, firestPoleSlide,
   firestRefill, firestHallTick, firestHallDoorWorld, firestBayWorld,
-  buildLandmarkFireStationGeo, buildFireStationHallGeo, fireHallMesh, updateFTCondHUD,
+  buildLandmarkFireStationGeo, buildFireStationHallGeo, fireHallMesh, updateFTCondHUD, updateCarCondHUD, carWaterEl, carHullEl, carExtraEl,   /* CARCOND SPLIT v1: carcond split meters (test-only exposure) */
   firesthallhintEl, firestbayhintEl, firestpolehintEl, firestChipEl, firestTxtEl, firestArrEl,
   HELP_FIRHALL,
   LMFS_COL, LMFS_R, LMFS_SEGS, LMFS_GATE_K, LMFS_CHIP_R2, LMFS_DOOR, LMFS_DOOR_R2, LMFS_BAY,
@@ -23402,6 +23402,165 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('reelcanvas: the run leaves zero console errors/warnings',
     consoleProblems.length === probsRC, consoleProblems.slice(probsRC).join(' | '));
+}
+
+/* ================= CARCOND SPLIT v1 =================
+   The shared vehicle condition readout is split: the
+   #carcond div inside #speedo nests a #carwater span
+   (role meter, aria-label Fire truck water) and a
+   #carhull span (role meter, aria-label Vehicle hull),
+   each with aria-valuemin 0 and aria-valuemax 100 in
+   markup, plus a plain #carextra span for the armor
+   suffix. Both writers (updateCarCondHUD for the car,
+   updateFTCondHUD for the fire truck) share the hull
+   span and sync valuenow via the ariaValueNow property
+   (stub-safe idiom, no setAttribute); every value is
+   bounded 0..100 in code (CAR.hp and CAR.armor are
+   clamped on damage, repair and reset, FT.water and
+   FT.hp are clamped on drain, damage and refill). The
+   car writer hides the water span, the truck writer
+   shows it, and the concatenated visible text stays
+   byte-identical in both modes. The runtime checks
+   drive the real writer functions with values that
+   differ from the dedupe caches (_carCondLast and
+   _ftCondLast), so every drive really writes, then
+   restore full values and leave the car readout clean. */
+{
+  const probsCC = consoleProblems.length;
+  const linesCC = html.split('\n');
+  const lineHasCC = sub => linesCC.filter(l => l.includes(sub)).length;
+  check('carcond: CARCOND SPLIT v1 header is present exactly once in the game source',
+    (html.split('CARCOND SPLIT v1').length - 1) === 1,
+    'n=' + (html.split('CARCOND SPLIT v1').length - 1));
+  check('carcond: #carcond markup nests #carwater meter, #carhull meter and #carextra plain span (source pin)',
+    html.includes('<div id="carcond"><span id="carwater" role="meter" aria-label="Fire truck water" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="display:none">WATER 100%</span><span id="carhull" role="meter" aria-label="Vehicle hull" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">HULL 100%</span><span id="carextra"></span></div>'));
+  const carWaterTagCC = (html.match(/<span id="carwater"[^>]*>/) || [''])[0];
+  check('carcond: #carwater element markup carries role="meter"',
+    carWaterTagCC.includes('role="meter"'), 'tag=' + carWaterTagCC);
+  check('carcond: #carwater element markup carries aria-label="Fire truck water"',
+    carWaterTagCC.includes('aria-label="Fire truck water"'), 'tag=' + carWaterTagCC);
+  check('carcond: #carwater element markup carries aria-valuemin="0"',
+    carWaterTagCC.includes('aria-valuemin="0"'), 'tag=' + carWaterTagCC);
+  check('carcond: #carwater element markup carries aria-valuemax="100"',
+    carWaterTagCC.includes('aria-valuemax="100"'), 'tag=' + carWaterTagCC);
+  check('carcond: #carwater element markup carries aria-valuenow="100"',
+    carWaterTagCC.includes('aria-valuenow="100"'), 'tag=' + carWaterTagCC);
+  const carHullTagCC = (html.match(/<span id="carhull"[^>]*>/) || [''])[0];
+  check('carcond: #carhull element markup carries role="meter"',
+    carHullTagCC.includes('role="meter"'), 'tag=' + carHullTagCC);
+  check('carcond: #carhull element markup carries aria-label="Vehicle hull"',
+    carHullTagCC.includes('aria-label="Vehicle hull"'), 'tag=' + carHullTagCC);
+  check('carcond: #carhull element markup carries aria-valuemin="0"',
+    carHullTagCC.includes('aria-valuemin="0"'), 'tag=' + carHullTagCC);
+  check('carcond: #carhull element markup carries aria-valuemax="100"',
+    carHullTagCC.includes('aria-valuemax="100"'), 'tag=' + carHullTagCC);
+  check('carcond: #carhull element markup carries aria-valuenow="100"',
+    carHullTagCC.includes('aria-valuenow="100"'), 'tag=' + carHullTagCC);
+  check('carcond: exactly one #carwater element in the game source',
+    (html.match(/id="carwater"/g) || []).length === 1,
+    'n=' + (html.match(/id="carwater"/g) || []).length);
+  check('carcond: exactly one #carhull element in the game source',
+    (html.match(/id="carhull"/g) || []).length === 1,
+    'n=' + (html.match(/id="carhull"/g) || []).length);
+  check('carcond: exactly one #carextra element in the game source',
+    (html.match(/id="carextra"/g) || []).length === 1,
+    'n=' + (html.match(/id="carextra"/g) || []).length);
+  check('carcond: carCondEl binding line is unchanged (source pin)',
+    html.includes("const carCondEl = document.getElementById('carcond');"));
+  check('carcond: carWaterEl binding line binds carwater (source pin)',
+    html.includes("const carWaterEl = document.getElementById('carwater');"));
+  check('carcond: carHullEl binding line binds carhull (source pin)',
+    html.includes("const carHullEl = document.getElementById('carhull');"));
+  check('carcond: carExtraEl binding line binds carextra (source pin)',
+    html.includes("const carExtraEl = document.getElementById('carextra');"));
+  check('carcond: updateCarCondHUD hides the water span (source pin)',
+    html.includes("carWaterEl.style.display = 'none';"));
+  check('carcond: updateCarCondHUD writes carHullEl textContent from CAR.hp (source pin)',
+    html.includes("carHullEl.textContent = 'HULL ' + Math.round(CAR.hp) + '%';"));
+  check('carcond: updateCarCondHUD syncs carHullEl ariaValueNow from CAR.hp (source pin)',
+    html.includes('carHullEl.ariaValueNow = String(Math.round(CAR.hp));'));
+  check('carcond: updateCarCondHUD writes carExtraEl textContent from CAR.armor (source pin)',
+    html.includes("carExtraEl.textContent = CAR.armor > 0 ? ' ARMOR ' + Math.round(CAR.armor) : '';"));
+  check('carcond: updateFTCondHUD shows the water span (source pin)',
+    html.includes("carWaterEl.style.display = '';"));
+  check('carcond: updateFTCondHUD writes carWaterEl textContent from FT.water (source pin)',
+    html.includes("carWaterEl.textContent = 'WATER ' + Math.round(FT.water) + '%';"));
+  check('carcond: updateFTCondHUD syncs carWaterEl ariaValueNow from FT.water (source pin)',
+    html.includes('carWaterEl.ariaValueNow = String(Math.round(FT.water));'));
+  check('carcond: updateFTCondHUD writes carHullEl textContent from FT.hp with leading space (source pin)',
+    html.includes("carHullEl.textContent = ' HULL ' + Math.round(FT.hp) + '%';"));
+  check('carcond: updateFTCondHUD syncs carHullEl ariaValueNow from FT.hp (source pin)',
+    html.includes('carHullEl.ariaValueNow = String(Math.round(FT.hp));'));
+  check('carcond: updateFTCondHUD clears carExtraEl textContent (source pin)',
+    html.includes("carExtraEl.textContent = '';"));
+  check('carcond: no writer sets carCondEl textContent anymore (source pin)',
+    !html.includes('carCondEl.textContent'));
+  /* runtime drives through the real writer functions (dedupe-safe values) */
+  G.CAR.hp = 55; G.CAR.armor = 20;
+  G.updateCarCondHUD();
+  check('carcond: runtime carHullEl text is HULL 55% in car mode with armor',
+    G.carHullEl.textContent === 'HULL 55%',
+    'textContent=' + G.carHullEl.textContent);
+  check('carcond: runtime carHullEl ariaValueNow is 55 in car mode with armor',
+    G.carHullEl.ariaValueNow === '55',
+    'ariaValueNow=' + G.carHullEl.ariaValueNow);
+  check('carcond: runtime carExtraEl text is ARMOR suffix in car mode with armor',
+    G.carExtraEl.textContent === ' ARMOR 20',
+    'textContent=' + G.carExtraEl.textContent);
+  check('carcond: runtime carWaterEl display is none in car mode',
+    G.carWaterEl.style.display === 'none',
+    'display=' + G.carWaterEl.style.display);
+  check('carcond: runtime visible text is HULL 55% ARMOR 20 in car mode with armor',
+    G.carHullEl.textContent + G.carExtraEl.textContent === 'HULL 55% ARMOR 20',
+    G.carHullEl.textContent + G.carExtraEl.textContent);
+  G.CAR.armor = 0;
+  G.updateCarCondHUD();
+  check('carcond: runtime carExtraEl text is empty in car mode without armor',
+    G.carExtraEl.textContent === '',
+    'textContent=' + G.carExtraEl.textContent);
+  check('carcond: runtime visible text is HULL 55% in car mode without armor',
+    G.carHullEl.textContent + G.carExtraEl.textContent === 'HULL 55%',
+    G.carHullEl.textContent + G.carExtraEl.textContent);
+  G.FT.water = 40; G.FT.hp = 55;
+  G.updateFTCondHUD();
+  check('carcond: runtime carWaterEl text is WATER 40% in truck mode',
+    G.carWaterEl.textContent === 'WATER 40%',
+    'textContent=' + G.carWaterEl.textContent);
+  check('carcond: runtime carWaterEl ariaValueNow is 40 in truck mode',
+    G.carWaterEl.ariaValueNow === '40',
+    'ariaValueNow=' + G.carWaterEl.ariaValueNow);
+  check('carcond: runtime carWaterEl display is not none in truck mode',
+    G.carWaterEl.style.display !== 'none',
+    'display=' + G.carWaterEl.style.display);
+  check('carcond: runtime carHullEl text is HULL 55% with leading space in truck mode',
+    G.carHullEl.textContent === ' HULL 55%',
+    'textContent=' + G.carHullEl.textContent);
+  check('carcond: runtime carHullEl ariaValueNow is 55 in truck mode',
+    G.carHullEl.ariaValueNow === '55',
+    'ariaValueNow=' + G.carHullEl.ariaValueNow);
+  check('carcond: runtime carExtraEl text is empty in truck mode',
+    G.carExtraEl.textContent === '',
+    'textContent=' + G.carExtraEl.textContent);
+  check('carcond: runtime visible text is WATER 40% HULL 55% in truck mode',
+    G.carWaterEl.textContent + G.carHullEl.textContent === 'WATER 40% HULL 55%',
+    G.carWaterEl.textContent + G.carHullEl.textContent);
+  G.CAR.hp = 100; G.CAR.armor = 0; G.FT.water = 100; G.FT.hp = 100;
+  G.updateCarCondHUD();
+  check('carcond: pins - 50 InstancedMesh literals unchanged', lineHasCC('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasCC('new THREE.InstancedMesh'));
+  check('carcond: pins - 92 Math.random lines unchanged', lineHasCC('Math.random') === 92,
+    'n=' + lineHasCC('Math.random'));
+  check('carcond: pins - 72 setTimeout lines unchanged', lineHasCC('setTimeout') === 72,
+    'n=' + lineHasCC('setTimeout'));
+  check('carcond: pins - 2 THREE.Points objects unchanged', lineHasCC('new THREE.Points(') === 2,
+    'n=' + lineHasCC('new THREE.Points('));
+  check('carcond: pins - no em dashes', !html.includes('\u2014'));
+  check('carcond: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('carcond: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('carcond: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsCC, consoleProblems.slice(probsCC).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
