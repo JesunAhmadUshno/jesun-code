@@ -22274,6 +22274,77 @@ globalThis.__R3D2 = {
   G.keys.ShiftLeft = false; G.keys.ShiftRight = false;
 }
 
+/* ================= CONCH TIMER v1 =================
+   The REFRESHED buff countdown is a real timer: role
+   timer plus aria-label Refreshed buff remaining in
+   the #conchchip markup, with the text still written
+   by conchTick (the conchChipEl textContent line
+   pinned below). The timer role carries no
+   aria-valuenow, aria-valuemin, aria-valuemax, or
+   aria-live: a timer is not a meter, and its implicit
+   live region is off, so assistive tech can read the
+   remaining time on demand without an announcement
+   every second. The runtime checks drive G.conchTick
+   through the already-exposed shim (G.conchChipEl,
+   the G.conchT getter/setter, and G.conchTick) with
+   playing() true in the harness, the same state the
+   earlier conch block drives. The block ends on the
+   expired clean state: chip hidden, conchT back to
+   0, and the saved hp and dead state restored. */
+{
+  const probsCT = consoleProblems.length;
+  const linesCT = html.split('\n');
+  const lineHasCT = sub => linesCT.filter(l => l.includes(sub)).length;
+  check('conchtimer: CONCH TIMER v1 header is present exactly once in the game source',
+    (html.split('CONCH TIMER v1').length - 1) === 1,
+    'n=' + (html.split('CONCH TIMER v1').length - 1));
+  const conchTagCT = (html.match(/<div id="conchchip"[^>]*>/) || [''])[0];
+  check('conchtimer: #conchchip element markup carries role="timer"',
+    conchTagCT.includes('role="timer"'), 'tag=' + conchTagCT);
+  check('conchtimer: #conchchip element markup carries aria-label="Refreshed buff remaining"',
+    conchTagCT.includes('aria-label="Refreshed buff remaining"'), 'tag=' + conchTagCT);
+  check('conchtimer: exactly one #conchchip element in the game source',
+    (html.match(/id="conchchip"/g) || []).length === 1,
+    'n=' + (html.match(/id="conchchip"/g) || []).length);
+  check('conchtimer: conchChipEl binding line binds conchchip (source pin)',
+    html.includes("const conchChipEl = document.getElementById('conchchip');"));
+  check('conchtimer: conchTick conchChipEl textContent writer line is unchanged (source pin)',
+    html.includes("conchChipEl.textContent = 'REFRESHED ' + Math.ceil(conchT) + 'S';"));
+  const hpOrigCT = G.P.hp, deadOrigCT = G.P.dead;
+  G.P.hp = 90; G.P.dead = false; G.conchT = 30;
+  G.conchTick(1);
+  check('conchtimer: runtime conchChipEl text is REFRESHED 29S after conchTick 1 from 30',
+    G.conchChipEl.textContent === 'REFRESHED 29S',
+    'textContent=' + G.conchChipEl.textContent);
+  check('conchtimer: runtime conchchip display is block while the buff is active',
+    G.conchChipEl.style.display === 'block',
+    'display=' + G.conchChipEl.style.display);
+  check('conchtimer: runtime conchT is 29 after conchTick 1 from 30',
+    G.conchT === 29, 'conchT=' + G.conchT);
+  G.conchT = 0.5;
+  G.conchTick(1);
+  check('conchtimer: runtime conchchip display is none after the buff expires',
+    G.conchChipEl.style.display === 'none',
+    'display=' + G.conchChipEl.style.display);
+  check('conchtimer: runtime conchT is 0 after the buff expires',
+    G.conchT === 0, 'conchT=' + G.conchT);
+  G.conchT = 0; G.conchChipEl.style.display = 'none';
+  G.P.hp = hpOrigCT; G.P.dead = deadOrigCT;
+  check('conchtimer: pins - 50 InstancedMesh literals unchanged', lineHasCT('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasCT('new THREE.InstancedMesh'));
+  check('conchtimer: pins - 92 Math.random lines unchanged', lineHasCT('Math.random') === 92,
+    'n=' + lineHasCT('Math.random'));
+  check('conchtimer: pins - 72 setTimeout lines unchanged', lineHasCT('setTimeout') === 72,
+    'n=' + lineHasCT('setTimeout'));
+  check('conchtimer: pins - no em dashes', !html.includes('\u2014'));
+  check('conchtimer: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('conchtimer: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('conchtimer: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsCT, consoleProblems.slice(probsCT).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
