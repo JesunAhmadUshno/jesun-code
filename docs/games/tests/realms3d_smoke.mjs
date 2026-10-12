@@ -348,6 +348,7 @@ globalThis.__R3D = {
   /* TERRAIN LOD v1: chunk pool + band rule + constants (test-only exposure) */
   chunkPool, chunkLodBand, LOD_FAR_SEG, LOD_FAR_RING,
   chunkMat, /* TERRAIN ANISOTROPY v1: terrain material (test-only exposure) */
+  skinTex, fabricTex, /* CHARACTER TEXTURE ANISOTROPY v1: character textures (test-only exposure) */
   /* SPRINT FOV KICK v1: sprint FOV helper + constant (test-only exposure) */
   footFov, FOV_SPRINT,
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
@@ -11811,6 +11812,71 @@ globalThis.__R3D2 = {
   check('rurfaniso-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('rurfaniso: the run leaves zero console errors/warnings',
     consoleProblems.length === probsR, consoleProblems.slice(probsR).join(' | '));
+}
+
+/* ================= CHARACTER TEXTURE ANISOTROPY v1 =================
+   The skin and fabric textures set anisotropy from the renderer max,
+   capped at 4 for iPhone headroom, so their tiled pore detail and
+   fabric weave stay sharp at grazing angles on limbs, torso, shirts
+   and pants. The headless stub renderer has no isWebGLRenderer flag
+   and no capabilities, so the guarded expression falls back to 1
+   there and never throws. skinTex and fabricTex are top-level consts
+   exposed on the test shim, so runtime verification checks the real
+   textures directly alongside the source pins. Zero new draw calls. */
+{
+  const probsC = consoleProblems.length;
+  const texSrcSkinC = html.slice(
+    html.indexOf('function makeSkinTex()'),
+    html.indexOf('const skinTex'));
+  const texSrcFabricC = html.slice(
+    html.indexOf('function makeFabricTex()'),
+    html.indexOf('const fabricTex'));
+  check('charaniso: anisotropy assignment and pins live inside makeSkinTex',
+    texSrcSkinC.length > 100 && texSrcSkinC.includes('t.anisotropy')
+    && texSrcSkinC.includes('getMaxAnisotropy') && texSrcSkinC.includes('Math.min(4,'),
+    'slice=' + texSrcSkinC.length);
+  check('charaniso: guard and header present in makeSkinTex',
+    texSrcSkinC.includes('renderer.isWebGLRenderer') && texSrcSkinC.includes('renderer.capabilities')
+    && texSrcSkinC.includes('CHARACTER TEXTURE ANISOTROPY v1'));
+  check('charaniso: anisotropy assignment and pins live inside makeFabricTex',
+    texSrcFabricC.length > 100 && texSrcFabricC.includes('t.anisotropy')
+    && texSrcFabricC.includes('getMaxAnisotropy') && texSrcFabricC.includes('Math.min(4,'),
+    'slice=' + texSrcFabricC.length);
+  check('charaniso: guard and header present in makeFabricTex',
+    texSrcFabricC.includes('renderer.isWebGLRenderer') && texSrcFabricC.includes('renderer.capabilities')
+    && texSrcFabricC.includes('CHARACTER TEXTURE ANISOTROPY v1'));
+  check('charaniso: wrap still RepeatWrapping in makeSkinTex',
+    texSrcSkinC.includes('t.wrapS = t.wrapT = THREE.RepeatWrapping'));
+  check('charaniso: wrap still RepeatWrapping in makeFabricTex',
+    texSrcFabricC.includes('t.wrapS = t.wrapT = THREE.RepeatWrapping'));
+  check('charaniso: skinTex exists and is a CanvasTexture',
+    !!G.skinTex && G.skinTex.isCanvasTexture === true,
+    G.skinTex ? 'isCanvasTexture=' + G.skinTex.isCanvasTexture : 'no skinTex');
+  check('charaniso: fabricTex exists and is a CanvasTexture',
+    !!G.fabricTex && G.fabricTex.isCanvasTexture === true,
+    G.fabricTex ? 'isCanvasTexture=' + G.fabricTex.isCanvasTexture : 'no fabricTex');
+  check('charaniso: skinTex anisotropy falls back to 1 in stub env',
+    !!G.skinTex && G.skinTex.anisotropy === 1,
+    G.skinTex ? 'aniso=' + G.skinTex.anisotropy : 'no skinTex');
+  check('charaniso: fabricTex anisotropy falls back to 1 in stub env',
+    !!G.fabricTex && G.fabricTex.anisotropy === 1,
+    G.fabricTex ? 'aniso=' + G.fabricTex.anisotropy : 'no fabricTex');
+  check('charaniso: skinTex wrap is RepeatWrapping on both axes',
+    !!G.skinTex && G.skinTex.wrapS === THREE.RepeatWrapping && G.skinTex.wrapT === THREE.RepeatWrapping);
+  check('charaniso: fabricTex wrap is RepeatWrapping on both axes',
+    !!G.fabricTex && G.fabricTex.wrapS === THREE.RepeatWrapping && G.fabricTex.wrapT === THREE.RepeatWrapping);
+  const linesC = html.split('\n');
+  const lineHasC = sub => linesC.filter(l => l.includes(sub)).length;
+  check('charaniso-pins: 50 InstancedMesh literals unchanged', lineHasC('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasC('new THREE.InstancedMesh'));
+  check('charaniso-pins: 92 Math.random lines unchanged', lineHasC('Math.random') === 92,
+    'n=' + lineHasC('Math.random'));
+  check('charaniso-pins: 72 setTimeout lines unchanged', lineHasC('setTimeout') === 72,
+    'n=' + lineHasC('setTimeout'));
+  check('charaniso-pins: no em dashes', !html.includes('—'));
+  check('charaniso-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('charaniso: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsC, consoleProblems.slice(probsC).join(' | '));
 }
 
 /* ================= SPRINT FOV KICK v1 =================
