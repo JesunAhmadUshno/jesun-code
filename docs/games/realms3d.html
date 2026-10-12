@@ -1402,7 +1402,8 @@
   <div id="carhint"></div>
   <div id="ridehint"></div>
   <div id="bushint"></div>
-  <div id="bushud"></div>
+  <!-- BUS PAX METER v1: the bus passenger count is a real meter: the #buspax span inside #bushud carries role meter plus aria-label Bus passengers and aria-valuemin 0 and aria-valuemax 10 in markup, valuenow kept in sync by busUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by BUS.seats 10. The route prefix stays plain text in #busroute, and the concatenated visible text is unchanged. -->
+  <div id="bushud"><span id="busroute"></span><span id="buspax" role="meter" aria-label="Bus passengers" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0">   PAX 0</span></div>
   <div id="txhint"></div>
   <div id="fthint"></div>
   <div id="txhud"></div>
@@ -20206,6 +20207,8 @@ scene.add(freezeStatic(busStopIM));   // PERF-7: mesh never moves (instances reb
 /* ---- HUD refs: board prompt, route chip, help footers ---- */
 const busHintEl = document.getElementById('bushint');
 const busHudEl = document.getElementById('bushud');
+const busRouteEl = document.getElementById('busroute');
+const busPaxEl = document.getElementById('buspax');
 const carcondEl = document.getElementById('carcond');
 const HELP_BUS_RIDE = '<b>E</b> take the wheel &nbsp; <b>F</b> get off<br><b>TOUCH</b> EXIT button to get off';
 const HELP_BUS_DRIVE = '<b>W/S</b> throttle / brake &nbsp; <b>A/D</b> steer &nbsp; <b>SPACE</b> brake<br>'
@@ -20559,7 +20562,9 @@ function busUpdate(sdt, now) {
     if (aboard || BUS.hintOn) {
       const tgt = BUS.route[BUS.stopIdx];
       busHudEl.style.display = 'block';
-      busHudEl.textContent = 'BUS ' + BUS.routeNo + ' > ' + tgt.label + '   PAX ' + BUS.passengers;
+      busRouteEl.textContent = 'BUS ' + BUS.routeNo + ' > ' + tgt.label;
+      busPaxEl.textContent = '   PAX ' + BUS.passengers;
+      busPaxEl.ariaValueNow = String(BUS.passengers);
     } else busHudEl.style.display = 'none';
     if (aboard) spdNumEl.textContent = Math.round(Math.abs(BUS.speed) * 3.6);
   }
