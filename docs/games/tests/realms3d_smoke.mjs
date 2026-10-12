@@ -70,7 +70,7 @@ globalThis.__R3D = {
   CR, TX, AMB, HORSE, emBodyIM, toastEl, W, updateHeatHUD, heatEl,
   setWeather, wxEl, WX,   /* WX STATUS v1: weather readout (test-only exposure) */
   bikeEnter, bikeExit, bikeRebuild, BIKE, bikeBodyIM, bikeHintEl,
-  bcEnter, bcExit, bcRebuild, BC, bcBodyIM, bcHintEl,
+  bcEnter, bcExit, bcRebuild, BC, bcBodyIM, bcHintEl, bcStamEl,   /* BC STAMINA METER v1: bicycle stamina meter (test-only exposure) */
   scEnter, scExit, scRebuild, SC, scBodyIM, scHintEl,
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
@@ -22157,6 +22157,121 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('gracetimer: the run leaves zero console errors/warnings',
     consoleProblems.length === probsGT, consoleProblems.slice(probsGT).join(' | '));
+}
+
+/* ================= BC STAMINA METER v1 =================
+   The bicycle stamina is a real meter: role meter plus
+   aria-label Bicycle stamina and aria-valuemin 0 and
+   aria-valuemax 100 in the #bcstam markup, with
+   aria-valuenow kept in sync in bcUpdate (and once in
+   bcEnter). The sync uses the ariaValueNow IDL property,
+   not setAttribute, because the headless stub elements
+   have no setAttribute method. The runtime checks set
+   up a clean ride the same way the bicycle block does
+   (seed the slots, stand on slot 0, bcEnter through the
+   real entry), then drive BC.stam plus the HUD throttle
+   through the real tick and read G.bcStamEl, the same
+   element the game binds as bcStamEl. Holding SHIFT
+   with prevShift already true pauses stamina regen for
+   the drive frame (no new mash edge, no drain), so the
+   meter reads the exact set value. The block ends on
+   the bcExit clean state: chip hidden, stamina back
+   to 1, and not driving. */
+{
+  const probsBS = consoleProblems.length;
+  const linesBS = html.split('\n');
+  const lineHasBS = sub => linesBS.filter(l => l.includes(sub)).length;
+  check('bcstam: BC STAMINA METER v1 header is present exactly once in the game source',
+    (html.split('BC STAMINA METER v1').length - 1) === 1,
+    'n=' + (html.split('BC STAMINA METER v1').length - 1));
+  const bcstamTagBS = (html.match(/<div id="bcstam"[^>]*>/) || [''])[0];
+  check('bcstam: #bcstam element markup carries role="meter"',
+    bcstamTagBS.includes('role="meter"'), 'tag=' + bcstamTagBS);
+  check('bcstam: #bcstam element markup carries aria-label="Bicycle stamina"',
+    bcstamTagBS.includes('aria-label="Bicycle stamina"'), 'tag=' + bcstamTagBS);
+  check('bcstam: #bcstam element markup carries aria-valuemin="0"',
+    bcstamTagBS.includes('aria-valuemin="0"'), 'tag=' + bcstamTagBS);
+  check('bcstam: #bcstam element markup carries aria-valuemax="100"',
+    bcstamTagBS.includes('aria-valuemax="100"'), 'tag=' + bcstamTagBS);
+  check('bcstam: #bcstam element markup carries aria-valuenow="100"',
+    bcstamTagBS.includes('aria-valuenow="100"'), 'tag=' + bcstamTagBS);
+  check('bcstam: exactly one #bcstam element in the game source',
+    (html.match(/id="bcstam"/g) || []).length === 1,
+    'n=' + (html.match(/id="bcstam"/g) || []).length);
+  check('bcstam: bcStamEl binding line binds bcstam (source pin)',
+    html.includes("const bcStamEl = document.getElementById('bcstam');"));
+  check('bcstam: sync computes pct from BC.stam (source pin)',
+    html.includes('const pct = Math.round(BC.stam * 100);'));
+  check('bcstam: sync writes bcStamEl textContent from pct (source pin)',
+    html.includes("bcStamEl.textContent = 'STAM ' + pct + '%';"));
+  check('bcstam: sync writes bcStamEl ariaValueNow from pct (source pin)',
+    html.includes('bcStamEl.ariaValueNow = String(pct);'));
+  const bcEnterSrcBS = html.slice(html.indexOf('function bcEnter()'), html.indexOf('function bcExit()'));
+  check('bcstam: bcEnter shows the chip (source pin)',
+    bcEnterSrcBS.includes("bcStamEl.style.display = 'block';"));
+  const bcExitSrcBS = html.slice(html.indexOf('function bcExit()'), html.indexOf('function bcAmenityHit'));
+  check('bcstam: bcExit hides the chip (source pin)',
+    bcExitSrcBS.includes("bcStamEl.style.display = 'none';"));
+  /* clean ride setup: mirror the bicycle block entry flow */
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 999; G.setHeat(0, true);
+  G.closeShop();
+  G.CAR.driving = false; G.HORSE.riding = false;
+  G.BUS.driving = false; G.BUS.riding = false; G.TX.riding = false;
+  G.BIKE.driving = false; G.BC.driving = false; G.SC.driving = false;
+  G.BOAT.driving = false; G.HELI.flying = false; G.PLANE.flying = false;
+  G.TRAIN.riding = false; G.FT.driving = false;
+  G.SLOT.playing = false; G.PIANO.playing = false; G.THEATER.watching = false;
+  G.CIVIC.state = false; G.WORSHIP.state = false; G.APARTMENT.state = false;
+  G.AMUSE.riding = false; G.STADIUM.watching = false;
+  G.keys.KeyW = false; G.keys.KeyA = false; G.keys.KeyS = false; G.keys.KeyD = false;
+  G.keys.ShiftLeft = false; G.keys.ShiftRight = false;
+  G.player.visible = true;
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.BC.anchorCx = 1e9; G.BC.anchorCz = 1e9; G.BC.key = '';
+  frame(3);
+  const bcstamXBS = G.BC.slots[0].x, bcstamZBS = G.BC.slots[0].z;
+  G.player.position.set(bcstamXBS, groundY(bcstamXBS, bcstamZBS), bcstamZBS);
+  frame(2);
+  G.BC.stam = 1; G.BC.exhausted = false; G.P.godT = 0;
+  G.bcEnter();
+  check('bcstam: runtime bcstam display is block after bcEnter',
+    G.bcStamEl.style.display === 'block',
+    'display=' + G.bcStamEl.style.display);
+  check('bcstam: runtime bcStamEl text is STAM 100% after bcEnter at full stamina',
+    G.bcStamEl.textContent === 'STAM 100%',
+    'textContent=' + G.bcStamEl.textContent);
+  check('bcstam: runtime bcStamEl ariaValueNow is 100 after bcEnter at full stamina',
+    G.bcStamEl.ariaValueNow === '100',
+    'ariaValueNow=' + G.bcStamEl.ariaValueNow);
+  G.BC.stam = 0.4; G.BC.hudT = 1;
+  G.keys.ShiftLeft = true; G.BC.prevShift = true;
+  frame(1);
+  G.keys.ShiftLeft = false;
+  check('bcstam: runtime bcStamEl text is STAM 40% when stamina is 0.4',
+    G.bcStamEl.textContent === 'STAM 40%',
+    'textContent=' + G.bcStamEl.textContent);
+  check('bcstam: runtime bcStamEl ariaValueNow is 40 when stamina is 0.4',
+    G.bcStamEl.ariaValueNow === '40',
+    'ariaValueNow=' + G.bcStamEl.ariaValueNow);
+  G.bcExit();
+  check('bcstam: runtime bcstam display is none after bcExit',
+    G.bcStamEl.style.display === 'none',
+    'display=' + G.bcStamEl.style.display);
+  check('bcstam: pins - 50 InstancedMesh literals unchanged', lineHasBS('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasBS('new THREE.InstancedMesh'));
+  check('bcstam: pins - 92 Math.random lines unchanged', lineHasBS('Math.random') === 92,
+    'n=' + lineHasBS('Math.random'));
+  check('bcstam: pins - 72 setTimeout lines unchanged', lineHasBS('setTimeout') === 72,
+    'n=' + lineHasBS('setTimeout'));
+  check('bcstam: pins - no em dashes', !html.includes('\u2014'));
+  check('bcstam: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('bcstam: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('bcstam: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsBS, consoleProblems.slice(probsBS).join(' | '));
+  G.BC.stam = 1; G.BC.exhausted = false; G.BC.prevShift = false; G.BC.speed = 0;
+  G.keys.ShiftLeft = false; G.keys.ShiftRight = false;
 }
 
 /* ---------- zero console errors ---------- */
