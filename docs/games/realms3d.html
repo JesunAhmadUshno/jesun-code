@@ -1412,8 +1412,9 @@
   <!-- BOAT SPEED METER v1: the boat speed is a real meter: role meter plus aria-label Boat speed and aria-valuemin 0 and aria-valuemax 43 in markup, valuenow kept in sync by boatUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by BOAT.topSpeed 12. -->
   <div id="boatchip" role="meter" aria-label="Boat speed" aria-valuemin="0" aria-valuemax="43" aria-valuenow="0"></div>
   <div id="helihint"></div>
-  <!-- HELI SPEED METER v1: the helicopter speed is a real meter: role meter plus aria-label Helicopter speed and aria-valuemin 0 and aria-valuemax 94 in markup, valuenow kept in sync by heliUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by HELI.topSpeed 26. Altitude stays plain text because it has no clean absolute bound. -->
-  <div id="helichip"><span id="helispd" role="meter" aria-label="Helicopter speed" aria-valuemin="0" aria-valuemax="94" aria-valuenow="0">HELI - 0 KM/H</span><span id="helialt"> / ALT 0M</span></div>
+  <!-- HELI SPEED METER v1: the helicopter speed is a real meter: role meter plus aria-label Helicopter speed and aria-valuemin 0 and aria-valuemax 94 in markup, valuenow kept in sync by heliUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by HELI.topSpeed 26. Altitude is covered by a separate meter below. -->
+  <!-- HELI ALTITUDE METER v1: the helicopter altitude is a real meter: role meter plus aria-label Helicopter altitude and aria-valuemin 0 and aria-valuemax 63 in markup, valuenow kept in sync by heliUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by HELI.ceil 60 minus the terrainHeight floor -2.7 (amplitudes 1.6+0.55+0.55), rounded up to 63. Speed stays a separate meter. -->
+  <div id="helichip"><span id="helispd" role="meter" aria-label="Helicopter speed" aria-valuemin="0" aria-valuemax="94" aria-valuenow="0">HELI - 0 KM/H</span><span id="helialt" role="meter" aria-label="Helicopter altitude" aria-valuemin="0" aria-valuemax="63" aria-valuenow="0"> / ALT 0M</span></div>
   <div id="planehint"></div>
   <!-- PLANE ALTITUDE METER v1: the plane altitude is a real meter: role meter plus aria-label Plane altitude and aria-valuemin 0 and aria-valuemax 63 in markup, valuenow kept in sync by planeUpdate via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded by PLANE.ceil 60 minus the terrainHeight floor -2.7 (amplitudes 1.6+0.55+0.55), rounded up to 63. Speed stays plain text because dive gains can push PLANE.speed past PLANE.topSpeed. -->
   <div id="planechip"><span id="planespd">PLANE - 0 KM/H</span><span id="planealt" role="meter" aria-label="Plane altitude" aria-valuemin="0" aria-valuemax="63" aria-valuenow="0"> / ALT 0M</span></div>
@@ -23409,6 +23410,7 @@ function heliUpdate(sdt, now) {
     heliSpdEl.textContent = 'HELI - ' + heliKmh + ' KM/H';
     heliSpdEl.ariaValueNow = String(heliKmh);
     heliAltEl.textContent = ' / ALT ' + heliAltM + 'M';
+    heliAltEl.ariaValueNow = String(heliAltM);
   }
 }
 worldTickers.push(heliUpdate);
