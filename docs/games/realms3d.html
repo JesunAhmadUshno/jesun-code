@@ -12131,11 +12131,21 @@ function roulResolve() {
    exactly in the winning pocket at t=spinDur (no per-frame allocation). The
    ball is a child of the rotor: its local angle unwinds EXTRA turns while
    the rotor spins forward, which reads as counter-rotation. */
+/* REDUCED MOTION v9: the casino win glows now follow the same
+   P.traumaOn gate as v1-v5, v7 and v8. CSS media queries and the v6
+   rule cannot reach WebGL material properties, so both JS-driven
+   in-world emissive oscillations gate here in code: the roulette
+   wheel-top glow in roulUpdate below, and the dice-face glow in
+   diceUpdate (marked with a REDUCED MOTION v9 cross-reference). When
+   the gate is off, each glow holds its static base (roulette 0.35,
+   dice 0.3) for the same window, then returns to 0 at expiry exactly
+   as before. The timers, wins, toasts, and fanfares are unchanged.
+   No-preference users see the identical oscillations. */
 function roulUpdate(dt) {
   if (!CASINOROUL.playing) return;
   if (CASINOROUL.flashT > 0) {
     CASINOROUL.flashT -= dt;
-    roulTopMat.emissiveIntensity = CASINOROUL.flashT > 0 ? 0.35 + 0.25 * Math.sin(CASINOROUL.flashT * 18) : 0;
+    roulTopMat.emissiveIntensity = CASINOROUL.flashT > 0 ? (!P.traumaOn ? 0.35 : 0.35 + 0.25 * Math.sin(CASINOROUL.flashT * 18)) : 0; // REDUCED MOTION v9
   }
   if (CASINOROUL.bigWinT > 0) {
     CASINOROUL.bigWinT -= dt;
@@ -12516,7 +12526,7 @@ function diceUpdate(dt) {
   if (!CASINODICE.playing) return;
   if (CASINODICE.glowT > 0) {
     CASINODICE.glowT -= dt;
-    diceMat.emissiveIntensity = CASINODICE.glowT > 0 ? 0.3 + 0.25 * Math.sin(CASINODICE.glowT * 16) : 0;
+    diceMat.emissiveIntensity = CASINODICE.glowT > 0 ? (!P.traumaOn ? 0.3 : 0.3 + 0.25 * Math.sin(CASINODICE.glowT * 16)) : 0; // REDUCED MOTION v9
   }
   if (CASINODICE.bigWinT > 0) {
     CASINODICE.bigWinT -= dt;
