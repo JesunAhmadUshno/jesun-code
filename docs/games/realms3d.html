@@ -1731,7 +1731,8 @@ try {
    browser for the high-performance GPU on dual-GPU systems, so the
    game does not run on a weak integrated GPU by default. Single-GPU
    devices ignore the hint. Zero new draw calls. */
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+/* RENDERER STENCIL v1: no stencilWrite anywhere; post targets default stencilBuffer false (r160); N8AO defaults false, never enabled; 8-bit stencil (about 1 byte/pixel) unused; stencil: false drops it. Zero new draw calls. */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', stencil: false });
 /* WEBGL CONTEXT-LOSS RESILIENCE v1: on iPhones under memory or thermal
    pressure the GPU context can drop mid-session. Without preventDefault()
    on webglcontextlost the canvas freezes silently until a full page reload;
