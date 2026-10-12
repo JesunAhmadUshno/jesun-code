@@ -22862,7 +22862,10 @@ globalThis.__R3D2 = {
    (about 0.08), which still rounds to 18, and the
    single frame guarantees a single HUD write
    before the 0.15s throttle can write again at a
-   higher speed. Exit leaves the harness clean. */
+   higher speed. A final dwell-pinned frame (the
+   dwell branch of trainSimOne holds v at exactly
+   0) reads 0 again before exit, which leaves the
+   harness clean. */
 {
   const probsTS = consoleProblems.length;
   const linesTS = html.split('\n');
@@ -22944,6 +22947,21 @@ globalThis.__R3D2 = {
     'textContent=' + G.trainSpdEl.textContent + ' v=' + ttTS.v);
   check('trainspd: runtime trainSpdEl ariaValueNow is 18 at speed 5',
     String(G.trainSpdEl.ariaValueNow) === '18',
+    'ariaValueNow=' + G.trainSpdEl.ariaValueNow + ' v=' + ttTS.v);
+  check('trainspd: runtime trainNextEl text names the next station at speed 5',
+    /^ \/ NEXT: [A-Z ]+$/.test(G.trainNextEl.textContent),
+    'textContent=' + G.trainNextEl.textContent);
+  check('trainspd: runtime combined chip text keeps the TRAIN - n KM/H / NEXT: name format at speed 5',
+    /^TRAIN - \d+ KM\/H \/ NEXT: [A-Z ]+$/.test(G.trainSpdEl.textContent + G.trainNextEl.textContent),
+    G.trainSpdEl.textContent + G.trainNextEl.textContent);
+  /* stopped read: dwell pins v at exactly 0, one forced HUD write */
+  ttTS.dwellT = 15; ttTS.v = 0; G.TRAIN.hudT = 0;
+  frame(1);
+  check('trainspd: runtime trainSpdEl text is TRAIN - 0 KM/H at speed 0',
+    G.trainSpdEl.textContent === 'TRAIN - 0 KM/H',
+    'textContent=' + G.trainSpdEl.textContent + ' v=' + ttTS.v);
+  check('trainspd: runtime trainSpdEl ariaValueNow is 0 at speed 0',
+    String(G.trainSpdEl.ariaValueNow) === '0',
     'ariaValueNow=' + G.trainSpdEl.ariaValueNow + ' v=' + ttTS.v);
   G.trainExit();
   check('trainspd: chip is hidden after exit and not riding',
