@@ -24673,6 +24673,118 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsHF, consoleProblems.slice(probsHF).join(' | '));
 }
 
+/* REDUCED MOTION v9: the two casino win glows (the roulette wheel-top
+   emissive glow in roulUpdate and the dice-face emissive glow in
+   diceUpdate) follow the P.traumaOn gate as v1-v5, v7 and v8. When the
+   gate is off, each holds its static base for the same window, then
+   returns to 0 exactly as before, and no-preference users see the
+   identical oscillations. */
+{
+  const probsGL = consoleProblems.length;
+  const linesGL = html.split('\n');
+  const lineHasGL = sub => linesGL.filter(l => l.includes(sub)).length;
+  check('rmglow: REDUCED MOTION v9 header is present exactly once in the game source',
+    (html.split('/* REDUCED MOTION v9: the casino win glows').length - 1) === 1,
+    'n=' + (html.split('/* REDUCED MOTION v9: the casino win glows').length - 1));
+  check('rmglow: REDUCED MOTION v9 is mentioned exactly 4 times (header x2, both gate lines)',
+    (html.split('REDUCED MOTION v9').length - 1) === 4,
+    'n=' + (html.split('REDUCED MOTION v9').length - 1));
+  check('rmglow: roulette gate line is present exactly once in the game source',
+    (html.split('roulTopMat.emissiveIntensity = CASINOROUL.flashT > 0 ? (!P.traumaOn ? 0.35 :').length - 1) === 1,
+    'n=' + (html.split('roulTopMat.emissiveIntensity = CASINOROUL.flashT > 0 ? (!P.traumaOn ? 0.35 :').length - 1));
+  check('rmglow: dice gate line is present exactly once in the game source',
+    (html.split('diceMat.emissiveIntensity = CASINODICE.glowT > 0 ? (!P.traumaOn ? 0.3 :').length - 1) === 1,
+    'n=' + (html.split('diceMat.emissiveIntensity = CASINODICE.glowT > 0 ? (!P.traumaOn ? 0.3 :').length - 1));
+  check('rmglow: runtime exposures exist (CASINOROUL, roulUpdate, roulTopMat, CASINODICE, diceUpdate, diceMat, P, rotorGroup)',
+    !!G.CASINOROUL && typeof G.roulUpdate === 'function' && !!G.roulTopMat
+    && !!G.CASINODICE && typeof G.diceUpdate === 'function' && !!G.diceMat && !!G.P && !!G.rotorGroup);
+  check('rmglow-pins: 50 InstancedMesh literals unchanged', lineHasGL('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasGL('new THREE.InstancedMesh'));
+  check('rmglow-pins: 92 Math.random lines unchanged', lineHasGL('Math.random') === 92,
+    'n=' + lineHasGL('Math.random'));
+  check('rmglow-pins: 72 setTimeout lines unchanged', lineHasGL('setTimeout') === 72,
+    'n=' + lineHasGL('setTimeout'));
+  check('rmglow-pins: 2 THREE.Points objects unchanged', lineHasGL('new THREE.Points(') === 2,
+    'n=' + lineHasGL('new THREE.Points('));
+  check('rmglow-pins: no em dashes', !html.includes('\u2014'));
+  check('rmglow-pins: no TODO markers', !/\bTODO\b/.test(html));
+  /* save harness state the drives touch */
+  const saveTraumaGL = G.P.traumaOn;
+  const saveRoulPlayingGL = G.CASINOROUL.playing, saveRoulSpinningGL = G.CASINOROUL.spinning;
+  const saveRoulFlashGL = G.CASINOROUL.flashT, saveRoulBigWinGL = G.CASINOROUL.bigWinT;
+  const saveRotorYGL = G.rotorGroup.rotation.y;
+  const saveDicePlayingGL = G.CASINODICE.playing, saveDiceTumblingGL = G.CASINODICE.tumbling;
+  const saveDiceSettlingGL = G.CASINODICE.settling;
+  const saveDiceGlowGL = G.CASINODICE.glowT, saveDiceBigWinGL = G.CASINODICE.bigWinT;
+  const saveRoulEmissGL = G.roulTopMat.emissiveIntensity, saveDiceEmissGL = G.diceMat.emissiveIntensity;
+  function driveRoulGL() {
+    const vals = [];
+    G.CASINOROUL.playing = true; G.CASINOROUL.spinning = false; G.CASINOROUL.bigWinT = 0;
+    G.CASINOROUL.flashT = 2.0;
+    let guard = 0;
+    while (G.CASINOROUL.flashT > 0 && guard < 200) { G.roulUpdate(0.05); vals.push(G.roulTopMat.emissiveIntensity); guard++; }
+    return vals;
+  }
+  function driveDiceGL() {
+    const vals = [];
+    G.CASINODICE.playing = true; G.CASINODICE.tumbling = false; G.CASINODICE.settling = false; G.CASINODICE.bigWinT = 0;
+    G.CASINODICE.glowT = 2.0;
+    let guard = 0;
+    while (G.CASINODICE.glowT > 0 && guard < 200) { G.diceUpdate(0.05); vals.push(G.diceMat.emissiveIntensity); guard++; }
+    return vals;
+  }
+  /* runtime, gate ON: both glows oscillate, then return to 0 on expiry */
+  G.P.traumaOn = true;
+  const roulOnGL = driveRoulGL();
+  check('rmglow: gate ON roulette glow oscillates (max > 0.45, distinct values > 3)',
+    Math.max(...roulOnGL) > 0.45 && new Set(roulOnGL).size > 3,
+    'max=' + Math.max(...roulOnGL) + ' distinct=' + new Set(roulOnGL).size);
+  check('rmglow: gate ON roulette glow ends at 0 with the timer drained',
+    roulOnGL[roulOnGL.length - 1] === 0 && G.CASINOROUL.flashT <= 0,
+    'last=' + roulOnGL[roulOnGL.length - 1] + ' flashT=' + G.CASINOROUL.flashT);
+  const diceOnGL = driveDiceGL();
+  check('rmglow: gate ON dice glow oscillates (max > 0.4, distinct values > 3)',
+    Math.max(...diceOnGL) > 0.4 && new Set(diceOnGL).size > 3,
+    'max=' + Math.max(...diceOnGL) + ' distinct=' + new Set(diceOnGL).size);
+  check('rmglow: gate ON dice glow ends at 0 with the timer drained',
+    diceOnGL[diceOnGL.length - 1] === 0 && G.CASINODICE.glowT <= 0,
+    'last=' + diceOnGL[diceOnGL.length - 1] + ' glowT=' + G.CASINODICE.glowT);
+  /* runtime, gate OFF: static bases hold every step, expiry returns to 0 */
+  G.P.traumaOn = false;
+  const roulOffGL = driveRoulGL();
+  check('rmglow: gate OFF roulette glow is exactly 0.35 on every step before expiry and 0 at expiry',
+    roulOffGL.length > 2 && roulOffGL.slice(0, -1).every(v => v === 0.35) && roulOffGL[roulOffGL.length - 1] === 0,
+    'vals=' + [...new Set(roulOffGL)].join(','));
+  check('rmglow: gate OFF roulette glow timer drains to expiry',
+    G.CASINOROUL.flashT <= 0, 'flashT=' + G.CASINOROUL.flashT);
+  const diceOffGL = driveDiceGL();
+  check('rmglow: gate OFF dice glow is exactly 0.3 on every step before expiry and 0 at expiry',
+    diceOffGL.length > 2 && diceOffGL.slice(0, -1).every(v => v === 0.3) && diceOffGL[diceOffGL.length - 1] === 0,
+    'vals=' + [...new Set(diceOffGL)].join(','));
+  check('rmglow: gate OFF dice glow timer drains to expiry',
+    G.CASINODICE.glowT <= 0, 'glowT=' + G.CASINODICE.glowT);
+  /* cleanup */
+  G.P.traumaOn = saveTraumaGL;
+  G.CASINOROUL.playing = saveRoulPlayingGL; G.CASINOROUL.spinning = saveRoulSpinningGL;
+  G.CASINOROUL.flashT = saveRoulFlashGL; G.CASINOROUL.bigWinT = saveRoulBigWinGL;
+  G.rotorGroup.rotation.y = saveRotorYGL;
+  G.CASINODICE.playing = saveDicePlayingGL; G.CASINODICE.tumbling = saveDiceTumblingGL;
+  G.CASINODICE.settling = saveDiceSettlingGL;
+  G.CASINODICE.glowT = saveDiceGlowGL; G.CASINODICE.bigWinT = saveDiceBigWinGL;
+  G.roulTopMat.emissiveIntensity = saveRoulEmissGL; G.diceMat.emissiveIntensity = saveDiceEmissGL;
+  check('rmglow: cleanup restores traumaOn, roulette state, rotor rotation, dice state, and both emissive values',
+    G.P.traumaOn === saveTraumaGL && G.CASINOROUL.playing === saveRoulPlayingGL
+    && G.CASINOROUL.spinning === saveRoulSpinningGL && G.CASINOROUL.flashT === saveRoulFlashGL
+    && G.CASINOROUL.bigWinT === saveRoulBigWinGL && G.rotorGroup.rotation.y === saveRotorYGL
+    && G.CASINODICE.playing === saveDicePlayingGL && G.CASINODICE.tumbling === saveDiceTumblingGL
+    && G.CASINODICE.settling === saveDiceSettlingGL && G.CASINODICE.glowT === saveDiceGlowGL
+    && G.CASINODICE.bigWinT === saveDiceBigWinGL
+    && G.roulTopMat.emissiveIntensity === saveRoulEmissGL && G.diceMat.emissiveIntensity === saveDiceEmissGL,
+    'on=' + G.P.traumaOn + ' roulPlaying=' + G.CASINOROUL.playing + ' dicePlaying=' + G.CASINODICE.playing);
+  check('rmglow: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsGL, consoleProblems.slice(probsGL).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
