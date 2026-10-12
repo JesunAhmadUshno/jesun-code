@@ -105,7 +105,7 @@ globalThis.__R3D = {
   farmHarvest, farmTryHarvest, farmPlotCenterFor, farmPlotMatureCount,
   FPLOT, FARM_MATURE_NEED,
   farmFallow, farmTryPlant, farmPlant, cycleFarmSeed, cropStageFor, farmPaintCrops,   /* Phase 5 farming v1 */
-  CROPS, FARM_SEED_ORDER, FARM_MATURE_COL, CROP_IM, farmChipEl, farmHintEl, updateFarmChip,
+  CROPS, FARM_SEED_ORDER, FARM_MATURE_COL, CROP_IM, farmChipEl, farmTxtEl, farmGrowEl, farmHintEl, updateFarmChip,   /* FARM GROW METER v1: farm grow meter (test-only exposure) */
   cashFloatEl, floatCash, sfxSizzle,
   foodCanAfford, foodSpend, foodRawTotal, foodDishCount, foodSellValue, DISH_SELL, foodCostStr,
   /* Phase 5 cooking + food */
@@ -2530,8 +2530,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     check('farmv1: E gate arms on the ripe plot',
       G.FPLOT.nearIdx >= 0 && G.FPLOT.nearMature === true, 'nearIdx=' + G.FPLOT.nearIdx);
     check('farmv1: chip shows FARM - READY!',
-      G.farmChipEl.style.display === 'block' && G.farmChipEl.textContent === 'FARM - READY!',
-      G.farmChipEl.textContent);
+      G.farmChipEl.style.display === 'block' && G.farmTxtEl.textContent + G.farmGrowEl.textContent === 'FARM - READY!',
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent);
 
     /* harvest juice: cash float + scale pop + produce + counter */
     const harv0 = G.FPLOT.harvested, cash0 = G.cash, corn0 = G.FOOD.corn;
@@ -2553,7 +2553,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     check('farmv1: fallow hint offers planting',
       G.farmHintEl.textContent === 'PLANT CORN [E]', G.farmHintEl.textContent);
     check('farmv1: chip shows FARM - HARVESTED n',
-      G.farmChipEl.textContent === 'FARM - HARVESTED 1', G.farmChipEl.textContent);
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent === 'FARM - HARVESTED 1', G.farmTxtEl.textContent + G.farmGrowEl.textContent);
 
     /* seed selection cycles corn -> tomato -> pumpkin -> corn */
     G.cycleFarmSeed();
@@ -2693,7 +2693,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
       G.player.position.set(pBack.x, groundY(pBack.x, pBack.z), pBack.z);
       frame(15);
       check('farmv1: chip shows FARM - GROWING n/24',
-        G.farmChipEl.textContent.indexOf('FARM - GROWING') === 0, G.farmChipEl.textContent);
+        (G.farmTxtEl.textContent + G.farmGrowEl.textContent).indexOf('FARM - GROWING') === 0, G.farmTxtEl.textContent + G.farmGrowEl.textContent);
     }
   }
 
@@ -23784,6 +23784,191 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('cararmor: the run leaves zero console errors/warnings',
     consoleProblems.length === probsCA, consoleProblems.slice(probsCA).join(' | '));
+}
+
+/* ================= FARM GROW METER v1 =================
+   The farm status chip is split: the #farmchip div nests
+   a plain #farmtxt span for the status prefix and a
+   #farmgrow span (role meter, aria-label Farm crops
+   mature) with aria-valuemin 0 and aria-valuemax 24 in
+   markup. The single writer updateFarmChip writes the
+   prefix text to #farmtxt, the mature count text to
+   #farmgrow, and syncs valuenow via the ariaValueNow
+   property (stub-safe idiom, no setAttribute) in the
+   growing branch, clearing it to 0 in the READY and
+   HARVESTED branches; no writer sets farmChipEl
+   textContent anymore. The value is bounded 0..24:
+   FARM_PER_PLOT is FARM_ROWS 4 times FARM_COLS 6,
+   redistributeFarm plants exactly 24 seeds per plot,
+   and farmPlotMatureCount counts only seeds matching
+   the plot gx/gz at stage 2. The concatenated visible
+   text stays byte-identical to the old single-string
+   format in all three states. The runtime checks drive
+   the real updateFarmChip with deterministic FPLOT
+   state (a growing moment found via the real
+   farmPlotMatureCount, then forced ripe and fallow
+   states), then restore every mutated FPLOT field. */
+{
+  const probsFG = consoleProblems.length;
+  const linesFG = html.split('\n');
+  const lineHasFG = sub => linesFG.filter(l => l.includes(sub)).length;
+  check('farmgrow: FARM GROW METER v1 header is present exactly once in the game source',
+    (html.split('FARM GROW METER v1').length - 1) === 1,
+    'n=' + (html.split('FARM GROW METER v1').length - 1));
+  check('farmgrow: #farmchip markup nests #farmtxt plain span and #farmgrow meter (source pin)',
+    html.includes('<div id="farmchip"><span id="farmtxt"></span><span id="farmgrow" role="meter" aria-label="Farm crops mature" aria-valuemin="0" aria-valuemax="24" aria-valuenow="0"></span></div>'));
+  const farmGrowTagFG = (html.match(/<span id="farmgrow"[^>]*>/) || [''])[0];
+  check('farmgrow: #farmgrow element markup carries role="meter"',
+    farmGrowTagFG.includes('role="meter"'), 'tag=' + farmGrowTagFG);
+  check('farmgrow: #farmgrow element markup carries aria-label="Farm crops mature"',
+    farmGrowTagFG.includes('aria-label="Farm crops mature"'), 'tag=' + farmGrowTagFG);
+  check('farmgrow: #farmgrow element markup carries aria-valuemin="0"',
+    farmGrowTagFG.includes('aria-valuemin="0"'), 'tag=' + farmGrowTagFG);
+  check('farmgrow: #farmgrow element markup carries aria-valuemax="24"',
+    farmGrowTagFG.includes('aria-valuemax="24"'), 'tag=' + farmGrowTagFG);
+  check('farmgrow: #farmgrow element markup carries aria-valuenow="0"',
+    farmGrowTagFG.includes('aria-valuenow="0"'), 'tag=' + farmGrowTagFG);
+  check('farmgrow: exactly one #farmtxt element in the game source',
+    (html.match(/id="farmtxt"/g) || []).length === 1,
+    'n=' + (html.match(/id="farmtxt"/g) || []).length);
+  check('farmgrow: exactly one #farmgrow element in the game source',
+    (html.match(/id="farmgrow"/g) || []).length === 1,
+    'n=' + (html.match(/id="farmgrow"/g) || []).length);
+  check('farmgrow: farmChipEl binding line is unchanged (source pin)',
+    html.includes("const farmChipEl = document.getElementById('farmchip');"));
+  check('farmgrow: farmTxtEl binding line binds farmtxt (source pin)',
+    html.includes("const farmTxtEl = document.getElementById('farmtxt');"));
+  check('farmgrow: farmGrowEl binding line binds farmgrow (source pin)',
+    html.includes("const farmGrowEl = document.getElementById('farmgrow');"));
+  check('farmgrow: updateFarmChip writes farmTxtEl READY text (source pin)',
+    html.includes("farmTxtEl.textContent = 'FARM - READY!';"));
+  check('farmgrow: updateFarmChip writes farmTxtEl HARVESTED text from FPLOT.harvested (source pin)',
+    html.includes("farmTxtEl.textContent = 'FARM - HARVESTED ' + FPLOT.harvested;"));
+  check('farmgrow: updateFarmChip computes the mature count via farmPlotMatureCount (source pin)',
+    html.includes('const m = farmPlotMatureCount(p, FPLOT.t);'));
+  check('farmgrow: updateFarmChip writes farmTxtEl GROWING prefix (source pin)',
+    html.includes("farmTxtEl.textContent = 'FARM - GROWING ';"));
+  check('farmgrow: updateFarmChip writes farmGrowEl textContent from m and FARM_PER_PLOT (source pin)',
+    html.includes("farmGrowEl.textContent = m + '/' + FARM_PER_PLOT;"));
+  check('farmgrow: updateFarmChip syncs farmGrowEl ariaValueNow from m (source pin)',
+    html.includes('farmGrowEl.ariaValueNow = String(m);'));
+  check('farmgrow: updateFarmChip clears farmGrowEl text and ariaValueNow in the READY and HARVESTED branches (source pin)',
+    html.includes("farmGrowEl.textContent = '';") && html.includes("farmGrowEl.ariaValueNow = '0';"));
+  check('farmgrow: no writer sets farmChipEl textContent anymore (source pin)',
+    !html.includes('farmChipEl.textContent'));
+  /* runtime drives through the real updateFarmChip (deterministic FPLOT state) */
+  const saveFG = {
+    nearIdx: G.FPLOT.nearIdx, nearMature: G.FPLOT.nearMature, harvested: G.FPLOT.harvested,
+    t: G.FPLOT.t, harvestT: new Map(G.FPLOT.harvestT), planted: new Map(G.FPLOT.planted),
+    active: G.FPLOT.active.slice(),
+    txt: G.farmTxtEl.textContent, grow: G.farmGrowEl.textContent, now: G.farmGrowEl.ariaValueNow,
+    disp: G.farmChipEl.style.display, col: G.farmChipEl.style.color,
+  };
+  let plotFG = null, growTFG = 0;
+  for (const p of G.FPLOT.active) {
+    let foundFG = false;
+    for (let t = 0; t <= 600 && !foundFG; t += 5)
+      if (G.farmPlotMatureCount(p, t) >= 1) { plotFG = p; growTFG = t; foundFG = true; }
+    if (plotFG) break;
+  }
+  if (!plotFG && G.FPLOT.active.length > 0) { plotFG = G.FPLOT.active[0]; growTFG = 0; }
+  if (!plotFG) {
+    let foundPlotFG = null;
+    for (let gx = -12; gx <= 12 && !foundPlotFG; gx++)
+      for (let gz = -12; gz <= 12 && !foundPlotFG; gz++) {
+        const pp = G.farmPlotCenterFor(gx, gz);
+        if (pp) foundPlotFG = pp;
+      }
+    if (foundPlotFG) {
+      G.FPLOT.active.length = 0; G.FPLOT.active.push(foundPlotFG);
+      plotFG = foundPlotFG; growTFG = 0;
+    }
+  }
+  check('farmgrow: runtime a farm plot is available for the chip drives', !!plotFG,
+    'active=' + G.FPLOT.active.length);
+  if (plotFG) {
+    const keyFG = plotFG.gx + ',' + plotFG.gz;
+    G.FPLOT.nearIdx = G.FPLOT.active.indexOf(plotFG);
+    /* GROWING: not ripe, not fallow, at a moment with a real mature count */
+    G.FPLOT.harvestT.delete(keyFG);
+    G.FPLOT.nearMature = false;
+    G.FPLOT.t = growTFG;
+    const mRealFG = G.farmPlotMatureCount(plotFG, G.FPLOT.t);
+    G.updateFarmChip();
+    check('farmgrow: runtime farmTxtEl text is the GROWING prefix in a growing state',
+      G.farmTxtEl.textContent === 'FARM - GROWING ',
+      'textContent=' + JSON.stringify(G.farmTxtEl.textContent));
+    check('farmgrow: runtime farmGrowEl text is m/24 matching the real farmPlotMatureCount',
+      G.farmGrowEl.textContent === mRealFG + '/24',
+      'textContent=' + G.farmGrowEl.textContent + ' m=' + mRealFG);
+    check('farmgrow: runtime farmGrowEl ariaValueNow matches the real mature count',
+      G.farmGrowEl.ariaValueNow === String(mRealFG),
+      'ariaValueNow=' + G.farmGrowEl.ariaValueNow + ' m=' + mRealFG);
+    check('farmgrow: runtime mature count is bounded 0..24',
+      mRealFG >= 0 && mRealFG <= 24, 'm=' + mRealFG);
+    check('farmgrow: runtime visible text equals the old combined GROWING format',
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent === 'FARM - GROWING ' + mRealFG + '/24',
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent);
+    check('farmgrow: runtime farmChipEl display is block in a growing state',
+      G.farmChipEl.style.display === 'block',
+      'display=' + G.farmChipEl.style.display);
+    /* READY: forced ripe state */
+    G.FPLOT.nearMature = true;
+    G.updateFarmChip();
+    check('farmgrow: runtime farmTxtEl text is READY in a ripe state',
+      G.farmTxtEl.textContent === 'FARM - READY!',
+      'textContent=' + G.farmTxtEl.textContent);
+    check('farmgrow: runtime farmGrowEl text is empty in a ripe state',
+      G.farmGrowEl.textContent === '',
+      'textContent=' + JSON.stringify(G.farmGrowEl.textContent));
+    check('farmgrow: runtime farmGrowEl ariaValueNow is 0 in a ripe state',
+      G.farmGrowEl.ariaValueNow === '0',
+      'ariaValueNow=' + G.farmGrowEl.ariaValueNow);
+    check('farmgrow: runtime visible text equals the old combined READY format',
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent === 'FARM - READY!',
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent);
+    /* HARVESTED: forced fallow state with a known harvest counter */
+    G.FPLOT.nearMature = false;
+    G.FPLOT.planted.delete(keyFG);
+    G.FPLOT.harvestT.set(keyFG, G.FPLOT.t);
+    G.FPLOT.harvested = 5;
+    G.updateFarmChip();
+    check('farmgrow: runtime farmTxtEl text is HARVESTED 5 in a fallow state',
+      G.farmTxtEl.textContent === 'FARM - HARVESTED 5',
+      'textContent=' + G.farmTxtEl.textContent);
+    check('farmgrow: runtime farmGrowEl text is empty in a fallow state',
+      G.farmGrowEl.textContent === '',
+      'textContent=' + JSON.stringify(G.farmGrowEl.textContent));
+    check('farmgrow: runtime farmGrowEl ariaValueNow is 0 in a fallow state',
+      G.farmGrowEl.ariaValueNow === '0',
+      'ariaValueNow=' + G.farmGrowEl.ariaValueNow);
+    check('farmgrow: runtime visible text equals the old combined HARVESTED format',
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent === 'FARM - HARVESTED 5',
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent);
+  }
+  G.FPLOT.nearIdx = saveFG.nearIdx; G.FPLOT.nearMature = saveFG.nearMature;
+  G.FPLOT.harvested = saveFG.harvested; G.FPLOT.t = saveFG.t;
+  G.FPLOT.harvestT.clear(); for (const [k, v] of saveFG.harvestT) G.FPLOT.harvestT.set(k, v);
+  G.FPLOT.planted.clear(); for (const [k, v] of saveFG.planted) G.FPLOT.planted.set(k, v);
+  G.FPLOT.active.length = 0; for (const p of saveFG.active) G.FPLOT.active.push(p);
+  G.farmTxtEl.textContent = saveFG.txt; G.farmGrowEl.textContent = saveFG.grow;
+  G.farmGrowEl.ariaValueNow = saveFG.now;
+  G.farmChipEl.style.display = saveFG.disp; G.farmChipEl.style.color = saveFG.col;
+  check('farmgrow: pins - 50 InstancedMesh literals unchanged', lineHasFG('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasFG('new THREE.InstancedMesh'));
+  check('farmgrow: pins - 92 Math.random lines unchanged', lineHasFG('Math.random') === 92,
+    'n=' + lineHasFG('Math.random'));
+  check('farmgrow: pins - 72 setTimeout lines unchanged', lineHasFG('setTimeout') === 72,
+    'n=' + lineHasFG('setTimeout'));
+  check('farmgrow: pins - 2 THREE.Points objects unchanged', lineHasFG('new THREE.Points(') === 2,
+    'n=' + lineHasFG('new THREE.Points('));
+  check('farmgrow: pins - no em dashes', !html.includes('\u2014'));
+  check('farmgrow: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('farmgrow: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('farmgrow: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsFG, consoleProblems.slice(probsFG).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */

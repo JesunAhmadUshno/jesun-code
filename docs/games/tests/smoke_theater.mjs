@@ -98,7 +98,7 @@ globalThis.__R3D = {
   farmHarvest, farmTryHarvest, farmPlotCenterFor, farmPlotMatureCount,
   FPLOT, FARM_MATURE_NEED,
   farmFallow, farmTryPlant, farmPlant, cycleFarmSeed, cropStageFor, farmPaintCrops,   /* Phase 5 farming v1 */
-  CROPS, FARM_SEED_ORDER, FARM_MATURE_COL, CROP_IM, farmChipEl, farmHintEl, updateFarmChip,
+  CROPS, FARM_SEED_ORDER, FARM_MATURE_COL, CROP_IM, farmChipEl, farmTxtEl, farmGrowEl, farmHintEl, updateFarmChip,   /* FARM GROW METER v1: farm grow meter (test-only exposure) */
   cashFloatEl, floatCash, sfxSizzle,
   foodCanAfford, foodSpend, foodRawTotal, foodDishCount, foodSellValue, DISH_SELL, foodCostStr,
   /* Phase 5 cooking + food */
@@ -2231,8 +2231,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     check('farmv1: E gate arms on the ripe plot',
       G.FPLOT.nearIdx >= 0 && G.FPLOT.nearMature === true, 'nearIdx=' + G.FPLOT.nearIdx);
     check('farmv1: chip shows FARM - READY!',
-      G.farmChipEl.style.display === 'block' && G.farmChipEl.textContent === 'FARM - READY!',
-      G.farmChipEl.textContent);
+      G.farmChipEl.style.display === 'block' && G.farmTxtEl.textContent + G.farmGrowEl.textContent === 'FARM - READY!',
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent);
 
     /* harvest juice: cash float + scale pop + produce + counter */
     const harv0 = G.FPLOT.harvested, cash0 = G.cash, corn0 = G.FOOD.corn;
@@ -2254,7 +2254,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
     check('farmv1: fallow hint offers planting',
       G.farmHintEl.textContent === 'PLANT CORN [E]', G.farmHintEl.textContent);
     check('farmv1: chip shows FARM - HARVESTED n',
-      G.farmChipEl.textContent === 'FARM - HARVESTED 1', G.farmChipEl.textContent);
+      G.farmTxtEl.textContent + G.farmGrowEl.textContent === 'FARM - HARVESTED 1', G.farmTxtEl.textContent + G.farmGrowEl.textContent);
 
     /* seed selection cycles corn -> tomato -> pumpkin -> corn */
     G.cycleFarmSeed();
@@ -2394,7 +2394,7 @@ const groundY = (x, z) => G.terrainHeight(x, z);
       G.player.position.set(pBack.x, groundY(pBack.x, pBack.z), pBack.z);
       frame(15);
       check('farmv1: chip shows FARM - GROWING n/24',
-        G.farmChipEl.textContent.indexOf('FARM - GROWING') === 0, G.farmChipEl.textContent);
+        (G.farmTxtEl.textContent + G.farmGrowEl.textContent).indexOf('FARM - GROWING') === 0, G.farmTxtEl.textContent + G.farmGrowEl.textContent);
     }
   }
 
