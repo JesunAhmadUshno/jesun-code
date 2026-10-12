@@ -1380,7 +1380,11 @@
   <div id="heat" role="meter" aria-label="Wanted level" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"></div>
   <div id="weap"><span id="wname">RIFLE</span> <b id="wammo">&infin;</b></div>
   <div id="mtracker"><div id="mtitle"></div><div id="mobj"></div></div>
-  <div id="marrow"><div id="marr">▲</div><div id="mdist"></div></div>
+  <!-- BEARING ARROWS HIDDEN v1: the bearing and mission arrows are decorative
+       direction glyphs hidden from assistive tech. Their writers only rotate
+       them via style.transform, and the readable name and distance stay in
+       the sibling text spans. -->
+  <div id="marrow"><div id="marr" aria-hidden="true">▲</div><div id="mdist"></div></div>
   <!-- TOD TIMER v1: the game clock is a real timer: role timer plus
        aria-label Game time on #tod, decorative icon hidden from assistive tech. -->
   <div id="tod" role="timer" aria-label="Game time"><span id="todicon" aria-hidden="true">☾</span><span id="todtime">18:00</span></div>
@@ -1431,22 +1435,22 @@
   <div id="casinochip"></div>
   <div id="theaterhint"></div>
   <div id="theaterchip"></div>
-  <div id="casbearing"><span id="casarr">^</span> <span id="castxt"></span></div>
+  <div id="casbearing"><span id="casarr" aria-hidden="true">^</span> <span id="castxt"></span></div>
   <div id="civichint"></div>
   <div id="civicchip"></div>
-  <div id="civicbearing"><span id="civarr">^</span> <span id="civtxt"></span></div>
+  <div id="civicbearing"><span id="civarr" aria-hidden="true">^</span> <span id="civtxt"></span></div>
   <div id="stadiumhint"></div>
   <div id="stadiumchip"></div>
-  <div id="stadbearing"><span id="stadarr">^</span> <span id="stadtxt"></span></div>
+  <div id="stadbearing"><span id="stadarr" aria-hidden="true">^</span> <span id="stadtxt"></span></div>
   <div id="amusehint"></div>
   <div id="amusechip"></div>
-  <div id="amusebearing"><span id="amusebarr">^</span> <span id="amusebtxt"></span></div>
+  <div id="amusebearing"><span id="amusebarr" aria-hidden="true">^</span> <span id="amusebtxt"></span></div>
   <div id="worshiphint"></div>
   <div id="worshipchip"></div>
-  <div id="worshipbearing"><span id="worsarr">^</span> <span id="worstxt"></span></div>
+  <div id="worshipbearing"><span id="worsarr" aria-hidden="true">^</span> <span id="worstxt"></span></div>
   <div id="apthint"></div>
   <div id="aptchip"></div>
-  <div id="aptbearing"><span id="aptarr">^</span> <span id="apttxt"></span></div>
+  <div id="aptbearing"><span id="aptarr" aria-hidden="true">^</span> <span id="apttxt"></span></div>
   <div id="civicpanel">
     <div id="civictitle">CIVIC</div>
     <div class="tbtn" id="civicact">ACT</div>
@@ -1493,13 +1497,13 @@
     <div id="shoprows"></div>
     <div class="shint">[1-5] BUY &nbsp; [E] / [ESC] CLOSE &nbsp; TAP ROW ON TOUCH</div>
   </div>
-  <div id="landchip"><span id="landarr">^</span> <span id="landtxt"></span></div>
-  <div id="storechip"><span id="storearr">^</span> <span id="storetxt"></span></div>
-  <div id="stadchip"><span id="lmstadarr">^</span> <span id="lmstadtxt"></span></div>
-  <div id="lmausechip"><span id="lmausearr">^</span> <span id="lmauusetxt"></span></div>
-  <div id="hospchip"><span id="hosparr">^</span> <span id="hosptxt"></span></div>
-  <div id="firechip"><span id="firearr">^</span> <span id="firetxt"></span></div>
-  <div id="thallchip"><span id="thallarr">^</span> <span id="thalltxt"></span></div>
+  <div id="landchip"><span id="landarr" aria-hidden="true">^</span> <span id="landtxt"></span></div>
+  <div id="storechip"><span id="storearr" aria-hidden="true">^</span> <span id="storetxt"></span></div>
+  <div id="stadchip"><span id="lmstadarr" aria-hidden="true">^</span> <span id="lmstadtxt"></span></div>
+  <div id="lmausechip"><span id="lmausearr" aria-hidden="true">^</span> <span id="lmauusetxt"></span></div>
+  <div id="hospchip"><span id="hosparr" aria-hidden="true">^</span> <span id="hosptxt"></span></div>
+  <div id="firechip"><span id="firearr" aria-hidden="true">^</span> <span id="firetxt"></span></div>
+  <div id="thallchip"><span id="thallarr" aria-hidden="true">^</span> <span id="thalltxt"></span></div>
   <!-- CONCH TIMER v1: the REFRESHED buff countdown is a real timer: role timer plus
        aria-label Refreshed buff remaining in markup, text still written by conchTick. The timer role is not announced every second (implicit live off), so assistive tech can read it on demand without spam. -->
   <div id="conchchip" role="timer" aria-label="Refreshed buff remaining"></div>
@@ -1512,7 +1516,7 @@
   <div id="thallhint"></div>
   <div id="tshowhint"></div>
   <div id="snackhint"></div>
-  <div id="casinchip"><span id="casinarr">^</span> <span id="casintxt"></span></div>
+  <div id="casinchip"><span id="casinarr" aria-hidden="true">^</span> <span id="casintxt"></span></div>
   <div id="casinohallhint"></div>
   <div id="casinoslothint"></div>
   <div id="casinobjsel"></div>
@@ -1612,7 +1616,7 @@
     <div id="lmwheel-controls"><button id="lmwheel-bet">BET $10</button><button id="lmwheel-spin">SPIN</button></div>
     <div id="lmwheel-bigwin"></div>
   </div>
-  <div id="firestchip"><span id="firestarr">^</span> <span id="firesttxt"></span></div>
+  <div id="firestchip"><span id="firestarr" aria-hidden="true">^</span> <span id="firesttxt"></span></div>
   <!-- HEIST LOOT METER v1: the heist loot take is a real meter: the #heistloot span inside #heistchip carries role meter plus aria-label Heist loot and aria-valuemin 0 and aria-valuemax 5000 in markup, valuenow kept in sync by updateHeistChip via the ariaValueNow property (stub-safe idiom, no setAttribute). The value is bounded 0..5000 by HEIST_N 5 sacks at $200-$1000 each, seeded by seedHeistSacks, so HEIST.loot can never exceed 5000 or go below 0. The heat suffix stays plain text in #heistheat because heat already has its own #heat meter, and the concatenated visible text is unchanged. -->
   <div id="heistchip"><span id="heistloot" role="meter" aria-label="Heist loot" aria-valuemin="0" aria-valuemax="5000" aria-valuenow="0">HEIST $0</span><span id="heistheat"> | HEAT 0</span></div>
   <div id="firesthallhint"></div>
