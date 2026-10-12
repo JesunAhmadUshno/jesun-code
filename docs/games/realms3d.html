@@ -1393,7 +1393,8 @@
   <!-- BC STAMINA METER v1: the bicycle stamina is a real meter: role meter plus
        aria-label Bicycle stamina and aria-valuemin 0 and aria-valuemax 100 in the
        #bcstam markup, valuenow kept in sync via the ariaValueNow property. -->
-  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond">HULL 100%</div><div id="bcstam" role="meter" aria-label="Bicycle stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">STAM 100%</div></div>
+  <!-- CARCOND SPLIT v1: carcond is split into a Vehicle hull meter and a Fire truck water meter: each span carries role meter plus aria-valuemin 0 and aria-valuemax 100 in markup, valuenow kept in sync via the ariaValueNow property (stub-safe idiom, no setAttribute). The armor suffix stays plain text in #carextra, both writers share the hull span, and the concatenated visible text is unchanged in both modes. -->
+  <div id="speedo"><div id="drivingtag">DRIVING</div><span id="spdnum">0</span> KM/H<div id="gaittag">WALK</div><div id="carcond"><span id="carwater" role="meter" aria-label="Fire truck water" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="display:none">WATER 100%</span><span id="carhull" role="meter" aria-label="Vehicle hull" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">HULL 100%</span><span id="carextra"></span></div><div id="bcstam" role="meter" aria-label="Bicycle stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">STAM 100%</div></div>
   <div id="perfchip"></div>
   <!-- TOAST LIVE REGION v1: toast() feedback (212 call sites) is now announced
        by assistive tech without moving focus. toast() itself is unchanged. -->
@@ -14315,7 +14316,12 @@ function updateFTCondHUD() {
   const s = 'WATER ' + Math.round(FT.water) + '%' + ' HULL ' + Math.round(FT.hp) + '%';
   if (s === _ftCondLast) return;
   _ftCondLast = s;
-  carCondEl.textContent = s;
+  carWaterEl.style.display = '';
+  carWaterEl.textContent = 'WATER ' + Math.round(FT.water) + '%';
+  carWaterEl.ariaValueNow = String(Math.round(FT.water));
+  carHullEl.textContent = ' HULL ' + Math.round(FT.hp) + '%';
+  carHullEl.ariaValueNow = String(Math.round(FT.hp));
+  carExtraEl.textContent = '';
   carCondEl.style.color = (FT.hp > 60 && FT.water > 30) ? '#7dff9a'
     : (FT.hp > 25 && FT.water > 10) ? '#ffd24a' : '#ff6b5e';
 }
@@ -15010,12 +15016,18 @@ function redistributeGlyphBoards() {
 
 /* ---- car condition HUD (inside the #speedo block, driving only) ---- */
 const carCondEl = document.getElementById('carcond');
+const carWaterEl = document.getElementById('carwater');
+const carHullEl = document.getElementById('carhull');
+const carExtraEl = document.getElementById('carextra');
 let _carCondLast = '';
 function updateCarCondHUD() {
   const s = 'HULL ' + Math.round(CAR.hp) + '%' + (CAR.armor > 0 ? ' ARMOR ' + Math.round(CAR.armor) : '');
   if (s === _carCondLast) return;
   _carCondLast = s;
-  carCondEl.textContent = s;
+  carWaterEl.style.display = 'none';
+  carHullEl.textContent = 'HULL ' + Math.round(CAR.hp) + '%';
+  carHullEl.ariaValueNow = String(Math.round(CAR.hp));
+  carExtraEl.textContent = CAR.armor > 0 ? ' ARMOR ' + Math.round(CAR.armor) : '';
   carCondEl.style.color = CAR.hp > 60 ? '#7dff9a' : CAR.hp > 25 ? '#ffd24a' : '#ff6b5e';
 }
 
