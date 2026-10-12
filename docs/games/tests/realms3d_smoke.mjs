@@ -72,6 +72,7 @@ globalThis.__R3D = {
   bikeEnter, bikeExit, bikeRebuild, BIKE, bikeBodyIM, bikeHintEl,
   bcEnter, bcExit, bcRebuild, BC, bcBodyIM, bcHintEl, bcStamEl,   /* BC STAMINA METER v1: bicycle stamina meter (test-only exposure) */
   scEnter, scExit, scRebuild, SC, scBodyIM, scHintEl,
+  spdNumEl,   /* GROUND SPEED METER v1: ground speed meter (test-only exposure) */
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
@@ -24338,6 +24339,148 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('savedtimer: the run leaves zero console errors/warnings',
     consoleProblems.length === probsST, consoleProblems.slice(probsST).join(' | '));
+}
+
+
+/* ================= GROUND SPEED METER v1 =================
+   The shared ground speed readout is a real meter: the
+   #spdnum span inside #speedo carries role meter plus
+   aria-label Ground speed and aria-valuemin 0 and
+   aria-valuemax 144 in markup, and every one of the 8
+   writer sites (car, horse, bus aboard, taxi riding,
+   fire truck, motorcycle, bicycle, scooter) syncs
+   valuenow right after its textContent write via the
+   ariaValueNow property (stub-safe idiom, no
+   setAttribute). The bound is provable: every mode
+   clamps or approaches its cap and the fleet max is
+   the motorcycle boost cap of 40 units per second, so
+   the displayed KM/H stays within 0..144. The visible
+   text is unchanged: the numeric span still sits in
+   front of the literal KM/H suffix. The stub stores
+   the numeric textContent assignment uncoerced (a real
+   browser coerces it to a string), so the runtime text
+   checks below compare through String(). The runtime
+   drive runs the real car path through the real tick:
+   driving state, CAR.speed 10, forced CAR.hudT, one
+   frame, then the expected value is recomputed from
+   the live CAR.speed after the frame. */
+{
+  const probsSM = consoleProblems.length;
+  const linesSM = html.split('\n');
+  const lineHasSM = sub => linesSM.filter(l => l.includes(sub)).length;
+  check('spdmeter: GROUND SPEED METER v1 header is present exactly once in the game source',
+    (html.split('GROUND SPEED METER v1').length - 1) === 1,
+    'n=' + (html.split('GROUND SPEED METER v1').length - 1));
+  check('spdmeter: #spdnum full tag matches exactly (source pin)',
+    html.includes('<span id="spdnum" role="meter" aria-label="Ground speed" aria-valuemin="0" aria-valuemax="144" aria-valuenow="0">0</span>'));
+  check('spdmeter: exactly one #spdnum element in the game source',
+    (html.match(/id="spdnum"/g) || []).length === 1,
+    'n=' + (html.match(/id="spdnum"/g) || []).length);
+  check('spdmeter: spdNumEl binding line binds spdnum (source pin)',
+    html.includes("const spdNumEl = document.getElementById('spdnum');"));
+  check('spdmeter: car writer textContent line is unchanged (source pin)',
+    html.includes('    spdNumEl.textContent = Math.round(Math.abs(CAR.speed) * 3.6);'));
+  check('spdmeter: car writer syncs ariaValueNow with the identical expression (source pin)',
+    html.includes('    spdNumEl.ariaValueNow = String(Math.round(Math.abs(CAR.speed) * 3.6));'));
+  check('spdmeter: horse writer textContent line is unchanged (source pin)',
+    html.includes('    spdNumEl.textContent = Math.round(HORSE.speed * 3.6);'));
+  check('spdmeter: horse writer syncs ariaValueNow with the identical expression (source pin)',
+    html.includes('    spdNumEl.ariaValueNow = String(Math.round(HORSE.speed * 3.6));'));
+  check('spdmeter: bus writer textContent line is unchanged (source pin)',
+    html.includes('    if (aboard) spdNumEl.textContent = Math.round(Math.abs(BUS.speed) * 3.6);'));
+  check('spdmeter: bus writer syncs ariaValueNow with the identical expression (source pin)',
+    html.includes('    spdNumEl.ariaValueNow = String(Math.round(Math.abs(BUS.speed) * 3.6));'));
+  check('spdmeter: taxi writer textContent line is unchanged (source pin)',
+    html.includes('    if (TX.riding) spdNumEl.textContent = Math.round(Math.abs(TX.speed) * 3.6);'));
+  check('spdmeter: taxi writer syncs ariaValueNow with the identical expression (source pin)',
+    html.includes('    spdNumEl.ariaValueNow = String(Math.round(Math.abs(TX.speed) * 3.6));'));
+  check('spdmeter: fire truck writer textContent line is unchanged (source pin)',
+    html.includes('  spdNumEl.textContent = Math.round(Math.abs(FT.speed) * 3.6);'));
+  check('spdmeter: fire truck writer syncs ariaValueNow with the identical expression (source pin)',
+    html.includes('  spdNumEl.ariaValueNow = String(Math.round(Math.abs(FT.speed) * 3.6));'));
+  check('spdmeter: motorcycle writer textContent line is unchanged (source pin)',
+    html.includes('    spdNumEl.textContent = Math.round(Math.abs(BIKE.speed) * 3.6);'));
+  check('spdmeter: motorcycle writer syncs ariaValueNow with the identical expression (source pin)',
+    html.includes('    spdNumEl.ariaValueNow = String(Math.round(Math.abs(BIKE.speed) * 3.6));'));
+  check('spdmeter: bicycle writer textContent line is unchanged (source pin)',
+    html.includes('    spdNumEl.textContent = Math.round(Math.abs(BC.speed) * 3.6);'));
+  check('spdmeter: bicycle writer syncs ariaValueNow with the identical expression (source pin)',
+    html.includes('    spdNumEl.ariaValueNow = String(Math.round(Math.abs(BC.speed) * 3.6));'));
+  check('spdmeter: scooter writer textContent line is unchanged (source pin)',
+    html.includes('    spdNumEl.textContent = Math.round(SC.speed * 3.6);'));
+  check('spdmeter: scooter writer syncs ariaValueNow with the identical expression (source pin)',
+    html.includes('    spdNumEl.ariaValueNow = String(Math.round(SC.speed * 3.6));'));
+  check('spdmeter: exactly 8 ariaValueNow sync sites in the game source (count pin)',
+    (html.split('spdNumEl.ariaValueNow = String(').length - 1) === 8,
+    'n=' + (html.split('spdNumEl.ariaValueNow = String(').length - 1));
+  /* runtime: boot state, then a real car drive through the real tick */
+  check('spdmeter: runtime spdNumEl exists',
+    !!G.spdNumEl);
+  check('spdmeter: runtime spdNumEl text is 0 at boot',
+    String(G.spdNumEl.textContent) === '0',
+    'textContent=' + G.spdNumEl.textContent);
+  check('spdmeter: runtime spdNumEl ariaValueNow is 0 at boot',
+    G.spdNumEl.ariaValueNow === '0',
+    'ariaValueNow=' + G.spdNumEl.ariaValueNow);
+  const saveSM = {
+    driving: G.CAR.driving, speed: G.CAR.speed, hudT: G.CAR.hudT,
+    steer: G.CAR.steer, slip: G.CAR.slip, charge: G.CAR.charge, drifting: G.CAR.drifting,
+    hp: G.CAR.hp, dead: G.P.dead,
+    px: G.player.position.x, py: G.player.position.y, pz: G.player.position.z,
+    vis: G.player.visible,
+    kw: G.keys.KeyW, ks: G.keys.KeyS, ka: G.keys.KeyA, kd: G.keys.KeyD, ksp: G.keys.Space,
+  };
+  const carPosSM = G.CAR.pos.clone();
+  G.P.dead = false;
+  G.keys.KeyW = false; G.keys.KeyS = false; G.keys.KeyA = false; G.keys.KeyD = false; G.keys.Space = false;
+  G.CAR.driving = true; G.player.visible = false;
+  G.CAR.speed = 10; G.CAR.hudT = 1;
+  frame(1);
+  const expSM = String(Math.round(Math.abs(G.CAR.speed) * 3.6));
+  check('spdmeter: runtime spdNumEl text matches the live CAR.speed after one tick at speed 10',
+    String(G.spdNumEl.textContent) === expSM,
+    'textContent=' + G.spdNumEl.textContent + ' expected=' + expSM + ' carSpeed=' + G.CAR.speed);
+  check('spdmeter: runtime spdNumEl ariaValueNow matches the live CAR.speed after one tick at speed 10',
+    G.spdNumEl.ariaValueNow === expSM,
+    'ariaValueNow=' + G.spdNumEl.ariaValueNow + ' expected=' + expSM + ' carSpeed=' + G.CAR.speed);
+  check('spdmeter: runtime driven value is above 0 and within the 0..144 bound',
+    Number(G.spdNumEl.ariaValueNow) > 0 && Number(G.spdNumEl.ariaValueNow) <= 144,
+    'ariaValueNow=' + G.spdNumEl.ariaValueNow);
+  G.CAR.speed = 0; G.CAR.hudT = 1;
+  frame(1);
+  check('spdmeter: runtime spdNumEl text returns to 0 after one tick at speed 0',
+    String(G.spdNumEl.textContent) === '0',
+    'textContent=' + G.spdNumEl.textContent);
+  check('spdmeter: runtime spdNumEl ariaValueNow returns to 0 after one tick at speed 0',
+    G.spdNumEl.ariaValueNow === '0',
+    'ariaValueNow=' + G.spdNumEl.ariaValueNow);
+  if (G.CAR.driving) G.carExit();
+  G.CAR.driving = saveSM.driving; G.CAR.speed = saveSM.speed; G.CAR.hudT = saveSM.hudT;
+  G.CAR.steer = saveSM.steer; G.CAR.slip = saveSM.slip; G.CAR.charge = saveSM.charge;
+  G.CAR.drifting = saveSM.drifting; G.CAR.hp = saveSM.hp;
+  G.CAR.pos.copy(carPosSM);
+  G.P.dead = saveSM.dead;
+  G.player.position.set(saveSM.px, saveSM.py, saveSM.pz);
+  G.player.visible = saveSM.vis;
+  G.keys.KeyW = saveSM.kw; G.keys.KeyS = saveSM.ks; G.keys.KeyA = saveSM.ka; G.keys.KeyD = saveSM.kd; G.keys.Space = saveSM.ksp;
+  check('spdmeter: cleanup leaves the car parked and the player visible',
+    G.CAR.driving === false && G.player.visible === true,
+    'driving=' + G.CAR.driving + ' visible=' + G.player.visible);
+  check('spdmeter: pins - 50 InstancedMesh literals unchanged', lineHasSM('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasSM('new THREE.InstancedMesh'));
+  check('spdmeter: pins - 92 Math.random lines unchanged', lineHasSM('Math.random') === 92,
+    'n=' + lineHasSM('Math.random'));
+  check('spdmeter: pins - 72 setTimeout lines unchanged', lineHasSM('setTimeout') === 72,
+    'n=' + lineHasSM('setTimeout'));
+  check('spdmeter: pins - 2 THREE.Points objects unchanged', lineHasSM('new THREE.Points(') === 2,
+    'n=' + lineHasSM('new THREE.Points('));
+  check('spdmeter: pins - no em dashes', !html.includes('\u2014'));
+  check('spdmeter: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('spdmeter: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('spdmeter: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsSM, consoleProblems.slice(probsSM).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */

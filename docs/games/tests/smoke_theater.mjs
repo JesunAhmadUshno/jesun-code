@@ -71,6 +71,7 @@ globalThis.__R3D = {
   bikeEnter, bikeExit, bikeRebuild, BIKE, bikeBodyIM, bikeHintEl,
   bcEnter, bcExit, bcRebuild, BC, bcBodyIM, bcHintEl,
   scEnter, scExit, scRebuild, SC, scBodyIM, scHintEl,
+  spdNumEl,   /* GROUND SPEED METER v1: ground speed meter (test-only exposure) */
   saveGame, loadSave, collectSave, newGame, setHeat, playing, terrainHeight,
   MS, MISSIONS, SHOP_ITEMS, SHOPS, WEAPONS, CAR, P, player, camera, keys,
   enemies, tracers, enemyMeshes, objRing, objIcon,
