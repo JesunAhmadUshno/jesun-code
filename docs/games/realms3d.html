@@ -18739,6 +18739,12 @@ function triggerBolt() {
   bolt.target.position.copy(player.position);
   setTimeout(sfxThunder, 700 + Math.random() * 1600);   // distant thunder, delayed
 }
+/* REDUCED MOTION v7: the lightning visual flash now follows the same
+   P.traumaOn gate as v1-v5. When the gate is off, the computed intensity
+   is zeroed so the bolt light stays dark and the #boltflash DOM layer
+   stays at opacity 0. The pulse timeline, storm state, rain, delayed
+   thunder, and the wildfire strike in triggerBolt are unchanged.
+   No-preference users see the identical flash. */
 function updateBolt(dt) {
   if (WX.boltT < 0) { bolt.intensity = 0; boltFlashEl.style.opacity = 0; return; }
   WX.boltT += dt;
@@ -18749,6 +18755,7 @@ function updateBolt(dt) {
     if (t >= 0) I += p.peak * Math.exp(-t / TAU);
   }
   if (WX.boltT > WX.boltPulses[WX.boltPulses.length - 1].at + 0.4) { WX.boltT = -1; I = 0; }
+  if (!P.traumaOn) I = 0; // REDUCED MOTION v7
   bolt.intensity = I;
   boltFlashEl.style.opacity = Math.min(0.15, I * 0.035);   // stays under 0.18
 }
