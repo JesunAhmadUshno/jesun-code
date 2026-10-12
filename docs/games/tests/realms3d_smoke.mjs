@@ -21563,6 +21563,69 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsCA, consoleProblems.slice(probsCA).join(' | '));
 }
 
+/* ================= HP PROGRESSBAR v1 =================
+   The health bar is a real progressbar: role progressbar
+   plus aria-label Health and aria-valuemin 0 and
+   aria-valuemax 100 in the #hpbar markup, with
+   aria-valuenow kept in sync by updateHpHUD. The sync
+   uses the ariaValueNow IDL property, not setAttribute,
+   because the headless stub elements have no
+   setAttribute method. The runtime checks read the
+   stub element for hpbar through stubs.getEl, the
+   same element the game binds as hpbarEl. */
+{
+  const probsHP = consoleProblems.length;
+  const linesHP = html.split('\n');
+  const lineHasHP = sub => linesHP.filter(l => l.includes(sub)).length;
+  check('hpbar: HP PROGRESSBAR v1 header is present exactly once in the game source',
+    (html.split('HP PROGRESSBAR v1').length - 1) === 1,
+    'n=' + (html.split('HP PROGRESSBAR v1').length - 1));
+  const hpbarTagHP = (html.match(/<div id="hpbar"[^>]*>/) || [''])[0];
+  check('hpbar: #hpbar element markup carries role="progressbar"',
+    hpbarTagHP.includes('role="progressbar"'), 'tag=' + hpbarTagHP);
+  check('hpbar: #hpbar element markup carries aria-label="Health"',
+    hpbarTagHP.includes('aria-label="Health"'), 'tag=' + hpbarTagHP);
+  check('hpbar: #hpbar element markup carries aria-valuemin="0"',
+    hpbarTagHP.includes('aria-valuemin="0"'), 'tag=' + hpbarTagHP);
+  check('hpbar: #hpbar element markup carries aria-valuemax="100"',
+    hpbarTagHP.includes('aria-valuemax="100"'), 'tag=' + hpbarTagHP);
+  check('hpbar: #hpbar element markup carries aria-valuenow="100"',
+    hpbarTagHP.includes('aria-valuenow="100"'), 'tag=' + hpbarTagHP);
+  check('hpbar: exactly one #hpbar element in the game source',
+    (html.match(/id="hpbar"/g) || []).length === 1,
+    'n=' + (html.match(/id="hpbar"/g) || []).length);
+  check('hpbar: updateHpHUD syncs ariaValueNow with clamped rounded hp (source pin)',
+    html.includes('hpbarEl.ariaValueNow = String(Math.max(0, Math.min(100, Math.round(P.hp))));'));
+  check('hpbar: hpbarEl binding line binds hpbar alongside hpfill and hptext (source pin)',
+    html.includes("const hpfillEl = document.getElementById('hpfill'), hptextEl = document.getElementById('hptext'), hpbarEl = document.getElementById('hpbar');"));
+  G.P.hp = 37.4; G.updateHpHUD();
+  check('hpbar: runtime ariaValueNow is 37 when hp is 37.4',
+    stubs.getEl('hpbar').ariaValueNow === '37',
+    'ariaValueNow=' + stubs.getEl('hpbar').ariaValueNow);
+  G.P.hp = -5; G.updateHpHUD();
+  check('hpbar: runtime ariaValueNow clamps to 0 when hp is -5',
+    stubs.getEl('hpbar').ariaValueNow === '0',
+    'ariaValueNow=' + stubs.getEl('hpbar').ariaValueNow);
+  G.P.hp = 100; G.updateHpHUD();
+  check('hpbar: runtime ariaValueNow is 100 when hp is 100',
+    stubs.getEl('hpbar').ariaValueNow === '100',
+    'ariaValueNow=' + stubs.getEl('hpbar').ariaValueNow);
+  check('hpbar: pins - 50 InstancedMesh literals unchanged', lineHasHP('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasHP('new THREE.InstancedMesh'));
+  check('hpbar: pins - 92 Math.random lines unchanged', lineHasHP('Math.random') === 92,
+    'n=' + lineHasHP('Math.random'));
+  check('hpbar: pins - 72 setTimeout lines unchanged', lineHasHP('setTimeout') === 72,
+    'n=' + lineHasHP('setTimeout'));
+  check('hpbar: pins - no em dashes', !html.includes('\u2014'));
+  check('hpbar: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('hpbar: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('hpbar: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsHP, consoleProblems.slice(probsHP).join(' | '));
+  G.P.hp = 100; G.updateHpHUD();
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
