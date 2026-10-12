@@ -79,6 +79,7 @@ globalThis.__R3D = {
   SAVE_KEY,
   DIFF, diffEl, updateDiffHUD, diffEval, animals,   /* DIFF METER v1: difficulty tier meter (test-only exposure) */
   updateArmorHUD, armorChipEl,   /* ARMOR METER v1: armor meter (test-only exposure) */
+  aliveEl, updateCombatHUD,   /* HOSTILES METER v1: hostiles alive meter (test-only exposure) */
   birds, wings, PET, tamePet, releasePet, acquirePrey, petRejoin,
   petHintEl, petChipEl, birdFlockTick,
   FROZEN_STATICS, ocean,                       /* PERF-7 static freeze registry + water mesh */
@@ -22498,6 +22499,84 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('kenohits: the run leaves zero console errors/warnings',
     consoleProblems.length === probsKH, consoleProblems.slice(probsKH).join(' | '));
+}
+
+/* ================= HOSTILES METER v1 =================
+   The hostiles alive count is a real meter: role
+   meter plus aria-label Hostiles alive and
+   aria-valuemin 0 and aria-valuemax 5 in the
+   #alive markup, with aria-valuenow kept in sync
+   in updateCombatHUD beside the textContent
+   writer. The sync uses the ariaValueNow IDL
+   property, not setAttribute, because the
+   headless stub elements have no setAttribute
+   method. The count is bounded by the fixed
+   5-entry ENEMY_MIX, so the fixed valuemax 5
+   is exact. The runtime checks save the current
+   enemy states, set the first two enemies dead
+   and the rest to wander, call updateCombatHUD,
+   then restore the saved states and call it
+   again, leaving the harness in its prior
+   state. */
+{
+  const probsHM = consoleProblems.length;
+  const linesHM = html.split('\n');
+  const lineHasHM = sub => linesHM.filter(l => l.includes(sub)).length;
+  check('hostiles: HOSTILES METER v1 header is present exactly once in the game source',
+    (html.split('HOSTILES METER v1').length - 1) === 1,
+    'n=' + (html.split('HOSTILES METER v1').length - 1));
+  const aliveTagHM = (html.match(/<b id="alive"[^>]*>/) || [''])[0];
+  check('hostiles: #alive element markup carries role="meter"',
+    aliveTagHM.includes('role="meter"'), 'tag=' + aliveTagHM);
+  check('hostiles: #alive element markup carries aria-label="Hostiles alive"',
+    aliveTagHM.includes('aria-label="Hostiles alive"'), 'tag=' + aliveTagHM);
+  check('hostiles: #alive element markup carries aria-valuemin="0"',
+    aliveTagHM.includes('aria-valuemin="0"'), 'tag=' + aliveTagHM);
+  check('hostiles: #alive element markup carries aria-valuemax="5"',
+    aliveTagHM.includes('aria-valuemax="5"'), 'tag=' + aliveTagHM);
+  check('hostiles: #alive element markup carries aria-valuenow="5"',
+    aliveTagHM.includes('aria-valuenow="5"'), 'tag=' + aliveTagHM);
+  check('hostiles: exactly one #alive element in the game source',
+    (html.match(/id="alive"/g) || []).length === 1,
+    'n=' + (html.match(/id="alive"/g) || []).length);
+  check('hostiles: aliveEl binding line binds alive with killsEl (source pin)',
+    html.includes("const aliveEl = document.getElementById('alive'), killsEl = document.getElementById('kills');"));
+  check('hostiles: updateCombatHUD aliveEl textContent writer line is unchanged (source pin)',
+    html.includes("aliveEl.textContent = enemies.filter(e => e.state !== 'dead').length;"));
+  check('hostiles: updateCombatHUD syncs aliveEl ariaValueNow from the alive count exactly once (source pin)',
+    (html.split("aliveEl.ariaValueNow = String(enemies.filter(e => e.state !== 'dead').length);").length - 1) === 1,
+    'n=' + (html.split("aliveEl.ariaValueNow = String(enemies.filter(e => e.state !== 'dead').length);").length - 1));
+  const savedStatesHM = G.enemies.map(e => e.state);
+  const savedAliveHM = savedStatesHM.filter(s => s !== 'dead').length;
+  G.enemies.forEach((e, i) => { e.state = i < 2 ? 'dead' : 'wander'; });
+  G.updateCombatHUD();
+  check('hostiles: runtime aliveEl text is 3 when two enemies are dead',
+    String(G.aliveEl.textContent) === '3',
+    'textContent=' + G.aliveEl.textContent);
+  check('hostiles: runtime aliveEl ariaValueNow is 3 when two enemies are dead',
+    String(G.aliveEl.ariaValueNow) === '3',
+    'ariaValueNow=' + G.aliveEl.ariaValueNow);
+  G.enemies.forEach((e, i) => { e.state = savedStatesHM[i]; });
+  G.updateCombatHUD();
+  check('hostiles: runtime aliveEl text is the saved alive count after restore',
+    String(G.aliveEl.textContent) === String(savedAliveHM),
+    'textContent=' + G.aliveEl.textContent + ' savedAlive=' + savedAliveHM);
+  check('hostiles: runtime aliveEl ariaValueNow is the saved alive count after restore',
+    String(G.aliveEl.ariaValueNow) === String(savedAliveHM),
+    'ariaValueNow=' + G.aliveEl.ariaValueNow + ' savedAlive=' + savedAliveHM);
+  check('hostiles: pins - 50 InstancedMesh literals unchanged', lineHasHM('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasHM('new THREE.InstancedMesh'));
+  check('hostiles: pins - 92 Math.random lines unchanged', lineHasHM('Math.random') === 92,
+    'n=' + lineHasHM('Math.random'));
+  check('hostiles: pins - 72 setTimeout lines unchanged', lineHasHM('setTimeout') === 72,
+    'n=' + lineHasHM('setTimeout'));
+  check('hostiles: pins - no em dashes', !html.includes('\u2014'));
+  check('hostiles: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('hostiles: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('hostiles: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsHM, consoleProblems.slice(probsHM).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
