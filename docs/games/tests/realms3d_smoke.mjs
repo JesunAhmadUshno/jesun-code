@@ -67,7 +67,7 @@ globalThis.__R3D = {
   busEnter, busExit, busTakeWheel, busRebuildRoute, busDoorWorld, mountToggle, busUpdate,
   busDwellService, BUSNPC, BUS,
   taxiEnter, taxiExit, txRebuild, txDoorWorld, crRebuild, ambRebuild,
-  CR, TX, AMB, HORSE, emBodyIM, toastEl, W,
+  CR, TX, AMB, HORSE, emBodyIM, toastEl, W, updateHeatHUD, heatEl,
   bikeEnter, bikeExit, bikeRebuild, BIKE, bikeBodyIM, bikeHintEl,
   bcEnter, bcExit, bcRebuild, BC, bcBodyIM, bcHintEl,
   scEnter, scExit, scRebuild, SC, scBodyIM, scHintEl,
@@ -21741,6 +21741,74 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('playbtn: the run leaves zero console errors/warnings',
     consoleProblems.length === probsPB, consoleProblems.slice(probsPB).join(' | '));
+}
+
+/* ================= HEAT METER v1 =================
+   The wanted level is a real meter: role meter plus
+   aria-label Wanted level and aria-valuemin 0 and
+   aria-valuemax 5 in the #heat markup, with
+   aria-valuenow kept in sync by updateHeatHUD. The sync
+   uses the ariaValueNow IDL property, not setAttribute,
+   because the headless stub elements have no
+   setAttribute method. The sync line sits at the top of
+   updateHeatHUD, so it runs on both the hidden path
+   (heat 0) and the shown path (heat 1 to 5). The runtime
+   checks drive W.heat plus updateHeatHUD the same way
+   the hpbar block drives P.hp plus updateHpHUD, and read
+   the stub element for heat through stubs.getEl, the
+   same element the game binds as heatEl. The original
+   heat value is restored after the checks. */
+{
+  const probsHM = consoleProblems.length;
+  const linesHM = html.split('\n');
+  const lineHasHM = sub => linesHM.filter(l => l.includes(sub)).length;
+  check('heatmeter: HEAT METER v1 header is present exactly once in the game source',
+    (html.split('HEAT METER v1').length - 1) === 1,
+    'n=' + (html.split('HEAT METER v1').length - 1));
+  const heatTagHM = (html.match(/<div id="heat"[^>]*>/) || [''])[0];
+  check('heatmeter: #heat element markup carries role="meter"',
+    heatTagHM.includes('role="meter"'), 'tag=' + heatTagHM);
+  check('heatmeter: #heat element markup carries aria-label="Wanted level"',
+    heatTagHM.includes('aria-label="Wanted level"'), 'tag=' + heatTagHM);
+  check('heatmeter: #heat element markup carries aria-valuemin="0"',
+    heatTagHM.includes('aria-valuemin="0"'), 'tag=' + heatTagHM);
+  check('heatmeter: #heat element markup carries aria-valuemax="5"',
+    heatTagHM.includes('aria-valuemax="5"'), 'tag=' + heatTagHM);
+  check('heatmeter: #heat element markup carries aria-valuenow="0"',
+    heatTagHM.includes('aria-valuenow="0"'), 'tag=' + heatTagHM);
+  check('heatmeter: exactly one #heat element in the game source',
+    (html.match(/id="heat"/g) || []).length === 1,
+    'n=' + (html.match(/id="heat"/g) || []).length);
+  check('heatmeter: heatEl binding line binds heat (source pin)',
+    html.includes("const heatEl = document.getElementById('heat');"));
+  check('heatmeter: updateHeatHUD syncs ariaValueNow from W.heat (source pin)',
+    html.includes('heatEl.ariaValueNow = String(W.heat);'));
+  const heatOrigHM = G.W.heat;
+  G.W.heat = 3; G.updateHeatHUD();
+  check('heatmeter: runtime ariaValueNow is 3 when heat is 3',
+    stubs.getEl('heat').ariaValueNow === '3',
+    'ariaValueNow=' + stubs.getEl('heat').ariaValueNow);
+  check('heatmeter: runtime heat element text is 3 stars when heat is 3',
+    stubs.getEl('heat').textContent === '★★★',
+    'textContent=' + stubs.getEl('heat').textContent);
+  G.W.heat = 0; G.updateHeatHUD();
+  check('heatmeter: runtime ariaValueNow is 0 when heat clears to 0',
+    stubs.getEl('heat').ariaValueNow === '0',
+    'ariaValueNow=' + stubs.getEl('heat').ariaValueNow);
+  check('heatmeter: pins - 50 InstancedMesh literals unchanged', lineHasHM('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasHM('new THREE.InstancedMesh'));
+  check('heatmeter: pins - 92 Math.random lines unchanged', lineHasHM('Math.random') === 92,
+    'n=' + lineHasHM('Math.random'));
+  check('heatmeter: pins - 72 setTimeout lines unchanged', lineHasHM('setTimeout') === 72,
+    'n=' + lineHasHM('setTimeout'));
+  check('heatmeter: pins - no em dashes', !html.includes('\u2014'));
+  check('heatmeter: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('heatmeter: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('heatmeter: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsHM, consoleProblems.slice(probsHM).join(' | '));
+  G.W.heat = heatOrigHM; G.updateHeatHUD();
 }
 
 /* ---------- zero console errors ---------- */
