@@ -127,7 +127,7 @@ globalThis.__R3D = {
   heliBodyIM, heliHintEl, heliChipEl, HELI_N, sfxThud, HELI_PAD_LZ,
   /* Phase 5 planes v1 */
   PLANE, planeEnter, planeExit, planeExitFlight, planeRebuild, airstripFor,
-  planeStripWorld, planePose, planeBodyIM, planeHintEl, planeChipEl,
+  planeStripWorld, planePose, planeBodyIM, planeHintEl, planeChipEl, planeSpdEl, planeAltEl,   /* PLANE ALTITUDE METER v1: plane altitude meter (test-only exposure) */
   PLANE_N, PLANE_STRIP_LX, PLANE_SLOT_LZ, sfxBuffet,
   /* Phase 5 trains v1 */
   TRAIN, trainEnter, trainExit, trainUpdate, trainSimOne, trainNextK,
@@ -3413,7 +3413,8 @@ const groundY = (x, z) => G.terrainHeight(x, z);
   check('plane: W pitches the nose down in the air', G.PLANE.pitch > 0.05,
     'pitch=' + G.PLANE.pitch.toFixed(3));
   check('plane: chip reads speed and altitude while flying',
-    /^PLANE - \d+ KM\/H \/ ALT \d+M$/.test(G.planeChipEl.textContent), G.planeChipEl.textContent);
+    /^PLANE - \d+ KM\/H \/ ALT \d+M$/.test(G.planeSpdEl.textContent + G.planeAltEl.textContent),
+    G.planeSpdEl.textContent + G.planeAltEl.textContent);
 
   /* bank-to-turn: D banks right and the heading follows the bank */
   G.PLANE.heading = 0; G.PLANE.bank = 0;
