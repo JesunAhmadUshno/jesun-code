@@ -24915,6 +24915,75 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsRC, consoleProblems.slice(probsRC).join(' | '));
 }
 
+/* ================= DAMAGE NUMBERS HIDDEN v1 =================
+   The pooled damage numbers are purely visual floating
+   combat feedback hidden from assistive tech. Bare
+   numbers carry no target or label; outcomes read on
+   the kills, cash and HP readouts. These plain divs
+   are never focusable. */
+{
+  const probsDH = consoleProblems.length;
+  const linesDH = html.split('\n');
+  const lineHasDH = sub => linesDH.filter(l => l.includes(sub)).length;
+  check('dmghidden: DAMAGE NUMBERS HIDDEN v1 header is present exactly once in the game source',
+    (html.split('DAMAGE NUMBERS HIDDEN v1').length - 1) === 1,
+    'n=' + (html.split('DAMAGE NUMBERS HIDDEN v1').length - 1));
+  check('dmghidden: ariaHidden assignment line appears exactly once',
+    lineHasDH("_del.ariaHidden = 'true';") === 1,
+    'n=' + lineHasDH("_del.ariaHidden = 'true';"));
+  check('dmghidden: dmgnum className line still appears exactly once',
+    lineHasDH("_del.className = 'dmgnum';") === 1,
+    'n=' + lineHasDH("_del.className = 'dmgnum';"));
+  check('dmghidden: runtime pool exists with 24 slots',
+    Array.isArray(G.dmgNums) && G.dmgNums.length === 24 && G.DMGNUM_N === 24,
+    'n=' + (G.dmgNums && G.dmgNums.length) + ' N=' + G.DMGNUM_N);
+  check('dmghidden: every pooled slot element is hidden from assistive tech',
+    G.dmgNums.every(s => s.el && s.el.ariaHidden === 'true'));
+  check('dmghidden: every pooled slot element still has the dmgnum class',
+    G.dmgNums.every(s => s.el && s.el.className === 'dmgnum'));
+  /* visible behavior unchanged: spawn exactly the way the dmgnum block
+     does (settle the camera, place a live enemy on the player, hit it) */
+  G.P.godT = 9999;
+  frame(30);
+  G.P.godT = 0;
+  G.camera.updateMatrixWorld();
+  G.dmgNumRecycleAll();
+  if (G.dmgNumOn !== true) G.toggleDmgNums();
+  const eDH = G.enemies.find(e => e.state !== 'dead');
+  let sDH = null;
+  if (eDH) {
+    eDH.hp = 100;
+    eDH.group.position.set(G.player.position.x, G.player.position.y, G.player.position.z);
+    G.camera.updateMatrixWorld();
+    G.P.hp = 100; G.P.graceT = 0; G.P.godT = 0;
+    G.damageEnemy(eDH, 5.4);
+    sDH = G.dmgNums.find(s => s.alive);
+  }
+  check('dmghidden: spawned floater shows a rounded number and display block',
+    !!sDH && sDH.el.textContent === '5' && sDH.el.style.display === 'block',
+    'text=' + (sDH && sDH.el.textContent) + ' display=' + (sDH && sDH.el.style.display));
+  G.dmgNumRecycleAll();
+  if (G.dmgNumOn !== true) G.toggleDmgNums();
+  check('dmghidden: cleanup recycles all actives and leaves the toggle ON',
+    G.dmgNums.every(s => !s.alive) && G.dmgNumOn === true,
+    'alive=' + G.dmgNums.filter(s => s.alive).length + ' on=' + G.dmgNumOn);
+  check('dmghidden: pins - 50 InstancedMesh literals unchanged', lineHasDH('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasDH('new THREE.InstancedMesh'));
+  check('dmghidden: pins - 92 Math.random lines unchanged', lineHasDH('Math.random') === 92,
+    'n=' + lineHasDH('Math.random'));
+  check('dmghidden: pins - 72 setTimeout lines unchanged', lineHasDH('setTimeout') === 72,
+    'n=' + lineHasDH('setTimeout'));
+  check('dmghidden: pins - 2 THREE.Points objects unchanged', lineHasDH('new THREE.Points(') === 2,
+    'n=' + lineHasDH('new THREE.Points('));
+  check('dmghidden: pins - no em dashes', !html.includes('\u2014'));
+  check('dmghidden: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('dmghidden: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('dmghidden: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsDH, consoleProblems.slice(probsDH).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
