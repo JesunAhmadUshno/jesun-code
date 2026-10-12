@@ -59,7 +59,8 @@
   #overlay h1 { color: #d8c84a; letter-spacing: 10px; font-size: 34px; }
   #overlay p { color: #9aa584; letter-spacing: 2px; font-size: 14px; }
   #overlay .btn { color: #0c0e0a; background: #d8c84a; padding: 12px 34px;
-    font-weight: bold; letter-spacing: 4px; font-size: 15px; }
+    font-weight: bold; letter-spacing: 4px; font-size: 15px; border: none;
+    font-family: inherit; cursor: pointer; }
   #overlay.hidden { display: none; }
 
   /* ---- touch controls (shown only on touch devices) ---- */
@@ -1606,7 +1607,8 @@
 <div id="overlay">
   <h1>REALMS 3D</h1>
   <p>THIRD-PERSON PROTOTYPE // THREE.JS</p>
-  <div class="btn">CLICK TO PLAY</div>
+  <!-- OVERLAY PLAY BUTTON v1: the play control is a native button so it is focusable and Enter or Space activate it through the click that bubbles up to the overlay handler, no extra JS needed. -->
+  <button class="btn" type="button">CLICK TO PLAY</button>
   <p style="font-size:11px">mouse look needs pointer lock</p>
 </div>
 
