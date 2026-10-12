@@ -160,7 +160,8 @@ export function installStubs() {
   /* fake WebGLRenderer: satisfies the boot path (setSize, domElement,
      shadowMap flags) without any GPU. Rendering is never asserted. */
   class StubRenderer {
-    constructor() {
+    constructor(opts) {
+      this.options = opts || {};
       this.domElement = makeEl('glcanvas');
       /* WEBGL CONTEXT-LOSS RESILIENCE v1 (test-only): keep every stub canvas
          so the harness can drive synthetic webglcontextlost/restored events
