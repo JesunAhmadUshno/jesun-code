@@ -21465,6 +21465,50 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsRM6, consoleProblems.slice(probsRM6).join(' | '));
 }
 
+/* ================= TOAST LIVE REGION v1 =================
+   The toast element is now a polite live status region:
+   role="status" with aria-live="polite" means assistive
+   tech announces toast() feedback without moving focus.
+   toast() itself is unchanged. The harness exposes
+   toastEl but does not expose the toast function, so the
+   toast() body is source-pinned below instead of called
+   at runtime. The element checks parse the actual #toast
+   tag markup, not substrings elsewhere in the file. */
+{
+  const probsTL = consoleProblems.length;
+  const linesTL = html.split('\n');
+  const lineHasTL = sub => linesTL.filter(l => l.includes(sub)).length;
+  check('toastlive: TOAST LIVE REGION v1 header is present exactly once in the game source',
+    (html.split('TOAST LIVE REGION v1').length - 1) === 1,
+    'n=' + (html.split('TOAST LIVE REGION v1').length - 1));
+  const toastTagTL = (html.match(/<div id="toast"[^>]*>/) || [''])[0];
+  check('toastlive: #toast element markup carries role="status"',
+    toastTagTL.includes('role="status"'), 'tag=' + toastTagTL);
+  check('toastlive: #toast element markup carries aria-live="polite"',
+    toastTagTL.includes('aria-live="polite"'), 'tag=' + toastTagTL);
+  check('toastlive: exactly one #toast element in the game source',
+    (html.match(/id="toast"/g) || []).length === 1,
+    'n=' + (html.match(/id="toast"/g) || []).length);
+  check('toastlive: toast() body still sets textContent and opacity (source pin: harness exposes toastEl, not toast)',
+    html.includes('function toast(msg) { toastEl.textContent = msg; toastEl.style.opacity = 1; toastT = 1.4; }'));
+  check('toastlive: runtime toastEl is exposed with a style object (the element toast() writes to)',
+    !!G.toastEl && !!G.toastEl.style && typeof G.toastEl.textContent === 'string',
+    'toastEl=' + !!G.toastEl);
+  check('toastlive-pins: 50 InstancedMesh literals unchanged', lineHasTL('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasTL('new THREE.InstancedMesh'));
+  check('toastlive-pins: 92 Math.random lines unchanged', lineHasTL('Math.random') === 92,
+    'n=' + lineHasTL('Math.random'));
+  check('toastlive-pins: 72 setTimeout lines unchanged', lineHasTL('setTimeout') === 72,
+    'n=' + lineHasTL('setTimeout'));
+  check('toastlive-pins: no em dashes', !html.includes('\u2014'));
+  check('toastlive-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('toastlive-pins: allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('toastlive: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsTL, consoleProblems.slice(probsTL).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
