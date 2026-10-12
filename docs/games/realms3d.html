@@ -1375,7 +1375,8 @@
     <div id="hpbar" role="progressbar" aria-label="Health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div id="hpfill"></div></div>
     <div id="hptext">100 / 100</div>
   </div>
-  <div id="cross"><div class="ring"></div><div class="dot"></div></div>
+  <!-- DECORATIVE OVERLAYS HIDDEN v1: the crosshair reticle and the damage and lightning flash overlays are purely visual effects hidden from assistive tech. #cross has no text and no JS writer, and the flash writers only set style.opacity. Damage reads on the HP progressbar and lightning reads on the weather status. -->
+  <div id="cross" aria-hidden="true"><div class="ring"></div><div class="dot"></div></div>
   <div id="help">
     <b>WASD</b> move &nbsp; <b>MOUSE</b> look &nbsp; <b>SHIFT</b> sprint<br>
     <b>SPACE</b> jump &nbsp; <b>CLICK</b> shoot &nbsp; <b>F</b> punch &nbsp; <b>R-CLICK</b> punch &nbsp; <b>ESC</b> release mouse<br>
@@ -1640,8 +1641,8 @@
   <div id="firestpolehint"></div>
 </div>
 
-<div id="dmgflash"></div>
-<div id="boltflash"></div>
+<div id="dmgflash" aria-hidden="true"></div>
+<div id="boltflash" aria-hidden="true"></div>
 
 <div id="touchui">
   <div id="stick"><div id="stickknob"></div></div>
