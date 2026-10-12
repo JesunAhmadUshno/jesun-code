@@ -1900,6 +1900,16 @@ sun.shadow.camera.left = -28; sun.shadow.camera.right = 28;
 sun.shadow.camera.top = 28; sun.shadow.camera.bottom = -28;
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
 sun.shadow.bias = -0.0004;
+/* SUN SHADOW NORMALBIAS v1: the classic sun is the shadow fallback
+   when the CSM cascades are unavailable or not yet loaded. The CSM
+   cascade lights in this file already set normalBias 0.04, while the
+   sun set only its depth bias and left normalBias at the default 0.
+   normalBias offsets shadow sampling along the surface normal, so
+   sloped and curved surfaces self-shadow less (less acne) without
+   raising depth bias and risking peter-panning. The 0.04 value
+   mirrors the cascade value so both shadow paths agree. Zero new
+   draw calls. */
+sun.shadow.normalBias = 0.04;
 scene.add(sun, sun.target);
 
 /* PERF-1h: on-demand shadow-map cadence. renderer.shadowMap.autoUpdate=false
