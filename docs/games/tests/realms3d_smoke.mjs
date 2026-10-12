@@ -341,7 +341,7 @@ globalThis.__R3D = {
   /* COYOTE + JUMP BUFFER v1: jump-feel constants + touch state (test-only exposure) */
   COYOTE_T, JUMP_BUF_T, JUMP_V, GRAV, touch,
   /* TRAUMA SHAKE v1: trauma helpers + constants (test-only exposure) */
-  addTrauma, toggleTrauma, traumaNoise, TRAUMA_DECAY, TRAUMA_MAX_OFF,
+  addTrauma, toggleTrauma, syncReducedMotionClass, traumaNoise, TRAUMA_DECAY, TRAUMA_MAX_OFF,  /* REDUCED MOTION v10: CSS gate sync (test-only exposure) */
   /* REDUCED MOTION v1: reduced-motion helper + boot flag (test-only exposure) */
   prefersReducedMotion, REDUCED_MOTION,
   /* REDUCED MOTION v7: lightning flash gate (test-only exposure) */
@@ -24783,6 +24783,80 @@ globalThis.__R3D2 = {
     'on=' + G.P.traumaOn + ' roulPlaying=' + G.CASINOROUL.playing + ' dicePlaying=' + G.CASINODICE.playing);
   check('rmglow: the run leaves zero console errors/warnings',
     consoleProblems.length === probsGL, consoleProblems.slice(probsGL).join(' | '));
+}
+
+/* REDUCED MOTION v10: the CSS animations follow the in-game P.traumaOn gate via the body.rm-reduced class
+   (heat blink, casino big-win pulses, cash float, reel pulse). The v6
+   media query follows only the OS setting; syncReducedMotionClass
+   mirrors the gate onto the body class at boot and on every KeyO
+   toggle, and the CSS rule mirrors the v6 block under that class. */
+{
+  const probsRC = consoleProblems.length;
+  const linesRC = html.split('\n');
+  const lineHasRC = sub => linesRC.filter(l => l.includes(sub)).length;
+  check('rmcss: CSS header is present exactly once in the game source',
+    (html.split('/* REDUCED MOTION v10: the in-game gate reaches CSS animations via a').length - 1) === 1,
+    'n=' + (html.split('/* REDUCED MOTION v10: the in-game gate reaches CSS animations via a').length - 1));
+  check('rmcss: JS header is present exactly once in the game source',
+    (html.split('/* REDUCED MOTION v10: syncReducedMotionClass mirrors the P.traumaOn').length - 1) === 1,
+    'n=' + (html.split('/* REDUCED MOTION v10: syncReducedMotionClass mirrors the P.traumaOn').length - 1));
+  check('rmcss: REDUCED MOTION v10 is mentioned exactly 2 times (CSS header, JS header)',
+    (html.split('REDUCED MOTION v10').length - 1) === 2,
+    'n=' + (html.split('REDUCED MOTION v10').length - 1));
+  check('rmcss: CSS rule line is present exactly once in the game source',
+    (html.split('body.rm-reduced *, body.rm-reduced *::before, body.rm-reduced *::after { animation: none !important; transition: none !important; }').length - 1) === 1,
+    'n=' + (html.split('body.rm-reduced *, body.rm-reduced *::before, body.rm-reduced *::after { animation: none !important; transition: none !important; }').length - 1));
+  check('rmcss: v6 media query block is still present exactly once',
+    (html.split('@media (prefers-reduced-motion: reduce)').length - 1) === 1,
+    'n=' + (html.split('@media (prefers-reduced-motion: reduce)').length - 1));
+  check('rmcss: helper definition is present exactly once in the game source',
+    (html.split('function syncReducedMotionClass(){').length - 1) === 1,
+    'n=' + (html.split('function syncReducedMotionClass(){').length - 1));
+  check('rmcss: standalone boot call line appears exactly once',
+    linesRC.filter(l => l === 'syncReducedMotionClass();').length === 1,
+    'n=' + linesRC.filter(l => l === 'syncReducedMotionClass();').length);
+  check('rmcss: toggleTrauma line calls the sync helper before the toast exactly once',
+    (html.split('} syncReducedMotionClass(); toast(').length - 1) === 1,
+    'n=' + (html.split('} syncReducedMotionClass(); toast(').length - 1));
+  check('rmcss-pins: 50 InstancedMesh literals unchanged', lineHasRC('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasRC('new THREE.InstancedMesh'));
+  check('rmcss-pins: 92 Math.random lines unchanged', lineHasRC('Math.random') === 92,
+    'n=' + lineHasRC('Math.random'));
+  check('rmcss-pins: 72 setTimeout lines unchanged', lineHasRC('setTimeout') === 72,
+    'n=' + lineHasRC('setTimeout'));
+  check('rmcss-pins: 2 THREE.Points objects unchanged', lineHasRC('new THREE.Points(') === 2,
+    'n=' + lineHasRC('new THREE.Points('));
+  check('rmcss-pins: no em dashes', !html.includes('\u2014'));
+  check('rmcss-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('rmcss: runtime exposures exist (syncReducedMotionClass, toggleTrauma, P)',
+    typeof G.syncReducedMotionClass === 'function' && typeof G.toggleTrauma === 'function' && !!G.P);
+  const saveTraumaRC = G.P.traumaOn;
+  check('rmcss: boot state class matches the traumaOn gate',
+    globalThis.document.body.classList.contains('rm-reduced') === !G.P.traumaOn,
+    'class=' + globalThis.document.body.classList.contains('rm-reduced') + ' on=' + G.P.traumaOn);
+  G.P.traumaOn = false; G.syncReducedMotionClass();
+  check('rmcss: sync with traumaOn false adds the rm-reduced class',
+    globalThis.document.body.classList.contains('rm-reduced') === true,
+    'class=' + globalThis.document.body.classList.contains('rm-reduced'));
+  G.P.traumaOn = true; G.syncReducedMotionClass();
+  check('rmcss: sync with traumaOn true removes the rm-reduced class',
+    globalThis.document.body.classList.contains('rm-reduced') === false,
+    'class=' + globalThis.document.body.classList.contains('rm-reduced'));
+  G.toggleTrauma();
+  check('rmcss: toggle off flips traumaOn false and adds the rm-reduced class',
+    G.P.traumaOn === false && globalThis.document.body.classList.contains('rm-reduced') === true,
+    'on=' + G.P.traumaOn + ' class=' + globalThis.document.body.classList.contains('rm-reduced'));
+  G.toggleTrauma();
+  check('rmcss: toggle on flips traumaOn true and removes the rm-reduced class',
+    G.P.traumaOn === true && globalThis.document.body.classList.contains('rm-reduced') === false,
+    'on=' + G.P.traumaOn + ' class=' + globalThis.document.body.classList.contains('rm-reduced'));
+  /* cleanup */
+  G.P.traumaOn = saveTraumaRC; G.syncReducedMotionClass();
+  check('rmcss: cleanup restores traumaOn and the class matches the restored gate',
+    G.P.traumaOn === saveTraumaRC && globalThis.document.body.classList.contains('rm-reduced') === !saveTraumaRC,
+    'on=' + G.P.traumaOn + ' class=' + globalThis.document.body.classList.contains('rm-reduced'));
+  check('rmcss: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsRC, consoleProblems.slice(probsRC).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
