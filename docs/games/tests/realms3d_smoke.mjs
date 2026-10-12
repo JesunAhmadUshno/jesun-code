@@ -351,6 +351,8 @@ globalThis.__R3D = {
   skinTex, fabricTex, /* CHARACTER TEXTURE ANISOTROPY v1: character textures (test-only exposure) */
   /* SPRINT FOV KICK v1: sprint FOV helper + constant (test-only exposure) */
   footFov, FOV_SPRINT,
+  /* RENDERER OUTPUT COLORSPACE v1: live renderer (test-only exposure) */
+  get renderer() { return renderer; },
   /* LANDING DUST v1: dust pool + helpers + constants (test-only exposure) */
   spawnDust, dustTick, clearDust, DUST_N, DUST_LIFE,
   dustPos, dustVel, dustLife, dustCol, dustGrav, dustDrag, dustLifeMax, dustPts,
@@ -12002,6 +12004,58 @@ globalThis.__R3D2 = {
   check('suncol-pins: no TODO markers', !/\bTODO\b/.test(html));
   check('suncol: the run leaves zero console errors/warnings',
     consoleProblems.length === probsSun, consoleProblems.slice(probsSun).join(' | '));
+}
+
+/* ================= RENDERER OUTPUT COLORSPACE v1 =================
+   The renderer output is the final frame encode: r160 defaults it
+   to sRGB, and the game now declares it explicitly in the renderer
+   setup block so the encode cannot silently flip to linear and
+   wash out every authored colour. The per-texture sRGB
+   declarations cover input; this covers output. The live renderer
+   is exposed on the test shim, and the headless StubRenderer
+   initialises outputColorSpace to an empty string, so the runtime
+   check fails before the game fix and passes after it. Zero new
+   draw calls. */
+{
+  const probsO = consoleProblems.length;
+  const setupSrcO = html.slice(
+    html.indexOf('renderer.shadowMap.enabled'),
+    html.indexOf('app.appendChild(renderer.domElement)'));
+  check('outcol: outputColorSpace assignment lives in the renderer setup block',
+    setupSrcO.length > 100 && setupSrcO.includes('renderer.outputColorSpace = THREE.SRGBColorSpace'),
+    'slice=' + setupSrcO.length);
+  check('outcol: header comment present in the renderer setup block',
+    setupSrcO.includes('RENDERER OUTPUT COLORSPACE v1'));
+  check('outcol: assignment appears before app.appendChild(renderer.domElement)',
+    html.indexOf('renderer.outputColorSpace = THREE.SRGBColorSpace') > -1
+    && html.indexOf('renderer.outputColorSpace = THREE.SRGBColorSpace') < html.indexOf('app.appendChild(renderer.domElement)'));
+  check('outcol: assignment sits next to the toneMapping assignment in the setup block',
+    html.indexOf('renderer.outputColorSpace = THREE.SRGBColorSpace') > html.indexOf('renderer.toneMapping = THREE.ACESFilmicToneMapping')
+    && html.indexOf('renderer.outputColorSpace = THREE.SRGBColorSpace') < html.indexOf('renderer.toneMappingExposure = 1.0') + 100);
+  check('outcol: toneMapping assignment unchanged',
+    html.includes('renderer.toneMapping = THREE.ACESFilmicToneMapping'));
+  check('outcol: toneMappingExposure assignment unchanged',
+    html.includes('renderer.toneMappingExposure = 1.0'));
+  check('outcol: renderer exists on the test shim',
+    !!G.renderer, G.renderer ? 'ctor=' + (G.renderer.constructor && G.renderer.constructor.name) : 'no renderer');
+  check('outcol: renderer outputColorSpace is SRGBColorSpace',
+    !!G.renderer && G.renderer.outputColorSpace === THREE.SRGBColorSpace,
+    G.renderer ? 'outputColorSpace=' + G.renderer.outputColorSpace : 'no renderer');
+  check('outcol: renderer toneMapping is ACESFilmicToneMapping as parity control',
+    !!G.renderer && G.renderer.toneMapping === THREE.ACESFilmicToneMapping,
+    G.renderer ? 'toneMapping=' + G.renderer.toneMapping : 'no renderer');
+  const linesO = html.split('\n');
+  const lineHasO = sub => linesO.filter(l => l.includes(sub)).length;
+  check('outcol-pins: 50 InstancedMesh literals unchanged', lineHasO('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasO('new THREE.InstancedMesh'));
+  check('outcol-pins: 92 Math.random lines unchanged', lineHasO('Math.random') === 92,
+    'n=' + lineHasO('Math.random'));
+  check('outcol-pins: 72 setTimeout lines unchanged', lineHasO('setTimeout') === 72,
+    'n=' + lineHasO('setTimeout'));
+  check('outcol-pins: no em dashes', !html.includes('—'));
+  check('outcol-pins: no TODO markers', !/\bTODO\b/.test(html));
+  check('outcol: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsO, consoleProblems.slice(probsO).join(' | '));
 }
 
 /* ================= SPRINT FOV KICK v1 =================
