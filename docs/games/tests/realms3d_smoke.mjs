@@ -286,7 +286,7 @@ globalThis.__R3D = {
   civicDeposit, civicWithdraw, civicActEl2, civicActEl3,   /* Phase 5 bank: deposit protection */
   bankDawnInterest, BANK_INTEREST_RATE,              /* Phase 5 bank interest v2 */
   bankDawnPayroll, PAYROLL_TIERS, civicJob, civicActEl5, completeMission, applySave, validSave,   /* BANK PAYROLL v2 */
-  civicHeist, civicActEl4, heistChipEl, updateHeistChip, seedHeistSacks, endHeist, heistTick, HEIST,
+  civicHeist, civicActEl4, heistChipEl, heistLootEl, heistHeatEl, updateHeistChip, seedHeistSacks, endHeist, heistTick, HEIST,
   HEIST_N, HEIST_R2, HEIST_GRAB_R2, HEIST_ESCALATE_S,   /* Phase 5 bank heist v1 */
   busted, migrateSave,                                      /* Phase 5 bank: bust hook + save migration */
   civichintEl, civicChipEl, civicbearingEl, civarrEl, civtxtEl,
@@ -9324,8 +9324,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     !/Math\.random/.test(html.slice(html.indexOf('Phase 5 bank heist: rob the bank'), html.indexOf('queueMicrotask(() => worldTickers.push(heistTick))'))));
   check('heist-static: InstancedMesh literal sites stay at 48',
     (html.match(/new THREE\.InstancedMesh/g) || []).length === 50);
-  check('heist-static: #heistchip element exists in the HUD',
-    html.includes('<div id="heistchip"></div>'));
+  check('heist-static: #heistchip nests the #heistloot meter and #heistheat spans in the HUD',
+    html.includes('<div id="heistchip"><span id="heistloot" role="meter" aria-label="Heist loot" aria-valuemin="0" aria-valuemax="5000" aria-valuenow="0">HEIST $0</span><span id="heistheat"> | HEAT 0</span></div>'));
 
   /* ROB BANK shows bank-only */
   synthBank('hospital');
@@ -9349,8 +9349,8 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   check('heist: start toast reads HEIST STARTED - GRAB THE CASH',
     G.toastEl.textContent === 'HEIST STARTED - GRAB THE CASH', G.toastEl.textContent);
   check('heist: chip shows live take and heat while active',
-    G.heistChipEl.style.display === 'block' && G.heistChipEl.textContent === 'HEIST $0 | HEAT 2',
-    G.heistChipEl.textContent);
+    G.heistChipEl.style.display === 'block' && G.heistLootEl.textContent + G.heistHeatEl.textContent === 'HEIST $0 | HEAT 2',
+    G.heistLootEl.textContent + G.heistHeatEl.textContent);
   check('heist: player storms out of the panel on start',
     G.CIVIC.state === null && G.civicPanelEl.style.display === 'none');
   check('heist: 5 vault sacks seeded at $200-$1000, none taken',
@@ -9381,7 +9381,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
   G.HEIST.escT = 44.9;
   G.heistTick(0.2);
   check('heist: heat escalates +1 star after ~45s inside',
-    G.W.heat === 3 && G.heistChipEl.textContent === 'HEIST $0 | HEAT 3', G.heistChipEl.textContent);
+    G.W.heat === 3 && G.heistLootEl.textContent + G.heistHeatEl.textContent === 'HEIST $0 | HEAT 3', G.heistLootEl.textContent + G.heistHeatEl.textContent);
   G.setHeat(5, true); G.HEIST.escT = 45;
   G.heistTick(0.5);
   check('heist: escalation caps at 5 stars', G.W.heat === 5, 'heat=' + G.W.heat);
@@ -9397,7 +9397,7 @@ console.log('DBG-pos @10 ' + globalThis.__rabPos());
     && G.toastEl.textContent === 'GRABBED $' + s0.amt,
     'loot=' + G.HEIST.loot + ' cash=' + G.cash + ' toast=' + G.toastEl.textContent);
   check('heist: chip reflects the take',
-    G.heistChipEl.textContent === 'HEIST $' + s0.amt + ' | HEAT 2', G.heistChipEl.textContent);
+    G.heistLootEl.textContent + G.heistHeatEl.textContent === 'HEIST $' + s0.amt + ' | HEAT 2', G.heistLootEl.textContent + G.heistHeatEl.textContent);
   const lootKept = G.HEIST.loot;
 
   /* leave the bank radius with heat up: heist ends, no clean toast */
@@ -23969,6 +23969,160 @@ globalThis.__R3D2 = {
       return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
   check('farmgrow: the run leaves zero console errors/warnings',
     consoleProblems.length === probsFG, consoleProblems.slice(probsFG).join(' | '));
+}
+
+/* ================= HEIST LOOT METER v1 =================
+   The heist chip is split: the #heistchip div nests a
+   #heistloot span (role meter, aria-label Heist loot)
+   with aria-valuemin 0 and aria-valuemax 5000 in markup,
+   and a plain #heistheat span for the heat suffix. The
+   single writer updateHeistChip writes the take text to
+   #heistloot, syncs valuenow via the ariaValueNow
+   property (stub-safe idiom, no setAttribute), and
+   writes the heat suffix to #heistheat; no writer sets
+   heistChipEl textContent anymore, and the parent
+   textContent still concatenates to the old combined
+   format. The heat suffix stays plain text because heat
+   already has its own #heat meter. The value is bounded
+   0..5000: seedHeistSacks seeds exactly HEIST_N 5 sacks
+   at $200-$1000 each, so HEIST.loot can never exceed
+   5000 or go below 0. The runtime checks drive the real
+   heist flow (enter the bank, civicHeist start, a real
+   walk-over sack grab via heistTick, then endHeist),
+   then restore every mutated field. */
+{
+  const probsHL = consoleProblems.length;
+  const linesHL = html.split('\n');
+  const lineHasHL = sub => linesHL.filter(l => l.includes(sub)).length;
+  check('heistloot: HEIST LOOT METER v1 header is present exactly once in the game source',
+    (html.split('HEIST LOOT METER v1').length - 1) === 1,
+    'n=' + (html.split('HEIST LOOT METER v1').length - 1));
+  check('heistloot: #heistchip markup nests #heistloot meter and #heistheat plain span (source pin)',
+    html.includes('<div id="heistchip"><span id="heistloot" role="meter" aria-label="Heist loot" aria-valuemin="0" aria-valuemax="5000" aria-valuenow="0">HEIST $0</span><span id="heistheat"> | HEAT 0</span></div>'));
+  const heistLootTagHL = (html.match(/<span id="heistloot"[^>]*>/) || [''])[0];
+  check('heistloot: #heistloot element markup carries role="meter"',
+    heistLootTagHL.includes('role="meter"'), 'tag=' + heistLootTagHL);
+  check('heistloot: #heistloot element markup carries aria-label="Heist loot"',
+    heistLootTagHL.includes('aria-label="Heist loot"'), 'tag=' + heistLootTagHL);
+  check('heistloot: #heistloot element markup carries aria-valuemin="0"',
+    heistLootTagHL.includes('aria-valuemin="0"'), 'tag=' + heistLootTagHL);
+  check('heistloot: #heistloot element markup carries aria-valuemax="5000"',
+    heistLootTagHL.includes('aria-valuemax="5000"'), 'tag=' + heistLootTagHL);
+  check('heistloot: #heistloot element markup carries aria-valuenow="0"',
+    heistLootTagHL.includes('aria-valuenow="0"'), 'tag=' + heistLootTagHL);
+  check('heistloot: exactly one #heistloot element in the game source',
+    (html.match(/id="heistloot"/g) || []).length === 1,
+    'n=' + (html.match(/id="heistloot"/g) || []).length);
+  check('heistloot: exactly one #heistheat element in the game source',
+    (html.match(/id="heistheat"/g) || []).length === 1,
+    'n=' + (html.match(/id="heistheat"/g) || []).length);
+  check('heistloot: heistChipEl binding line is unchanged (source pin)',
+    html.includes("const heistChipEl = document.getElementById('heistchip');"));
+  check('heistloot: heistLootEl binding line binds heistloot (source pin)',
+    html.includes("const heistLootEl = document.getElementById('heistloot');"));
+  check('heistloot: heistHeatEl binding line binds heistheat (source pin)',
+    html.includes("const heistHeatEl = document.getElementById('heistheat');"));
+  check('heistloot: updateHeistChip writes heistLootEl textContent from HEIST.loot (source pin)',
+    html.includes("heistLootEl.textContent = 'HEIST $' + HEIST.loot;"));
+  check('heistloot: updateHeistChip syncs heistLootEl ariaValueNow from HEIST.loot (source pin)',
+    html.includes('heistLootEl.ariaValueNow = String(HEIST.loot);'));
+  check('heistloot: updateHeistChip writes heistHeatEl textContent from W.heat (source pin)',
+    html.includes("heistHeatEl.textContent = ' | HEAT ' + W.heat;"));
+  check('heistloot: no writer sets heistChipEl textContent anymore (source pin)',
+    !html.includes('heistChipEl.textContent'));
+  /* runtime drives through the real heist flow (bank enter, start, grab, end) */
+  const saveHL = {
+    px: G.player.position.x, py: G.player.position.y, pz: G.player.position.z,
+    heat: G.W.heat, cash: G.cash, dead: G.P.dead, hp: G.P.hp, godT: G.P.godT,
+    loot: G.HEIST.loot, active: {},
+    lootTxt: G.heistLootEl.textContent, lootNow: G.heistLootEl.ariaValueNow,
+    heatTxt: G.heistHeatEl.textContent, disp: G.heistChipEl.style.display,
+    enemies: G.enemies.map(e => ({ e, live: e.live, state: e.state, hp: e.hp,
+      x: e.group.position.x, y: e.group.position.y, z: e.group.position.z })),
+  };
+  for (const t of G.CIVIC_ORDER) saveHL.active[t] = G.BLDG.active[t].slice();
+  G.P.dead = false; G.P.hp = 100; G.P.godT = 0; G.setHeat(0, true);
+  G.closeShop();
+  for (const e of G.enemies) { e.live = false; e.state = 'wander'; e.hp = e.cfg.hp; e.group.position.set(500, 0, 500); }
+  if (G.CIVIC.state) G.civicExit();
+  if (G.HEIST.active) G.endHeist('test');
+  G.player.position.set(0, groundY(0, 0), 0);
+  G.player.rotation.y = 0;
+  frame(3);
+  const hpxHL = G.player.position.x, hpzHL = G.player.position.z;
+  const synthBankHL = (type) => {
+    for (const t of G.CIVIC_ORDER) G.BLDG.active[t].length = 0;
+    G.BLDG.active[type].push({ x: hpxHL + 3, z: hpzHL, y: groundY(hpxHL + 3, hpzHL), yaw: 0, gx: 0, gz: 0, name: type.toUpperCase(), type });
+    G.player.position.set(hpxHL + 3 + 6.5, groundY(hpxHL + 9.5, hpzHL), hpzHL);
+  };
+  synthBankHL('bank');
+  frame(3);
+  G.civicEnter();
+  G.civicHeist();
+  check('heistloot: runtime heistLootEl text is HEIST $0 right after the heist starts',
+    G.heistLootEl.textContent === 'HEIST $0',
+    'textContent=' + JSON.stringify(G.heistLootEl.textContent));
+  check('heistloot: runtime heistLootEl ariaValueNow is 0 right after the heist starts',
+    G.heistLootEl.ariaValueNow === '0',
+    'ariaValueNow=' + G.heistLootEl.ariaValueNow);
+  check('heistloot: runtime heistHeatEl text is the heat suffix right after the heist starts',
+    G.heistHeatEl.textContent === ' | HEAT 2',
+    'textContent=' + JSON.stringify(G.heistHeatEl.textContent));
+  check('heistloot: runtime concatenated visible text equals the old combined format after start',
+    G.heistLootEl.textContent + G.heistHeatEl.textContent === 'HEIST $0 | HEAT 2',
+    G.heistLootEl.textContent + G.heistHeatEl.textContent);
+  check('heistloot: runtime heistChipEl display is block while the heist is active',
+    G.heistChipEl.style.display === 'block',
+    'display=' + G.heistChipEl.style.display);
+  /* one real walk-over grab through heistTick */
+  const s0HL = G.HEIST.sacks[0];
+  G.player.position.set(s0HL.x, groundY(s0HL.x, s0HL.z), s0HL.z);
+  G.heistTick(0.016);
+  const lootHL = G.HEIST.sacks.filter(s => s.taken).reduce((a, s) => a + s.amt, 0);
+  check('heistloot: runtime HEIST.loot matches the harness-recomputed taken-sack sum after one grab',
+    s0HL.taken === true && G.HEIST.loot === lootHL && lootHL === s0HL.amt,
+    'loot=' + G.HEIST.loot + ' recomputed=' + lootHL);
+  check('heistloot: runtime heistLootEl text matches the real HEIST.loot after one grab',
+    G.heistLootEl.textContent === 'HEIST $' + lootHL,
+    'textContent=' + G.heistLootEl.textContent + ' loot=' + lootHL);
+  check('heistloot: runtime heistLootEl ariaValueNow matches the real HEIST.loot after one grab',
+    G.heistLootEl.ariaValueNow === String(lootHL),
+    'ariaValueNow=' + G.heistLootEl.ariaValueNow + ' loot=' + lootHL);
+  check('heistloot: runtime loot is bounded 0..5000 after one grab',
+    lootHL >= 0 && lootHL <= 5000, 'loot=' + lootHL);
+  check('heistloot: runtime concatenated visible text equals the old combined format after one grab',
+    G.heistLootEl.textContent + G.heistHeatEl.textContent === 'HEIST $' + lootHL + ' | HEAT ' + G.W.heat,
+    G.heistLootEl.textContent + G.heistHeatEl.textContent);
+  G.endHeist('test');
+  check('heistloot: runtime the chip is hidden after endHeist',
+    G.HEIST.active === false && G.heistChipEl.style.display === 'none',
+    'display=' + G.heistChipEl.style.display);
+  /* restore every mutated field */
+  if (G.CIVIC.state) G.civicExit();
+  for (const t of G.CIVIC_ORDER) { G.BLDG.active[t].length = 0; for (const b of saveHL.active[t]) G.BLDG.active[t].push(b); }
+  G.setHeat(saveHL.heat, true);
+  G.cash = saveHL.cash;
+  G.P.dead = saveHL.dead; G.P.hp = saveHL.hp; G.P.godT = saveHL.godT;
+  G.HEIST.loot = saveHL.loot;
+  G.player.position.set(saveHL.px, saveHL.py, saveHL.pz);
+  for (const s of saveHL.enemies) { s.e.live = s.live; s.e.state = s.state; s.e.hp = s.hp; s.e.group.position.set(s.x, s.y, s.z); }
+  G.heistLootEl.textContent = saveHL.lootTxt; G.heistLootEl.ariaValueNow = saveHL.lootNow;
+  G.heistHeatEl.textContent = saveHL.heatTxt; G.heistChipEl.style.display = saveHL.disp;
+  check('heistloot: pins - 50 InstancedMesh literals unchanged', lineHasHL('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasHL('new THREE.InstancedMesh'));
+  check('heistloot: pins - 92 Math.random lines unchanged', lineHasHL('Math.random') === 92,
+    'n=' + lineHasHL('Math.random'));
+  check('heistloot: pins - 72 setTimeout lines unchanged', lineHasHL('setTimeout') === 72,
+    'n=' + lineHasHL('setTimeout'));
+  check('heistloot: pins - 2 THREE.Points objects unchanged', lineHasHL('new THREE.Points(') === 2,
+    'n=' + lineHasHL('new THREE.Points('));
+  check('heistloot: pins - no em dashes', !html.includes('\u2014'));
+  check('heistloot: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('heistloot: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^\"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('heistloot: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsHL, consoleProblems.slice(probsHL).join(' | '));
 }
 
 /* ---------- zero console errors ---------- */
