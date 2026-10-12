@@ -22345,6 +22345,86 @@ globalThis.__R3D2 = {
     consoleProblems.length === probsCT, consoleProblems.slice(probsCT).join(' | '));
 }
 
+/* ================= KENO BALLS METER v1 =================
+   The keno balls drawn count is a real meter: role
+   meter plus aria-label Keno balls drawn and
+   aria-valuemin 0 and aria-valuemax 20 in the
+   #lmkeno-balls markup, with aria-valuenow kept in
+   sync in kenoRender beside the textContent writer.
+   The sync uses the ariaValueNow IDL property, not
+   setAttribute, because the headless stub elements
+   have no setAttribute method. Hits is deliberately
+   excluded from this meter: its max varies with the
+   pick count, so it has no fixed valuemax and stays
+   plain text. The runtime checks drive G.kenoRender
+   through the already-exposed shim (G.kenoBallsEl and
+   G.CASINOKENO and G.kenoRender, no new shim entry)
+   with ballIdx set to 3 over a 3-ball array, then
+   restore ballIdx 0 and the saved balls array and
+   render again, leaving the clean BALLS 0/20 state. */
+{
+  const probsKB = consoleProblems.length;
+  const linesKB = html.split('\n');
+  const lineHasKB = sub => linesKB.filter(l => l.includes(sub)).length;
+  check('kenoballs: KENO BALLS METER v1 header is present exactly once in the game source',
+    (html.split('KENO BALLS METER v1').length - 1) === 1,
+    'n=' + (html.split('KENO BALLS METER v1').length - 1));
+  const kenoBallsTagKB = (html.match(/<span id="lmkeno-balls"[^>]*>/) || [''])[0];
+  check('kenoballs: #lmkeno-balls element markup carries role="meter"',
+    kenoBallsTagKB.includes('role="meter"'), 'tag=' + kenoBallsTagKB);
+  check('kenoballs: #lmkeno-balls element markup carries aria-label="Keno balls drawn"',
+    kenoBallsTagKB.includes('aria-label="Keno balls drawn"'), 'tag=' + kenoBallsTagKB);
+  check('kenoballs: #lmkeno-balls element markup carries aria-valuemin="0"',
+    kenoBallsTagKB.includes('aria-valuemin="0"'), 'tag=' + kenoBallsTagKB);
+  check('kenoballs: #lmkeno-balls element markup carries aria-valuemax="20"',
+    kenoBallsTagKB.includes('aria-valuemax="20"'), 'tag=' + kenoBallsTagKB);
+  check('kenoballs: #lmkeno-balls element markup carries aria-valuenow="0"',
+    kenoBallsTagKB.includes('aria-valuenow="0"'), 'tag=' + kenoBallsTagKB);
+  check('kenoballs: exactly one #lmkeno-balls element in the game source',
+    (html.match(/id="lmkeno-balls"/g) || []).length === 1,
+    'n=' + (html.match(/id="lmkeno-balls"/g) || []).length);
+  check('kenoballs: kenoBallsEl binding line binds lmkeno-balls (source pin)',
+    html.includes("const kenoBallsEl = document.getElementById('lmkeno-balls');"));
+  check('kenoballs: kenoRender kenoBallsEl textContent writer line is unchanged (source pin)',
+    html.includes("kenoBallsEl.textContent = 'BALLS ' + K.ballIdx + '/20';"));
+  check('kenoballs: kenoRender syncs kenoBallsEl ariaValueNow from K.ballIdx exactly once (source pin)',
+    (html.split('kenoBallsEl.ariaValueNow = String(K.ballIdx);').length - 1) === 1,
+    'n=' + (html.split('kenoBallsEl.ariaValueNow = String(K.ballIdx);').length - 1));
+  const ballIdxOrigKB = G.CASINOKENO.ballIdx;
+  const ballsOrigKB = G.CASINOKENO.balls;
+  G.CASINOKENO.balls = [5, 12, 27];
+  G.CASINOKENO.ballIdx = 3;
+  G.kenoRender();
+  check('kenoballs: runtime kenoBallsEl text is BALLS 3/20 when ballIdx is 3',
+    G.kenoBallsEl.textContent === 'BALLS 3/20',
+    'textContent=' + G.kenoBallsEl.textContent);
+  check('kenoballs: runtime kenoBallsEl ariaValueNow is 3 when ballIdx is 3',
+    String(G.kenoBallsEl.ariaValueNow) === '3',
+    'ariaValueNow=' + G.kenoBallsEl.ariaValueNow);
+  G.CASINOKENO.ballIdx = 0;
+  G.CASINOKENO.balls = ballsOrigKB;
+  G.kenoRender();
+  check('kenoballs: runtime kenoBallsEl text is BALLS 0/20 after restore to ballIdx 0',
+    G.kenoBallsEl.textContent === 'BALLS 0/20',
+    'textContent=' + G.kenoBallsEl.textContent);
+  check('kenoballs: runtime kenoBallsEl ariaValueNow is 0 after restore to ballIdx 0',
+    String(G.kenoBallsEl.ariaValueNow) === '0',
+    'ariaValueNow=' + G.kenoBallsEl.ariaValueNow);
+  check('kenoballs: pins - 50 InstancedMesh literals unchanged', lineHasKB('new THREE.InstancedMesh') === 50,
+    'n=' + lineHasKB('new THREE.InstancedMesh'));
+  check('kenoballs: pins - 92 Math.random lines unchanged', lineHasKB('Math.random') === 92,
+    'n=' + lineHasKB('Math.random'));
+  check('kenoballs: pins - 72 setTimeout lines unchanged', lineHasKB('setTimeout') === 72,
+    'n=' + lineHasKB('setTimeout'));
+  check('kenoballs: pins - no em dashes', !html.includes('\u2014'));
+  check('kenoballs: pins - no TODO markers', !/\bTODO\b/.test(html));
+  check('kenoballs: pins - allowed CDN URLs (Phase 1 set)',
+    (() => { const u = [...new Set(html.match(/https?:\/\/[^"' )]+/g) || [])];
+      return u.length >= 1 && u.every(x => ['https://unpkg.com/three@0.160.0/build/three.module.js', 'https://unpkg.com/three@0.160.0/examples/jsm/', 'https://unpkg.com/n8ao@2.0.1/dist/N8AO.js'].includes(x)); })());
+  check('kenoballs: the run leaves zero console errors/warnings',
+    consoleProblems.length === probsKB, consoleProblems.slice(probsKB).join(' | '));
+}
+
 /* ---------- zero console errors ---------- */
 check('boot+tests: zero console errors/warnings in stub env',
   consoleProblems.length === 0, consoleProblems.slice(0, 3).join(' | '));
