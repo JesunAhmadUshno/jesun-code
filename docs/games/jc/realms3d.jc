@@ -115,6 +115,22 @@ to theight with x and z
     if d2 is less than 1600 then
         t is d2 / 1600
         h is h * t + 1.6 * (1 - t)
+    note Town plateau: flat inside 60 of the town centre, blend to 110.
+    th is G["townh"]
+    if th is nothing then
+        give back h
+    if x is greater than 58 then
+        if x is less than 278 then
+            if z is greater than -110 then
+                if z is less than 110 then
+                    tdx is x - 168
+                    td2 is tdx * tdx + z * z
+                    if td2 is less than 12100 then
+                        if td2 is less than 3600 then
+                            give back th
+                        tu is (td2 - 3600) / 8500
+                        tsu is tu * tu * (3 - 2 * tu)
+                        h is th + (h - th) * tsu
     give back h
 
 to msg with s
@@ -163,12 +179,20 @@ to build_chunk with cx and cz
         lx is r1 * 46 + 1
         lz is r2 * 46 + 1
         gh is theight with (cx * 48 + lx) and (cz * 48 + lz)
+        pdx is (cx * 48 + lx) - 168
+        pdz is (cz * 48 + lz)
+        intown is 0
+        if pdx * pdx + pdz * pdz is less than 9025 then
+            intown is 1
         pkind is "bush"
         if r3 is less than 0.55 then
             pkind is "tree"
         otherwise if r3 is less than 0.82 then
             pkind is "rock"
-        if gh is greater than -0.2 then
+        if intown is 1 then
+            note The town dresses itself in the host; no wild props here.
+            pkind is pkind
+        otherwise if gh is greater than -0.2 then
             push [pkind, lx, lz, 0.8 + r2 * 0.7] to props
         otherwise if pkind is "rock" then
             if gh is greater than -0.8 then
@@ -282,7 +306,9 @@ to tick_wolves
             if d2 is less than 3.24 then
                 sp is 0
                 if w["cd"] is less than 1 then
-                    if G["over"] is false then
+                    if G["drive"] is 1 then
+                        w["cd"] is 45
+                    otherwise if G["over"] is false then
                         G["hp"] is G["hp"] - 6
                         G["hurt"] is 10
                         G["calm"] is 0
@@ -368,6 +394,11 @@ note ---- driver interface ----
 to seed_game with s
     G["seed0"] is s
     G["seed"] is s * 7919 + 13
+    tn1 is vnoise with 168 and 0
+    tdet is hashg with 28 and 0
+    G["townh"] is (tn1 - 0.5) * 30 + (tdet - 0.5) * 1.4
+    if G["townh"] is less than 2.2 then
+        G["townh"] is 2.2
     G["queue"] is []
     G["held"] is a new table
     G["px"] is 8
@@ -397,9 +428,31 @@ to seed_game with s
     G["dl"] is []
     G["log"] is []
     G["gait"] is 0
+    G["carx"] is 100
+    G["carz"] is 8
+    G["carhdg"] is 90
+    G["carspd"] is 0
+    G["drive"] is 0
+    G["wheel"] is 0
+    G["steer"] is 0
+    G["npcs"] is []
+    ni is 0
+    repeat while ni is less than 6
+        npc is a new table
+        npc["x"] is 150 + ni * 7
+        npc["z"] is (ni % 3 - 1) * 24 + 3
+        npc["tx"] is npc["x"]
+        npc["tz"] is npc["z"]
+        npc["wt"] is ni * 40 + 10
+        npc["hd"] is 90
+        npc["pose"] is 0
+        npl is G["npcs"]
+        push npc to npl
+        ni is ni + 1
     spawn_wolves
     msg with "REALMS 3D, Jesun.Code edition."
     msg with "WASD move, Shift sprint, Space jump, F attack."
+    msg with "A town lies east. Press C by the blue car to drive."
     give back nothing
 
 to press with k
@@ -412,6 +465,25 @@ to handle_key with k
     G["held"][k] is 3
     if k is "f" then
         G["atk"] is 1
+    if k is "c" then
+        wasdriving is G["drive"]
+        if wasdriving is 1 then
+            G["drive"] is 0
+            G["carspd"] is 0
+            crx is cost with G["carhdg"]
+            crz is sint with G["carhdg"]
+            G["px"] is G["carx"] + crx * 2.6
+            G["pz"] is G["carz"] + crz * 2.6
+            G["py"] is theight with G["px"] and G["pz"]
+            G["vy"] is 0
+            G["hdg"] is G["carhdg"]
+            msg with "You step out."
+        if wasdriving is 0 then
+            cdx is G["carx"] - G["px"]
+            cdz is G["carz"] - G["pz"]
+            if cdx * cdx + cdz * cdz is less than 20 then
+                G["drive"] is 1
+                msg with "You take the wheel. WASD drives, C steps out."
     if k is "r" then
         if G["over"] then
             seed_game with G["seed0"]
@@ -424,6 +496,9 @@ to isheld with k
     give back v
 
 to tick_player
+    if G["drive"] is 1 then
+        tick_car
+        give back nothing
     note Read held leases into locals first; comparisons need numbers.
     kL is isheld with "left"
     kR is isheld with "right"
@@ -506,6 +581,129 @@ to tick_player
             G["pose"] is 2
     if G["py"] is greater than ground + 0.05 then
         G["pose"] is 3
+    give back nothing
+
+to tick_car
+    note Arcade car physics: throttle, brake and reverse, speed-scaled
+    note steering, rolling friction. One tick is 1/30 second.
+    kW is isheld with "w"
+    kS is isheld with "s"
+    kA is isheld with "a"
+    kD is isheld with "d"
+    spd is G["carspd"]
+    if kW is greater than 0 then
+        spd is spd + 15 / 30
+        if spd is greater than 24 then
+            spd is 24
+    if kS is greater than 0 then
+        if spd is greater than 0.6 then
+            spd is spd - 24 / 30
+        otherwise
+            spd is spd - 10 / 30
+            if spd is less than -8 then
+                spd is -8
+    if kW is 0 then
+        if kS is 0 then
+            if spd is greater than 0 then
+                spd is spd - 5 / 30
+                if spd is less than 0 then
+                    spd is 0
+            if spd is less than 0 then
+                spd is spd + 5 / 30
+                if spd is greater than 0 then
+                    spd is 0
+    spd is spd - spd * 0.004
+    G["carspd"] is spd
+    st is 0
+    if kA is greater than 0 then
+        st is -1
+    if kD is greater than 0 then
+        st is 1
+    G["steer"] is st * 28
+    if spd is greater than 0.01 then
+        G["carhdg"] is G["carhdg"] + st * spd * 2.1 / 30
+    if spd is less than -0.01 then
+        G["carhdg"] is G["carhdg"] + st * spd * 2.1 / 30
+    if G["carhdg"] is less than 0 then
+        G["carhdg"] is G["carhdg"] + 360
+    if G["carhdg"] is greater than 359 then
+        G["carhdg"] is G["carhdg"] - 360
+    cfx is sint with G["carhdg"]
+    cfz is 0 - cost with G["carhdg"]
+    G["carx"] is G["carx"] + cfx * spd / 30
+    G["carz"] is G["carz"] + cfz * spd / 30
+    G["wheel"] is G["wheel"] + spd * 4
+    G["px"] is G["carx"]
+    G["pz"] is G["carz"]
+    G["py"] is theight with G["carx"] and G["carz"]
+    G["hdg"] is G["carhdg"]
+    G["pose"] is 4
+    G["gait"] is G["gait"] + 1
+    note Running down a wolf at speed ends it and pays the score.
+    aspd is absv with spd
+    if aspd is greater than 6 then
+        hitany is 0
+        i is 0
+        repeat while i is less than length of G["wolves"]
+            w is G["wolves"][i]
+            wdx is w["x"] - G["carx"]
+            wdz is w["z"] - G["carz"]
+            if wdx * wdx + wdz * wdz is less than 6.8 then
+                w["hp"] is 0
+                hitany is 1
+            i is i + 1
+        if hitany is 1 then
+            keep is []
+            i is 0
+            repeat while i is less than length of G["wolves"]
+                w is G["wolves"][i]
+                if w["hp"] is greater than 0 then
+                    push w to keep
+                otherwise
+                    G["score"] is G["score"] + 25
+                    G["kills"] is G["kills"] + 1
+                    msg with "You ran down a wolf. +25"
+                i is i + 1
+            G["wolves"] is keep
+    give back nothing
+
+to tick_npcs
+    note Villagers walk the street grid: one axis at a time, pause at
+    note each corner, then pick a new corner. Targets are intersections.
+    i is 0
+    repeat while i is less than length of G["npcs"]
+        npc is G["npcs"][i]
+        npc["pose"] is 0
+        if npc["wt"] is greater than 0 then
+            npc["wt"] is npc["wt"] - 1
+            if npc["wt"] is 0 then
+                ta is rnd with 7 - 3
+                tb is rnd with 7 - 3
+                npc["tx"] is 168 + ta * 24
+                npc["tz"] is tb * 24
+        otherwise
+            dx is npc["tx"] - npc["x"]
+            dz is npc["tz"] - npc["z"]
+            step is 1.7 / 30
+            if dx is greater than 0.4 then
+                npc["x"] is npc["x"] + step
+                npc["hd"] is 90
+                npc["pose"] is 1
+            otherwise if dx is less than -0.4 then
+                npc["x"] is npc["x"] - step
+                npc["hd"] is 270
+                npc["pose"] is 1
+            otherwise if dz is greater than 0.4 then
+                npc["z"] is npc["z"] + step
+                npc["hd"] is 180
+                npc["pose"] is 1
+            otherwise if dz is less than -0.4 then
+                npc["z"] is npc["z"] - step
+                npc["hd"] is 0
+                npc["pose"] is 1
+            otherwise
+                npc["wt"] is 90 + rnd with 150
+        i is i + 1
     give back nothing
 
 to tick_world
@@ -591,9 +789,14 @@ to rebuild_dl
     note Camera: behind and above the player, looking past them.
     fx is sint with G["hdg"]
     fz is 0 - cost with G["hdg"]
-    cx is G["px"] - fx * 9.5
-    cz is G["pz"] - fz * 9.5
-    cy is G["py"] + 4.4
+    cdist is 9.5
+    chei is 4.4
+    if G["drive"] is 1 then
+        cdist is 13.5
+        chei is 5.6
+    cx is G["px"] - fx * cdist
+    cz is G["pz"] - fz * cdist
+    cy is G["py"] + chei
     cg is theight with cx and cz
     if cy is less than cg + 1.2 then
         cy is cg + 1.2
@@ -603,6 +806,20 @@ to rebuild_dl
     repeat while i is less than length of G["wolves"]
         w is G["wolves"][i]
         push ["model", "wolf", i + 1, w["x"], w["y"], w["z"], w["hd"], 1, G["gait"]] to dl
+        i is i + 1
+    cy2 is theight with G["carx"] and G["carz"]
+    wp is ipart with (G["wheel"] % 360)
+    push ["model", "car", 300, G["carx"], cy2, G["carz"], G["carhdg"], G["steer"], wp] to dl
+    i is 0
+    repeat while i is less than length of G["npcs"]
+        npc is G["npcs"][i]
+        note Villagers live on the plateau: skip the full height call there.
+        ny is G["townh"]
+        ndx is npc["x"] - 168
+        ndz is npc["z"]
+        if ndx * ndx + ndz * ndz is greater than 3600 then
+            ny is theight with npc["x"] and npc["z"]
+        push ["model", "npc", 100 + i, npc["x"], ny, npc["z"], npc["hd"], npc["pose"], G["tickn"]] to dl
         i is i + 1
     give back nothing
 
@@ -632,6 +849,16 @@ to refresh_out
         hud["weather"] is "Rain"
     if G["weather"] is 3 then
         hud["weather"] is "Storm"
+    hud["drive"] is G["drive"]
+    hud["speed"] is ipart with absv with G["carspd"]
+    hud["hint"] is ""
+    if G["drive"] is 1 then
+        hud["hint"] is "C: step out"
+    otherwise
+        hdx is G["carx"] - G["px"]
+        hdz is G["carz"] - G["pz"]
+        if hdx * hdx + hdz * hdz is less than 20 then
+            hud["hint"] is "C: drive the car"
     OUT["dl"] is G["dl"]
     OUT["hud"] is hud
     OUT["msgs"] is G["log"]
@@ -671,6 +898,7 @@ to tick
             player_attack
             G["atkcd"] is 12
     tick_wolves
+    tick_npcs
     tick_world
     note Decay held leases.
     ks is ["w", "a", "s", "d", "shift", "space", "left", "right", "q", "e"]

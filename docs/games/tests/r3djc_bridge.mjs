@@ -97,6 +97,57 @@ async function main() {
   check('attack tick ok', res.ok, res.error || '');
   check('wolves still modeled', res.dl.some((c) => c[0] === 'model' && c[1] === 'wolf'));
 
+  // ===== v3: town plateau, parked car, villagers, driving =====
+  const carOp0 = res.dl.find((c) => c[0] === 'model' && c[1] === 'car');
+  check('car model op present, parked at (100, 8)', !!carOp0 && Math.abs(carOp0[3] - 100) < 0.01 && Math.abs(carOp0[5] - 8) < 0.01,
+    carOp0 ? '(' + carOp0[3] + ',' + carOp0[5] + ')' : 'missing');
+  check('6 villager models present', res.dl.filter((c) => c[0] === 'model' && c[1] === 'npc').length === 6);
+  check('hud starts on foot', res.hud.drive === 0 && res.hud.speed === 0);
+
+  // Journey: the earlier tests left the player far west at heading 235.
+  // Leg A: turn to ~0 deg, sprint north back to the z=8 row.
+  for (let i = 0; i < 40; i++) res = parse(pumpFn(['e']));
+  for (let i = 0; i < 215; i++) res = parse(pumpFn(['shift', 'w']));
+  check('leg A returns to the spawn row', Math.abs(res.hud.z - 8) < 4, 'z=' + res.hud.z);
+  // Leg B: turn to ~91 deg, sprint east. Watch for the town chunk (flat
+  // plateau) and the car hint, then press C inside the window.
+  for (let i = 0; i < 28; i++) res = parse(pumpFn(['e']));
+  let townChunk = null, hintSeen = false, entered = false;
+  for (let step = 0; step < 110 && !entered; step++) {
+    for (let i = 0; i < 8; i++) {
+      res = parse(pumpFn(['shift', 'w']));
+      const tc = res.dl.find((c) => c[0] === 'chunk' && c[1] === 3 && c[2] === 0);
+      if (tc) townChunk = tc;
+    }
+    if (res.hud.hint === 'C: drive the car') hintSeen = true;
+    if (res.hud.x > 94 && res.hud.x < 106) {
+      res = parse(pumpFn(['c']));
+      entered = res.hud.drive === 1;
+    }
+  }
+  check('town chunk (3,0) streamed', !!townChunk);
+  if (townChunk) {
+    const hs = townChunk[3];
+    const range = Math.max(...hs) - Math.min(...hs);
+    check('town plateau is flat (range < 0.05, height >= 2.2)', range < 0.05 && Math.min(...hs) >= 2.2,
+      'range ' + range.toFixed(3) + ' min ' + Math.min(...hs).toFixed(2));
+    check('town chunk carries no wild props', townChunk[4].length === 0, 'props ' + townChunk[4].length);
+  }
+  check('car hint shown near the car', hintSeen);
+  check('C entered the car', entered, 'x=' + res.hud.x + ' z=' + res.hud.z);
+  // Drive east: throttle to near top speed, cover real distance.
+  const driveX0 = res.hud.x;
+  let topSpeed = 0;
+  for (let i = 0; i < 240; i++) {
+    res = parse(pumpFn(['w']));
+    if (res.hud.speed > topSpeed) topSpeed = res.hud.speed;
+  }
+  check('car reached speed (>= 20)', topSpeed >= 20, 'top ' + topSpeed);
+  check('car covered distance (> 100 u)', res.hud.x - driveX0 > 100, 'dx ' + (res.hud.x - driveX0));
+  res = parse(pumpFn(['c']));
+  check('C stepped out of the car', res.hud.drive === 0);
+  check('world still ticks after driving', res.ok, res.error || '');
+
   console.log(failures === 0 ? 'ALL GREEN' : failures + ' FAILURES');
   process.exit(failures === 0 ? 0 : 1);
 }
