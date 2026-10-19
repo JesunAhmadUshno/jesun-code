@@ -8,6 +8,29 @@
 A programming language that reads like plain English. If a sentence makes
 sense to a person, it should make sense to the machine.
 
+## Start here
+
+1. Install with the one-line command in the Install section below. Or run
+   `python3 jesun.py` from source. Nothing else to set up.
+2. Run the hello world program below it.
+3. Read "The language in one page" for the whole grammar at a glance.
+4. Open `examples/` for 29 runnable programs. Start with
+   `examples/doctor.jc`, a server doctor written in Jesun.Code itself.
+5. Pick the spec for your version in `docs/`. Run the test suite with
+   `python3 -m unittest discover -s tests`.
+
+## Receipts
+
+| Item | Value |
+| :--- | :--- |
+| Latest release | v2.0.0 (games on PC, shipped 2026-09-30) |
+| In development | v3.0 serve framework. Implemented, under test, not released |
+| Tests | 711 passing, differential across both interpreters |
+| Test modules | 23 files under `tests/test_*.py`, plus fuzz scripts |
+| Example programs | 29 `.jc` files under `examples/` |
+| Language files in repo | 177 `.jc` files |
+| License | MIT |
+
 ## Install
 
 One line, no Python needed, no setup. The binary carries everything inside.
