@@ -50,7 +50,7 @@ Then:
 ```bash
 jesun program.jc   # run a file
 jesun              # open the REPL
-jesun --version    # Jesun.Code v0.3
+jesun --version    # Jesun.Code v2.0.0
 ```
 
 Prefer the source? `python3 jesun.py program.jc` works too (Python 3,
@@ -115,7 +115,7 @@ next round.
 
 ## The Python bridge
 
-Every Python package ever published works in Jesun.Code on day one.
+Jesun.Code runs on the Python ecosystem: Python packages import and run inside Jesun.Code programs, tested against the 711-test suite at v2.0.0.
 At the border you use Python's manners; everywhere else you speak Jesun.Code.
 
 ```jesun
