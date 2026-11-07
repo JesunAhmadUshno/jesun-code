@@ -2,11 +2,15 @@
 
 [![Release](https://img.shields.io/github/v/release/JesunAhmadUshno/jesun-code)](https://github.com/JesunAhmadUshno/jesun-code/releases)
 [![CI](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml/badge.svg)](https://github.com/JesunAhmadUshno/jesun-code/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-711%20passing-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
+[![Tests](https://img.shields.io/badge/tests-711%20classified-brightgreen)](https://github.com/JesunAhmadUshno/jesun-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 A programming language that reads like plain English. If a sentence makes
 sense to a person, it should make sense to the machine.
+
+Live dashboard: https://jesunahmadushno.github.io/jesun-code/dashboard/
+(run Jesun.Code in your browser, compare both interpreters live, and see
+every count below computed from the repo).
 
 ## Start here
 
@@ -25,7 +29,7 @@ sense to a person, it should make sense to the machine.
 | :--- | :--- |
 | Latest release | v2.0.0 (games on PC, shipped 2026-09-30) |
 | In development | v3.0 serve framework. Implemented, under test, not released |
-| Tests | 711 passing, differential across both interpreters |
+| Tests | 711 classified by `tests/check_classification.py` (655 differential-green, 8 pinned gaps, 2 pinned divergences, 46 pinned exclusions; `results/classification.json`). `tests/test_platform_arcade.py` does not import (its `platform_harness` module is not in the repo), so its 64 tests do not run |
 | Test modules | 23 files under `tests/test_*.py`, plus fuzz scripts |
 | Example programs | 29 `.jc` files under `examples/` |
 | Language files in repo | 177 `.jc` files |
@@ -411,7 +415,8 @@ with real tools, and looks around through a tmux terminal. Run the suite:
 python3 -m unittest discover -s tests
 ```
 
-711 tests, all differential where it matters: the bootstrap interpreter
+711 classified tests, differential where it matters (see the receipts
+note on `test_platform_arcade`): the bootstrap interpreter
 and the self-hosted Jesun.Code walker must agree byte for byte.
 
 ## Frontend in Jesun.Code (v1.3)
@@ -586,6 +591,17 @@ memory, agent-to-agent calls, streaming) in `docs/spec-v0.3.md`, files
 plus interpolation in `docs/spec-v0.4.md`, and the Bangla flavor plus the
 VS Code extension in `docs/spec-v0.5.md`, and agent fleets in
 `docs/spec-v0.6.md`.
+
+## Related work
+
+Jesun.Code sits in a long line of languages that try to read like
+English: COBOL (1959), HyperTalk (1987), AppleScript (1993), Inform 7
+(2006, interactive fiction written as English sentences), and Hedy (2020,
+a gradual language for teaching). Quorum is the closest in spirit on the
+evidence side, because it changes syntax based on studies with novices.
+Jesun.Code has run no such study, so this list positions it and makes no
+comparative claim. `docs/research-review.md` lists what an evaluation
+would need.
 
 ## Roadmap
 
