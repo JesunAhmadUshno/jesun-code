@@ -1,0 +1,101 @@
+{
+ "generated_by": "python3 scripts/bench.py",
+ "date": "2026-11-07",
+ "runs_per_leg": 5,
+ "statistic": "median wall-clock seconds per fresh process",
+ "machine": {
+  "system": "Linux",
+  "machine": "aarch64",
+  "python": "3.12.3",
+  "cpus": 20
+ },
+ "programs": [
+  {
+   "program": "empty",
+   "source_jc": "",
+   "bootstrap_median_s": 0.0601,
+   "bootstrap_runs_s": [
+    0.0631,
+    0.0591,
+    0.0607,
+    0.0599,
+    0.0601
+   ],
+   "selfhosted_median_s": 0.0984,
+   "selfhosted_runs_s": [
+    0.0984,
+    0.0963,
+    0.1188,
+    0.0982,
+    0.1081
+   ],
+   "cpython_median_s": 0.0169,
+   "cpython_runs_s": [
+    0.0098,
+    0.0169,
+    0.0164,
+    0.0171,
+    0.017
+   ],
+   "output": ""
+  },
+  {
+   "program": "loop_20000",
+   "source_jc": "total is 0\nrepeat 20000 times\n    total is total + 1\nshow total\n",
+   "bootstrap_median_s": 0.075,
+   "bootstrap_runs_s": [
+    0.0654,
+    0.0628,
+    0.075,
+    0.0781,
+    0.0762
+   ],
+   "selfhosted_median_s": 2.4147,
+   "selfhosted_runs_s": [
+    2.311,
+    2.3733,
+    2.4371,
+    2.4147,
+    2.498
+   ],
+   "cpython_median_s": 0.0106,
+   "cpython_runs_s": [
+    0.0105,
+    0.0104,
+    0.0106,
+    0.0178,
+    0.017
+   ],
+   "output": "20000\n"
+  },
+  {
+   "program": "fib_12",
+   "source_jc": "to fib with n\n    if n is at most 1 then\n        give back n\n    give back (fib with (n - 1)) + (fib with (n - 2))\n\nshow \"fib(12) = {fib with 12}\"\n",
+   "bootstrap_median_s": 0.0622,
+   "bootstrap_runs_s": [
+    0.049,
+    0.0692,
+    0.0508,
+    0.0628,
+    0.0622
+   ],
+   "selfhosted_median_s": 0.2546,
+   "selfhosted_runs_s": [
+    0.2561,
+    0.2529,
+    0.2546,
+    0.2494,
+    0.267
+   ],
+   "cpython_median_s": 0.0107,
+   "cpython_runs_s": [
+    0.0107,
+    0.0098,
+    0.0164,
+    0.0103,
+    0.0166
+   ],
+   "output": "fib(12) = 144\n"
+  }
+ ]
+}
