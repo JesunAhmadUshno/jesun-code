@@ -70,7 +70,10 @@ def main():
         # A module that fails to import shows up as a synthetic
         # unittest.loader._FailedTest; it is not a test, so it is reported
         # separately instead of being counted as differential-green.
-        if test_id.startswith("unittest.loader._FailedTest."):
+        # A module that raises SkipTest on import (a missing harness) is
+        # reported the same way: it was not loaded, so it is not classified.
+        if test_id.startswith(("unittest.loader._FailedTest.",
+                               "unittest.loader.ModuleSkipped.")):
             load_errors.append(test_id.rsplit(".", 1)[1])
             continue
         cls = test.__class__

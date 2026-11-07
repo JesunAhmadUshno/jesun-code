@@ -2,9 +2,9 @@
  "generated_by": "python3 tests/check_classification.py --json",
  "date": "2026-11-07",
  "python": "3.12.3",
- "classified": 711,
+ "classified": 712,
  "counts": {
-  "differential-green": 655,
+  "differential-green": 656,
   "pinned exclusion": 46,
   "pinned gap": 8,
   "pinned divergence": 2
@@ -2885,6 +2885,11 @@
   },
   {
    "id": "test_sqlite.Sqlite.test_true_false_params",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_suite_loads.SuiteLoads.test_every_module_imports_or_skips",
    "bucket": "differential-green",
    "ref": "harness"
   },
