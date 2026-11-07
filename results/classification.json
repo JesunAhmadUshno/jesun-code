@@ -2,9 +2,9 @@
  "generated_by": "python3 tests/check_classification.py --json",
  "date": "2026-11-07",
  "python": "3.12.3",
- "classified": 712,
+ "classified": 713,
  "counts": {
-  "differential-green": 656,
+  "differential-green": 657,
   "pinned exclusion": 46,
   "pinned gap": 8,
   "pinned divergence": 2
@@ -1462,6 +1462,11 @@
    "id": "test_phase2.ZeroLeakage.test_tmux_program_divergence",
    "bucket": "pinned divergence",
    "ref": "spec 8.3.2 (terminal-name error vs later-phase line, both pinned)"
+  },
+  {
+   "id": "test_release_assets.ReleaseAssets.test_every_installer_asset_is_built",
+   "bucket": "differential-green",
+   "ref": "harness"
   },
   {
    "id": "test_selfhost.TestSelfHost.test_agent_bangla",

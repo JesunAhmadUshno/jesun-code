@@ -23,6 +23,10 @@ jobs:
           - os: ubuntu-latest
             asset: jesun-linux-x64
             binary: dist/jesun
+          # scripts/install.sh asks for this name on aarch64 Linux.
+          - os: ubuntu-24.04-arm
+            asset: jesun-linux-arm64
+            binary: dist/jesun
           - os: macos-latest
             asset: jesun-macos-arm64
             binary: dist/jesun
