@@ -4,6 +4,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { build, REPO } from './data.mjs';
 import { compare, normalize, ladder, slowdown } from '../src/lib.js';
 
@@ -28,10 +30,17 @@ assert.equal(py("import sys; sys.path.insert(0, 'tests'); import selfhost_harnes
 assert.equal(d.lineRe, 'Line \\d+');
 
 // 3. The browser's compare() reproduces the harness verdict on real runs.
-const run = (args) => { const r = spawnSync('python3', args, { cwd: REPO, encoding: 'utf8', input: 'Ada\n', timeout: 60000 }); return { code: r.status, out: r.stdout }; };
+// Each example runs in a fresh temp folder (some write files, and jesun.jc only reads from its cwd).
+const run = (args, cwd) => { const r = spawnSync('python3', args, { cwd, encoding: 'utf8', input: 'Ada\n', timeout: 60000 }); return { code: r.status, out: r.stdout }; };
 const verdicts = {};
 for (const ex of ['loops', 'native_closures', 'bangla_demo', 'native_fib', 'native_hello']) {
-  const boot = run(['jesun.py', `examples/${ex}.jc`]), self = run(['jesun.py', 'jesun.jc', `examples/${ex}.jc`]);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jc-check-'));
+  fs.copyFileSync(path.join(REPO, 'examples', `${ex}.jc`), path.join(tmp, 'prog.jc'));
+  const boot = run([path.join(REPO, 'jesun.py'), 'prog.jc'], tmp);
+  fs.rmSync(tmp, { recursive: true }); fs.mkdirSync(tmp);
+  fs.copyFileSync(path.join(REPO, 'examples', `${ex}.jc`), path.join(tmp, 'prog.jc'));
+  const self = run([path.join(REPO, 'jesun.py'), path.join(REPO, 'jesun.jc'), 'prog.jc'], tmp);
+  fs.rmSync(tmp, { recursive: true });
   verdicts[ex] = compare(boot, self);
   const harnessEqual = boot.code === self.code && boot.out === self.out;
   assert.equal(verdicts[ex] === 'identical', harnessEqual, ex);
