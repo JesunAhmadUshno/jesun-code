@@ -1,0 +1,61 @@
+name: Pages
+
+# Publishes the product site exactly as committed in docs/ (it has .nojekyll,
+# so the legacy branch build already serves it raw) plus the live dashboard,
+# built from dashboard/, at /jesun-code/dashboard/. Nothing built is committed.
+# Taking effect needs Settings > Pages > Source set to "GitHub Actions";
+# until then the deploy job fails harmlessly and the legacy docs/ build keeps serving.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Classification is current
+        run: python3 tests/check_classification.py
+      - run: npm ci
+        working-directory: dashboard
+      - name: Build the dashboard (runs the known-answer check first)
+        run: npm run build
+        working-directory: dashboard
+      - name: Assemble the site
+        run: |
+          mkdir _site
+          cp -a docs/. _site/
+          mkdir _site/dashboard
+          cp -a dashboard/dist/. _site/dashboard/
+          test -f _site/index.html && test -f _site/games/realms3d-jc.html && test -f _site/dashboard/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
