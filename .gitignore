@@ -17,3 +17,9 @@ Thumbs.db
 
 # slopguard test run logs
 .slopguard-logs/
+
+# live dashboard (dashboard/)
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.rubric/
+dashboard/src/data.json
