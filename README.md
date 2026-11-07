@@ -29,8 +29,8 @@ every count below computed from the repo).
 | :--- | :--- |
 | Latest release | v2.0.0 (games on PC, shipped 2026-09-30) |
 | In development | v3.0 serve framework. Implemented, under test, not released |
-| Tests | 711 classified by `tests/check_classification.py` (655 differential-green, 8 pinned gaps, 2 pinned divergences, 46 pinned exclusions; `results/classification.json`). `tests/test_platform_arcade.py` does not import (its `platform_harness` module is not in the repo), so its 64 tests do not run |
-| Test modules | 23 files under `tests/test_*.py`, plus fuzz scripts |
+| Tests | 713 classified by `tests/check_classification.py` (657 differential-green, 8 pinned gaps, 2 pinned divergences, 46 pinned exclusions; `results/classification.json`). `tests/test_platform_arcade.py` skips itself because its `platform_harness` module is not in the repo, so its 64 tests do not run |
+| Test modules | 25 files under `tests/test_*.py`, plus fuzz scripts |
 | Example programs | 29 `.jc` files under `examples/` |
 | Language files in repo | 177 `.jc` files |
 | License | MIT |
@@ -415,7 +415,7 @@ with real tools, and looks around through a tmux terminal. Run the suite:
 python3 -m unittest discover -s tests
 ```
 
-711 classified tests, differential where it matters (see the receipts
+713 classified tests, differential where it matters (see the receipts
 note on `test_platform_arcade`): the bootstrap interpreter
 and the self-hosted Jesun.Code walker must agree byte for byte.
 
