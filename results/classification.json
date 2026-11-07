@@ -1,0 +1,3572 @@
+{
+ "generated_by": "python3 tests/check_classification.py --json",
+ "date": "2026-11-07",
+ "python": "3.12.3",
+ "classified": 711,
+ "counts": {
+  "differential-green": 655,
+  "pinned exclusion": 46,
+  "pinned gap": 8,
+  "pinned divergence": 2
+ },
+ "load_errors": [
+  "test_platform_arcade"
+ ],
+ "tests": [
+  {
+   "id": "test_agents.AgentBasics.test_agent_shows_cleanly",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_ask_non_agent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_bad_remember",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_bad_setting",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_bad_steps",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_block_required",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_classic_ask_still_works",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_defaults",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_define_and_ask",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_duplicate_setting",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_persona_reaches_mind",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentBasics.test_unknown_agent_did_you_mean",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentLeakage.test_no_leak_on_agent_errors",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentMemory.test_remember_false_is_isolated",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentMemory.test_remember_true_carries_history",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentTools.test_steps_exhausted_mentions_agent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentTools.test_tool_called",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_agents.AgentTools.test_unlisted_tool_blocked",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.AuditBugs.test_ai_stderr_traceback_sanitized",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.AuditBugs.test_bom_is_ignored",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.AuditBugs.test_crlf_line_endings",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.AuditBugs.test_empty_file",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.AuditBugs.test_function_type_name_in_bridge_error",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.AuditBugs.test_huge_numbers",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.AuditBugs.test_mind_cannot_call_unlisted_tool",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.AuditBugs.test_unicode_strings",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.AuditExcluded.test_keyboard_interrupt_in_main_is_plain",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_audit.AuditExcluded.test_tool_call_deeply_nested_parens_is_plain_english",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_join",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_join_needs_list_of_text",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_join_of_call_result_operand",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_join_of_variable_operand",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_keys_of_foreign_dict",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_keys_of_non_dict",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_split",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_split_needs_nonempty_by",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_split_needs_text",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_split_of_variable_operand",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_suggest_prefix_match",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_suggest_still_fixes_typos",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.NewBuiltins.test_trim",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_audit.ReplBehavior.test_multiline_block",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_audit.ReplBehavior.test_repl_bad_indent_shows_error",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_audit.ReplBehavior.test_repl_error_is_plain_english",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_audit.ReplBehavior.test_repl_give_back_translated",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_audit.ReplBehavior.test_repl_stop_translated",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_audit.ReplBehavior.test_single_line_runs_immediately",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_build.AskAndFiles.test_ask",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.AskAndFiles.test_files",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.AskAndFiles.test_path_escape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.AskAndFiles.test_read_missing",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_arguments",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_arithmetic",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_bangla",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_builtins",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_closures",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_comparisons",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_decisions",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_functions",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_hello",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_lists",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_loops",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_nested",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_shadow_and_scope",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_short_circuit",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.CoreLanguage.test_text_ops",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_and_evaluates_right_when_true",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_ask_eof",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_ask_needs_text",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_divide_by_zero",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_eval_order_call_arity_first",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_eval_order_call_target_first",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_eval_order_left_to_right",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_eval_order_push_target_first",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_eval_order_write_path_first",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_fail_with",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_fail_with_needs_text",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_first_of_empty",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_give_back_abandons_loop",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_give_back_outside_function",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_index_outside",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_mod_by_zero",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_repeat_needs_number",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_stop_outside_loop",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_stop_through_function",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_too_deep",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_unknown_word",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.ErrorPaths.test_unknown_word_suggest",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.Unsupported.test_agent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.Unsupported.test_ask_ai",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.Unsupported.test_cli_missing_file",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.Unsupported.test_import",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.Unsupported.test_plain_english_with_line",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.Unsupported.test_terminal",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_build.Unsupported.test_use",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_ask_at_eof",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_bad_dedent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_calling_non_function",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_division_by_zero",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_first_of_empty",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_give_back_outside_function",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_missing_block",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_stop_outside_loop",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_type_mismatch",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_undefined_name_with_suggestion",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_unknown_character",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreErrors.test_wrong_arg_count",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreExamples.test_cheer",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreExamples.test_decisions",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreExamples.test_functions",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreExamples.test_hello",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreExamples.test_lists",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreExamples.test_loops",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreExamples.test_nesting",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreSemantics.test_is_assigns_at_statement_start",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreSemantics.test_is_compares_inside_expressions",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreSemantics.test_loop_millions_guard_gap",
+   "bucket": "pinned gap",
+   "ref": "spec 9.2"
+  },
+  {
+   "id": "test_core.CoreSemantics.test_no_traceback_leaks",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_core.CoreSemantics.test_recursion_depth_guard_gap",
+   "bucket": "pinned gap",
+   "ref": "spec 9.1"
+  },
+  {
+   "id": "test_core.CoreSemantics.test_true_is_not_one",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetBangla.test_bangla_fleet_parses",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetBasics.test_prompt_evaluated_in_enclosing_scope",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetBasics.test_same_agent_twice",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetBasics.test_single_member_fleet",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetBasics.test_two_asks_in_order",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_block_required",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_duplicate_memory_file",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_failing_ask_fails_the_fleet",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_fleet_cannot_nest_in_asks",
+   "bucket": "pinned gap",
+   "ref": "spec 8.4.1"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_no_mind_connected",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_no_partial_results_on_failure",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_non_member_ask",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_streaming_forbidden",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_unknown_fleet_line",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetErrors.test_unknown_member_suggests",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetMemory.test_member_histories_untouched",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetMemory.test_shared_memory_round_trip",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetMemory.test_unreadable_memory_starts_fresh",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_fleet.FleetParallel.test_asks_run_side_by_side",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_attrs_escape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_attrs_needs_table",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_dom_ready",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_element_bad_tag",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_element_children",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_element_children_must_be_text",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_escape_html_needs_text",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_escape_html_order",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_for_empty_and_missing",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_for_loop",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_for_needs_list",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_heading_level_errors",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_headings_paragraph",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_if_else",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_if_inside_for",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_js_fetch",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_js_string_escapes",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_js_string_needs_text",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_js_string_script_breakout",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_js_value_all_kinds",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_js_value_refuses_function",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_js_value_too_deep",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_lists_button_input_form",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_missing_and_dotted",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_nested_loops",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_on_event",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_page",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_placeholder_and_escape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_render_file",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_script_tag",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_stray_endfor",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_style_block",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_table_shapes_values",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_unclosed_for",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_unclosed_placeholder",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_unknown_tag",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_value_must_be_simple",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_frontend.FrontendTest.test_void_and_image",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.DrawTest.test_circle",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.DrawTest.test_digit_seven",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.DrawTest.test_line_diagonal",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.DrawTest.test_number_42",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.DrawTest.test_rect",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.FrameTest.test_clear",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.FrameTest.test_frame_ppm_empty",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.FrameTest.test_pixel_ppm",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.FrameTest.test_rgb",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.FrameTest.test_save_roundtrip",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.GameFailTest.test_frame_bad_size",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.GameFailTest.test_pixel_bad_color",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.GameFailTest.test_pixel_off_frame",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.InputTest.test_press_bad_key",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.InputTest.test_press_poll_order",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.LoopTest.test_loop_reports_update_error",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.LoopTest.test_loop_ticks",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.SoundTest.test_mix",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.SoundTest.test_seq",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.SoundTest.test_seq_bad_shape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.SoundTest.test_silence",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.SoundTest.test_tone_bad_freq",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.SoundTest.test_tone_length_and_shape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.SoundTest.test_wav_pads_for_128_rule",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.UnicodeEscapeTest.test_u_escape_basic",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.UnicodeEscapeTest.test_u_escape_cut_short",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.UnicodeEscapeTest.test_u_escape_inert_braces",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.UnicodeEscapeTest.test_u_escape_malformed",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_game.UnicodeEscapeTest.test_u_escape_with_interpolation",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.PhpTest.test_blade_page",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.PhpTest.test_controller",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.PhpTest.test_controller_bad_name",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.PhpTest.test_php_escape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.PhpTest.test_php_route",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.PhpTest.test_php_route_bad_method",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.PhpTest.test_php_route_uppercase_method",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.PhpTest.test_php_scaffold",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.PhpTest.test_php_scaffold_bad_name",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_component_bad_name",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_component_card",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_jsx_element_children",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_jsx_element_void",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_jsx_escape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_jsx_props",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_scaffold_app",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_scaffold_app_bad_name",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_state_hook",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.ReactTest.test_state_hook_text_initial",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_bad_json",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_comments",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_create_post",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_create_post_bad_auth",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_create_post_no_login",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_post_missing",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_post_one",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_posts_bad_count",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_posts_default_count",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_posts_list",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_search",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_site_bad_base",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_site_public_has_no_auth",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_site_strips_slash_and_builds_auth",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_interop.WordpressTest.test_wp_unreachable",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.BringIn.test_bad_name",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.BringIn.test_circle",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.BringIn.test_load_and_call",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.BringIn.test_manifest_escape_refused",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.BringIn.test_manifest_main",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.BringIn.test_missing_code_file",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.BringIn.test_package_error_names_package",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.BringIn.test_unknown_package",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.JpmMockedClone.test_address_expression",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_jpm.JpmMockedClone.test_clone_failure_is_plain",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_jpm.JpmMockedClone.test_install_then_reuse",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_jpm.StarterPackages.test_files_package",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.StarterPackages.test_time_package",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.UseAddress.test_dirty_checkout_refuses",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.UseAddress.test_malformed_addresses",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.UseAddress.test_no_git_is_plain",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.UseAddress.test_non_github_host",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jpm.UseAddress.test_non_string_address",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jweb.JWebServer.test_differential_battery",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_jweb.JWebServer.test_statuses_and_shapes",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_cannot_hand_function_to_python",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_dict_stays_foreign_but_usable",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_dot_on_native_value",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_dotted_module",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_foreign_call_error_is_plain_english",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_foreign_object_shows_cleanly",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_import_alias",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_import_and_call",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_kwargs",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_list_conversion",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_missing_module_plain",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_missing_module_with_suggestion",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_native_subscript",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Bridge.test_subscript_out_of_range",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.MachinesLive.test_tmux_double_open",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_phase2.MachinesLive.test_tmux_no_such_terminal",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_phase2.MachinesLive.test_tmux_open_send_read_close",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_phase2.MachinesNoTmux.test_tmux_missing_is_plain_english",
+   "bucket": "pinned divergence",
+   "ref": "spec 8.3.2 (no-tmux vs later-phase line, both pinned)"
+  },
+  {
+   "id": "test_phase2.MindCommand.test_posix_quoting_still_works",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_phase2.MindCommand.test_windows_backslash_path_survives",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_phase2.MindCommand.test_windows_quoted_path_with_spaces",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_phase2.Minds.test_ask_ai_fixed_answer",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Minds.test_ask_ai_no_mind",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Minds.test_ask_ai_prompt_must_be_text",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Minds.test_ask_ai_steps_exhausted",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Minds.test_ask_ai_unknown_tool_fed_back",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.Minds.test_ask_ai_with_tools",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.ZeroLeakage.test_foreign_call_error_gap",
+   "bucket": "pinned gap",
+   "ref": "spec 7.3"
+  },
+  {
+   "id": "test_phase2.ZeroLeakage.test_no_leaked_internals",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_phase2.ZeroLeakage.test_tmux_program_divergence",
+   "bucket": "pinned divergence",
+   "ref": "spec 8.3.2 (terminal-name error vs later-phase line, both pinned)"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_bangla",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_basic",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_corrupt_memory",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_depth",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_forget",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_forget_history",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_nontext_persona",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_nontext_prompt",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_not_agent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_not_agent2",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_parse_bad_remember",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_parse_bad_steps",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_parse_dup",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_parse_no_block",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_parse_self_tool",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_parse_unknown_setting",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_remember_always",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_remember_run",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_streaming",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_to_agent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_tool_fail_gap",
+   "bucket": "pinned gap",
+   "ref": "spec 8.3.1"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_tools",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_agent_unknown",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_arity",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_bangla",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_basic",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_nomind",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_steps_exhausted",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_streaming",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_tools",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_unknown_tool",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_askai_within_zero",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_basic",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_builtin",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_comment",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_compare",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_digits",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_err_arrow",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_err_sup",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_header_alt",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_header_blank",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_keys",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bn_loop",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_bom",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_compare",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_core",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_add_type",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_arity",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_bare_params",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_divzero",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_fail_with",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_giveback_top",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_index",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_no_block",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_otherwise_lead",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_push_nonlist",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_stop_top",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_suggest_close",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_suggest_first",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_suggest_prefix",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_unclosed_string",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_unknown_word",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_err_with_lead",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_agent_history",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_bangla",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_basic",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_fail_gap",
+   "bucket": "pinned gap",
+   "ref": "spec 8.4.1"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_memory",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_memory_corrupt",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_nested_gap",
+   "bucket": "pinned gap",
+   "ref": "spec 8.4.1"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_parse_bad_memfile",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_parse_bad_prompt",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_parse_dupmem",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_parse_member_not_agent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_parse_noblock",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_parse_nonmember",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_parse_streaming",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_parse_unknown_agent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_fleet_parse_unknownline",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_flow",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_funcs",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_interp",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_lists",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_ask",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_ask_eof",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_ask_nontext",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_attr_missing",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_attr_nonpython",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_call_fail",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_file_rw",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_foreign_kwargs",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_foreign_sub",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_import_alias",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_import_dotted",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_import_missing_plain",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_import_missing_suggest",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_import_ok",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_read_folder",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_read_missing",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_sub_fail",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_write_escape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_phaseb_write_nodir",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHost.test_trailing_ok",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_bad_address",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_bad_host",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_bangla",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_basic",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_body_fail",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_call_fail",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_circle",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_deep_gap",
+   "bucket": "pinned gap",
+   "ref": "spec 8.5.5"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_escape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_manifest_bad",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_manifest_main",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_missing",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_nested",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_no_file",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_use_already",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_use_dirty",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost.TestSelfHostJpm.test_jpm_use_no_git",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmFind.test_finds_package",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmFind.test_missing_packages_dir",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmFind.test_skips_files",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmMain.test_default_main",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmMain.test_manifest_escape",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmMain.test_manifest_garbage",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmMain.test_manifest_picks_main",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmMain.test_missing_dest_never_raises",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmMain.test_missing_file",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmRead.test_read_missing",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmRead.test_read_ok",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmUse.test_clean_checkout_is_already",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmUse.test_clone_failure_removes_dest",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmUse.test_clone_success",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmUse.test_dirty_checkout",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmUse.test_git_status_crash_is_already",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmUse.test_never_raises_on_validated_segments",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmUse.test_no_git_existing_dest_is_already",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.JpmUse.test_no_git_missing_dest",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.TemplateContract.test_template_exports_the_four_helpers",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.TemplateContract.test_template_has_no_leak_markers",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_selfhost_jpm_bridge.TemplateContract.test_template_never_shells_out",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_serve.AdminTest.test_admin_create_and_delete",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.AdminTest.test_admin_double_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.AdminTest.test_admin_escapes_html",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.AdminTest.test_admin_list_shape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FenceTest.test_fence_error_plain_english",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FenceTest.test_fence_net_isolation",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FenceTest.test_fence_ok",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FenceTest.test_fence_output_cap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FenceTest.test_fence_rejects",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FenceTest.test_fence_sandbox_cwd",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FenceTest.test_fence_timeout",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FenceTest.test_run_route_guards",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FormTest.test_form_decodes",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FormTest.test_form_empty_body",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FormTest.test_form_hostile_never_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.FormTest.test_form_missing_body",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.GuardTest.test_guard_no_user",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.GuardTest.test_guard_with_user",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.IslandTest.test_island_bad_id_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.IslandTest.test_island_script_not_text_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.IslandTest.test_island_shape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveRunTest.test_live_admin_bootstrap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveRunTest.test_live_admin_walker",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveRunTest.test_live_like_bootstrap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveRunTest.test_live_like_walker",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveRunTest.test_live_run_bootstrap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveRunTest.test_live_run_walker",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveSseTest.test_live_admin_bootstrap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveSseTest.test_live_admin_walker",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveSseTest.test_live_like_bootstrap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveSseTest.test_live_like_walker",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveSseTest.test_live_sse_bootstrap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveSseTest.test_live_sse_walker",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveTest.test_live_admin_bootstrap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveTest.test_live_admin_walker",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveTest.test_live_like_bootstrap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveTest.test_live_like_walker",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveViewTest.test_on_event_must_be_function",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveViewTest.test_page_registers_routes_and_renders",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveViewTest.test_parse_event_escapes",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveViewTest.test_parse_event_shapes",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveViewTest.test_post_garbage_is_400",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveViewTest.test_post_without_stream_is_410",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveViewTest.test_render_must_be_function",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveViewTest.test_state_must_be_table",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.LiveViewTest.test_stream_without_ctx_is_410",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.PageTest.test_page_body_not_text_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.PageTest.test_page_canonical_at_route",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.PageTest.test_page_needs_site",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.PageTest.test_page_needs_title",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.PageTest.test_page_shape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.RouteTest.test_route_handler_not_function_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.RouteTest.test_route_malformed_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.RouteTest.test_route_no_slash_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.RouteTest.test_route_registers",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SiteTest.test_site_builds_table",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SiteTest.test_site_nontext_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SiteTest.test_site_twice_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SseBridgeTest.test_helpers_load_and_pair_is_opaque",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SseBridgeTest.test_sender_newline_in_name_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SseBridgeTest.test_sender_nontext_data_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SseBridgeTest.test_sender_nontext_name_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SseBridgeTest.test_sender_queues_frames",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SseBridgeTest.test_session_id_prefers_cookie",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.SseBridgeTest.test_stream_cap_is_503",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.StartTest.test_start_bad_port_huge_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.StartTest.test_start_bad_port_text_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.StartTest.test_start_bad_port_zero_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_add_field",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_add_field_bad_kind_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_add_field_bad_name_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_add_field_duplicate_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_field_bad_kind_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_field_bad_name_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_field_duplicate_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_migrate_applies_missing_only",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_migrate_idempotent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_migration_refused",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_serve_all_null_is_nothing",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_table_bad_name_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.TableTest.test_table_declaration",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_bad_light_kind",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_bad_mesh_name",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_box_needs_positive_number",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_camera_needs_numbers",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_material_rejects_empty",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_material_rejects_injection",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_material_rejects_nontext",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_page_golden",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_script_golden",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_script_needs_camera",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_serve_scene_page",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_sphere_rejects_negative",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_serve.ThreeTest.test_spin_missing_mesh",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_site_build.SiteBuildTest.test_build_differential_bootstrap_vs_walker",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_site_build.SiteBuildTest.test_build_reproduces_docs",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.BlogTest.test_blog_index_exact",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.BlogTest.test_blog_post_missing_date_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.BlogTest.test_blog_post_missing_slug_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.BuildTest.test_build_idempotent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.BuildTest.test_build_writes_all_files",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.ChromeOverridesTest.test_bad_nav_links_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.ChromeOverridesTest.test_page_chrome_overrides",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.FooterTest.test_footer_custom_version",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.FooterTest.test_footer_exact",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.HeadOverridesTest.test_chrome_wart_flags",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.HeadOverridesTest.test_head_seo_overrides",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.HeadTest.test_head_exact",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.HeadTest.test_head_og_url_override",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.HeadTest.test_head_sub_prefix",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.MachineFilesTest.test_llms_body_verbatim",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.MachineFilesTest.test_llms_exact",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.MachineFilesTest.test_robots_exact",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.MachineFilesTest.test_robots_missing_site_url_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.MachineFilesTest.test_sitemap_entries_exact",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.MachineFilesTest.test_sitemap_entry_missing_priority_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.MachineFilesTest.test_sitemap_exact",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.NavTest.test_nav_bad_variant_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.NavTest.test_nav_root_exact",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.NavTest.test_nav_sub_custom",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.PageTest.test_page_full_document",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.PageTest.test_page_jsonld_verbatim",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.SandboxTest.test_base_absolute_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.SandboxTest.test_base_dotdot_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.SandboxTest.test_empty_pages_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.SandboxTest.test_page_missing_body_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.SandboxTest.test_page_missing_title_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.SandboxTest.test_page_path_dotdot_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.SandboxTest.test_page_path_not_html_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sitegen.SandboxTest.test_site_not_table_fails",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_absolute_path_refused",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_bad_syntax",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_closed_handle_refused",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_crud_roundtrip",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_multi_statement_refused",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_no_such_table",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_not_a_database",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_null_roundtrip",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_persistence_across_open",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_sandbox_escape_refused",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_table_param_refused",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_sqlite.Sqlite.test_true_false_params",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.AgentToAgent.test_agent_calls_agent",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.AgentToAgent.test_depth_cap",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.AgentToAgent.test_self_listing_is_definition_error",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.PersistentMemory.test_corrupt_memory_warns_and_continues",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.PersistentMemory.test_custom_memory_file",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.PersistentMemory.test_custom_memory_file_must_be_text",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.PersistentMemory.test_duplicate_memory_file_setting",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.PersistentMemory.test_forget_clears_run_memory_too",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.PersistentMemory.test_forget_clears_saved_memory",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.PersistentMemory.test_forget_nothing_saved",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.PersistentMemory.test_memory_survives_across_runs",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.PersistentMemory.test_remember_true_stays_in_this_run_only",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.Streaming.test_ask_agent_streaming_prints_chunks",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.Streaming.test_ask_ai_streaming_prints_chunks",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v03.Streaming.test_streaming_binds_complete_answer",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_absolute_escape_blocked",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_append",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_append_creates",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_folder_is_not_a_file",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_missing_file",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_missing_parent_on_write",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_multiline_round_trip",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_path_from_variable",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_traversal_blocked",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_write_and_read",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_write_converts_values",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.FileIO.test_write_overwrites",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_builtin_inside",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_empty_braces_error",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_escaped_braces",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_expression",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_in_assignment",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_lone_close_brace_literal",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_multiple",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_show_forms",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_simple",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_unclosed_brace_error",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_unknown_name_inside",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Interpolation.test_write_with_interpolation",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v04.Keywords.test_write_append_are_keywords",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_ask_giving",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_bengali_digits",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_comment_word_needs_boundaries",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_for_each",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_function_and_give_back",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_if_otherwise",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_interpolation_with_bangla_names",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_montobbo_comment",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_nested_blocks",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_otherwise_if",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_repeat_times",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_repeat_while",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_show_and_assign",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_stop_and_skip",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaCore.test_zero_input_auto_call",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaErrors.test_error_line_numbers",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaErrors.test_no_traceback_leaks",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaErrors.test_unknown_character",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaErrors.test_unterminated_string",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaFiles.test_missing_file_error",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaFiles.test_write_read_append",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaHeaders.test_bangla_words_are_names_in_english_mode",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaHeaders.test_blank_lines_before_header",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaHeaders.test_english_keywords_are_names_in_bangla_mode",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaHeaders.test_header_must_be_first",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaHeaders.test_header_with_trailing_note",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaHeaders.test_lone_bangla_word_header",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaHeaders.test_no_header_is_english",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaHeaders.test_use_bangla_header",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaRepl.test_block_detection",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_v05.BanglaWords.test_at_least_most_need_at",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaWords.test_booleans_and_nothing",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaWords.test_comparisons",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaWords.test_contains",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaWords.test_import_as",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaWords.test_logic",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.BanglaWords.test_string_words",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v05.VSCodeExtension.test_all_json_parses",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_v05.VSCodeExtension.test_grammar_is_fresh_build",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_v05.VSCodeExtension.test_grammar_keywords_match_interpreter",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_v05.VSCodeExtension.test_grammar_patterns_sane",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_v05.VSCodeExtension.test_package_manifest",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_v05.VSCodeExtension.test_snippets_shape",
+   "bucket": "pinned exclusion",
+   "ref": "docstring"
+  },
+  {
+   "id": "test_v12.Attempt.test_attempt_bangla",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Attempt.test_attempt_fail_with_bare_message",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Attempt.test_attempt_failure_shape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Attempt.test_attempt_give_back_passes_through",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Attempt.test_attempt_nested",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Attempt.test_attempt_ok_shape",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Attempt.test_attempt_type_error",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_bangla_json",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_json_of_canonical",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_json_of_function_error",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_json_of_scalars",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_json_of_unicode_escaped",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_parse_errors",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_parse_escapes",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_parse_nested",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_parse_object",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_parse_scalars",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Json.test_roundtrip",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_bangla_new_table",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_chained_subscript_assign",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_contains_key",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_deep_equality",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_duplicate_key_last_wins",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_equality_ignores_key_order",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_keys_of_insertion_order",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_keys_of_literal",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_kind_of_table",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_list_subscript_assign",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_missing_key_is_nothing",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_new_table_set_get",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_new_table_without_article",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_table_display_nested",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_table_errors",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_table_literal",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_text_of_table",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_v12.Tables.test_truthiness",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.DisplayTest.test_display_bangla",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.DisplayTest.test_display_no_newline",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.DisplayTest.test_display_renders_like_show",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.ReadKeyTest.test_cooked_mode_no_hold",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.ReadKeyTest.test_raw_mode_not_a_terminal",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.ReadKeyTest.test_raw_mode_parse_error",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.ReadKeyTest.test_read_key_bad_ms_differential",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.ReadKeyTest.test_read_key_bad_ms_text_differential",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.ReadKeyTest.test_read_key_not_a_terminal",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.ReadKeyTest.test_read_key_parse_error_differential",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.WindowPackageTest.test_keys_not_a_terminal",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.WindowPackageTest.test_not_a_window",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.WindowPackageTest.test_open_bad_size",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.WindowPackageTest.test_open_show_close_bytes",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.WindowPackageTest.test_quit_flag",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.WindowPackageTest.test_run_bad_ticks",
+   "bucket": "differential-green",
+   "ref": "harness"
+  },
+  {
+   "id": "test_window.WindowPackageTest.test_run_bad_update",
+   "bucket": "differential-green",
+   "ref": "harness"
+  }
+ ]
+}

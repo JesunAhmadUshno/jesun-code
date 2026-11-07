@@ -3,6 +3,8 @@ is tagged differential-green, pinned gap, pinned exclusion, or pinned
 divergence, and the tags match the code.
 
 Run: python3 tests/check_classification.py
+     python3 tests/check_classification.py --json   (also writes
+     results/classification.json: counts, ids per bucket, spec refs, date)
 
 Buckets:
 - differential-green: both interpreter legs run and must be byte-identical
@@ -14,6 +16,8 @@ Buckets:
 - pinned divergence: both legs run; outputs diverge where each side takes
   its honest later-phase path (documented in the class or test docstring).
 """
+import datetime
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -59,9 +63,16 @@ def main():
     tests = list(walk(suite))
     buckets = {}
     problems = []
+    load_errors = []
 
     for test in tests:
         test_id = test.id()
+        # A module that fails to import shows up as a synthetic
+        # unittest.loader._FailedTest; it is not a test, so it is reported
+        # separately instead of being counted as differential-green.
+        if test_id.startswith("unittest.loader._FailedTest."):
+            load_errors.append(test_id.rsplit(".", 1)[1])
+            continue
         cls = test.__class__
         module = cls.__module__
         class_doc = (cls.__doc__ or "")
@@ -109,12 +120,36 @@ def main():
                       if b == "pinned exclusion"):
         print(f"  {tid}")
 
+    if load_errors:
+        print("\nWARNING: modules that failed to import (not classified):")
+        for name in load_errors:
+            print(f"  {name}")
+
     if problems:
         print("\nPROBLEMS:")
         for problem in problems:
             print(f"  {problem}")
         sys.exit(1)
     print("\ncheck_classification: all tests tagged, tags match the code")
+    if "--json" in sys.argv:
+        write_json(buckets, counts, load_errors)
+
+
+def write_json(buckets, counts, load_errors):
+    out = Path(__file__).resolve().parent.parent / "results" / "classification.json"
+    out.parent.mkdir(exist_ok=True)
+    data = {
+        "generated_by": "python3 tests/check_classification.py --json",
+        "date": datetime.date.today().isoformat(),
+        "python": sys.version.split()[0],
+        "classified": len(buckets),
+        "counts": counts,
+        "load_errors": load_errors,
+        "tests": [{"id": t, "bucket": b, "ref": r}
+                  for t, (b, r) in sorted(buckets.items())],
+    }
+    out.write_text(json.dumps(data, indent=1) + "\n")
+    print(f"wrote {out.relative_to(out.parent.parent)}")
 
 
 if __name__ == "__main__":
